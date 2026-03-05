@@ -1,0 +1,41 @@
+# Django Framework (compatible con Python 3.9+)
+Django==4.2.27
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+django-filter==23.5
+
+# Database
+psycopg2-binary==2.9.9
+dj-database-url==2.1.0
+
+# Authentication & Security
+djangorestframework-simplejwt==5.3.1
+django-extensions==3.2.3
+
+# SRI Integration - Facturación Electrónica
+lxml==5.1.0
+signxml==3.2.2
+cryptography==42.0.0
+zeep==4.2.1
+requests==2.31.0
+
+# PDF Generation (RIDE)
+reportlab==4.0.9
+PyPDF2==3.0.1
+
+# Background Tasks
+celery==5.3.6
+redis==5.0.1
+django-celery-beat==2.5.0
+django-celery-results==2.5.1
+
+# Utilities
+python-decouple==3.8
+python-dateutil==2.8.2
+pytz==2024.1
+pillow==10.2.0
+
+# Development
+black==24.1.1
+flake8==7.0.0
+ipython==8.18.1

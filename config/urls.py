@@ -1,0 +1,40 @@
+"""
+URL Configuration
+"""
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+from django.http import JsonResponse
+from apps.usuarios.auth_views import CustomTokenObtainPairView, current_user, logout
+from rest_framework_simplejwt.views import TokenRefreshView
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    
+    # Authentication
+    path('api/auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/me/', current_user, name='current_user'),
+    path('api/auth/logout/', logout, name='logout'),
+    
+    # API endpoints
+    path('api/usuarios/', include('apps.usuarios.urls')),
+    path('api/empresas/', include('apps.empresas.urls')),
+    path('api/suscripciones/', include('apps.suscripciones.urls')),
+    path('api/facturacion/', include('apps.facturacion.urls')),
+    path('api/productos/', include('apps.productos.urls')),
+    path('api/clientes/', include('apps.clientes.urls')),
+    path('api/inventarios/', include('apps.inventarios.urls')),
+    path('api/ventas/', include('apps.ventas.urls')),
+    path('api/proveedores/', include('apps.proveedores.urls')),
+    
+    # Health check para verificar conexión desde POS
+    path('api/health/', lambda request: JsonResponse({'status': 'ok'})),
+]
+
+from django.http import JsonResponse
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

@@ -1,0 +1,255 @@
+import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { productosService } from '../../services/productosService';
+import type { Producto } from '../../types';
+import { X, Save } from 'lucide-react';
+
+interface Props {
+  producto: Producto | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const toNum = (v: string) => (v === '' ? 0 : parseFloat(v) || 0);
+
+const makeEmpty = () => ({
+  codigo_principal: '',
+  codigo_auxiliar: '',
+  tipo: 'BIEN' as 'BIEN' | 'SERVICIO',
+  nombre: '',
+  descripcion: '',
+  precio: 0,
+  costo: 0,
+  aplica_iva: true,
+  porcentaje_iva: '2', // 12%
+  maneja_inventario: true,
+  stock_actual: 0,
+  stock_minimo: 0,
+  activo: true,
+});
+
+export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
+  const [formData, setFormData] = useState(() =>
+    producto
+      ? {
+          codigo_principal: producto.codigo_principal ?? '',
+          codigo_auxiliar: producto.codigo_auxiliar ?? '',
+          tipo: (producto.tipo ?? 'BIEN') as 'BIEN' | 'SERVICIO',
+          nombre: producto.nombre ?? '',
+          descripcion: producto.descripcion ?? '',
+          precio: Number(producto.precio) || 0,
+          costo: Number(producto.costo) || 0,
+          aplica_iva: producto.aplica_iva ?? true,
+          porcentaje_iva: producto.porcentaje_iva ?? '2',
+          maneja_inventario: producto.maneja_inventario ?? true,
+          stock_actual: Number(producto.stock_actual) || 0,
+          stock_minimo: Number(producto.stock_minimo) || 0,
+          activo: producto.activo ?? true,
+        }
+      : makeEmpty()
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (data: ReturnType<typeof makeEmpty>) =>
+      producto ? productosService.update(producto.id, data) : productosService.create(data),
+    onSuccess,
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: Record<string, unknown> } };
+      if (err.response?.data) {
+        const msgs = Object.entries(err.response.data)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+          .join(' | ');
+        setError(msgs);
+      } else {
+        setError('Error al guardar el producto');
+      }
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    mutation.mutate(formData);
+  };
+
+  const set = (field: string, value: unknown) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
+
+  return (
+    <div className="fixed inset-0 bg-gradient-to-br from-blue-900/50 via-indigo-900/50 to-purple-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-indigo-100">
+
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-indigo-100 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            {producto ? 'Editar Producto' : 'Nuevo Producto'}
+          </h2>
+          <button onClick={onClose} className="p-2 hover:bg-indigo-100 rounded-lg transition-colors text-indigo-700">
+            <X size={24} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+              {error}
+            </div>
+          )}
+
+          {/* Tipo */}
+          <div>
+            <label className="block text-sm font-semibold text-indigo-900 mb-2">Tipo *</label>
+            <div className="grid grid-cols-2 gap-3">
+              {(['BIEN', 'SERVICIO'] as const).map((t) => (
+                <button key={t} type="button" onClick={() => set('tipo', t)}
+                  className={`py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
+                    formData.tipo === t
+                      ? 'border-indigo-600 bg-indigo-600 text-white shadow-md'
+                      : 'border-indigo-200 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50'
+                  }`}>
+                  {t === 'BIEN' ? 'Bien / Producto' : 'Servicio'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Códigos */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-indigo-900 mb-2">Código Principal *</label>
+              <input type="text" value={formData.codigo_principal}
+                onChange={(e) => set('codigo_principal', e.target.value)}
+                className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                placeholder="P001" required />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-indigo-900 mb-2">Código Auxiliar</label>
+              <input type="text" value={formData.codigo_auxiliar}
+                onChange={(e) => set('codigo_auxiliar', e.target.value)}
+                className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                placeholder="Código de barra (opcional)" />
+            </div>
+          </div>
+
+          {/* Nombre */}
+          <div>
+            <label className="block text-sm font-semibold text-indigo-900 mb-2">Nombre *</label>
+            <input type="text" value={formData.nombre}
+              onChange={(e) => set('nombre', e.target.value)}
+              className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="Nombre del producto o servicio" required />
+          </div>
+
+          {/* Descripción */}
+          <div>
+            <label className="block text-sm font-semibold text-indigo-900 mb-2">Descripción</label>
+            <textarea value={formData.descripcion} rows={2}
+              onChange={(e) => set('descripcion', e.target.value)}
+              className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="Descripción opcional" />
+          </div>
+
+          {/* Precio y Costo */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-indigo-900 mb-2">Precio de Venta *</label>
+              <input type="number" step="0.01" min="0"
+                value={formData.precio}
+                onChange={(e) => set('precio', toNum(e.target.value))}
+                className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                required />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-indigo-900 mb-2">Costo</label>
+              <input type="number" step="0.01" min="0"
+                value={formData.costo}
+                onChange={(e) => set('costo', toNum(e.target.value))}
+                className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            </div>
+          </div>
+
+          {/* IVA */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-indigo-900 mb-2">IVA</label>
+              <select value={formData.aplica_iva ? 'true' : 'false'}
+                onChange={(e) => set('aplica_iva', e.target.value === 'true')}
+                className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <option value="true">Aplica IVA</option>
+                <option value="false">No aplica IVA</option>
+              </select>
+            </div>
+            {formData.aplica_iva && (
+              <div>
+                <label className="block text-sm font-semibold text-indigo-900 mb-2">Tarifa IVA</label>
+                <select value={formData.porcentaje_iva}
+                  onChange={(e) => set('porcentaje_iva', e.target.value)}
+                  className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  <option value="2">12%</option>
+                  <option value="4">15%</option>
+                  <option value="0">0%</option>
+                  <option value="6">No objeto de impuesto</option>
+                  <option value="7">Exento de IVA</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Inventario — solo para BIEN */}
+          {formData.tipo === 'BIEN' && (
+            <>
+              <div className="flex items-center gap-3">
+                <input type="checkbox" id="maneja_inventario" checked={formData.maneja_inventario}
+                  onChange={(e) => set('maneja_inventario', e.target.checked)}
+                  className="w-5 h-5 rounded border-indigo-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500" />
+                <label htmlFor="maneja_inventario" className="text-sm font-semibold text-indigo-900">
+                  Controlar inventario
+                </label>
+              </div>
+              {formData.maneja_inventario && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-indigo-900 mb-2">Stock Inicial</label>
+                    <input type="number" step="0.01" min="0"
+                      value={formData.stock_actual}
+                      onChange={(e) => set('stock_actual', toNum(e.target.value))}
+                      className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-indigo-900 mb-2">Stock Mínimo (alerta)</label>
+                    <input type="number" step="0.01" min="0"
+                      value={formData.stock_minimo}
+                      onChange={(e) => set('stock_minimo', toNum(e.target.value))}
+                      className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Estado */}
+          <div className="flex items-center gap-3">
+            <input type="checkbox" id="activo" checked={formData.activo}
+              onChange={(e) => set('activo', e.target.checked)}
+              className="w-5 h-5 rounded border-indigo-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500" />
+            <label htmlFor="activo" className="text-sm font-semibold text-indigo-900">Producto Activo</label>
+          </div>
+
+          {/* Botones */}
+          <div className="flex gap-3 pt-4 border-t border-indigo-200">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-6 py-3 border border-indigo-300 rounded-xl hover:bg-indigo-50 font-semibold transition-colors text-indigo-700">
+              Cancelar
+            </button>
+            <button type="submit" disabled={mutation.isPending}
+              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 disabled:opacity-50 font-semibold shadow-lg transition-all">
+              <Save size={20} />
+              {mutation.isPending ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

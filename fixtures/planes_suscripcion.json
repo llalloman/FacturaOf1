@@ -1,0 +1,66 @@
+[
+  {
+    "model": "suscripciones.plansuscripcion",
+    "pk": 1,
+    "fields": {
+      "nombre": "BÁSICO",
+      "descripcion": "Plan básico para pequeños negocios",
+      "precio_mensual": "29.99",
+      "limite_facturas_mes": 100,
+      "limite_usuarios": 2,
+      "caracteristicas": {
+        "facturacion_electronica": true,
+        "pos_basico": true,
+        "inventario": true,
+        "reportes_basicos": true,
+        "soporte": "email"
+      },
+      "activo": true
+    }
+  },
+  {
+    "model": "suscripciones.plansuscripcion",
+    "pk": 2,
+    "fields": {
+      "nombre": "PROFESIONAL",
+      "descripcion": "Plan profesional para negocios en crecimiento",
+      "precio_mensual": "79.99",
+      "limite_facturas_mes": 500,
+      "limite_usuarios": 10,
+      "caracteristicas": {
+        "facturacion_electronica": true,
+        "pos_avanzado": true,
+        "inventario": true,
+        "multiple_bodegas": true,
+        "reportes_avanzados": true,
+        "integraciones": true,
+        "soporte": "email_telefono"
+      },
+      "activo": true
+    }
+  },
+  {
+    "model": "suscripciones.plansuscripcion",
+    "pk": 3,
+    "fields": {
+      "nombre": "EMPRESARIAL",
+      "descripcion": "Plan empresarial sin límites",
+      "precio_mensual": "199.99",
+      "limite_facturas_mes": null,
+      "limite_usuarios": null,
+      "caracteristicas": {
+        "facturacion_electronica": true,
+        "pos_avanzado": true,
+        "inventario": true,
+        "multiple_bodegas": true,
+        "multiple_empresas": true,
+        "reportes_avanzados": true,
+        "integraciones": true,
+        "api_completa": true,
+        "personalizacion": true,
+        "soporte": "prioritario_24_7"
+      },
+      "activo": true
+    }
+  }
+]
