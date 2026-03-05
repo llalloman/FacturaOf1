@@ -251,6 +251,29 @@ class VentaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
+    @action(detail=True, methods=['post'])
+    def generar_factura(self, request, pk=None):
+        """Crea la Factura electrónica para esta venta y la envía al SRI."""
+        from apps.facturacion.services.factura_service import crear_factura_desde_venta, procesar_factura_sri
+        from apps.facturacion.serializers import FacturaSerializer
+
+        venta = self.get_object()
+        if venta.factura_id:
+            return Response(
+                {'error': 'Esta venta ya tiene una factura electrónica vinculada.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            factura = crear_factura_desde_venta(venta)
+            sri_result = procesar_factura_sri(factura)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({
+            'factura': FacturaSerializer(factura, context={'request': request}).data,
+            'sri': sri_result,
+        })
+
     @action(detail=False, methods=['get'])
     def reporte_mensual(self, request):
         """Ventas totales del mes indicado"""

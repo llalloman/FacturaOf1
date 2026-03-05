@@ -130,6 +130,18 @@ class VentaSerializer(serializers.ModelSerializer):
         for pago_data in pagos_data:
             PagoVenta.objects.create(venta=venta, **pago_data)
 
+        # ── Auto-generar factura electrónica si se solicitó ───────────────
+        if venta.genera_factura:
+            try:
+                from apps.facturacion.services.factura_service import (
+                    crear_factura_desde_venta, procesar_factura_sri,
+                )
+                factura = crear_factura_desde_venta(venta)
+                procesar_factura_sri(factura)
+            except Exception:
+                # La venta se guarda correctamente aunque la factura falle
+                pass
+
         return venta
 
 

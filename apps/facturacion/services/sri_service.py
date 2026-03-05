@@ -241,49 +241,51 @@ class SRIService:
     
     def firmar_xml(self, xml_string):
         """
-        Firma electrónicamente el XML con el certificado digital de la empresa
+        Firma electrónicamente el XML con el certificado digital de la empresa.
+        Usa signxml (enveloped, rsa-sha256) y la clave privada del .p12/.pfx.
         """
+        from cryptography.hazmat.primitives import serialization as crypto_serial
+        from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
+
         if not self.empresa.certificado_digital:
             raise ValueError("La empresa no tiene configurado un certificado digital")
-        
-        # Leer el certificado
+
         cert_path = self.empresa.certificado_digital.path
         cert_password = self.empresa.password_certificado
-        
-        with open(cert_path, 'rb') as cert_file:
-            cert_data = cert_file.read()
-        
+
+        with open(cert_path, 'rb') as f:
+            cert_data = f.read()
+
         # Cargar PKCS12
-        private_key, certificate, additional_certificates = pkcs12.load_key_and_certificates(
+        private_key, certificate, _ = pkcs12.load_key_and_certificates(
             cert_data,
-            cert_password.encode() if cert_password else None
+            cert_password.encode() if cert_password else None,
         )
-        
+
+        # Convertir a PEM para signxml (compatibilidad con signxml 3.x)
+        key_pem  = private_key.private_bytes(
+            encoding=Encoding.PEM,
+            format=PrivateFormat.PKCS8,
+            encryption_algorithm=NoEncryption(),
+        )
+        cert_pem = certificate.public_bytes(Encoding.PEM)
+
         # Parse del XML
         root = etree.fromstring(xml_string.encode('utf-8'))
-        
-        # Firmar el XML
+
+        # Firmar (method=enveloped es el default en signxml 3.x)
         signer = XMLSigner(
-            method=signxml.methods.enveloped,
             signature_algorithm='rsa-sha256',
             digest_algorithm='sha256',
         )
-        
-        signed_root = signer.sign(
-            root,
-            key=private_key,
-            cert=certificate
-        )
-        
-        # Convertir a string
-        signed_xml = etree.tostring(
+        signed_root = signer.sign(root, key=key_pem, cert=cert_pem)
+
+        return etree.tostring(
             signed_root,
             pretty_print=True,
             xml_declaration=True,
-            encoding='UTF-8'
+            encoding='UTF-8',
         ).decode('utf-8')
-        
-        return signed_xml
     
     def validar_xml_firmado(self, xml_firmado):
         """

@@ -48,8 +48,23 @@ class FacturaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def enviar_sri(self, request, pk=None):
+        """Genera XML, firma y envía la factura al SRI."""
         factura = self.get_object()
-        return Response({'mensaje': 'Envío al SRI pendiente de implementación'})
+        from apps.facturacion.services.factura_service import procesar_factura_sri
+        result = procesar_factura_sri(factura)
+        http_status = status.HTTP_200_OK if result.get('success') else status.HTTP_422_UNPROCESSABLE_ENTITY
+        return Response(result, status=http_status)
+
+    @action(detail=True, methods=['get'])
+    def xml(self, request, pk=None):
+        """Retorna el XML generado/firmado de la factura."""
+        factura = self.get_object()
+        comp = factura.comprobante
+        xml = comp.xml_firmado or comp.xml_generado
+        if not xml:
+            return Response({'error': 'No hay XML generado aún'}, status=status.HTTP_404_NOT_FOUND)
+        from django.http import HttpResponse
+        return HttpResponse(xml, content_type='application/xml')
 
     @action(detail=True, methods=['post'])
     def anular(self, request, pk=None):
