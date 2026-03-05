@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuthStore } from '../../store/authStore';
 import { empresasService } from '../../services/empresasService';
 import { usuariosService } from '../../services/usuariosService';
 import { cajasService } from '../../services/cajasService';
@@ -21,13 +22,23 @@ type Tab = 'empresa' | 'usuarios' | 'cajas';
 // ─── Tab Empresa ───────────────────────────────────────────────────────────────
 function EmpresaTab() {
   const queryClient = useQueryClient();
-  const { data: empresas = [], isLoading } = useQuery({
-    queryKey: ['empresas'],
-    queryFn: empresasService.getAll,
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.rol === 'SUPER_ADMIN';
+
+  // SUPER_ADMIN usa getAll (puede haber varias), ADMIN_EMPRESA usa mi_empresa
+  const { data: empresaData, isLoading } = useQuery({
+    queryKey: ['mi-empresa'],
+    enabled: !!user,
+    queryFn: async () => {
+      if (isSuperAdmin) {
+        const all = await empresasService.getAll();
+        return Array.isArray(all) ? all[0] : all;
+      }
+      return empresasService.getMiEmpresa();
+    },
   });
 
-  const empresasArray = Array.isArray(empresas) ? empresas : [];
-  const empresa: Partial<Empresa> = empresasArray[0] || {};
+  const empresa: Partial<Empresa> = empresaData ?? {};
   const [form, setForm] = useState<Partial<Empresa>>({});
   const [saved, setSaved] = useState(false);
   const [certFile, setCertFile] = useState<File | null>(null);
@@ -60,7 +71,7 @@ function EmpresaTab() {
       return empresasService.update(empresa.id!, payload as Parameters<typeof empresasService.update>[1]);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['empresas'] });
+      queryClient.invalidateQueries({ queryKey: ['mi-empresa'] });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },

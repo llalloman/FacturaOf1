@@ -167,8 +167,8 @@ class VentaViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Venta.objects.select_related('caja', 'cliente', 'usuario', 'factura')
         queryset = queryset.prefetch_related('detalles__producto', 'pagos')
-        
-        if not user.is_superuser:
+
+        if not user.is_superuser and getattr(user, 'rol', None) != 'SUPER_ADMIN':
             queryset = queryset.filter(caja__empresa=user.empresa)
         
         # Filtros por fecha
@@ -251,6 +251,29 @@ class VentaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
+    @action(detail=False, methods=['get'])
+    def reporte_mensual(self, request):
+        """Ventas totales del mes indicado"""
+        from calendar import monthrange
+        mes = int(request.query_params.get('mes', timezone.now().month))
+        anio = int(request.query_params.get('anio', timezone.now().year))
+        _, ultimo_dia = monthrange(anio, mes)
+        inicio = timezone.datetime(anio, mes, 1, tzinfo=timezone.get_current_timezone())
+        fin = timezone.datetime(anio, mes, ultimo_dia, 23, 59, 59, tzinfo=timezone.get_current_timezone())
+
+        qs = self.get_queryset().filter(
+            estado='COMPLETADA', fecha_venta__gte=inicio, fecha_venta__lte=fin
+        )
+        totales = qs.aggregate(
+            total_ventas=Sum('total'),
+            cantidad_ventas=Count('id'),
+        )
+        return Response({
+            'mes': mes, 'anio': anio,
+            'total_ventas': totales['total_ventas'] or 0,
+            'cantidad_ventas': totales['cantidad_ventas'] or 0,
+        })
+
     @action(detail=False, methods=['get'])
     def resumen(self, request):
         """Resumen de ventas"""

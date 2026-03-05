@@ -7,7 +7,10 @@ export const empresasService = {
     const data = response.data as any;
     return (data.results ?? data) as Empresa[];
   },
-
+  getMiEmpresa: async () => {
+    const response = await apiClient.get<Empresa>('/empresas/empresas/mi_empresa/');
+    return response.data;
+  },
   getById: async (id: number) => {
     const response = await apiClient.get<Empresa>(`/empresas/empresas/${id}/`);
     return response.data;
