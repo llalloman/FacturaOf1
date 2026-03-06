@@ -78,11 +78,13 @@ class SRIService:
     
     def _calcular_digito_verificador_modulo11(self, clave):
         """
-        Calcula el dígito verificador usando módulo 11
+        Calcula el dígito verificador usando módulo 11.
+        El SRI asigna pesos 2,3,4,5,6,7,2,3,... de derecha a izquierda
+        empezando con peso 2 para el dígito más a la derecha.
         """
-        factor = 7
+        factor = 2
         suma = 0
-        
+
         for digito in reversed(clave):
             suma += int(digito) * factor
             factor = 2 if factor == 7 else factor + 1
@@ -106,8 +108,9 @@ class SRIService:
         comprobante = factura.comprobante
         cliente = factura.cliente
         
-        # Generar clave de acceso si no existe
-        if not comprobante.clave_acceso:
+        # Generar (o regenerar) clave de acceso para comprobantes no autorizados.
+        # Si la clave ya existe y el comprobante está AUTORIZADO, se preserva.
+        if not comprobante.clave_acceso or comprobante.estado not in ('AUTORIZADO', 'ENVIADO'):
             serie = f"{comprobante.establecimiento}-{comprobante.punto_emision}"
             comprobante.clave_acceso = self.generar_clave_acceso(
                 fecha_emision=comprobante.fecha_emision,
@@ -257,8 +260,8 @@ class SRIService:
         factura_origen = nota_credito.factura_origen
         cliente        = factura_origen.cliente
 
-        # Generar clave de acceso si no existe
-        if not comprobante.clave_acceso:
+        # Generar (o regenerar) clave de acceso para NCs no autorizadas.
+        if not comprobante.clave_acceso or comprobante.estado not in ('AUTORIZADO', 'ENVIADO'):
             serie = f"{comprobante.establecimiento}-{comprobante.punto_emision}"
             comprobante.clave_acceso = self.generar_clave_acceso(
                 fecha_emision=comprobante.fecha_emision,

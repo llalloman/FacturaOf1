@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { facturasService } from '../../services/facturasService';
 import type { Factura } from '../../types';
-import { FiPlus, FiSearch, FiFileText, FiCheckCircle, FiXCircle, FiDownload, FiSend } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiFileText, FiCheckCircle, FiXCircle, FiDownload, FiSend, FiRefreshCw } from 'react-icons/fi';
 import FacturaModal from './FacturaModal';
 
 const FacturasPage: React.FC = () => {
@@ -31,6 +31,23 @@ const FacturasPage: React.FC = () => {
     },
     onError: () => {
       alert('Error al enviar factura al SRI');
+    },
+  });
+
+  const reprocesarMutation = useMutation({
+    mutationFn: facturasService.reprocesar,
+    onSuccess: (data: unknown) => {
+      queryClient.invalidateQueries({ queryKey: ['facturas'] });
+      const res = data as { estado?: string; numero_autorizacion?: string; mensaje?: string };
+      if (res?.estado === 'AUTORIZADO') {
+        alert(`✅ Factura AUTORIZADA\nNro. Autorización: ${res.numero_autorizacion}`);
+      } else {
+        alert(`Estado actualizado: ${res?.estado ?? '—'}\n${res?.mensaje ?? ''}`);
+      }
+    },
+    onError: (error: unknown) => {
+      const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg || 'Error al reprocesar');
     },
   });
 
@@ -288,6 +305,41 @@ const FacturasPage: React.FC = () => {
                               title="Descargar XML"
                             >
                               <FiFileText />
+                            </button>
+                            <button
+                              onClick={() => handleAnular(factura.id, factura.estado)}
+                              className="text-red-600 hover:text-red-800 transition-colors"
+                              title="Anular"
+                            >
+                              <FiXCircle />
+                            </button>
+                          </>
+                        )}
+                        {factura.estado === 'ENVIADO' && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Consultar al SRI si ya autorizó este comprobante?')) {
+                                reprocesarMutation.mutate(factura.id);
+                              }
+                            }}
+                            className="text-blue-600 hover:text-blue-800 transition-colors"
+                            title="Consultar autorización SRI"
+                          >
+                            <FiRefreshCw />
+                          </button>
+                        )}
+                        {(factura.estado === 'RECHAZADO' || factura.estado === 'NO_AUTORIZADO') && (
+                          <>
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Re-enviar esta factura al SRI?')) {
+                                  enviarSRIMutation.mutate(factura.id);
+                                }
+                              }}
+                              className="text-green-600 hover:text-green-800 transition-colors"
+                              title="Re-enviar al SRI"
+                            >
+                              <FiSend />
                             </button>
                             <button
                               onClick={() => handleAnular(factura.id, factura.estado)}
