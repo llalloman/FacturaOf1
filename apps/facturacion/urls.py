@@ -69,9 +69,46 @@ class FacturaViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def anular(self, request, pk=None):
         factura = self.get_object()
-        factura.comprobante.estado = 'ANULADO'
-        factura.comprobante.save()
-        return Response({'mensaje': 'Factura anulada'})
+        comp = factura.comprobante
+        estado_actual = comp.estado
+
+        # Las facturas AUTORIZADAS no se pueden anular localmente:
+        # el SRI no expone un endpoint de anulación directa; la forma
+        # legal es emitir una Nota de Crédito por el valor total.
+        if estado_actual == 'AUTORIZADO':
+            return Response(
+                {
+                    'error': 'Las facturas autorizadas no pueden anularse directamente. '
+                             'Emita una Nota de Crédito por el valor total para anular '
+                             'este comprobante ante el SRI.',
+                    'codigo': 'REQUIERE_NOTA_CREDITO',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if estado_actual == 'ANULADO':
+            return Response({'mensaje': 'La factura ya está anulada.'})
+
+        # Para BORRADOR, FIRMADO, ENVIADO, RECHAZADO, NO_AUTORIZADO:
+        # anular localmente — el comprobante nunca fue aceptado por el SRI.
+        comp.estado = 'ANULADO'
+        comp.save(update_fields=['estado'])
+
+        # Desvincular la venta para que pueda generar una nueva factura si es necesario
+        try:
+            venta = factura.comprobante.empresa  # sanity
+            venta_obj = getattr(factura, 'venta', None)
+            if venta_obj and venta_obj.factura_id == factura.id:
+                venta_obj.factura = None
+                venta_obj.genera_factura = False
+                venta_obj.save(update_fields=['factura', 'genera_factura'])
+        except Exception:
+            pass
+
+        return Response({
+            'mensaje': 'Factura anulada. El comprobante no había sido autorizado por el SRI.',
+            'estado': 'ANULADO',
+        })
 
     @action(detail=True, methods=['post'])
     def reprocesar(self, request, pk=None):
@@ -108,6 +145,11 @@ class FacturaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def ride(self, request, pk=None):
+        """Alias de /pdf/ — mantiene compatibilidad."""
+        return self.pdf(request, pk=pk)
+
+    @action(detail=True, methods=['get'])
+    def pdf(self, request, pk=None):
         """Genera y retorna el RIDE (PDF) de la factura autorizada."""
         factura = self.get_object()
         comp = factura.comprobante
@@ -118,10 +160,13 @@ class FacturaViewSet(viewsets.ModelViewSet):
             )
         from apps.facturacion.services.ride_service import generar_ride_pdf
         from django.http import HttpResponse
-        pdf_bytes = generar_ride_pdf(factura)
+        try:
+            pdf_bytes = generar_ride_pdf(factura)
+        except Exception as e:
+            return Response({'error': f'Error al generar PDF: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = (
-            f'inline; filename="RIDE-{comp.numero_comprobante}.pdf"'
+            f'attachment; filename="RIDE-{comp.numero_comprobante}.pdf"'
         )
         return response
 

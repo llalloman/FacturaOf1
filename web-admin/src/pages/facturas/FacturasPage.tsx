@@ -40,6 +40,14 @@ const FacturasPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['facturas'] });
       alert('Factura anulada exitosamente');
     },
+    onError: (error: unknown) => {
+      const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      if (msg?.includes('REQUIERE_NOTA_CREDITO') || msg?.includes('Nota de Crédito')) {
+        alert('Esta factura está AUTORIZADA por el SRI.\nPara anularla debe emitir una Nota de Crédito por el valor total.');
+      } else {
+        alert(msg || 'Error al anular la factura');
+      }
+    },
   });
 
   const facturasArray = Array.isArray(facturas) ? facturas : [];
