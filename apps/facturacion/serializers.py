@@ -150,22 +150,24 @@ class FacturaSerializer(serializers.ModelSerializer):
             tarifa = Decimal('15.00')
             codigo_porcentaje = '4'
 
+            # Mapa: código SRI → tarifa real (porcentaje_iva guarda el código SRI, no el %)
+            _IVA_TARIFA_MAP = {
+                '0': Decimal('0'),
+                '2': Decimal('12'),
+                '3': Decimal('14'),
+                '4': Decimal('15'),
+                '6': Decimal('0'),
+                '7': Decimal('0'),
+            }
+
             if producto_id:
                 try:
                     producto = Producto.objects.get(id=producto_id)
                     codigo_principal = producto.codigo_principal
                     descripcion = producto.nombre
                     if producto.aplica_iva:
-                        pct = Decimal(str(producto.porcentaje_iva))
-                        tarifa = pct
-                        if pct == 0:
-                            codigo_porcentaje = '0'
-                        elif pct == 12:
-                            codigo_porcentaje = '2'
-                        elif pct == 14:
-                            codigo_porcentaje = '3'
-                        elif pct == 15:
-                            codigo_porcentaje = '4'
+                        codigo_porcentaje = producto.porcentaje_iva  # ya es el código SRI ('4', '2', etc.)
+                        tarifa = _IVA_TARIFA_MAP.get(codigo_porcentaje, Decimal('15'))
                     else:
                         tarifa = Decimal('0.00')
                         codigo_porcentaje = '0'

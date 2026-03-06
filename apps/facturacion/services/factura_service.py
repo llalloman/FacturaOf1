@@ -143,6 +143,12 @@ def procesar_factura_sri(factura):
         'numero_comprobante': comprobante.numero_comprobante,
     }
 
+    # Si ya está autorizada no hay nada que hacer
+    if comprobante.estado == ComprobanteElectronico.EstadoChoices.AUTORIZADO:
+        result['success'] = True
+        result['mensaje'] = f"Ya autorizada: {comprobante.numero_autorizacion}"
+        return result
+
     try:
         # 1. Generar XML
         sri.generar_xml_factura(factura)
@@ -196,6 +202,7 @@ def procesar_factura_sri(factura):
                 comprobante.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
                 comprobante.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
                 comprobante.fecha_autorizacion  = getattr(aut_obj, 'fechaAutorizacion', None)
+                comprobante.mensajes_sri = ''  # limpiar errores de intentos anteriores
                 result['success'] = True
                 result['mensaje'] = f"Autorizada: {comprobante.numero_autorizacion}"
             else:
@@ -214,11 +221,42 @@ def procesar_factura_sri(factura):
                     logger.warning("No se pudo enviar email de factura %s: %s", comprobante.numero_comprobante, email_err)
 
         else:
-            comprobante.estado = ComprobanteElectronico.EstadoChoices.RECHAZADO
+            # Recepción no aceptada — revisar si es error 43 (ya registrada = consultar autorización)
             mensajes = _extraer_mensajes_recepcion(response)
-            comprobante.mensajes_sri = '\n'.join(mensajes)
-            comprobante.save(update_fields=['estado', 'mensajes_sri'])
-            result['mensaje'] = ' | '.join(mensajes) or 'Rechazado por el SRI en recepción'
+            mensaje_str = ' | '.join(mensajes)
+            ya_registrada = any(
+                getattr(m, 'identificador', None) == '43' or '43' in str(getattr(m, 'identificador', ''))
+                for m in (getattr(response, 'comprobantes', None) and
+                           getattr(response.comprobantes, 'comprobante', []) or [])
+            ) or '43' in mensaje_str
+
+            if ya_registrada:
+                # Error 43: la clave ya fue registrada — consultar directamente autorización
+                comprobante.estado = ComprobanteElectronico.EstadoChoices.ENVIADO
+                comprobante.save(update_fields=['estado'])
+                auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
+                if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
+                    aut = auth.autorizaciones.autorizacion[0]
+                    if aut.estado == 'AUTORIZADO':
+                        comprobante.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
+                        comprobante.numero_autorizacion = getattr(aut, 'numeroAutorizacion', '')
+                        comprobante.fecha_autorizacion  = getattr(aut, 'fechaAutorizacion', None)
+                        comprobante.mensajes_sri = ''
+                        comprobante.save()
+                        result['success'] = True
+                        result['mensaje'] = f"Autorizada: {comprobante.numero_autorizacion}"
+                        result['estado'] = comprobante.estado
+                        return result
+                # Si aún no está autorizada, dejar como ENVIADO para que la tarea periódica la recoja
+                result['success'] = True
+                result['mensaje'] = 'Clave ya registrada en SRI. Autorización pendiente.'
+                result['estado'] = comprobante.estado
+                return result
+            else:
+                comprobante.estado = ComprobanteElectronico.EstadoChoices.RECHAZADO
+                comprobante.mensajes_sri = mensaje_str
+                comprobante.save(update_fields=['estado', 'mensajes_sri'])
+                result['mensaje'] = mensaje_str or 'Rechazado por el SRI en recepción'
 
         result['estado'] = comprobante.estado
 

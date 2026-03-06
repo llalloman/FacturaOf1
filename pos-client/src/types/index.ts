@@ -32,6 +32,7 @@ export interface DetalleVenta {
   iva: number;
   total: number;
   costo_unitario: number;
+  porcentaje_iva: string;
 }
 
 export interface Venta {

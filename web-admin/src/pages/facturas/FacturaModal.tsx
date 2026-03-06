@@ -55,7 +55,10 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
 
     const precio_unitario = producto.precio;
     const subtotal = precio_unitario * cantidad;
-    const impuestos = producto.aplica_iva ? subtotal * (parseFloat(producto.porcentaje_iva) / 100) : 0;
+    // porcentaje_iva es el código SRI ('0'=0%, '2'=12%, '4'=15%) – no es el % real
+    const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
+    const ivaRate = producto.aplica_iva ? (IVA_PCT[producto.porcentaje_iva] ?? 15) : 0;
+    const impuestos = subtotal * (ivaRate / 100);
     const total = subtotal + impuestos;
 
     const nuevoDetalle: DetalleFactura = {
