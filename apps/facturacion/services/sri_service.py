@@ -120,9 +120,8 @@ class SRIService:
             )
             comprobante.save(update_fields=['clave_acceso'])
         
-        # Crear estructura XML
-        nsmap = {None: 'http://www.sri.gob.ec/esquemas/factura/1.0.0'}
-        factura_xml = etree.Element('factura', nsmap=nsmap, id='comprobante', version='1.0.0')
+        # Crear estructura XML (SRI requiere sin namespace)
+        factura_xml = etree.Element('factura', id='comprobante', version='1.0.0')
         
         # Información tributaria
         info_tributaria = etree.SubElement(factura_xml, 'infoTributaria')
@@ -225,10 +224,10 @@ class SRIService:
                 campo_adicional = etree.SubElement(info_adicional, 'campoAdicional', nombre=campo)
                 campo_adicional.text = str(valor)
         
-        # Convertir a string
+        # Convertir a string (sin pretty_print: el whitespace rompe los digests de la firma)
         xml_string = etree.tostring(
             factura_xml,
-            pretty_print=True,
+            pretty_print=False,
             xml_declaration=True,
             encoding='UTF-8'
         ).decode('utf-8')
@@ -241,48 +240,157 @@ class SRIService:
     
     def firmar_xml(self, xml_string):
         """
-        Firma electrónicamente el XML con el certificado digital de la empresa.
-        Usa signxml (enveloped, rsa-sha256) y la clave privada del .p12/.pfx.
+        Firma electrónicamente el XML con XAdES-BES según especificaciones SRI Ecuador.
+        Ficha Técnica v2.x: 3 referencias (comprobante + KeyInfo + SignedProperties).
+        C14N de SignedInfo se computa IN-TREE para que los namespaces coincidan
+        exactamente con lo que verifica el SRI.
         """
-        from cryptography.hazmat.primitives import serialization as crypto_serial
-        from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
+        import base64, hashlib, datetime, warnings
+        from cryptography.hazmat.primitives.serialization import pkcs12 as _pkcs12
+        from cryptography.hazmat.primitives import hashes as _hashes
+        from cryptography.hazmat.primitives import serialization as _serial
+        from cryptography.hazmat.primitives.asymmetric import padding as _pad
 
         if not self.empresa.certificado_digital:
             raise ValueError("La empresa no tiene configurado un certificado digital")
 
         cert_path = self.empresa.certificado_digital.path
-        cert_password = self.empresa.password_certificado
-
         with open(cert_path, 'rb') as f:
             cert_data = f.read()
+        pwd = (self.empresa.password_certificado or '').encode('utf-8')
+        private_key, certificate, _ = _pkcs12.load_key_and_certificates(cert_data, pwd)
 
-        # Cargar PKCS12
-        private_key, certificate, _ = pkcs12.load_key_and_certificates(
-            cert_data,
-            cert_password.encode() if cert_password else None,
-        )
+        DS       = 'http://www.w3.org/2000/09/xmldsig#'
+        XADES    = 'http://uri.etsi.org/01903/v1.3.2#'
+        C14N     = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'
+        ENVELOPED = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature'
+        SHA1_URI = 'http://www.w3.org/2000/09/xmldsig#sha1'
+        RSA_SHA1 = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1'
 
-        # Convertir a PEM para signxml (compatibilidad con signxml 3.x)
-        key_pem  = private_key.private_bytes(
-            encoding=Encoding.PEM,
-            format=PrivateFormat.PKCS8,
-            encryption_algorithm=NoEncryption(),
-        )
-        cert_pem = certificate.public_bytes(Encoding.PEM)
+        # Abreviaciones estándar para DN attributes
+        _OID_SHORT = {
+            '2.5.4.3': 'CN', '2.5.4.4': 'SN', '2.5.4.5': 'serialNumber',
+            '2.5.4.6': 'C', '2.5.4.7': 'L', '2.5.4.8': 'ST',
+            '2.5.4.10': 'O', '2.5.4.11': 'OU', '2.5.4.42': 'GN',
+        }
+        def _dn_forward(name_obj):
+            """Orden X.509 forward (no RFC4514 invertido) con abreviaciones estándar."""
+            parts = []
+            for attr in name_obj:
+                short = _OID_SHORT.get(attr.oid.dotted_string, attr.oid.dotted_string)
+                parts.append(f'{short}={attr.value}')
+            return ','.join(parts)
 
-        # Parse del XML
+        def _c14n(elem):
+            return etree.tostring(elem, method='c14n', exclusive=False, with_comments=False)
+
+        def _sha1b64(data):
+            return base64.b64encode(hashlib.sha1(data).digest()).decode()
+
         root = etree.fromstring(xml_string.encode('utf-8'))
 
-        # Firmar (method=enveloped es el default en signxml 3.x)
-        signer = XMLSigner(
-            signature_algorithm='rsa-sha256',
-            digest_algorithm='sha256',
-        )
-        signed_root = signer.sign(root, key=key_pem, cert=cert_pem)
+        # ── PASO 1: Digest del comprobante ANTES de agregar la firma ─────────
+        # Se usa enveloped-signature transform → SRI excluye el bloque Signature
+        # al verificar, igual que nosotros aquí (root aún no tiene sig_el).
+        comprobante_dv = _sha1b64(_c14n(root))
 
+        # ── PASO 2: Datos del certificado ────────────────────────────────────
+        cert_der = certificate.public_bytes(_serial.Encoding.DER)
+        cert_b64 = base64.b64encode(cert_der).decode()
+        cert_dv  = _sha1b64(cert_der)
+        # Orden forward (no RFC4514 invertido) para que coincida con el certificado
+        issuer_name   = _dn_forward(certificate.issuer)
+        serial_number = str(certificate.serial_number)
+        pub_nums = certificate.public_key().public_numbers()
+        n_b64 = base64.b64encode(
+            pub_nums.n.to_bytes((pub_nums.n.bit_length() + 7) // 8, 'big')).decode()
+        e_b64 = base64.b64encode(
+            pub_nums.e.to_bytes((pub_nums.e.bit_length() + 7) // 8, 'big')).decode()
+
+        # ── PASO 3: Construir estructura completa con placeholders ───────────
+        tz      = datetime.timezone(datetime.timedelta(hours=-5))
+        now_str = datetime.datetime.now(tz).strftime('%Y-%m-%dT%H:%M:%S.000-05:00')
+
+        # ds:Signature declara SOLO ds → xades no contamina el C14N de SignedInfo/KeyInfo
+        sig_el = etree.Element(f'{{{DS}}}Signature', Id='Signature',
+                               nsmap={'ds': DS})
+
+        # ds:SignedInfo (SubElement: hereda nsmap del padre)
+        si = etree.SubElement(sig_el, f'{{{DS}}}SignedInfo')
+        etree.SubElement(si, f'{{{DS}}}CanonicalizationMethod', Algorithm=C14N)
+        etree.SubElement(si, f'{{{DS}}}SignatureMethod', Algorithm=RSA_SHA1)
+
+        r1 = etree.SubElement(si, f'{{{DS}}}Reference', URI='#comprobante')
+        t1 = etree.SubElement(r1, f'{{{DS}}}Transforms')
+        # enveloped-signature excluye el bloque Signature al verificar el digest
+        etree.SubElement(t1, f'{{{DS}}}Transform', Algorithm=ENVELOPED)
+        etree.SubElement(t1, f'{{{DS}}}Transform', Algorithm=C14N)
+        etree.SubElement(r1, f'{{{DS}}}DigestMethod', Algorithm=SHA1_URI)
+        dv1 = etree.SubElement(r1, f'{{{DS}}}DigestValue')
+        dv1.text = comprobante_dv  # ya conocido
+
+        r2 = etree.SubElement(si, f'{{{DS}}}Reference', URI='#Certificate1')
+        etree.SubElement(r2, f'{{{DS}}}DigestMethod', Algorithm=SHA1_URI)
+        dv2 = etree.SubElement(r2, f'{{{DS}}}DigestValue')
+        dv2.text = 'PLACEHOLDER'
+
+        r3 = etree.SubElement(si, f'{{{DS}}}Reference',
+                               Type='http://uri.etsi.org/01903#SignedProperties',
+                               URI='#Signature-SignedProperties')
+        t3 = etree.SubElement(r3, f'{{{DS}}}Transforms')
+        etree.SubElement(t3, f'{{{DS}}}Transform', Algorithm=C14N)
+        etree.SubElement(r3, f'{{{DS}}}DigestMethod', Algorithm=SHA1_URI)
+        dv3 = etree.SubElement(r3, f'{{{DS}}}DigestValue')
+        dv3.text = 'PLACEHOLDER'
+
+        sv_el = etree.SubElement(sig_el, f'{{{DS}}}SignatureValue', Id='SignatureValue')
+        sv_el.text = ''
+
+        ki = etree.SubElement(sig_el, f'{{{DS}}}KeyInfo', Id='Certificate1')
+        x509d = etree.SubElement(ki, f'{{{DS}}}X509Data')
+        etree.SubElement(x509d, f'{{{DS}}}X509Certificate').text = cert_b64
+        kv    = etree.SubElement(ki, f'{{{DS}}}KeyValue')
+        rsa_kv = etree.SubElement(kv, f'{{{DS}}}RSAKeyValue')
+        etree.SubElement(rsa_kv, f'{{{DS}}}Modulus').text  = n_b64
+        etree.SubElement(rsa_kv, f'{{{DS}}}Exponent').text = e_b64
+
+        obj_el = etree.SubElement(sig_el, f'{{{DS}}}Object', Id='QualifyingProperties')
+        # xades se declara aquí (bajo Object), NO en Signature → no contamina SignedInfo
+        qp_el  = etree.SubElement(obj_el, f'{{{XADES}}}QualifyingProperties',
+                                  Target='#Signature',
+                                  nsmap={'xades': XADES})
+        sp = etree.SubElement(qp_el, f'{{{XADES}}}SignedProperties',
+                              Id='Signature-SignedProperties')
+        ssp = etree.SubElement(sp, f'{{{XADES}}}SignedSignatureProperties')
+        etree.SubElement(ssp, f'{{{XADES}}}SigningTime').text = now_str
+        sc  = etree.SubElement(ssp, f'{{{XADES}}}SigningCertificate')
+        c_e = etree.SubElement(sc,  f'{{{XADES}}}Cert')
+        cd  = etree.SubElement(c_e, f'{{{XADES}}}CertDigest')
+        etree.SubElement(cd, f'{{{DS}}}DigestMethod', Algorithm=SHA1_URI)
+        etree.SubElement(cd, f'{{{DS}}}DigestValue').text = cert_dv
+        is_ = etree.SubElement(c_e, f'{{{XADES}}}IssuerSerial')
+        etree.SubElement(is_, f'{{{DS}}}X509IssuerName').text   = issuer_name
+        etree.SubElement(is_, f'{{{DS}}}X509SerialNumber').text = serial_number
+
+        # ── PASO 4: Adjuntar al root ─────────────────────────────────────────
+        root.append(sig_el)
+
+        # ── PASO 5: Calcular digests IN-TREE (namespaces correctos) ──────────
+        dv2.text = _sha1b64(_c14n(ki))
+        dv3.text = _sha1b64(_c14n(sp))
+
+        # ── PASO 6: Firmar SignedInfo IN-TREE ────────────────────────────────
+        # si está dentro de sig_el que tiene ds+xades → el C14N de si incluye
+        # ambos namespaces, igual que lo que verificará el SRI.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            sig_bytes = private_key.sign(_c14n(si), _pad.PKCS1v15(), _hashes.SHA1())
+        sv_el.text = base64.b64encode(sig_bytes).decode()
+
+        # Sin pretty_print: el whitespace entre elementos invalida los digests SHA1
         return etree.tostring(
-            signed_root,
-            pretty_print=True,
+            root,
+            pretty_print=False,
             xml_declaration=True,
             encoding='UTF-8',
         ).decode('utf-8')
@@ -318,8 +426,8 @@ class SRIService:
             transport = Transport(session=session)
             client = Client(url_recepcion, transport=transport)
             
-            # Enviar comprobante
-            response = client.service.validarComprobante(comprobante.xml_firmado)
+            # Enviar comprobante (SRI espera Base64Binary → pasar bytes)
+            response = client.service.validarComprobante(comprobante.xml_firmado.encode('utf-8'))
             
             return response
         except Exception as e:
