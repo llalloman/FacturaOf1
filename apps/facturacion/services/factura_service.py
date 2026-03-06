@@ -3,8 +3,11 @@ Servicio de creación y procesamiento de Facturas electrónicas.
 Convierte una Venta en una Factura + ComprobanteElectronico y orquesta el
 envío al SRI (generar XML → firmar → enviar → consultar autorización).
 """
+import logging
 from decimal import Decimal
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
 
 # Mapeo FormaPago POS → código SRI
 FORMA_PAGO_MAP = {
@@ -169,28 +172,46 @@ def procesar_factura_sri(factura):
             comprobante.respuesta_sri = {'estado': response.estado}
             comprobante.save(update_fields=['estado', 'respuesta_sri'])
 
-            # 4. Consultar autorización (el SRI puede tardar unos segundos)
-            time.sleep(3)
-            auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
-
-            if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
-                aut = auth.autorizaciones.autorizacion[0]
-                if aut.estado == 'AUTORIZADO':
-                    comprobante.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
-                    comprobante.numero_autorizacion = getattr(aut, 'numeroAutorizacion', '')
-                    comprobante.fecha_autorizacion  = getattr(aut, 'fechaAutorizacion', None)
-                    result['success'] = True
-                    result['mensaje'] = f"Autorizada: {comprobante.numero_autorizacion}"
-                else:
-                    comprobante.estado = ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO
-                    mensajes = _extraer_mensajes_autorizacion(aut)
-                    comprobante.mensajes_sri = '\n'.join(mensajes)
-                    result['mensaje'] = ' | '.join(mensajes) or 'No autorizado por el SRI'
-
-                comprobante.save()
+            # 4. Consultar autorización con reintentos (SRI puede tardar varios segundos)
+            _MAX_RETRIES = 6
+            _RETRY_DELAY = 5  # segundos entre intentos
+            aut_obj = None
+            for attempt in range(_MAX_RETRIES):
+                if attempt > 0:
+                    time.sleep(_RETRY_DELAY)
+                auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
+                if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
+                    aut_obj = auth.autorizaciones.autorizacion[0]
+                    if aut_obj.estado in ('AUTORIZADO', 'NO_AUTORIZADO'):
+                        break
+                    aut_obj = None  # estado transitorio, reintentar
             else:
+                # Agotados todos los intentos sin resolución → tarea periódica lo recogerá
                 result['success'] = True
-                result['mensaje'] = 'Enviado al SRI. Pendiente de autorización.'
+                result['mensaje'] = 'Enviado al SRI. Autorización pendiente (se actualizará automáticamente).'
+                result['estado'] = comprobante.estado
+                return result
+
+            if aut_obj and aut_obj.estado == 'AUTORIZADO':
+                comprobante.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
+                comprobante.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
+                comprobante.fecha_autorizacion  = getattr(aut_obj, 'fechaAutorizacion', None)
+                result['success'] = True
+                result['mensaje'] = f"Autorizada: {comprobante.numero_autorizacion}"
+            else:
+                comprobante.estado = ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO
+                mensajes = _extraer_mensajes_autorizacion(aut_obj) if aut_obj else []
+                comprobante.mensajes_sri = '\n'.join(mensajes)
+                result['mensaje'] = ' | '.join(mensajes) or 'No autorizado por el SRI'
+
+            comprobante.save()
+
+            # 5. Enviar email al cliente si quedó autorizada
+            if comprobante.estado == ComprobanteElectronico.EstadoChoices.AUTORIZADO:
+                try:
+                    _enviar_factura_email(factura)
+                except Exception as email_err:
+                    logger.warning("No se pudo enviar email de factura %s: %s", comprobante.numero_comprobante, email_err)
 
         else:
             comprobante.estado = ComprobanteElectronico.EstadoChoices.RECHAZADO
@@ -214,7 +235,10 @@ def _extraer_mensajes_autorizacion(autorizacion):
     mensajes = []
     if hasattr(autorizacion, 'mensajes') and autorizacion.mensajes:
         for m in autorizacion.mensajes.mensaje:
-            mensajes.append(f"{getattr(m, 'tipo', '')}: {getattr(m, 'mensaje', '')}")
+            tipo = getattr(m, 'tipo', '')
+            msg  = getattr(m, 'mensaje', '')
+            info = getattr(m, 'informacionAdicional', '') or ''
+            mensajes.append(f"{tipo}: {msg}" + (f" ({info})" if info else ""))
     return mensajes
 
 
@@ -228,3 +252,58 @@ def _extraer_mensajes_recepcion(response):
                         f"{getattr(m, 'identificador', '')}: {getattr(m, 'mensaje', '')}"
                     )
     return mensajes
+
+
+def _enviar_factura_email(factura):
+    """
+    Envía la factura autorizada al correo del cliente adjuntando el XML firmado y el RIDE PDF.
+    No lanza excepción si el cliente no tiene email — simplemente hace log y retorna.
+    """
+    from django.core.mail import EmailMessage
+    from django.conf import settings
+    from apps.facturacion.services.ride_service import generar_ride_pdf
+
+    cliente = factura.cliente
+    destino = cliente.email
+    if not destino:
+        logger.info("Cliente %s sin email — factura %s no enviada por correo",
+                    cliente.identificacion, factura.comprobante.numero_comprobante)
+        return
+
+    comp       = factura.comprobante
+    empresa    = comp.empresa
+    num_doc    = comp.numero_comprobante
+    num_aut    = comp.numero_autorizacion
+    remitente  = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@localhost')
+
+    asunto = f"Factura Electrónica {num_doc} — {empresa.razon_social}"
+    cuerpo = (
+        f"Estimado/a {cliente.razon_social},\n\n"
+        f"Adjunto encontrará su factura electrónica:\n"
+        f"  • Número: {num_doc}\n"
+        f"  • Autorización SRI: {num_aut}\n\n"
+        f"Se adjuntan el comprobante en formato XML y el RIDE (PDF).\n\n"
+        f"Saludos,\n{empresa.razon_social}"
+    )
+
+    email = EmailMessage(
+        subject=asunto,
+        body=cuerpo,
+        from_email=remitente,
+        to=[destino],
+    )
+    # Adjuntar XML firmado
+    xml_bytes = comp.xml_firmado.encode('utf-8') if comp.xml_firmado else b''
+    if xml_bytes:
+        email.attach(f"{num_doc}.xml", xml_bytes, 'application/xml')
+
+    # Adjuntar RIDE PDF
+    try:
+        pdf_bytes = generar_ride_pdf(factura)
+        email.attach(f"RIDE-{num_doc}.pdf", pdf_bytes, 'application/pdf')
+    except Exception as ride_err:
+        logger.warning("No se pudo generar RIDE para email de %s: %s", num_doc, ride_err)
+
+    email.send(fail_silently=False)
+    logger.info("Factura %s enviada por email a %s", num_doc, destino)
+

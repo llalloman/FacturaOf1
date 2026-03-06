@@ -73,6 +73,58 @@ class FacturaViewSet(viewsets.ModelViewSet):
         factura.comprobante.save()
         return Response({'mensaje': 'Factura anulada'})
 
+    @action(detail=True, methods=['post'])
+    def reprocesar(self, request, pk=None):
+        """Consulta nuevamente la autorización del SRI para comprobantes en estado ENVIADO."""
+        factura = self.get_object()
+        comp = factura.comprobante
+        if comp.estado != 'ENVIADO':
+            return Response(
+                {'error': f'Solo se reprocesa desde estado ENVIADO. Estado actual: {comp.estado}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from apps.facturacion.services.sri_service import SRIService
+        sri = SRIService(comp.empresa)
+        try:
+            auth = sri.autorizar_comprobante_sri(comp.clave_acceso)
+            if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
+                aut = auth.autorizaciones.autorizacion[0]
+                if aut.estado == 'AUTORIZADO':
+                    comp.estado = 'AUTORIZADO'
+                    comp.numero_autorizacion = getattr(aut, 'numeroAutorizacion', '')
+                    comp.fecha_autorizacion  = getattr(aut, 'fechaAutorizacion', None)
+                    comp.save()
+                    return Response({
+                        'estado': comp.estado,
+                        'numero_autorizacion': comp.numero_autorizacion,
+                    })
+                else:
+                    comp.estado = 'NO_AUTORIZADO'
+                    comp.save()
+                    return Response({'estado': comp.estado}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response({'estado': comp.estado, 'mensaje': 'Sin respuesta del SRI — sigue en ENVIADO'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'])
+    def ride(self, request, pk=None):
+        """Genera y retorna el RIDE (PDF) de la factura autorizada."""
+        factura = self.get_object()
+        comp = factura.comprobante
+        if comp.estado != 'AUTORIZADO':
+            return Response(
+                {'error': 'Solo se genera el RIDE de facturas autorizadas'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from apps.facturacion.services.ride_service import generar_ride_pdf
+        from django.http import HttpResponse
+        pdf_bytes = generar_ride_pdf(factura)
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'inline; filename="RIDE-{comp.numero_comprobante}.pdf"'
+        )
+        return response
+
 
 router = DefaultRouter()
 router.register(r'facturas', FacturaViewSet, basename='factura')

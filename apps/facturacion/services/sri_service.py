@@ -217,10 +217,19 @@ class SRIService:
             etree.SubElement(impuesto, 'baseImponible').text = f"{detalle.precio_total_sin_impuesto:.2f}"
             etree.SubElement(impuesto, 'valor').text = f"{detalle.valor_impuesto:.2f}"
         
-        # Información adicional
+        # Información adicional — primero campos estándar del cliente, luego los de la factura
+        campos_adicionales = {}
+        if cliente.email:
+            campos_adicionales['email'] = cliente.email
+        if cliente.telefono:
+            campos_adicionales['telefono'] = cliente.telefono
+        if cliente.celular:
+            campos_adicionales['celular'] = cliente.celular
         if factura.informacion_adicional:
+            campos_adicionales.update(factura.informacion_adicional)
+        if campos_adicionales:
             info_adicional = etree.SubElement(factura_xml, 'infoAdicional')
-            for campo, valor in factura.informacion_adicional.items():
+            for campo, valor in campos_adicionales.items():
                 campo_adicional = etree.SubElement(info_adicional, 'campoAdicional', nombre=campo)
                 campo_adicional.text = str(valor)
         
