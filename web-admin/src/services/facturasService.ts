@@ -32,8 +32,8 @@ export const facturasService = {
     return response.data;
   },
 
-  anular: async (id: number) => {
-    const response = await apiClient.post(`/facturacion/facturas/${id}/anular/`);
+  anular: async ({ id, motivo }: { id: number; motivo?: string }) => {
+    const response = await apiClient.post(`/facturacion/facturas/${id}/anular/`, { motivo });
     return response.data;
   },
 

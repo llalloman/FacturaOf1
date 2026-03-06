@@ -72,39 +72,57 @@ class FacturaViewSet(viewsets.ModelViewSet):
         comp = factura.comprobante
         estado_actual = comp.estado
 
-        # Las facturas AUTORIZADAS no se pueden anular localmente:
-        # el SRI no expone un endpoint de anulación directa; la forma
-        # legal es emitir una Nota de Crédito por el valor total.
-        if estado_actual == 'AUTORIZADO':
-            return Response(
-                {
-                    'error': 'Las facturas autorizadas no pueden anularse directamente. '
-                             'Emita una Nota de Crédito por el valor total para anular '
-                             'este comprobante ante el SRI.',
-                    'codigo': 'REQUIERE_NOTA_CREDITO',
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         if estado_actual == 'ANULADO':
             return Response({'mensaje': 'La factura ya está anulada.'})
 
-        # Para BORRADOR, FIRMADO, ENVIADO, RECHAZADO, NO_AUTORIZADO:
-        # anular localmente — el comprobante nunca fue aceptado por el SRI.
+        if estado_actual == 'AUTORIZADO':
+            # Generar Nota de Crédito por el total y enviarla al SRI
+            motivo = (request.data.get('motivo') or 'Anulación de factura')[:300]
+            from apps.facturacion.services.nota_credito_service import (
+                crear_nota_credito_desde_factura, procesar_nota_credito_sri,
+            )
+            try:
+                nota_credito = crear_nota_credito_desde_factura(factura, motivo=motivo)
+                nc_result    = procesar_nota_credito_sri(nota_credito)
+            except Exception as e:
+                return Response(
+                    {'error': f'No se pudo crear la Nota de Crédito: {e}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            nc_estado = nc_result.get('estado', '')
+            nc_info = {
+                'numero': nc_result['numero_comprobante'],
+                'estado': nc_estado,
+                'numero_autorizacion': nota_credito.comprobante.numero_autorizacion or '',
+                'mensaje': nc_result['mensaje'],
+            }
+
+            # Solo marcamos la factura ANULADA si el SRI aceptó la NC
+            if nc_estado in ('AUTORIZADO', 'ENVIADO'):
+                comp.estado = 'ANULADO'
+                comp.save(update_fields=['estado'])
+                _desvincular_venta(factura)
+                return Response({
+                    'mensaje': 'Factura anulada. Nota de Crédito generada y enviada al SRI.',
+                    'estado': 'ANULADO',
+                    'nota_credito': nc_info,
+                })
+            else:
+                # NC rechazada — la factura permanece AUTORIZADO
+                return Response(
+                    {
+                        'error': f'La Nota de Crédito fue rechazada por el SRI. La factura no fue anulada.',
+                        'nota_credito': nc_info,
+                    },
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                )
+
+        # Para BORRADOR / FIRMADO / ENVIADO / RECHAZADO / NO_AUTORIZADO:
+        # el comprobante nunca fue aceptado → anulación local.
         comp.estado = 'ANULADO'
         comp.save(update_fields=['estado'])
-
-        # Desvincular la venta para que pueda generar una nueva factura si es necesario
-        try:
-            venta = factura.comprobante.empresa  # sanity
-            venta_obj = getattr(factura, 'venta', None)
-            if venta_obj and venta_obj.factura_id == factura.id:
-                venta_obj.factura = None
-                venta_obj.genera_factura = False
-                venta_obj.save(update_fields=['factura', 'genera_factura'])
-        except Exception:
-            pass
-
+        _desvincular_venta(factura)
         return Response({
             'mensaje': 'Factura anulada. El comprobante no había sido autorizado por el SRI.',
             'estado': 'ANULADO',
@@ -169,6 +187,18 @@ class FacturaViewSet(viewsets.ModelViewSet):
             f'attachment; filename="RIDE-{comp.numero_comprobante}.pdf"'
         )
         return response
+
+
+def _desvincular_venta(factura):
+    """Desvincula la venta de la factura para que pueda referenciar un nuevo comprobante."""
+    try:
+        venta_obj = getattr(factura, 'venta', None)
+        if venta_obj and venta_obj.factura_id == factura.id:
+            venta_obj.factura = None
+            venta_obj.genera_factura = False
+            venta_obj.save(update_fields=['factura', 'genera_factura'])
+    except Exception:
+        pass
 
 
 router = DefaultRouter()

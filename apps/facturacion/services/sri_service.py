@@ -246,7 +246,119 @@ class SRIService:
         comprobante.save(update_fields=['xml_generado'])
         
         return xml_string
-    
+
+    def generar_xml_nota_credito(self, nota_credito):
+        """
+        Genera el XML de una Nota de Crédito Electrónica (codDoc=04) según el SRI.
+        Referencia: Ficha Técnica SRI v2.32 — Nota de Crédito.
+        """
+        TIPO_NC = '04'
+        comprobante    = nota_credito.comprobante
+        factura_origen = nota_credito.factura_origen
+        cliente        = factura_origen.cliente
+
+        # Generar clave de acceso si no existe
+        if not comprobante.clave_acceso:
+            serie = f"{comprobante.establecimiento}-{comprobante.punto_emision}"
+            comprobante.clave_acceso = self.generar_clave_acceso(
+                fecha_emision=comprobante.fecha_emision,
+                tipo_comprobante=TIPO_NC,
+                ruc=self.empresa.ruc,
+                ambiente=self.ambiente,
+                serie=serie,
+                numero_comprobante=comprobante.secuencial,
+                codigo_numerico=str(random.randint(10000000, 99999999)),
+            )
+            comprobante.save(update_fields=['clave_acceso'])
+
+        nc_xml = etree.Element('notaCredito', id='comprobante', version='1.0.0')
+
+        # ── infoTributaria ────────────────────────────────────────────────────
+        info_trib = etree.SubElement(nc_xml, 'infoTributaria')
+        etree.SubElement(info_trib, 'ambiente').text       = self.ambiente
+        etree.SubElement(info_trib, 'tipoEmision').text    = '1'
+        etree.SubElement(info_trib, 'razonSocial').text    = self.empresa.razon_social
+        etree.SubElement(info_trib, 'nombreComercial').text = self.empresa.nombre_comercial or self.empresa.razon_social
+        etree.SubElement(info_trib, 'ruc').text            = self.empresa.ruc
+        etree.SubElement(info_trib, 'claveAcceso').text    = comprobante.clave_acceso
+        etree.SubElement(info_trib, 'codDoc').text         = TIPO_NC
+        etree.SubElement(info_trib, 'estab').text          = comprobante.establecimiento
+        etree.SubElement(info_trib, 'ptoEmi').text         = comprobante.punto_emision
+        etree.SubElement(info_trib, 'secuencial').text     = comprobante.secuencial
+        etree.SubElement(info_trib, 'dirMatriz').text      = self.empresa.direccion_matriz
+
+        # ── infoNotaCredito ───────────────────────────────────────────────────
+        info_nc = etree.SubElement(nc_xml, 'infoNotaCredito')
+        etree.SubElement(info_nc, 'fechaEmision').text = comprobante.fecha_emision.strftime('%d/%m/%Y')
+        etree.SubElement(info_nc, 'dirEstablecimiento').text = self.empresa.direccion_matriz
+        etree.SubElement(info_nc, 'tipoIdentificacionComprador').text = cliente.tipo_identificacion
+        etree.SubElement(info_nc, 'razonSocialComprador').text = cliente.razon_social
+        etree.SubElement(info_nc, 'identificacionComprador').text = cliente.identificacion
+
+        if self.empresa.contribuyente_especial:
+            etree.SubElement(info_nc, 'contribuyenteEspecial').text = self.empresa.contribuyente_especial
+
+        etree.SubElement(info_nc, 'obligadoContabilidad').text = 'SI' if self.empresa.obligado_contabilidad else 'NO'
+        etree.SubElement(info_nc, 'codDocModificado').text = '01'  # 01 = Factura
+        etree.SubElement(info_nc, 'numDocModificado').text = factura_origen.comprobante.numero_comprobante
+        etree.SubElement(info_nc, 'fechaEmisionDocSustento').text = factura_origen.comprobante.fecha_emision.strftime('%d/%m/%Y')
+        etree.SubElement(info_nc, 'totalSinImpuestos').text = f"{nota_credito.subtotal_sin_impuestos:.2f}"
+        etree.SubElement(info_nc, 'valorModificacion').text = f"{nota_credito.total:.2f}"
+        etree.SubElement(info_nc, 'moneda').text = 'DOLAR'
+
+        # totalConImpuestos — agrupado por (codigo, codigoPorcentaje, tarifa)
+        total_con_imp = etree.SubElement(info_nc, 'totalConImpuestos')
+        from collections import defaultdict
+        from decimal import Decimal as _D
+        totals: dict = defaultdict(lambda: {'base': _D('0.00'), 'valor': _D('0.00')})
+        for det in nota_credito.detalles.all():
+            key = (det.codigo_impuesto, det.codigo_porcentaje, det.tarifa)
+            totals[key]['base']  += det.precio_total_sin_impuesto
+            totals[key]['valor'] += det.valor_impuesto
+        for (cod, cod_pct, _tarifa), vals in totals.items():
+            ti = etree.SubElement(total_con_imp, 'totalImpuesto')
+            etree.SubElement(ti, 'codigo').text           = cod
+            etree.SubElement(ti, 'codigoPorcentaje').text = cod_pct
+            etree.SubElement(ti, 'baseImponible').text    = f"{vals['base']:.2f}"
+            etree.SubElement(ti, 'valor').text            = f"{vals['valor']:.2f}"
+
+        etree.SubElement(info_nc, 'motivo').text = nota_credito.motivo
+
+        # ── detalles ──────────────────────────────────────────────────────────
+        detalles_el = etree.SubElement(nc_xml, 'detalles')
+        for det in nota_credito.detalles.all():
+            det_el = etree.SubElement(detalles_el, 'detalle')
+            etree.SubElement(det_el, 'codigoInterno').text            = det.codigo_principal
+            etree.SubElement(det_el, 'descripcion').text              = det.descripcion
+            etree.SubElement(det_el, 'cantidad').text                 = f"{det.cantidad:.6f}"
+            etree.SubElement(det_el, 'precioUnitario').text           = f"{det.precio_unitario:.6f}"
+            etree.SubElement(det_el, 'descuento').text                = f"{det.descuento:.2f}"
+            etree.SubElement(det_el, 'precioTotalSinImpuesto').text   = f"{det.precio_total_sin_impuesto:.2f}"
+            imp_el = etree.SubElement(etree.SubElement(det_el, 'impuestos'), 'impuesto')
+            etree.SubElement(imp_el, 'codigo').text           = det.codigo_impuesto
+            etree.SubElement(imp_el, 'codigoPorcentaje').text = det.codigo_porcentaje
+            etree.SubElement(imp_el, 'tarifa').text           = f"{det.tarifa:.2f}"
+            etree.SubElement(imp_el, 'baseImponible').text    = f"{det.precio_total_sin_impuesto:.2f}"
+            etree.SubElement(imp_el, 'valor').text            = f"{det.valor_impuesto:.2f}"
+
+        # ── infoAdicional (email/teléfono cliente) ────────────────────────────
+        campos: dict = {}
+        if cliente.email:
+            campos['email'] = cliente.email
+        if cliente.telefono:
+            campos['telefono'] = cliente.telefono
+        if campos:
+            info_adic = etree.SubElement(nc_xml, 'infoAdicional')
+            for nombre, valor in campos.items():
+                etree.SubElement(info_adic, 'campoAdicional', nombre=nombre).text = str(valor)
+
+        xml_string = etree.tostring(
+            nc_xml, pretty_print=False, xml_declaration=True, encoding='UTF-8',
+        ).decode('utf-8')
+        comprobante.xml_generado = xml_string
+        comprobante.save(update_fields=['xml_generado'])
+        return xml_string
+
     def firmar_xml(self, xml_string):
         """
         Firma electrónicamente el XML con XAdES-BES según especificaciones SRI Ecuador.

@@ -312,3 +312,75 @@ class DetalleFactura(models.Model):
         self.valor_impuesto = self.precio_total_sin_impuesto * (self.tarifa / 100)
         
         super().save(*args, **kwargs)
+
+
+class NotaCredito(models.Model):
+    """
+    Nota de Crédito Electrónica (codDoc=04).
+    Se emite para anular total o parcialmente una Factura autorizada por el SRI.
+    """
+    comprobante = models.OneToOneField(
+        ComprobanteElectronico,
+        on_delete=models.CASCADE,
+        related_name='nota_credito',
+        verbose_name=_('comprobante'),
+    )
+    factura_origen = models.ForeignKey(
+        Factura,
+        on_delete=models.PROTECT,
+        related_name='notas_credito',
+        verbose_name=_('factura de origen'),
+    )
+    motivo = models.CharField(_('motivo'), max_length=300)
+
+    # Totales (espejo de la factura original o parciales)
+    subtotal_sin_impuestos = models.DecimalField(
+        _('subtotal sin impuestos'), max_digits=12, decimal_places=2,
+        default=Decimal('0.00'),
+    )
+    total_descuento = models.DecimalField(
+        _('total descuento'), max_digits=12, decimal_places=2,
+        default=Decimal('0.00'),
+    )
+    total = models.DecimalField(
+        _('valor de modificación'), max_digits=12, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
+
+    class Meta:
+        verbose_name = _('nota de crédito')
+        verbose_name_plural = _('notas de crédito')
+        ordering = ['-comprobante__fecha_emision']
+
+    def __str__(self):
+        return f"NC {self.comprobante.numero_comprobante} → {self.factura_origen.comprobante.numero_comprobante}"
+
+
+class DetalleNotaCredito(models.Model):
+    """
+    Ítem de una Nota de Crédito.
+    """
+    nota_credito = models.ForeignKey(
+        NotaCredito,
+        on_delete=models.CASCADE,
+        related_name='detalles',
+        verbose_name=_('nota de crédito'),
+    )
+    codigo_principal = models.CharField(_('código principal'), max_length=25)
+    descripcion = models.CharField(_('descripción'), max_length=300)
+    cantidad = models.DecimalField(_('cantidad'), max_digits=12, decimal_places=6)
+    precio_unitario = models.DecimalField(_('precio unitario'), max_digits=12, decimal_places=6)
+    descuento = models.DecimalField(_('descuento'), max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    precio_total_sin_impuesto = models.DecimalField(_('precio total sin impuesto'), max_digits=12, decimal_places=2)
+    codigo_impuesto = models.CharField(_('código impuesto'), max_length=1, default='2')
+    codigo_porcentaje = models.CharField(_('código porcentaje'), max_length=2, default='2')
+    tarifa = models.DecimalField(_('tarifa'), max_digits=5, decimal_places=2)
+    valor_impuesto = models.DecimalField(_('valor impuesto'), max_digits=12, decimal_places=2)
+
+    class Meta:
+        verbose_name = _('detalle de nota de crédito')
+        verbose_name_plural = _('detalles de nota de crédito')
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.descripcion} - {self.cantidad}"

@@ -36,16 +36,24 @@ const FacturasPage: React.FC = () => {
 
   const anularMutation = useMutation({
     mutationFn: facturasService.anular,
-    onSuccess: () => {
+    onSuccess: (data: unknown) => {
       queryClient.invalidateQueries({ queryKey: ['facturas'] });
-      alert('Factura anulada exitosamente');
+      const res = data as { mensaje?: string; nota_credito?: { numero: string; estado: string; numero_autorizacion?: string } };
+      if (res?.nota_credito) {
+        const nc = res.nota_credito;
+        const autMsg = nc.numero_autorizacion ? `\nAutorización SRI: ${nc.numero_autorizacion}` : '';
+        alert(`Factura anulada.\n\nNota de Crédito generada:\n• Número: ${nc.numero}\n• Estado: ${nc.estado}${autMsg}`);
+      } else {
+        alert(res?.mensaje || 'Factura anulada exitosamente');
+      }
     },
     onError: (error: unknown) => {
-      const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      if (msg?.includes('REQUIERE_NOTA_CREDITO') || msg?.includes('Nota de Crédito')) {
-        alert('Esta factura está AUTORIZADA por el SRI.\nPara anularla debe emitir una Nota de Crédito por el valor total.');
+      const resData = (error as { response?: { data?: { error?: string; nota_credito?: { numero: string; estado: string; mensaje: string } } } })?.response?.data;
+      if (resData?.nota_credito) {
+        const nc = resData.nota_credito;
+        alert(`La Nota de Crédito fue rechazada por el SRI. La factura no fue anulada.\n\nNC: ${nc.numero}\nEstado: ${nc.estado}\n${nc.mensaje}`);
       } else {
-        alert(msg || 'Error al anular la factura');
+        alert(resData?.error || 'Error al anular la factura');
       }
     },
   });
@@ -74,10 +82,20 @@ const FacturasPage: React.FC = () => {
     }
   };
 
-  const handleAnular = (id: number) => {
-    if (window.confirm('¿Anular esta factura?')) {
-      anularMutation.mutate(id);
+  const handleAnular = (id: number, estado?: string) => {
+    const esAutorizada = estado === 'AUTORIZADO';
+    const confirmMsg = esAutorizada
+      ? '⚠️ Esta factura está AUTORIZADA.\nSe generará y enviará una Nota de Crédito al SRI automáticamente.\n\n¿Confirmar anulación?'
+      : '¿Anular esta factura?';
+    if (!window.confirm(confirmMsg)) return;
+
+    let motivo = 'Anulación de factura';
+    if (esAutorizada) {
+      const input = window.prompt('Motivo de anulación (requerido por el SRI):', 'Anulación de factura');
+      if (input === null) return; // canceló el prompt
+      motivo = input.trim() || 'Anulación de factura';
     }
+    anularMutation.mutate({ id, motivo });
   };
 
   const handleDescargarPDF = async (id: number, numero: string) => {
@@ -272,7 +290,7 @@ const FacturasPage: React.FC = () => {
                               <FiFileText />
                             </button>
                             <button
-                              onClick={() => handleAnular(factura.id)}
+                              onClick={() => handleAnular(factura.id, factura.estado)}
                               className="text-red-600 hover:text-red-800 transition-colors"
                               title="Anular"
                             >
