@@ -1,6 +1,19 @@
 import { useState } from 'react';
 import { usePOSStore } from '../store/posStore';
+import { apiService } from '../services/apiService';
 import { PagoVenta, Venta } from '../types';
+
+interface SRIResultado {
+  ventaNumero: string;
+  cambio: number;
+  factura?: {
+    numero_comprobante: string;
+    estado: string;
+    mensaje: string;
+    numero_autorizacion?: string;
+  };
+  facturaError?: string;
+}
 
 interface PaymentModalProps {
   onClose: () => void;
@@ -22,6 +35,10 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
   const [metodoPago, setMetodoPago] = useState<PagoVenta['metodo_pago']>('EFECTIVO');
   const [monto, setMonto] = useState<string>(total.toFixed(2));
   const [procesando, setProcesando] = useState(false);
+  const [generaFactura, setGeneraFactura] = useState(false);
+  const [etapa, setEtapa] = useState<'pago' | 'procesando' | 'resultado'>('pago');
+  const [mensajeProceso, setMensajeProceso] = useState('');
+  const [resultadoSRI, setResultadoSRI] = useState<SRIResultado | null>(null);
 
   const totalPagado = pagos.reduce((sum, p) => sum + p.monto, 0);
   const pendiente = total - totalPagado;
@@ -54,13 +71,12 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
     }
 
     setProcesando(true);
+    setEtapa('procesando');
 
     try {
-      // Generar número de venta
       const now = new Date();
       const numeroVenta = `V-${now.getTime()}`;
 
-      // Crear venta
       const ventaData: Venta = {
         numero_venta: numeroVenta,
         empresa_id: config.empresa_id,
@@ -77,26 +93,59 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
         pagos: pagos,
       };
 
+      // Paso 1 — guardar localmente (SQLite / Electron)
+      setMensajeProceso('Guardando venta...');
+      let localUuid: string | undefined;
+
       if (window.electron?.ventas?.crear) {
         const result = await window.electron.ventas.crear(ventaData);
-
-        if (result.success) {
-          alert(`✅ Venta ${numeroVenta} registrada correctamente\nCambio: $${cambio.toFixed(2)}`);
-          limpiarCarrito();
-          onClose();
-        } else {
-          throw new Error(result.error || 'Error al crear la venta');
-        }
+        if (!result.success) throw new Error(result.error || 'Error al crear la venta');
+        localUuid = result.uuid;
       } else {
-        // Modo web - simular éxito
-        console.log('Venta simulada en modo web:', ventaData);
-        alert(`✅ Venta ${numeroVenta} registrada (modo prueba)\nCambio: $${cambio.toFixed(2)}`);
-        limpiarCarrito();
-        onClose();
+        // Modo web – simular UUID local
+        localUuid = crypto.randomUUID();
       }
+
+      // Paso 2 — si se pidió factura electrónica, sincronizar y enviar al SRI
+      let facturaInfo: SRIResultado['factura'] | undefined;
+      let facturaError: string | undefined;
+
+      if (generaFactura && localUuid) {
+        try {
+          setMensajeProceso('Sincronizando con servidor...');
+          const syncResult = await apiService.sincronizarVenta({ ...ventaData, uuid: localUuid });
+
+          if (syncResult.success && syncResult.data?.id) {
+            setMensajeProceso('Enviando al SRI… (puede tardar hasta 30 s)');
+            const factResult = await apiService.generarFactura(syncResult.data.id);
+
+            if (factResult.success) {
+              const sri = factResult.data?.sri ?? {};
+              const factura = factResult.data?.factura ?? {};
+              facturaInfo = {
+                numero_comprobante: sri.numero_comprobante ?? factura.numero_comprobante ?? '—',
+                estado: sri.estado ?? '—',
+                mensaje: sri.mensaje ?? '',
+                numero_autorizacion: factura.comprobante?.numero_autorizacion,
+              };
+            } else {
+              facturaError = factResult.error ?? 'Error al generar la factura';
+            }
+          } else {
+            facturaError = 'No se pudo sincronizar con el servidor';
+          }
+        } catch (err: any) {
+          facturaError = err.message;
+        }
+      }
+
+      limpiarCarrito();
+      setResultadoSRI({ ventaNumero: numeroVenta, cambio, factura: facturaInfo, facturaError });
+      setEtapa('resultado');
     } catch (error: any) {
       console.error('Error procesando venta:', error);
       alert(`Error: ${error.message}`);
+      setEtapa('pago');
     } finally {
       setProcesando(false);
     }
@@ -124,118 +173,206 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
           </button>
         </div>
 
-        {/* Totales */}
-        <div className="p-6 bg-gray-50 space-y-2">
-          <div className="flex justify-between text-lg">
-            <span className="font-semibold">Total a cobrar:</span>
-            <span className="font-bold text-blue-600">${total.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-lg">
-            <span className="font-semibold">Total pagado:</span>
-            <span className="font-bold text-green-600">${totalPagado.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-lg border-t border-gray-300 pt-2">
-            <span className="font-semibold">Pendiente:</span>
-            <span className={`font-bold ${pendiente > 0 ? 'text-red-600' : 'text-gray-600'}`}>
-              ${pendiente.toFixed(2)}
-            </span>
-          </div>
-          {cambio > 0 && (
-            <div className="flex justify-between text-xl border-t border-gray-300 pt-2">
-              <span className="font-bold">CAMBIO:</span>
-              <span className="font-bold text-orange-600">${cambio.toFixed(2)}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Agregar pago */}
-        <div className="p-6 border-b border-gray-200">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Método de pago
-          </label>
-          <select
-            value={metodoPago}
-            onChange={(e) => setMetodoPago(e.target.value as PagoVenta['metodo_pago'])}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3"
-          >
-            <option value="EFECTIVO">Efectivo</option>
-            <option value="TARJETA">Tarjeta</option>
-            <option value="TRANSFERENCIA">Transferencia</option>
-            <option value="CHEQUE">Cheque</option>
-            <option value="CREDITO">Crédito</option>
-          </select>
-
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Monto
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              step="0.01"
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
-            />
-            <button
-              onClick={agregarPago}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Agregar
-            </button>
-          </div>
-        </div>
-
-        {/* Lista de pagos */}
-        {pagos.length > 0 && (
-          <div className="p-6 border-b border-gray-200">
-            <h3 className="font-semibold text-gray-700 mb-3">Pagos registrados:</h3>
-            <div className="space-y-2">
-              {pagos.map((pago, index) => (
-                <div
-                  key={index}
-                  className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
-                >
-                  <div>
-                    <span className="font-medium">{pago.metodo_pago}</span>
-                    <span className="text-gray-600 ml-3">${pago.monto.toFixed(2)}</span>
-                  </div>
-                  <button
-                    onClick={() => eliminarPago(index)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
+        {/* ── PANTALLA: resultado final ── */}
+        {etapa === 'resultado' && resultadoSRI && (
+          <div className="p-8 space-y-5">
+            <div className="text-center">
+              <div className="text-5xl mb-3">✅</div>
+              <h3 className="text-xl font-bold text-gray-800">Venta Registrada</h3>
+              <p className="text-gray-500 text-sm">{resultadoSRI.ventaNumero}</p>
+              {resultadoSRI.cambio > 0 && (
+                <div className="mt-3 text-3xl font-bold text-orange-500">
+                  Cambio: ${resultadoSRI.cambio.toFixed(2)}
                 </div>
-              ))}
+              )}
             </div>
+
+            {/* Resultado SRI */}
+            {resultadoSRI.facturaError ? (
+              <div className="p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
+                <p className="font-semibold text-yellow-700">⚠️ Factura no generada</p>
+                <p className="text-sm text-yellow-600 mt-1">{resultadoSRI.facturaError}</p>
+                <p className="text-xs text-yellow-500 mt-1">Puede generarla manualmente desde el módulo de Facturas.</p>
+              </div>
+            ) : resultadoSRI.factura ? (
+              <div className={`p-4 rounded-lg border ${
+                resultadoSRI.factura.estado === 'AUTORIZADO'
+                  ? 'bg-green-50 border-green-300'
+                  : resultadoSRI.factura.estado === 'ENVIADO'
+                  ? 'bg-blue-50 border-blue-300'
+                  : 'bg-red-50 border-red-300'
+              }`}>
+                <p className="font-semibold">
+                  {resultadoSRI.factura.estado === 'AUTORIZADO' ? '✅' :
+                   resultadoSRI.factura.estado === 'ENVIADO' ? '🕐' : '❌'}{' '}
+                  Factura {resultadoSRI.factura.numero_comprobante}
+                </p>
+                <p className="text-sm mt-1">
+                  Estado SRI: <strong>{resultadoSRI.factura.estado}</strong>
+                </p>
+                {resultadoSRI.factura.numero_autorizacion && (
+                  <p className="text-xs text-gray-600 mt-1 break-all">
+                    Autorización: {resultadoSRI.factura.numero_autorizacion}
+                  </p>
+                )}
+                {resultadoSRI.factura.mensaje && (
+                  <p className="text-sm text-gray-600 mt-1">{resultadoSRI.factura.mensaje}</p>
+                )}
+              </div>
+            ) : null}
+
+            <button
+              onClick={onClose}
+              className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
+            >
+              Cerrar
+            </button>
           </div>
         )}
 
-        {/* Botones */}
-        <div className="p-6 flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={procesando}
-            className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleFinalizarVenta}
-            disabled={pendiente > 0 || procesando}
-            className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            {procesando ? 'Procesando...' : 'Finalizar Venta'}
-          </button>
-        </div>
+        {/* ── PANTALLA: procesando ── */}
+        {etapa === 'procesando' && (
+          <div className="p-12 text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-6"></div>
+            <p className="text-lg font-semibold text-gray-700">{mensajeProceso}</p>
+            {mensajeProceso.includes('SRI') && (
+              <p className="text-sm text-gray-500 mt-2">Esto puede tardar hasta 30 segundos</p>
+            )}
+          </div>
+        )}
+
+        {/* ── PANTALLA: formulario de pago ── */}
+        {etapa === 'pago' && (
+          <>
+            {/* Totales */}
+            <div className="p-6 bg-gray-50 space-y-2">
+              <div className="flex justify-between text-lg">
+                <span className="font-semibold">Total a cobrar:</span>
+                <span className="font-bold text-blue-600">${total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-lg">
+                <span className="font-semibold">Total pagado:</span>
+                <span className="font-bold text-green-600">${totalPagado.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-lg border-t border-gray-300 pt-2">
+                <span className="font-semibold">Pendiente:</span>
+                <span className={`font-bold ${pendiente > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                  ${pendiente.toFixed(2)}
+                </span>
+              </div>
+              {cambio > 0 && (
+                <div className="flex justify-between text-xl border-t border-gray-300 pt-2">
+                  <span className="font-bold">CAMBIO:</span>
+                  <span className="font-bold text-orange-600">${cambio.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Agregar pago */}
+            <div className="p-6 border-b border-gray-200">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Método de pago
+              </label>
+              <select
+                value={metodoPago}
+                onChange={(e) => setMetodoPago(e.target.value as PagoVenta['metodo_pago'])}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3"
+              >
+                <option value="EFECTIVO">Efectivo</option>
+                <option value="TARJETA">Tarjeta</option>
+                <option value="TRANSFERENCIA">Transferencia</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="CREDITO">Crédito</option>
+              </select>
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Monto
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={monto}
+                  onChange={(e) => setMonto(e.target.value)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                />
+                <button
+                  onClick={agregarPago}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
+
+            {/* Lista de pagos */}
+            {pagos.length > 0 && (
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="font-semibold text-gray-700 mb-3">Pagos registrados:</h3>
+                <div className="space-y-2">
+                  {pagos.map((pago, index) => (
+                    <div
+                      key={index}
+                      className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div>
+                        <span className="font-medium">{pago.metodo_pago}</span>
+                        <span className="text-gray-600 ml-3">${pago.monto.toFixed(2)}</span>
+                      </div>
+                      <button
+                        onClick={() => eliminarPago(index)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Opción factura electrónica */}
+            <div className="px-6 py-3 border-b border-gray-200 flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="genera_factura"
+                checked={generaFactura}
+                onChange={(e) => setGeneraFactura(e.target.checked)}
+                className="w-4 h-4 text-blue-600"
+              />
+              <label htmlFor="genera_factura" className="text-sm font-medium text-gray-700 cursor-pointer">
+                Generar Factura Electrónica (SRI)
+              </label>
+            </div>
+
+            {/* Botones */}
+            <div className="p-6 flex gap-3">
+              <button
+                onClick={onClose}
+                disabled={procesando}
+                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleFinalizarVenta}
+                disabled={pendiente > 0 || procesando}
+                className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                {procesando ? 'Procesando...' : 'Finalizar Venta'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
+

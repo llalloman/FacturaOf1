@@ -92,6 +92,19 @@ class APIService {
     }
   }
 
+  async generarFactura(ventaId: number) {
+    try {
+      const response = await this.client.post(
+        `/ventas/${ventaId}/generar_factura/`,
+        {},
+        { timeout: 90000 }, // SRI puede tardar hasta 30s (6 retries × 5s)
+      );
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      return { success: false, error: error.response?.data?.error || error.message };
+    }
+  }
+
   async verificarConexion(): Promise<boolean> {
     try {
       await this.client.get('/health/');

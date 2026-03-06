@@ -186,7 +186,7 @@ ipcMain.handle('ventas:crear', async (event, ventaData) => {
     db.prepare(`
       INSERT INTO sync_queue (entity_type, entity_id, operation, data)
       VALUES ('venta', ?, 'CREATE', ?)
-    `).run(uuid, JSON.stringify(ventaData));
+    `).run(uuid, JSON.stringify({ ...ventaData, uuid }));
 
     return { success: true, ventaId, uuid };
   } catch (error) {
