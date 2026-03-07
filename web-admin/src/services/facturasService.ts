@@ -55,4 +55,9 @@ export const facturasService = {
     const response = await apiClient.post(`/facturacion/facturas/${id}/reprocesar/`);
     return response.data;
   },
+
+  reenviarEmail: async (id: number) => {
+    const response = await apiClient.post(`/facturacion/facturas/${id}/reenviar_email/`);
+    return response.data;
+  },
 };

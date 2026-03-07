@@ -17,26 +17,43 @@ import {
   Search,
   Building2,
   Tablet,
+  Receipt,
+  Truck,
+  FileMinus,
 } from 'lucide-react';
 import { useState } from 'react';
 
-const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: FileText, label: 'Facturación', path: '/facturacion' },
-  { icon: Warehouse, label: 'Inventarios', path: '/inventarios' },
-  { icon: ShoppingBag, label: 'Proveedores', path: '/proveedores' },
-  { icon: Package, label: 'Productos', path: '/productos' },
-  { icon: Users, label: 'Clientes', path: '/clientes' },
-  { icon: ShoppingCart, label: 'Ventas', path: '/ventas' },
-  { icon: TrendingUp, label: 'Reportes', path: '/reportes' },
-  { icon: Settings, label: 'Configuración', path: '/configuracion' },
+type MenuItem = { icon: React.ElementType; label: string; path: string };
+
+// Todos los ítems disponibles para empresas
+const ALL_ITEMS: MenuItem[] = [
+  { icon: LayoutDashboard, label: 'Dashboard',      path: '/' },
+  { icon: FileText,        label: 'Facturación',    path: '/facturacion' },
+  { icon: Receipt,         label: 'Retenciones',    path: '/retenciones' },
+  { icon: Truck,           label: 'Guías Remisión', path: '/guias-remision' },
+  { icon: FileMinus,       label: 'Notas Débito',  path: '/notas-debito' },
+  { icon: Warehouse,       label: 'Inventarios',    path: '/inventarios' },
+  { icon: ShoppingBag,     label: 'Proveedores',    path: '/proveedores' },
+  { icon: Package,         label: 'Productos',      path: '/productos' },
+  { icon: Users,           label: 'Clientes',       path: '/clientes' },
+  { icon: ShoppingCart,    label: 'Ventas',         path: '/ventas' },
+  { icon: TrendingUp,      label: 'Reportes',       path: '/reportes' },
+  { icon: Settings,        label: 'Configuración',  path: '/configuracion' },
 ];
 
+// Menú por rol (paths permitidos en el sidebar)
+const ROL_PATHS: Record<string, string[]> = {
+  ADMIN_EMPRESA: ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/reportes', '/configuracion'],
+  CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/clientes', '/reportes'],
+  VENDEDOR:      ['/', '/ventas', '/clientes', '/productos'],
+  CONSULTOR:     ['/', '/facturacion', '/retenciones', '/ventas', '/reportes'],
+};
+
 // Menú exclusivo del Super Admin (no está atado a ninguna empresa)
-const menuItemsSuperAdmin = [
+const menuItemsSuperAdmin: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Building2, label: 'Empresas', path: '/empresas' },
-  { icon: Users, label: 'Usuarios', path: '/usuarios' },
+  { icon: Building2,       label: 'Empresas',  path: '/empresas' },
+  { icon: Users,           label: 'Usuarios',  path: '/usuarios' },
 ];
 
 export default function Layout() {
@@ -50,9 +67,13 @@ export default function Layout() {
     navigate('/login');
   };
 
-  const isActive = (path: string) => {
-    return location.pathname === path;
-  };
+  const isActive = (path: string) => location.pathname === path;
+
+  // Menú filtrado por rol del usuario
+  const rol = user?.rol ?? '';
+  const allowedPaths = ROL_PATHS[rol] ?? ROL_PATHS['ADMIN_EMPRESA'];
+  const menuItems = ALL_ITEMS.filter((item) => allowedPaths.includes(item.path));
+  const showPOS = rol !== 'CONSULTOR';
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -125,19 +146,23 @@ export default function Layout() {
                   {sidebarOpen && <span className={`font-medium ${isActive('/usuarios') ? 'text-white' : 'text-gray-300'}`}>Usuarios</span>}
                 </Link>
               )}
-              {/* Botón POS */}
-              {sidebarOpen && (
-                <p className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">Punto de Venta</p>
+              {/* Botón POS — solo roles que operan caja */}
+              {showPOS && (
+                <>
+                  {sidebarOpen && (
+                    <p className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">Punto de Venta</p>
+                  )}
+                  <a
+                    href="/pos"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 bg-gradient-to-r from-green-700 to-emerald-600 hover:from-green-600 hover:to-emerald-500 shadow-lg shadow-green-900/40 mt-1"
+                  >
+                    <Tablet size={22} className="text-white" />
+                    {sidebarOpen && <span className="font-bold text-white">Abrir POS</span>}
+                  </a>
+                </>
               )}
-              <a
-                href="/pos"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 bg-gradient-to-r from-green-700 to-emerald-600 hover:from-green-600 hover:to-emerald-500 shadow-lg shadow-green-900/40 mt-1"
-              >
-                <Tablet size={22} className="text-white" />
-                {sidebarOpen && <span className="font-bold text-white">Abrir POS</span>}
-              </a>
             </>
           )}
         </nav>

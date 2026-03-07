@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { facturasService } from '../../services/facturasService';
 import type { Factura } from '../../types';
-import { FiPlus, FiSearch, FiFileText, FiCheckCircle, FiXCircle, FiDownload, FiSend, FiRefreshCw } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiFileText, FiCheckCircle, FiXCircle, FiDownload, FiSend, FiRefreshCw, FiMail } from 'react-icons/fi';
 import FacturaModal from './FacturaModal';
 
 const FacturasPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('');
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState('');
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedFactura, setSelectedFactura] = useState<Factura | null>(null);
   const queryClient = useQueryClient();
@@ -59,6 +62,18 @@ const FacturasPage: React.FC = () => {
     },
   });
 
+  const reenviarEmailMutation = useMutation({
+    mutationFn: facturasService.reenviarEmail,
+    onSuccess: (data: unknown) => {
+      const res = data as { mensaje?: string };
+      alert(`✅ ${res?.mensaje || 'Email enviado exitosamente'}`);
+    },
+    onError: (error: unknown) => {
+      const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg || 'Error al reenviar el email');
+    },
+  });
+
   const anularMutation = useMutation({
     mutationFn: facturasService.anular,
     onSuccess: (data: unknown) => {
@@ -85,10 +100,16 @@ const FacturasPage: React.FC = () => {
 
   const facturasArray = Array.isArray(facturas) ? facturas : [];
 
-  const filteredFacturas = facturasArray.filter((factura) =>
-    (factura.numero_factura ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (factura.cliente_nombre ?? '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredFacturas = facturasArray.filter((factura) => {
+    const matchText =
+      (factura.numero_factura ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (factura.cliente_nombre ?? '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchEstado = !filtroEstado || factura.estado === filtroEstado;
+    const fechaDoc = (factura.fecha_emision ?? '').split('T')[0].split(' ')[0];
+    const matchDesde = !filtroFechaDesde || fechaDoc >= filtroFechaDesde;
+    const matchHasta = !filtroFechaHasta || fechaDoc <= filtroFechaHasta;
+    return matchText && matchEstado && matchDesde && matchHasta;
+  });
 
   const handleEdit = (factura: Factura) => {
     setSelectedFactura(factura);
@@ -225,8 +246,9 @@ const FacturasPage: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="mb-6">
-          <div className="relative">
+        {/* ── Filtros ──────────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <div className="relative flex-1 min-w-[200px]">
             <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -236,6 +258,40 @@ const FacturasPage: React.FC = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
+          <select
+            value={filtroEstado}
+            onChange={(e) => setFiltroEstado(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Todos los estados</option>
+            <option value="BORRADOR">Borrador</option>
+            <option value="ENVIADO">Enviado</option>
+            <option value="AUTORIZADO">Autorizado</option>
+            <option value="RECHAZADO">Rechazado</option>
+            <option value="ANULADO">Anulado</option>
+          </select>
+          <input
+            type="date"
+            value={filtroFechaDesde}
+            onChange={(e) => setFiltroFechaDesde(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+            title="Fecha desde"
+          />
+          <input
+            type="date"
+            value={filtroFechaHasta}
+            onChange={(e) => setFiltroFechaHasta(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+            title="Fecha hasta"
+          />
+          {(filtroEstado || filtroFechaDesde || filtroFechaHasta) && (
+            <button
+              onClick={() => { setFiltroEstado(''); setFiltroFechaDesde(''); setFiltroFechaHasta(''); }}
+              className="px-3 py-2 text-sm text-gray-500 hover:text-red-600 border border-gray-300 rounded-lg hover:border-red-400 transition-colors"
+            >
+              Limpiar filtros
+            </button>
+          )}
         </div>
 
         {isLoading ? (
@@ -320,6 +376,17 @@ const FacturasPage: React.FC = () => {
                               title="Descargar XML"
                             >
                               <FiFileText />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Reenviar PDF+XML al email del cliente?')) {
+                                  reenviarEmailMutation.mutate(factura.id);
+                                }
+                              }}
+                              className="text-teal-600 hover:text-teal-800 transition-colors"
+                              title="Reenviar por email"
+                            >
+                              <FiMail />
                             </button>
                             <button
                               onClick={() => handleAnular(factura.id, factura.estado)}

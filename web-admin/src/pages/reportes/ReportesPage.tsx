@@ -6,7 +6,7 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { TrendingUp, DollarSign, ShoppingCart, Calendar } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingCart, Calendar, Download } from 'lucide-react';
 import { format, subDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -81,6 +81,23 @@ export default function ReportesPage() {
     return fecha === format(today, 'yyyy-MM-dd');
   }).length;
 
+  const exportarCSV = () => {
+    const headers = ['Fecha', 'Total', 'Estado', 'Método de pago'];
+    const rows = ventasFiltradas.map((v) => {
+      const fecha = (v.fecha_venta ?? '').split('T')[0].split(' ')[0];
+      const metodo = v.pagos?.map((p) => p.forma_pago).join('/') || 'OTRO';
+      return [fecha, Number(v.total || 0).toFixed(2), v.estado ?? '', metodo];
+    });
+    const csv = [headers, ...rows].map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ventas_${dateFrom}_${dateTo}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -91,21 +108,31 @@ export default function ReportesPage() {
           </h1>
           <p className="text-gray-600 mt-1">Análisis de ventas y estadísticas del negocio</p>
         </div>
-        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
-          <Calendar size={18} className="text-gray-400" />
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="text-sm border-none outline-none text-gray-700"
-          />
-          <span className="text-gray-400">—</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="text-sm border-none outline-none text-gray-700"
-          />
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
+            <Calendar size={18} className="text-gray-400" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="text-sm border-none outline-none text-gray-700"
+            />
+            <span className="text-gray-400">—</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="text-sm border-none outline-none text-gray-700"
+            />
+          </div>
+          <button
+            onClick={exportarCSV}
+            disabled={ventasFiltradas.length === 0}
+            className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+          >
+            <Download size={16} />
+            Exportar CSV
+          </button>
         </div>
       </div>
 

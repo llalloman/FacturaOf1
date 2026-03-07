@@ -1,5 +1,6 @@
 import { useAuthStore } from '../store/authStore';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   TrendingUp,
   ShoppingCart,
@@ -139,6 +140,7 @@ export default function DashboardPage() {
 
   const ventasMesTotal: number = (ventasMes as Record<string, unknown>)?.total as number ?? 0;
   const facturasEmitidas = facturasArray.filter(f => f.estado !== 'ANULADO').length;
+  const facturasEnviadas = facturasArray.filter(f => f.estado === 'ENVIADO').length;
   const productosActivos = (productosArray as Producto[]).filter((p) => p.activo !== false).length;
   const clientesActivos = (clientesArray as Cliente[]).filter((c) => c.activo !== false).length;
   const productosStockBajo = (productosArray as Producto[]).filter((p) => p.maneja_inventario && p.stock_actual <= p.stock_minimo);
@@ -213,6 +215,24 @@ export default function DashboardPage() {
           <span className="font-semibold text-blue-600">{user?.email}</span>
         </p>
       </div>
+
+      {/* Alerta: facturas pendientes de autorización SRI */}
+      {facturasEnviadas > 0 && (
+        <div className="mb-6 flex items-center gap-3 bg-yellow-50 border border-yellow-300 rounded-xl px-5 py-4 shadow-sm">
+          <Clock className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-yellow-800 font-semibold text-sm">
+              {facturasEnviadas} factura{facturasEnviadas > 1 ? 's' : ''} pendiente{facturasEnviadas > 1 ? 's' : ''} de autorización SRI
+            </p>
+            <p className="text-yellow-700 text-xs mt-0.5">
+              Están en estado ENVIADO — usa el botón 🔄 en Facturación para consultar al SRI.
+            </p>
+          </div>
+          <Link to="/facturacion" className="text-xs font-semibold text-yellow-700 underline hover:text-yellow-900">
+            Ver facturas →
+          </Link>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

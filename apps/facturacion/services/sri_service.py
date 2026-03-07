@@ -363,6 +363,278 @@ class SRIService:
         comprobante.save(update_fields=['xml_generado'])
         return xml_string
 
+    def generar_xml_guia_remision(self, guia):
+        """
+        Genera el XML de una Guía de Remisión (codDoc=06) según el SRI.
+        Referencia: Ficha Técnica SRI v2.x — Guía de Remisión.
+        """
+        TIPO_GR = '06'
+        comprobante = guia.comprobante
+
+        if not comprobante.clave_acceso or comprobante.estado not in ('AUTORIZADO', 'ENVIADO'):
+            serie = f"{comprobante.establecimiento}-{comprobante.punto_emision}"
+            comprobante.clave_acceso = self.generar_clave_acceso(
+                fecha_emision=comprobante.fecha_emision,
+                tipo_comprobante=TIPO_GR,
+                ruc=self.empresa.ruc,
+                ambiente=self.ambiente,
+                serie=serie,
+                numero_comprobante=comprobante.secuencial,
+                codigo_numerico=str(random.randint(10000000, 99999999)),
+            )
+            comprobante.save(update_fields=['clave_acceso'])
+
+        gr_xml = etree.Element('guiaRemision', id='comprobante', version='1.1.0')
+
+        # ── infoTributaria ────────────────────────────────────────────────────
+        info_trib = etree.SubElement(gr_xml, 'infoTributaria')
+        etree.SubElement(info_trib, 'ambiente').text        = self.ambiente
+        etree.SubElement(info_trib, 'tipoEmision').text     = '1'
+        etree.SubElement(info_trib, 'razonSocial').text     = self.empresa.razon_social
+        etree.SubElement(info_trib, 'nombreComercial').text = self.empresa.nombre_comercial or self.empresa.razon_social
+        etree.SubElement(info_trib, 'ruc').text             = self.empresa.ruc
+        etree.SubElement(info_trib, 'claveAcceso').text     = comprobante.clave_acceso
+        etree.SubElement(info_trib, 'codDoc').text          = TIPO_GR
+        etree.SubElement(info_trib, 'estab').text           = comprobante.establecimiento
+        etree.SubElement(info_trib, 'ptoEmi').text          = comprobante.punto_emision
+        etree.SubElement(info_trib, 'secuencial').text      = comprobante.secuencial
+        etree.SubElement(info_trib, 'dirMatriz').text       = self.empresa.direccion_matriz
+
+        # ── infoGuiaRemision ──────────────────────────────────────────────────
+        info_gr = etree.SubElement(gr_xml, 'infoGuiaRemision')
+        etree.SubElement(info_gr, 'dirPartida').text                = guia.dir_partida
+        etree.SubElement(info_gr, 'razonSocialTransportista').text  = guia.razon_social_transportista
+        etree.SubElement(info_gr, 'tipoIdentificacionTransportista').text = '04'  # RUC
+        etree.SubElement(info_gr, 'rucTransportista').text          = guia.ruc_transportista
+
+        if self.empresa.contribuyente_especial:
+            etree.SubElement(info_gr, 'contribuyenteEspecial').text = self.empresa.contribuyente_especial
+
+        etree.SubElement(info_gr, 'obligadoContabilidad').text = 'SI' if self.empresa.obligado_contabilidad else 'NO'
+        etree.SubElement(info_gr, 'fechaIniTransporte').text   = guia.fecha_inicio_transporte.strftime('%d/%m/%Y')
+        etree.SubElement(info_gr, 'fechaFinTransporte').text   = guia.fecha_fin_transporte.strftime('%d/%m/%Y')
+        etree.SubElement(info_gr, 'placa').text               = guia.placa
+
+        # ── destinatarios ─────────────────────────────────────────────────────
+        destinatarios_el = etree.SubElement(gr_xml, 'destinatarios')
+        for dest in guia.destinatarios.all():
+            dest_el = etree.SubElement(destinatarios_el, 'destinatario')
+            etree.SubElement(dest_el, 'identificacionDestinatario').text = dest.identificacion_destinatario
+            etree.SubElement(dest_el, 'razonSocialDestinatario').text    = dest.razon_social_destinatario
+            etree.SubElement(dest_el, 'dirDestinatario').text            = dest.dir_dest_destinatario
+            etree.SubElement(dest_el, 'motivoTraslado').text             = dest.motorista_y_ca
+            if dest.ruta:
+                etree.SubElement(dest_el, 'ruta').text = dest.ruta
+            etree.SubElement(dest_el, 'codDocSustento').text  = dest.cod_doc_sustento
+            if dest.num_doc_sustento:
+                etree.SubElement(dest_el, 'numDocSustento').text = dest.num_doc_sustento
+            if dest.fecha_emision_doc_sust:
+                etree.SubElement(dest_el, 'fechaEmisionDocSustento').text = dest.fecha_emision_doc_sust.strftime('%d/%m/%Y')
+            if dest.num_autorizacion_doc_sust:
+                etree.SubElement(dest_el, 'numAutDocSustento').text = dest.num_autorizacion_doc_sust
+
+            detalles_el = etree.SubElement(dest_el, 'detalles')
+            for det in dest.detalles.all():
+                det_el = etree.SubElement(detalles_el, 'detalle')
+                etree.SubElement(det_el, 'codigoInterno').text = det.codigo_interno
+                etree.SubElement(det_el, 'descripcion').text   = det.descripcion
+                etree.SubElement(det_el, 'cantidad').text      = f"{det.cantidad:.6f}"
+
+        xml_string = etree.tostring(
+            gr_xml, pretty_print=False, xml_declaration=True, encoding='UTF-8',
+        ).decode('utf-8')
+        comprobante.xml_generado = xml_string
+        comprobante.save(update_fields=['xml_generado'])
+        return xml_string
+
+    def generar_xml_retencion(self, retencion):
+        Referencia: Ficha Técnica SRI v2.x — Comprobante de Retención.
+        """
+        TIPO_RET = '07'
+        comprobante = retencion.comprobante
+        sujeto = retencion.proveedor
+
+        # Generar clave de acceso si no existe o si está en borrador
+        if not comprobante.clave_acceso or comprobante.estado not in ('AUTORIZADO', 'ENVIADO'):
+            serie = f"{comprobante.establecimiento}-{comprobante.punto_emision}"
+            comprobante.clave_acceso = self.generar_clave_acceso(
+                fecha_emision=comprobante.fecha_emision,
+                tipo_comprobante=TIPO_RET,
+                ruc=self.empresa.ruc,
+                ambiente=self.ambiente,
+                serie=serie,
+                numero_comprobante=comprobante.secuencial,
+                codigo_numerico=str(random.randint(10000000, 99999999)),
+            )
+            comprobante.save(update_fields=['clave_acceso'])
+
+        ret_xml = etree.Element('comprobanteRetencion', id='comprobante', version='1.0.0')
+
+        # ── infoTributaria ────────────────────────────────────────────────────
+        info_trib = etree.SubElement(ret_xml, 'infoTributaria')
+        etree.SubElement(info_trib, 'ambiente').text        = self.ambiente
+        etree.SubElement(info_trib, 'tipoEmision').text     = '1'
+        etree.SubElement(info_trib, 'razonSocial').text     = self.empresa.razon_social
+        etree.SubElement(info_trib, 'nombreComercial').text = self.empresa.nombre_comercial or self.empresa.razon_social
+        etree.SubElement(info_trib, 'ruc').text             = self.empresa.ruc
+        etree.SubElement(info_trib, 'claveAcceso').text     = comprobante.clave_acceso
+        etree.SubElement(info_trib, 'codDoc').text          = TIPO_RET
+        etree.SubElement(info_trib, 'estab').text           = comprobante.establecimiento
+        etree.SubElement(info_trib, 'ptoEmi').text          = comprobante.punto_emision
+        etree.SubElement(info_trib, 'secuencial').text      = comprobante.secuencial
+        etree.SubElement(info_trib, 'dirMatriz').text       = self.empresa.direccion_matriz
+
+        # ── infoCompRetencion ─────────────────────────────────────────────────
+        info_ret = etree.SubElement(ret_xml, 'infoCompRetencion')
+        etree.SubElement(info_ret, 'fechaEmision').text     = timezone.localtime(comprobante.fecha_emision).strftime('%d/%m/%Y')
+        etree.SubElement(info_ret, 'dirEstablecimiento').text = self.empresa.direccion_matriz
+
+        if self.empresa.contribuyente_especial:
+            etree.SubElement(info_ret, 'contribuyenteEspecial').text = self.empresa.contribuyente_especial
+
+        etree.SubElement(info_ret, 'obligadoContabilidad').text        = 'SI' if self.empresa.obligado_contabilidad else 'NO'
+        etree.SubElement(info_ret, 'tipoIdentificacionSujetoRetenido').text = sujeto.tipo_identificacion
+        etree.SubElement(info_ret, 'razonSocialSujetoRetenido').text   = sujeto.razon_social
+        etree.SubElement(info_ret, 'identificacionSujetoRetenido').text = sujeto.identificacion
+        etree.SubElement(info_ret, 'periodoFiscal').text               = retencion.periodo_fiscal
+
+        # ── impuestos ─────────────────────────────────────────────────────────
+        impuestos_el = etree.SubElement(ret_xml, 'impuestos')
+        for imp in retencion.impuestos.all():
+            imp_el = etree.SubElement(impuestos_el, 'impuesto')
+            etree.SubElement(imp_el, 'codigo').text                      = imp.codigo
+            etree.SubElement(imp_el, 'codigoPorcentaje').text            = imp.codigo_porcentaje
+            etree.SubElement(imp_el, 'tarifa').text                      = f"{imp.tarifa:.2f}"
+            etree.SubElement(imp_el, 'baseImponible').text               = f"{imp.base_imponible:.2f}"
+            etree.SubElement(imp_el, 'valorRetenido').text               = f"{imp.valor_retenido:.2f}"
+            etree.SubElement(imp_el, 'codDocSustento').text              = imp.cod_doc_sustento
+            etree.SubElement(imp_el, 'numDocSustento').text              = imp.num_doc_sustento
+            etree.SubElement(imp_el, 'fechaEmisionDocSustento').text     = imp.fecha_emision_doc_sustento.strftime('%d/%m/%Y')
+
+        # ── infoAdicional (email proveedor) ───────────────────────────────────
+        campos: dict = {}
+        if sujeto.email:
+            campos['email'] = sujeto.email
+        if sujeto.telefono:
+            campos['telefono'] = sujeto.telefono
+        if campos:
+            info_adic = etree.SubElement(ret_xml, 'infoAdicional')
+            for nombre, valor in campos.items():
+                etree.SubElement(info_adic, 'campoAdicional', nombre=nombre).text = str(valor)
+
+        xml_string = etree.tostring(
+            ret_xml, pretty_print=False, xml_declaration=True, encoding='UTF-8',
+        ).decode('utf-8')
+        comprobante.xml_generado = xml_string
+        comprobante.save(update_fields=['xml_generado'])
+        return xml_string
+
+    def generar_xml_nota_debito(self, nota_debito):
+        """
+        Genera el XML de una Nota de Débito Electrónica (codDoc=05) según el SRI.
+        Referencia: Ficha Técnica SRI v2.x — Nota de Débito.
+        """
+        TIPO_ND = '05'
+        comprobante     = nota_debito.comprobante
+        cliente         = nota_debito.cliente
+        factura_origen  = nota_debito.factura_origen
+
+        if not comprobante.clave_acceso or comprobante.estado not in ('AUTORIZADO', 'ENVIADO'):
+            serie = f"{comprobante.establecimiento}-{comprobante.punto_emision}"
+            comprobante.clave_acceso = self.generar_clave_acceso(
+                fecha_emision=comprobante.fecha_emision,
+                tipo_comprobante=TIPO_ND,
+                ruc=self.empresa.ruc,
+                ambiente=self.ambiente,
+                serie=serie,
+                numero_comprobante=comprobante.secuencial,
+                codigo_numerico=str(random.randint(10000000, 99999999)),
+            )
+            comprobante.save(update_fields=['clave_acceso'])
+
+        nd_xml = etree.Element('notaDebito', id='comprobante', version='1.0.0')
+
+        # ── infoTributaria ────────────────────────────────────────────────────
+        info_trib = etree.SubElement(nd_xml, 'infoTributaria')
+        etree.SubElement(info_trib, 'ambiente').text        = self.ambiente
+        etree.SubElement(info_trib, 'tipoEmision').text     = '1'
+        etree.SubElement(info_trib, 'razonSocial').text     = self.empresa.razon_social
+        etree.SubElement(info_trib, 'nombreComercial').text = self.empresa.nombre_comercial or self.empresa.razon_social
+        etree.SubElement(info_trib, 'ruc').text             = self.empresa.ruc
+        etree.SubElement(info_trib, 'claveAcceso').text     = comprobante.clave_acceso
+        etree.SubElement(info_trib, 'codDoc').text          = TIPO_ND
+        etree.SubElement(info_trib, 'estab').text           = comprobante.establecimiento
+        etree.SubElement(info_trib, 'ptoEmi').text          = comprobante.punto_emision
+        etree.SubElement(info_trib, 'secuencial').text      = comprobante.secuencial
+        etree.SubElement(info_trib, 'dirMatriz').text       = self.empresa.direccion_matriz
+
+        # ── infoNotaDebito ────────────────────────────────────────────────────
+        info_nd = etree.SubElement(nd_xml, 'infoNotaDebito')
+        etree.SubElement(info_nd, 'fechaEmision').text = timezone.localtime(comprobante.fecha_emision).strftime('%d/%m/%Y')
+        etree.SubElement(info_nd, 'dirEstablecimiento').text = self.empresa.direccion_matriz
+        etree.SubElement(info_nd, 'tipoIdentificacionComprador').text = cliente.tipo_identificacion
+        etree.SubElement(info_nd, 'razonSocialComprador').text        = cliente.razon_social
+        etree.SubElement(info_nd, 'identificacionComprador').text     = cliente.identificacion
+
+        if self.empresa.contribuyente_especial:
+            etree.SubElement(info_nd, 'contribuyenteEspecial').text = self.empresa.contribuyente_especial
+
+        etree.SubElement(info_nd, 'obligadoContabilidad').text = 'SI' if self.empresa.obligado_contabilidad else 'NO'
+        etree.SubElement(info_nd, 'codDocModificado').text = '01'  # 01 = Factura
+        num_doc = factura_origen.comprobante.numero_comprobante if factura_origen else '001-001-000000001'
+        fecha_doc = (
+            timezone.localtime(factura_origen.comprobante.fecha_emision).strftime('%d/%m/%Y')
+            if factura_origen else timezone.localtime(comprobante.fecha_emision).strftime('%d/%m/%Y')
+        )
+        etree.SubElement(info_nd, 'numDocModificado').text         = num_doc
+        etree.SubElement(info_nd, 'fechaEmisionDocSustento').text  = fecha_doc
+        etree.SubElement(info_nd, 'totalSinImpuestos').text        = f"{nota_debito.subtotal_sin_impuestos:.2f}"
+        etree.SubElement(info_nd, 'valorTotal').text               = f"{nota_debito.total:.2f}"
+
+        # totalConImpuestos — agrupado por (codigo, codigoPorcentaje)
+        from collections import defaultdict
+        from decimal import Decimal as _D
+        totals: dict = defaultdict(lambda: {'base': _D('0.00'), 'valor': _D('0.00')})
+        for det in nota_debito.detalles.all():
+            key = (det.codigo_impuesto, det.codigo_porcentaje, det.tarifa)
+            totals[key]['base']  += det.valor
+            totals[key]['valor'] += det.valor_impuesto
+        total_con_imp = etree.SubElement(info_nd, 'totalConImpuestos')
+        for (cod, cod_pct, _tarifa), vals in totals.items():
+            ti = etree.SubElement(total_con_imp, 'totalImpuesto')
+            etree.SubElement(ti, 'codigo').text           = cod
+            etree.SubElement(ti, 'codigoPorcentaje').text = cod_pct
+            etree.SubElement(ti, 'baseImponible').text    = f"{vals['base']:.2f}"
+            etree.SubElement(ti, 'valor').text            = f"{vals['valor']:.2f}"
+
+        # ── motivo ────────────────────────────────────────────────────────────
+        etree.SubElement(info_nd, 'motivo').text = nota_debito.motivo
+
+        # ── detalles (razones del débito) ─────────────────────────────────────
+        motivos_el = etree.SubElement(nd_xml, 'motivos')
+        for det in nota_debito.detalles.all():
+            mot_el = etree.SubElement(motivos_el, 'motivo')
+            etree.SubElement(mot_el, 'razon').text = det.razon
+            etree.SubElement(mot_el, 'valor').text = f"{det.valor:.2f}"
+
+        # ── infoAdicional ─────────────────────────────────────────────────────
+        campos: dict = {}
+        if cliente.email:
+            campos['email'] = cliente.email
+        if cliente.telefono:
+            campos['telefono'] = cliente.telefono
+        if campos:
+            info_adic = etree.SubElement(nd_xml, 'infoAdicional')
+            for nombre, valor in campos.items():
+                etree.SubElement(info_adic, 'campoAdicional', nombre=nombre).text = str(valor)
+
+        xml_string = etree.tostring(
+            nd_xml, pretty_print=False, xml_declaration=True, encoding='UTF-8',
+        ).decode('utf-8')
+        comprobante.xml_generado = xml_string
+        comprobante.save(update_fields=['xml_generado'])
+        return xml_string
+
     def firmar_xml(self, xml_string):
         """
         Firma electrónicamente el XML con XAdES-BES según especificaciones SRI Ecuador.

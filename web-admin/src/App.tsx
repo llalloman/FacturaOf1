@@ -16,6 +16,9 @@ import ReportesPage from './pages/reportes/ReportesPage';
 import EmpresasPage from './pages/empresas/EmpresasPage';
 import UsuariosPage from './pages/usuarios/UsuariosPage';
 import POSPage from './pages/pos/POSPage';
+import RetencionesPage from './pages/retenciones/RetencionesPage';
+import GuiasRemisionPage from './pages/guias/GuiasRemisionPage';
+import NotasDebitoPage from './pages/notas-debito/NotasDebitoPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,15 +61,38 @@ function App() {
           >
             <Route index element={<DashboardPage />} />
             <Route path="facturacion" element={<FacturasPage />} />
-            <Route path="inventarios" element={<InventariosPage />} />
-            <Route path="proveedores" element={<ProveedoresPage />} />
+            <Route path="inventarios" element={
+              <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'VENDEDOR']}>
+                <InventariosPage />
+              </ProtectedRoute>
+            } />
+            <Route path="proveedores" element={
+              <ProtectedRoute allowedRoles={['ADMIN_EMPRESA']}>
+                <ProveedoresPage />
+              </ProtectedRoute>
+            } />
             <Route path="productos" element={<ProductosPage />} />
             <Route path="clientes" element={<ClientesPage />} />
             <Route path="ventas" element={<VentasPage />} />
             <Route path="reportes" element={<ReportesPage />} />
-            <Route path="configuracion" element={<ConfiguracionPage />} />
-            <Route path="empresas" element={<EmpresasPage />} />
-            <Route path="usuarios" element={<UsuariosPage />} />
+            <Route path="configuracion" element={
+              <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
+                <ConfiguracionPage />
+              </ProtectedRoute>
+            } />
+            <Route path="retenciones" element={<RetencionesPage />} />
+            <Route path="guias-remision" element={<GuiasRemisionPage />} />
+            <Route path="notas-debito" element={<NotasDebitoPage />} />
+            <Route path="empresas" element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                <EmpresasPage />
+              </ProtectedRoute>
+            } />
+            <Route path="usuarios" element={
+              <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
+                <UsuariosPage />
+              </ProtectedRoute>
+            } />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -62,6 +62,32 @@ export interface DetalleFactura {
   total: number;
 }
 
+export interface ImpuestoRetencion {
+  id?: number;
+  codigo: string;
+  codigo_porcentaje: string;
+  tarifa: number;
+  base_imponible: number;
+  valor_retenido: number;
+  cod_doc_sustento: string;
+  num_doc_sustento: string;
+  fecha_emision_doc_sustento: string;
+}
+
+export interface Retencion {
+  id: number;
+  numero_retencion: string;
+  proveedor: number;
+  proveedor_nombre?: string;
+  periodo_fiscal: string;
+  fecha_emision: string;
+  estado: 'BORRADOR' | 'AUTORIZADO' | 'ANULADO' | 'ENVIADO' | 'RECHAZADO' | 'NO_AUTORIZADO';
+  numero_autorizacion?: string;
+  mensajes_sri?: string;
+  total_retenido: number;
+  impuestos?: ImpuestoRetencion[];
+}
+
 export interface Proveedor {
   id: number;
   tipo_identificacion: string;
@@ -193,4 +219,66 @@ export interface Caja {
   impresora_termica?: string;
   activa: boolean;
   created_at?: string;
+}
+
+export interface DetalleGuia {
+  id?: number;
+  codigo_interno: string;
+  descripcion: string;
+  cantidad: number;
+}
+
+export interface DestinatarioGuia {
+  id?: number;
+  identificacion_destinatario: string;
+  razon_social_destinatario: string;
+  dir_dest_destinatario: string;
+  motorista_y_ca: string;
+  ruta?: string;
+  cod_doc_sustento: string;
+  num_doc_sustento?: string;
+  fecha_emision_doc_sust?: string;
+  num_autorizacion_doc_sust?: string;
+  detalles?: DetalleGuia[];
+}
+
+export interface GuiaRemision {
+  id: number;
+  numero_guia: string;
+  estado: 'BORRADOR' | 'AUTORIZADO' | 'ANULADO' | 'ENVIADO' | 'RECHAZADO' | 'NO_AUTORIZADO';
+  fecha_emision: string;
+  numero_autorizacion?: string;
+  mensajes_sri?: string;
+  ruc_transportista: string;
+  razon_social_transportista: string;
+  placa: string;
+  fecha_inicio_transporte: string;
+  fecha_fin_transporte: string;
+  dir_partida: string;
+  destinatarios?: DestinatarioGuia[];
+}
+
+export interface DetalleNotaDebito {
+  id?: number;
+  razon: string;
+  valor: number;
+  codigo_porcentaje?: string;
+  tarifa?: number;
+  valor_impuesto?: number;
+}
+
+export interface NotaDebito {
+  id: number;
+  numero_nota: string;
+  cliente: number;
+  cliente_nombre?: string;
+  factura_origen?: number;
+  motivo: string;
+  fecha_emision: string;
+  estado: 'BORRADOR' | 'AUTORIZADO' | 'ANULADO' | 'ENVIADO' | 'RECHAZADO' | 'NO_AUTORIZADO';
+  numero_autorizacion?: string;
+  mensajes_sri?: string;
+  subtotal_sin_impuestos: number;
+  total: number;
+  detalles?: DetalleNotaDebito[];
 }
