@@ -44,6 +44,7 @@ export interface Factura {
   clave_acceso?: string;
   numero_autorizacion?: string;
   fecha_autorizacion?: string;
+  mensajes_sri?: string;
   forma_pago?: string;
   observaciones?: string;
   detalles?: DetalleFactura[];

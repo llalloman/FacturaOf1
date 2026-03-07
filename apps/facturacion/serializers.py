@@ -29,6 +29,7 @@ class FacturaSerializer(serializers.ModelSerializer):
     clave_acceso = serializers.SerializerMethodField()
     numero_autorizacion = serializers.SerializerMethodField()
     fecha_autorizacion = serializers.SerializerMethodField()
+    mensajes_sri = serializers.SerializerMethodField()
     cliente_nombre = serializers.SerializerMethodField()
 
     # ── Salida de detalles (solo lectura) ────────────────────────────────────────
@@ -49,6 +50,7 @@ class FacturaSerializer(serializers.ModelSerializer):
             'subtotal_sin_impuestos', 'total', 'total_descuento',
             'forma_pago', 'observaciones',
             'clave_acceso', 'numero_autorizacion', 'fecha_autorizacion',
+            'mensajes_sri',
             'detalles', 'detalles_input',
         ]
         read_only_fields = ['subtotal_sin_impuestos', 'total', 'total_descuento']
@@ -71,6 +73,9 @@ class FacturaSerializer(serializers.ModelSerializer):
 
     def get_fecha_autorizacion(self, obj):
         return obj.comprobante.fecha_autorizacion
+
+    def get_mensajes_sri(self, obj):
+        return obj.comprobante.mensajes_sri or ''
 
     def get_cliente_nombre(self, obj):
         return obj.cliente.razon_social

@@ -25,12 +25,20 @@ const FacturasPage: React.FC = () => {
 
   const enviarSRIMutation = useMutation({
     mutationFn: facturasService.enviarSRI,
-    onSuccess: () => {
+    onSuccess: (data: unknown) => {
       queryClient.invalidateQueries({ queryKey: ['facturas'] });
-      alert('Factura enviada al SRI exitosamente');
+      const res = data as { estado?: string; numero_autorizacion?: string; mensaje?: string };
+      if (res?.estado === 'AUTORIZADO') {
+        alert(`✅ Factura AUTORIZADA\nNro. Autorización: ${res.numero_autorizacion}`);
+      } else if (res?.estado === 'RECHAZADO' || res?.estado === 'NO_AUTORIZADO') {
+        alert(`❌ ${res.estado}\n\n${res.mensaje || 'Sin detalle del SRI'}`);
+      } else {
+        alert(`Estado: ${res?.estado ?? 'ENVIADO'}\n${res?.mensaje ?? ''}`);
+      }
     },
-    onError: () => {
-      alert('Error al enviar factura al SRI');
+    onError: (error: unknown) => {
+      const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg || 'Error al enviar factura al SRI');
     },
   });
 
@@ -256,9 +264,16 @@ const FacturasPage: React.FC = () => {
                     <td className="p-4 text-gray-700">{new Date(factura.fecha_emision).toLocaleDateString()}</td>
                     <td className="p-4 text-right font-semibold text-gray-900">${Number(factura.total).toFixed(2)}</td>
                     <td className="p-4 text-center">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getEstadoColor(factura.estado)}`}>
-                        {factura.estado}
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getEstadoColor(factura.estado)}`}>
+                          {factura.estado}
+                        </span>
+                        {(factura.estado === 'RECHAZADO' || factura.estado === 'NO_AUTORIZADO') && factura.mensajes_sri && (
+                          <span className="text-xs text-red-600 max-w-[200px] text-center leading-tight" title={factura.mensajes_sri}>
+                            {factura.mensajes_sri.length > 80 ? factura.mensajes_sri.slice(0, 80) + '…' : factura.mensajes_sri}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 text-center text-xs text-gray-600">
                       {factura.numero_autorizacion || '-'}
