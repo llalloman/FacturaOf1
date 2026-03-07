@@ -17,6 +17,11 @@ const FacturasPage: React.FC = () => {
   const { data: facturas, isLoading } = useQuery({
     queryKey: ['facturas'],
     queryFn: facturasService.getAll,
+    refetchInterval: (query) => {
+      const data = query.state.data as Factura[] | undefined;
+      const hayEnviadas = data?.some((f) => f.estado === 'ENVIADO');
+      return hayEnviadas ? 5000 : false;
+    },
   });
 
   const deleteMutation = useMutation({
