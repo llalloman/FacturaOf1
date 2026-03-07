@@ -20,49 +20,152 @@ const METODOS = [
 ] as const;
 
 // ─── Modal Selector de Cliente ─────────────────────────────────────────────
+const TIPOS_ID = [
+  { value: '05', label: 'Cédula' },
+  { value: '04', label: 'RUC' },
+  { value: '06', label: 'Pasaporte' },
+  { value: '07', label: 'Consumidor Final' },
+  { value: '08', label: 'ID Exterior' },
+];
+
 function ClienteSelectorModal({ onClose, onSelect }: { onClose: () => void; onSelect: (c: ClientePOS) => void }) {
   const [q, setQ] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ tipo_identificacion: '05', identificacion: '', razon_social: '', email: '', telefono: '', direccion: '' });
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+
   const { data: clientes = [], isLoading, refetch } = useQuery({
     queryKey: ['pos-clientes', q],
     queryFn: () => posService.getClientes(q),
     enabled: true,
   });
 
+  const handleCrear = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+    if (!form.identificacion.trim()) { setFormError('La identificación es obligatoria'); return; }
+    if (!form.razon_social.trim()) { setFormError('La razón social es obligatoria'); return; }
+    setSaving(true);
+    try {
+      const nuevo = await posService.crearCliente({
+        tipo_identificacion: form.tipo_identificacion,
+        identificacion: form.identificacion.trim(),
+        razon_social: form.razon_social.trim().toUpperCase(),
+        email: form.email.trim() || undefined,
+        telefono: form.telefono.trim() || undefined,
+        direccion: form.direccion.trim() || undefined,
+      });
+      onSelect(nuevo);
+      onClose();
+    } catch (err: unknown) {
+      const apiErr = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
+      if (apiErr) {
+        const msgs = Object.entries(apiErr).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' | ');
+        setFormError(msgs);
+      } else {
+        setFormError('Error al crear el cliente.');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-5 border-b">
-          <h3 className="text-lg font-bold">Seleccionar Cliente</h3>
+          <h3 className="text-lg font-bold">{showForm ? 'Nuevo Cliente' : 'Seleccionar Cliente'}</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
         </div>
-        <div className="p-4">
-          <div className="relative mb-4">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              autoFocus
-              className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Buscar por nombre o cédula/RUC..."
-              value={q}
-              onChange={(e) => { setQ(e.target.value); refetch(); }}
-            />
-          </div>
-          <div className="space-y-1 max-h-72 overflow-y-auto">
-            {isLoading ? (
-              <div className="text-center py-8 text-gray-400">Cargando...</div>
-            ) : clientes.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">No se encontraron clientes</div>
-            ) : clientes.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => { onSelect(c); onClose(); }}
-                className="w-full text-left px-4 py-3 rounded-xl hover:bg-blue-50 hover:text-blue-700 transition-colors"
-              >
-                <p className="font-semibold text-sm">{c.razon_social}</p>
-                <p className="text-xs text-gray-500">{c.identificacion}</p>
+
+        {showForm ? (
+          <form onSubmit={handleCrear} className="overflow-y-auto p-5 space-y-3">
+            {formError && (
+              <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl p-3 text-sm">{formError}</div>
+            )}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Tipo de identificación *</label>
+              <select value={form.tipo_identificacion} onChange={(e) => setForm({ ...form, tipo_identificacion: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {TIPOS_ID.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Identificación *</label>
+              <input autoFocus type="text" value={form.identificacion} onChange={(e) => setForm({ ...form, identificacion: e.target.value })}
+                placeholder={form.tipo_identificacion === '04' ? '0000000000001' : '0000000000'}
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Razón social *</label>
+              <input type="text" value={form.razon_social} onChange={(e) => setForm({ ...form, razon_social: e.target.value })}
+                placeholder="Nombre o razón social"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
+                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="correo@ejemplo.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Teléfono</label>
+                <input type="text" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+                  placeholder="0999999999"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Dirección</label>
+              <input type="text" value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                placeholder="Dirección del cliente"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => { setShowForm(false); setFormError(''); }}
+                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm hover:bg-gray-50">Cancelar</button>
+              <button type="submit" disabled={saving}
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+                {saving ? 'Guardando…' : 'Guardar y Seleccionar'}
               </button>
-            ))}
-          </div>
-        </div>
+            </div>
+          </form>
+        ) : (
+          <>
+            <div className="p-4">
+              <div className="relative mb-3">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input autoFocus
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Buscar por nombre o cédula/RUC..."
+                  value={q}
+                  onChange={(e) => { setQ(e.target.value); refetch(); }}
+                />
+              </div>
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {isLoading ? (
+                  <div className="text-center py-8 text-gray-400">Cargando...</div>
+                ) : clientes.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">No se encontraron clientes</div>
+                ) : clientes.map((c) => (
+                  <button key={c.id} onClick={() => { onSelect(c); onClose(); }}
+                    className="w-full text-left px-4 py-3 rounded-xl hover:bg-blue-50 hover:text-blue-700 transition-colors">
+                    <p className="font-semibold text-sm">{c.razon_social}</p>
+                    <p className="text-xs text-gray-500">{c.identificacion}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="px-4 pb-4">
+              <button onClick={() => { setShowForm(true); setFormError(''); setForm({ tipo_identificacion: '05', identificacion: '', razon_social: '', email: '', telefono: '', direccion: '' }); }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition-colors">
+                <Plus size={16} /> Nuevo Cliente
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -60,6 +60,24 @@ export const posService = {
     return data;
   },
 
+  crearCliente: async (data: {
+    tipo_identificacion: string;
+    identificacion: string;
+    razon_social: string;
+    email?: string;
+    telefono?: string;
+    direccion?: string;
+  }): Promise<ClientePOS> => {
+    const { data: res } = await apiClient.post('/clientes/', data);
+    return {
+      id: res.id,
+      razon_social: res.razon_social,
+      identificacion: res.identificacion,
+      email: res.email,
+      telefono: res.telefono,
+    };
+  },
+
   getCajas: async () => {
     const { data } = await apiClient.get('/ventas/cajas/');
     const cajas = data.results ?? data;
