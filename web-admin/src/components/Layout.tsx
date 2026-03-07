@@ -20,6 +20,7 @@ import {
   Receipt,
   Truck,
   FileMinus,
+  CreditCard,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -39,11 +40,12 @@ const ALL_ITEMS: MenuItem[] = [
   { icon: ShoppingCart,    label: 'Ventas',         path: '/ventas' },
   { icon: TrendingUp,      label: 'Reportes',       path: '/reportes' },
   { icon: Settings,        label: 'Configuración',  path: '/configuracion' },
+  { icon: CreditCard,      label: 'Suscripción',    path: '/suscripcion' },
 ];
 
 // Menú por rol (paths permitidos en el sidebar)
 const ROL_PATHS: Record<string, string[]> = {
-  ADMIN_EMPRESA: ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/reportes', '/configuracion'],
+  ADMIN_EMPRESA: ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/reportes', '/configuracion', '/suscripcion'],
   CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/clientes', '/reportes'],
   VENDEDOR:      ['/', '/ventas', '/clientes', '/productos'],
   CONSULTOR:     ['/', '/facturacion', '/retenciones', '/ventas', '/reportes'],

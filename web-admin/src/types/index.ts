@@ -282,3 +282,38 @@ export interface NotaDebito {
   total: number;
   detalles?: DetalleNotaDebito[];
 }
+
+// ─── Suscripciones ────────────────────────────────────────────────────────────
+export interface PlanSuscripcion {
+  id: number;
+  nombre: string;
+  codigo: string;
+  tipo: 'BASICO' | 'PROFESIONAL' | 'EMPRESARIAL' | 'ILIMITADO';
+  periodo: 'MENSUAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
+  precio: number;
+  facturas_mensuales: number;
+  usuarios_permitidos: number;
+  empresas_permitidas: number;
+  soporte_prioritario: boolean;
+  api_access: boolean;
+  reportes_avanzados: boolean;
+  activo: boolean;
+  descripcion: string;
+}
+
+export interface Suscripcion {
+  id: number;
+  empresa: number;
+  empresa_nombre: string;
+  plan: number;
+  plan_detalle: PlanSuscripcion;
+  fecha_inicio: string;
+  fecha_fin: string;
+  fecha_proximo_pago?: string;
+  estado: 'ACTIVA' | 'VENCIDA' | 'CANCELADA' | 'SUSPENDIDA' | 'PRUEBA';
+  auto_renovar: boolean;
+  facturas_emitidas_mes_actual: number;
+  ultimo_reset_contador: string;
+  dias_restantes: number;
+  notas: string;
+}

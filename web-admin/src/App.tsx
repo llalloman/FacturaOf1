@@ -19,6 +19,7 @@ import POSPage from './pages/pos/POSPage';
 import RetencionesPage from './pages/retenciones/RetencionesPage';
 import GuiasRemisionPage from './pages/guias/GuiasRemisionPage';
 import NotasDebitoPage from './pages/notas-debito/NotasDebitoPage';
+import SuscripcionesPage from './pages/suscripciones/SuscripcionesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -83,6 +84,11 @@ function App() {
             <Route path="retenciones" element={<RetencionesPage />} />
             <Route path="guias-remision" element={<GuiasRemisionPage />} />
             <Route path="notas-debito" element={<NotasDebitoPage />} />
+            <Route path="suscripcion" element={
+              <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
+                <SuscripcionesPage />
+              </ProtectedRoute>
+            } />
             <Route path="empresas" element={
               <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                 <EmpresasPage />
