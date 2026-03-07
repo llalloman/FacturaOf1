@@ -69,6 +69,18 @@ class APIService {
     return response.data;
   }
 
+  async crearCliente(data: {
+    tipo_identificacion: string;
+    identificacion: string;
+    razon_social: string;
+    email?: string;
+    telefono?: string;
+    direccion?: string;
+  }): Promise<Cliente> {
+    const response = await this.client.post('/clientes/', data);
+    return response.data;
+  }
+
   // Ventas
   async crearVenta(venta: Venta) {
     const response = await this.client.post('/ventas/', venta);

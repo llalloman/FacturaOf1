@@ -14,6 +14,7 @@ export interface Producto {
 export interface Cliente {
   id: number;
   empresa_id: number;
+  tipo_identificacion?: string;
   identificacion: string;
   razon_social: string;
   email?: string;
