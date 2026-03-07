@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { retencionesService } from '../../services/retencionesService';
-import { clientesService } from '../../services/clientesService';
-import type { Retencion, ImpuestoRetencion, Cliente } from '../../types';
+import { proveedoresService } from '../../services/proveedoresService';
+import type { ImpuestoRetencion, Proveedor } from '../../types';
 import { FiPlus, FiSearch, FiSend, FiRefreshCw, FiXCircle, FiTrash2 } from 'react-icons/fi';
 
 // Tabla de porcentajes SRI (parcial — los más comunes)
@@ -75,9 +75,9 @@ const RetencionesPage: React.FC = () => {
     queryFn: retencionesService.getAll,
   });
 
-  const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: clientesService.getAll,
+  const { data: proveedores = [] } = useQuery({
+    queryKey: ['proveedores'],
+    queryFn: proveedoresService.getAll,
   });
 
   // ── Mutations ────────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ const RetencionesPage: React.FC = () => {
   };
 
   const retencionesArray = Array.isArray(retenciones) ? retenciones : [];
-  const clientesArray: Cliente[] = Array.isArray(clientes) ? clientes : [];
+  const proveedoresArray: Proveedor[] = Array.isArray(proveedores) ? proveedores : [];
   const filtered = retencionesArray.filter(r =>
     (r.numero_retencion ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (r.proveedor_nombre ?? '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -336,7 +336,7 @@ const RetencionesPage: React.FC = () => {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500"
                   >
                     <option value="">Seleccionar...</option>
-                    {clientesArray.map(c => (
+                    {proveedoresArray.map(c => (
                       <option key={c.id} value={c.id}>{c.razon_social} — {c.identificacion}</option>
                     ))}
                   </select>

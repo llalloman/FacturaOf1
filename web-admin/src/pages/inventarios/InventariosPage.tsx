@@ -19,8 +19,18 @@ const InventariosPage: React.FC = () => {
     queryFn: inventariosService.getProductosBajoStock,
   });
 
+  const { data: movimientos } = useQuery({
+    queryKey: ['movimientos'],
+    queryFn: inventariosService.getMovimientos,
+  });
+
   const bodegasArray = Array.isArray(bodegas) ? bodegas : [];
   const bajoStockArray = Array.isArray(productosBajoStock) ? productosBajoStock : [];
+  const movimientosArray = Array.isArray(movimientos) ? movimientos : [];
+
+  const today = new Date().toISOString().split('T')[0];
+  const entradasHoy = movimientosArray.filter(m => m.tipo_movimiento === 'ENTRADA' && m.fecha?.startsWith(today)).length;
+  const salidasHoy  = movimientosArray.filter(m => m.tipo_movimiento === 'SALIDA'  && m.fecha?.startsWith(today)).length;
 
   return (
     <div className="p-6 space-y-6">
@@ -54,7 +64,7 @@ const InventariosPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm">Entradas Hoy</p>
-              <p className="text-3xl font-bold text-gray-800">0</p>
+              <p className="text-3xl font-bold text-gray-800">{entradasHoy}</p>
             </div>
             <FiTrendingUp className="text-4xl text-blue-500" />
           </div>
@@ -63,7 +73,7 @@ const InventariosPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm">Salidas Hoy</p>
-              <p className="text-3xl font-bold text-gray-800">0</p>
+              <p className="text-3xl font-bold text-gray-800">{salidasHoy}</p>
             </div>
             <FiTrendingDown className="text-4xl text-red-500" />
           </div>
