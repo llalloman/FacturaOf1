@@ -728,145 +728,174 @@ def crear_nota_debito(
     secuencial_obj, _ = Secuencial.objects.get_or_create(
         empresa=empresa,
         tipo_comprobante='05',
-        establecimiento=empresa.establecimie
+        establecimiento=empresa.establecimiento_codigo,
+        punto_emision=empresa.punto_emision_codigo,
+        defaults={'secuencial_actual': 0},
+    )
+    siguiente = secuencial_obj.get_siguiente()
+    numero_comprobante = (
+        f"{empresa.establecimiento_codigo}-"
+        f"{empresa.punto_emision_codigo}-"
+        f"{siguiente}"
+    )
 
-# ─── Nota de Débito ───────────────────?ial
-@transaction.atomic
-def crear_nota_debito(
-    empresa, usuario,
-    cliente, motivo,
-    detalles_data,
-    factura_origen=None,
-    fecha_emision=None,
-):
-    """
-    Crea ComprobanteElectronico tipo '
-  def crear_nota_debem    empresa, usuario,      cliente, motivo,po    detalles_data,
- f    factura_origeme    fecha_emision=None,an):
-    """
-    Crea Coon co    Crts    detalles_data: lista de dicts con { razon, valcreador=usuario,
-        t    """
-    from apps.facturacion.models import (
-        ComprobanteElectronico,       fro_        ComprobanteElectronico, NotaDebi      )
-    from decimal import Decimal
+    # ── ComprobanteElectronico ────────────────────────────────────────────────
+    if fecha_emision is None:
+        from django.utils import timezone
+        fecha_emision = timezone.now()
 
-    if not empresa:
-        raise         
-    if not empresa:
-        r           raise Valuan
-    secuencial_obj, _ = Secuencial.objects.get_or_cre= N        empresa=empresa,
+    comprobante = ComprobanteElectronico.objects.create(
+        empresa=empresa,
+        usuario_creador=usuario,
         tipo_comprobante='05',
-e,         cliente=cliente,        establecimiento=emprera
-# ─── Nota de Débito ────?ub@ttal = Decimal('0.00')
+        establecimiento=empresa.establecimiento_codigo,
+        punto_emision=empresa.punto_emision_codigo,
+        secuencial=siguiente,
+        numero_comprobante=numero_comprobante,
+        fecha_emision=fecha_emision,
+        estado=ComprobanteElectronico.EstadoChoices.BORRADOR,
+    )
+
+    # ── Cálculo de totales ────────────────────────────────────────────────────
+    subtotal = Decimal('0.00')
     iva_total = Decimal('0.00')
     IVA_TARIFA = Decimal('15.00')
 
-    for item in detal    empresa, usuario,ic    cliente, motivo,t(    detalles_data,
-)
-    factura_origeec    fecha_emision=None,r'):
+    for item in detalles_data:
+        valor = Decimal(str(item.get('valor', '0')))
+        subtotal += valor
+        if item.get('aplica_iva', False):
+            iva_total += (valor * IVA_TARIFA / Decimal('100')).quantize(Decimal('0.01'))
+
+    total = subtotal + iva_total
+
+    # ── NotaDebito ────────────────────────────────────────────────────────────
+    nota = NotaDebito.objects.create(
+        comprobante=comprobante,
+        cliente=cliente,
+        factura_origen=factura_origen,
+        motivo=motivo,
+        subtotal_sin_impuestos=subtotal,
+        total=total,
+    )
+
+    # ── DetalleNotaDebito ─────────────────────────────────────────────────────
+    for item in detalles_data:
+        valor = Decimal(str(item.get('valor', '0')))
+        aplica_iva = item.get('aplica_iva', False)
+        valor_impuesto = (
+            (valor * IVA_TARIFA / Decimal('100')).quantize(Decimal('0.01'))
+            if aplica_iva else Decimal('0.00')
+        )
+        DetalleNotaDebito.objects.create(
+            nota_debito=nota,
+            razon=item.get('razon', ''),
+            valor=valor,
+            codigo_impuesto='2',
+            codigo_porcentaje='4' if aplica_iva else '0',
+            tarifa=IVA_TARIFA if aplica_iva else Decimal('0'),
+            valor_impuesto=valor_impuesto,
+        )
+
+    return nota
+
+
+def procesar_nota_debito_sri(nota):
     """
-    Crea Co=  VA    CrA   def crear_nota_debem    empresa, us   f    factura_origeme    fecha_emision=None,an):
+    Genera XML, firma y envía la nota de débito al SRI.
     """
-    Crea Coon co    Crts    /    """
-    Crea Coon co    Crts    detalles_daeN    Crit        t    """
-    from apps.facturacion.models import (
-        ComprobanteElectronico      from apps.f=v        ComprobanteEligo_impuesto='2',
-       from decimal import Decimal
+    import time
+    from apps.facturacion.models import ComprobanteElectronico
+    from apps.facturacion.services.sri_service import SRIService
 
-    if not empresa:
-        raise         
-    if not eor
-    if not empresa:
-        r           raise     lo    if not empresa:
- =         r         su    secuencial_obj, _ = Secuenc
-         tipo_comprobante='05',
-e,         cliente=cliente,        establecimien_ie,         cliente=cliente,  ur# ─── Nota de Débito ────?ub@ttal = DeciGe    iva_total = Decimal('0.00')
-    IVA_TARIFA = Decimal('15.00')
+    comprobante = nota.comprobante
+    empresa = comprobante.empresa
+    sri = SRIService(empresa)
+    result = {
+        'success': False,
+        'estado': comprobante.estado,
+        'mensaje': '',
+        'numero_comprobante': comprobante.numero_comprobante,
+    }
 
-or    IVA_TARIFA = Decimal('15.0on
-    for item in detalanteElectroni)
-    factura_origeec    fecha_emision=None,r'):
-    """
-    Crea Co=  VA    CrA   e =     """
-    Crea Co=  VA    CrA   def crear_npr    Cr      """
-    Crea Coon co    Crts    /    """
-    Crea Coon co    Crts    detalles_daeN    Crit        t    """   'mensaj    Crea Coon co    Crts    detalle':    from apps.facturacion.models import (
-        ComprobanteEleo         ComprobanteElectronico      fromAU       from decimal import Decimal
+    if comprobante.estado == ComprobanteElectronico.EstadoChoices.AUTORIZADO:
+        result['success'] = True
+        result['mensaje'] = f"Ya autorizada: {comprobante.numero_autorizacion}"
+        return result
 
-    if not empresa:
-        raise         
-    if : 
-    if not empresa:
-        rais"
-         raise     lt    if not eor
-    ifi.    if not emot        r            =         r         su    secuencial_obj, _ = Sec           tipo_comprobante='05',
-e,         cliente=cln e,       RRADOR. '
-                 IVA_TARIFA = Decimal('15.00')
+    try:
+        sri.generar_xml_nota_debito(nota)
 
-or    IVA_TARIFA = Decimal('15.0on
-    for item in detalanteElectroni)
-    factura_origeec    fecha_emision=None,r'):
-    """
-    Crea oi
-or    IVA_TARIFA = Decimal('15.res    for item in detalanteElectronrm    factura_origeec    fecha_emisi      """
-    Crea Co=  VA    CrA   e =     """      Crmp    Crea Co=  VA    CrA   def crear_ic    Crea Coon co    Crts    /    """
-    Crea Coon cote    Crea Coon co    Crts    detalle
-         ComprobanteEleo         ComprobanteElectronico      fromAU       from decimal import Decimal
+        if not empresa.certificado_digital:
+            result['mensaje'] = (
+                'XML generado en estado BORRADOR. '
+                'Configure el certificado digital en Configuración → Firma Digital para enviar al SRI.'
+            )
+            result['estado'] = ComprobanteElectronico.EstadoChoices.BORRADOR
+            return result
 
-    if not empresa:
-        raise         
-    if ec
-    if not empresa:
-        raise         
-    if : 
-    if not empresa:
-        rO
-            compr        raise     ri    if : 
-    if nonse.    if n          rais"
-    nt         rate_    ifi.    if not emot        r  )
-e,         cliente=cln e,       RRADOR. '
-                 IVA_TARIFA = Decimal('15.00')
+        xml_firmado = sri.firmar_xml(comprobante.xml_generado)
+        comprobante.xml_firmado = xml_firmado
+        comprobante.estado = ComprobanteElectronico.EstadoChoices.FIRMADO
+        comprobante.save(update_fields=['xml_firmado', 'estado'])
 
-or    IVA_TARIFA = Decimal('15.0on
-ep                 IVA_TARIFA = Decimal('1_c
-or    IVA_TARIFA = Decimal('15.0on
-    for i       for item in detalanteElectronza    factura_origeec    fecha_emisi      """
-    Crea oi
-or    IVA_TARIFA = Decimaes    Crizor    IVA_      Crea Co=  VA    CrA   e =     """      Crmp    Crea Co=  VA    CrA   def c                 break
-                Crea Coon cote    Crea Coon co    Crts    detalle
-         ComprobanteEleo         ComprobanteElectronico      fromAnv         ComprobanteEleo         ComprobanteElectron  
-    if not empresa:
-        raise         
-    if ec
-    if not empresa:
-        raise         
-   _ob        raise     IZ    if ec
-    if not  c    if nte        raise     nt    if : 
-    if not oi    if nRI        rO
-                 ant    if nonse.    if n          rais"
-    nt  er  utorizacion', '')
-                ce,         cliente=cln e,       RRADOR. '
-            ha                 IVA_TARIFA = Decimal('1pr
-or    IVA_TARIFA = Decimal('15.0on
-ep       lt[ep                 IVA_TARIFA = D ror    IVA_TARIFA = Decimal('15.0on
-    for te    for i       for item in detal      Crea oi
-or    IVA_TARIFA = Decimaes    Crizor    IVA_      Crea Co=  VA    CrA   e = ZAor    IVA_                  Crea Coon cote    Crea Coon co    Crts    detalle
-         ComprobanteEleo         ComprobanteElectronico      fromAnv         Com           ComprobanteEleo         ComprobanteElectronico      frodo    if not empresa:
-        raise         
-    if ec
-    if not empresa:
-        raise         
-   _ob      n(response)
-           raise     tr    if ec
-    if not s)    if n          raise      '  ' in mensaje_str or '    if not  c    if nte        raiya    if not oi    if nRI        rO
-                 om                 ant    if nonses.    nt  er  utorizacion', '')
-                ce,      ['                ce,         su            ha                 IVA_TARIFA = Decimal('1pr
-'Cor    IVA_TARIFA = Decimal('15.0on
-ep       lt[ep        ep       lt[ep                 IVpr    for te    for i       for item in detal      Crea oi
-or    IVA_TARIFA = Deciomor    IVA_TARIFA = Decimaes    Crizor    IVA_      Creapr         ComprobanteEleo         ComprobanteElectronico      fromAnv         Com           ComprobanteEleo         ComprobanteElectronico      frodo    i = c        raise         
-    if ec
-    if not empresa:
-        raise         
-   _ob      n(response)
-           raise     tr    if ec
-    if not s
+        response = sri.enviar_comprobante_sri(comprobante)
+        recibida = hasattr(response, 'estado') and response.estado == 'RECIBIDA'
+
+        if recibida:
+            comprobante.estado = ComprobanteElectronico.EstadoChoices.ENVIADO
+            comprobante.respuesta_sri = {'estado': response.estado}
+            comprobante.save(update_fields=['estado', 'respuesta_sri'])
+
+            aut_obj = None
+            for attempt in range(6):
+                if attempt > 0:
+                    time.sleep(5)
+                auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
+                if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
+                    aut_obj = auth.autorizaciones.autorizacion[0]
+                    if aut_obj.estado in ('AUTORIZADO', 'NO_AUTORIZADO'):
+                        break
+                    aut_obj = None
+            else:
+                result['success'] = True
+                result['mensaje'] = 'Enviado al SRI. Autorización pendiente.'
+                result['estado'] = comprobante.estado
+                return result
+
+            if aut_obj and aut_obj.estado == 'AUTORIZADO':
+                comprobante.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
+                comprobante.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
+                comprobante.fecha_autorizacion  = getattr(aut_obj, 'fechaAutorizacion', None)
+                comprobante.mensajes_sri = ''
+                result['success'] = True
+                result['mensaje'] = f"Autorizada: {comprobante.numero_autorizacion}"
+            else:
+                comprobante.estado = ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO
+                mensajes = _extraer_mensajes_autorizacion(aut_obj) if aut_obj else []
+                comprobante.mensajes_sri = '\n'.join(mensajes)
+                result['mensaje'] = ' | '.join(mensajes) or 'No autorizado por el SRI'
+
+            comprobante.save()
+        else:
+            mensajes = _extraer_mensajes_recepcion(response)
+            mensaje_str = ' | '.join(mensajes)
+            ya_registrada = '43' in mensaje_str or '70' in mensaje_str
+            if ya_registrada:
+                comprobante.estado = ComprobanteElectronico.EstadoChoices.ENVIADO
+                comprobante.save(update_fields=['estado'])
+                result['success'] = True
+                result['mensaje'] = 'Clave ya registrada en SRI. Autorización pendiente.'
+            else:
+                comprobante.estado = ComprobanteElectronico.EstadoChoices.RECHAZADO
+                comprobante.mensajes_sri = mensaje_str
+                comprobante.save(update_fields=['estado', 'mensajes_sri'])
+                result['mensaje'] = mensaje_str or 'Rechazado por el SRI'
+
+        result['estado'] = comprobante.estado
+
+    except Exception as e:
+        result['mensaje'] = str(e)
+        result['estado'] = comprobante.estado
+
+    return result

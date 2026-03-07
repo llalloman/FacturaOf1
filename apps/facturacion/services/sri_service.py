@@ -448,6 +448,7 @@ class SRIService:
         return xml_string
 
     def generar_xml_retencion(self, retencion):
+        """
         Referencia: Ficha Técnica SRI v2.x — Comprobante de Retención.
         """
         TIPO_RET = '07'
