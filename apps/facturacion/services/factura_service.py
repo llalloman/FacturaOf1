@@ -225,10 +225,11 @@ def procesar_factura_sri(factura):
             mensajes = _extraer_mensajes_recepcion(response)
             mensaje_str = ' | '.join(mensajes)
             ya_registrada = any(
-                getattr(m, 'identificador', None) == '43' or '43' in str(getattr(m, 'identificador', ''))
+                getattr(m, 'identificador', None) in ('43', '70') or
+                str(getattr(m, 'identificador', '')) in ('43', '70')
                 for m in (getattr(response, 'comprobantes', None) and
                            getattr(response.comprobantes, 'comprobante', []) or [])
-            ) or '43' in mensaje_str
+            ) or '43' in mensaje_str or '70' in mensaje_str
 
             if ya_registrada:
                 # Error 43: la clave ya fue registrada — consultar directamente autorización

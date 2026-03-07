@@ -54,7 +54,8 @@ class SRIService:
         - c: código numérico (8 dígitos)
         - nnnnnnnn: tipo de emisión
         """
-        fecha_str = fecha_emision.strftime('%d%m%Y')
+        fecha_local = timezone.localtime(fecha_emision) if timezone.is_aware(fecha_emision) else fecha_emision
+        fecha_str = fecha_local.strftime('%d%m%Y')
         serie_completa = serie.replace('-', '')  # 001001
         
         # Construir la clave sin dígito verificador
@@ -142,7 +143,7 @@ class SRIService:
         
         # Información de la factura
         info_factura = etree.SubElement(factura_xml, 'infoFactura')
-        etree.SubElement(info_factura, 'fechaEmision').text = comprobante.fecha_emision.strftime('%d/%m/%Y')
+        etree.SubElement(info_factura, 'fechaEmision').text = timezone.localtime(comprobante.fecha_emision).strftime('%d/%m/%Y')
         etree.SubElement(info_factura, 'dirEstablecimiento').text = self.empresa.direccion_matriz
         
         if self.empresa.contribuyente_especial:
@@ -292,7 +293,7 @@ class SRIService:
 
         # ── infoNotaCredito ───────────────────────────────────────────────────
         info_nc = etree.SubElement(nc_xml, 'infoNotaCredito')
-        etree.SubElement(info_nc, 'fechaEmision').text = comprobante.fecha_emision.strftime('%d/%m/%Y')
+        etree.SubElement(info_nc, 'fechaEmision').text = timezone.localtime(comprobante.fecha_emision).strftime('%d/%m/%Y')
         etree.SubElement(info_nc, 'dirEstablecimiento').text = self.empresa.direccion_matriz
         etree.SubElement(info_nc, 'tipoIdentificacionComprador').text = cliente.tipo_identificacion
         etree.SubElement(info_nc, 'razonSocialComprador').text = cliente.razon_social
@@ -304,7 +305,7 @@ class SRIService:
         etree.SubElement(info_nc, 'obligadoContabilidad').text = 'SI' if self.empresa.obligado_contabilidad else 'NO'
         etree.SubElement(info_nc, 'codDocModificado').text = '01'  # 01 = Factura
         etree.SubElement(info_nc, 'numDocModificado').text = factura_origen.comprobante.numero_comprobante
-        etree.SubElement(info_nc, 'fechaEmisionDocSustento').text = factura_origen.comprobante.fecha_emision.strftime('%d/%m/%Y')
+        etree.SubElement(info_nc, 'fechaEmisionDocSustento').text = timezone.localtime(factura_origen.comprobante.fecha_emision).strftime('%d/%m/%Y')
         etree.SubElement(info_nc, 'totalSinImpuestos').text = f"{nota_credito.subtotal_sin_impuestos:.2f}"
         etree.SubElement(info_nc, 'valorModificacion').text = f"{nota_credito.total:.2f}"
         etree.SubElement(info_nc, 'moneda').text = 'DOLAR'
