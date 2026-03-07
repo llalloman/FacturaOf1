@@ -130,34 +130,135 @@ class FacturaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def reprocesar(self, request, pk=None):
-        """Consulta nuevamente la autorización del SRI para comprobantes en estado ENVIADO."""
+        """
+        Consulta la autorización del SRI para comprobantes en estado ENVIADO o RECHAZADO.
+        - Intenta la autorización hasta 4 veces (espera 3 s entre intentos).
+        - Si el SRI no tiene la clave, re-envía el XML (error 43/70 es inofensivo)
+          y luego reintenta la autorización.
+        """
+        import time
+        from apps.facturacion.services.sri_service import SRIService
+
         factura = self.get_object()
         comp = factura.comprobante
-        if comp.estado != 'ENVIADO':
+
+        if comp.estado not in ('ENVIADO', 'RECHAZADO', 'NO_AUTORIZADO'):
             return Response(
-                {'error': f'Solo se reprocesa desde estado ENVIADO. Estado actual: {comp.estado}'},
+                {'error': f'Solo se reprocesa desde estado ENVIADO / RECHAZADO. Estado actual: {comp.estado}'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        from apps.facturacion.services.sri_service import SRIService
+
+        # Si está RECHAZADO o NO_AUTORIZADO, usar el flujo completo de procesar
+        if comp.estado in ('RECHAZADO', 'NO_AUTORIZADO'):
+            from apps.facturacion.services.factura_service import procesar_factura_sri
+            result = procesar_factura_sri(factura)
+            http_status = status.HTTP_200_OK if result.get('success') else status.HTTP_422_UNPROCESSABLE_ENTITY
+            return Response(result, status=http_status)
+
         sri = SRIService(comp.empresa)
         try:
-            auth = sri.autorizar_comprobante_sri(comp.clave_acceso)
-            if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
-                aut = auth.autorizaciones.autorizacion[0]
-                if aut.estado == 'AUTORIZADO':
+            # ── Fase 1: 4 intentos de autorización ───────────────────────────
+            aut_obj = None
+            for attempt in range(4):
+                if attempt > 0:
+                    time.sleep(3)
+                auth = sri.autorizar_comprobante_sri(comp.clave_acceso)
+                if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
+                    aut_obj = auth.autorizaciones.autorizacion[0]
+                    if aut_obj.estado in ('AUTORIZADO', 'NO_AUTORIZADO'):
+                        break
+                    aut_obj = None  # estado transitorio, reintentar
+
+            if aut_obj:
+                if aut_obj.estado == 'AUTORIZADO':
                     comp.estado = 'AUTORIZADO'
-                    comp.numero_autorizacion = getattr(aut, 'numeroAutorizacion', '')
-                    comp.fecha_autorizacion  = getattr(aut, 'fechaAutorizacion', None)
+                    comp.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
+                    comp.fecha_autorizacion  = getattr(aut_obj, 'fechaAutorizacion', None)
+                    comp.mensajes_sri = ''
                     comp.save()
                     return Response({
                         'estado': comp.estado,
                         'numero_autorizacion': comp.numero_autorizacion,
+                        'mensaje': f'Autorizada: {comp.numero_autorizacion}',
                     })
                 else:
+                    mensajes_list = []
+                    if hasattr(aut_obj, 'mensajes') and aut_obj.mensajes:
+                        for m in getattr(aut_obj.mensajes, 'mensaje', []):
+                            mensajes_list.append(
+                                f"[{getattr(m,'identificador','')}] {getattr(m,'mensaje','')} — {getattr(m,'informacionAdicional','')}"
+                            )
                     comp.estado = 'NO_AUTORIZADO'
+                    comp.mensajes_sri = '\n'.join(mensajes_list)
                     comp.save()
-                    return Response({'estado': comp.estado}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-            return Response({'estado': comp.estado, 'mensaje': 'Sin respuesta del SRI — sigue en ENVIADO'})
+                    return Response(
+                        {'estado': comp.estado, 'mensaje': comp.mensajes_sri or 'No autorizado por el SRI'},
+                        status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    )
+
+            # ── Fase 2: el SRI no tiene la clave — re-enviar XML ─────────────
+            if not comp.xml_firmado:
+                return Response({
+                    'estado': comp.estado,
+                    'mensaje': 'Sin respuesta del SRI y sin XML firmado. Re-envíe desde BORRADOR.',
+                })
+
+            response = sri.enviar_comprobante_sri(comp)
+            # Error 43/70 = ya registrada, es normal. Cualquier otro error = RECHAZADO
+            mensajes_recep = []
+            ya_registrada = False
+            if hasattr(response, 'estado') and response.estado == 'RECIBIDA':
+                ya_registrada = True
+            else:
+                raw_msgs = getattr(response, 'comprobantes', None)
+                raw_list = getattr(raw_msgs, 'comprobante', []) if raw_msgs else []
+                for comp_item in raw_list:
+                    for m in getattr(getattr(comp_item, 'mensajes', None), 'mensaje', []):
+                        ident = str(getattr(m, 'identificador', ''))
+                        mensajes_recep.append(ident)
+                        if ident in ('43', '70'):
+                            ya_registrada = True
+                if not ya_registrada:
+                    msg_str = ' | '.join(mensajes_recep)
+                    ya_registrada = '43' in msg_str or '70' in msg_str
+
+            if not ya_registrada and mensajes_recep:
+                comp.estado = 'RECHAZADO'
+                comp.mensajes_sri = ' | '.join(mensajes_recep)
+                comp.save(update_fields=['estado', 'mensajes_sri'])
+                return Response(
+                    {'estado': comp.estado, 'mensaje': comp.mensajes_sri},
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                )
+
+            # ── Fase 3: re-intentar autorización tras el re-envío ────────────
+            for attempt in range(4):
+                if attempt > 0:
+                    time.sleep(3)
+                auth = sri.autorizar_comprobante_sri(comp.clave_acceso)
+                if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
+                    aut_obj = auth.autorizaciones.autorizacion[0]
+                    if aut_obj.estado in ('AUTORIZADO', 'NO_AUTORIZADO'):
+                        break
+                    aut_obj = None
+
+            if aut_obj and aut_obj.estado == 'AUTORIZADO':
+                comp.estado = 'AUTORIZADO'
+                comp.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
+                comp.fecha_autorizacion  = getattr(aut_obj, 'fechaAutorizacion', None)
+                comp.mensajes_sri = ''
+                comp.save()
+                return Response({
+                    'estado': comp.estado,
+                    'numero_autorizacion': comp.numero_autorizacion,
+                    'mensaje': f'Autorizada: {comp.numero_autorizacion}',
+                })
+
+            return Response({
+                'estado': comp.estado,
+                'mensaje': 'Re-enviado al SRI. Autorización aún pendiente — intente reprocesar nuevamente en unos segundos.',
+            })
+
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

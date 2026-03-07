@@ -52,13 +52,15 @@ const FacturasPage: React.FC = () => {
       const res = data as { estado?: string; numero_autorizacion?: string; mensaje?: string };
       if (res?.estado === 'AUTORIZADO') {
         alert(`✅ Factura AUTORIZADA\nNro. Autorización: ${res.numero_autorizacion}`);
+      } else if (res?.estado === 'ENVIADO') {
+        alert(`⏳ Aún pendiente de autorización en el SRI.\n${res?.mensaje ?? ''}\n\nPuede volver a intentar en unos segundos.`);
       } else {
-        alert(`Estado actualizado: ${res?.estado ?? '—'}\n${res?.mensaje ?? ''}`);
+        alert(`Estado: ${res?.estado ?? '—'}\n${res?.mensaje ?? ''}`);
       }
     },
     onError: (error: unknown) => {
-      const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg || 'Error al reprocesar');
+      const errData = (error as { response?: { data?: { error?: string; mensaje?: string } } })?.response?.data;
+      alert(errData?.error || errData?.mensaje || 'Error al reprocesar');
     },
   });
 
@@ -400,14 +402,15 @@ const FacturasPage: React.FC = () => {
                         {factura.estado === 'ENVIADO' && (
                           <button
                             onClick={() => {
-                              if (window.confirm('Consultar al SRI si ya autorizó este comprobante?')) {
+                              if (window.confirm('Consultar y reintentar autorización SRI?\n(puede tardar hasta ~30 segundos)')) {
                                 reprocesarMutation.mutate(factura.id);
                               }
                             }}
-                            className="text-blue-600 hover:text-blue-800 transition-colors"
-                            title="Consultar autorización SRI"
+                            disabled={reprocesarMutation.isPending}
+                            className="text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-40"
+                            title="Reintentar autorización SRI"
                           >
-                            <FiRefreshCw />
+                            <FiRefreshCw className={reprocesarMutation.isPending ? 'animate-spin' : ''} />
                           </button>
                         )}
                         {(factura.estado === 'RECHAZADO' || factura.estado === 'NO_AUTORIZADO') && (
