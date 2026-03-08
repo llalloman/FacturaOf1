@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/authService';
-import { Lock, User, AlertCircle, Loader2, ShieldCheck, Zap } from 'lucide-react';
+import { Lock, User, AlertCircle, Loader2, ShieldCheck, Zap, UserPlus } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -12,20 +12,36 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notFound, setNotFound] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setNotFound(false);
     setLoading(true);
 
     try {
       const response = await authService.login({ email, password });
-      setAuth(response.user, response.access, response.refresh);
-      navigate('/');
+      const user = response.user;
+      setAuth(user, response.access, response.refresh);
+      if (user.rol === 'SUPER_ADMIN' || (user.email_verificado && user.onboarding_completado)) {
+        navigate('/');
+      } else if (!user.email_verificado) {
+        navigate('/verificar-email');
+      } else {
+        navigate('/bienvenida');
+      }
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: string } } };
-      setError(axiosErr.response?.data?.detail || 'Credenciales inválidas');
+      const axiosErr = err as { response?: { status?: number; data?: { detail?: string } } };
+      const status = axiosErr.response?.status;
+      const detail = axiosErr.response?.data?.detail || '';
+      if (status === 401 || detail.toLowerCase().includes('no active account')) {
+        setNotFound(true);
+        setError('No encontramos una cuenta con ese correo y contraseña.');
+      } else {
+        setError(detail || 'Error al iniciar sesión. Intenta de nuevo.');
+      }
     } finally {
       setLoading(false);
     }
@@ -80,12 +96,25 @@ export default function LoginPage() {
 
           {/* Error Message */}
           {error && (
-            <div className="mb-6 bg-gradient-to-r from-red-50 to-sky-50 border-l-4 border-red-500 rounded-r-xl p-4 animate-shake shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0">
-                  <AlertCircle className="w-5 h-5 text-red-600" />
+            <div className={`mb-6 border-l-4 rounded-r-xl p-4 shadow-sm animate-shake ${
+              notFound
+                ? 'bg-amber-50 border-amber-500'
+                : 'bg-gradient-to-r from-red-50 to-sky-50 border-red-500'
+            }`}>
+              <div className="flex items-start gap-3">
+                <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${notFound ? 'text-amber-600' : 'text-red-600'}`} />
+                <div>
+                  <p className={`text-sm font-medium ${notFound ? 'text-amber-800' : 'text-red-800'}`}>{error}</p>
+                  {notFound && (
+                    <Link
+                      to={`/registro?email=${encodeURIComponent(email)}`}
+                      className="inline-flex items-center gap-1.5 mt-2 text-sm font-bold text-blue-700 hover:text-blue-900 underline-offset-2 hover:underline"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Crear cuenta nueva gratis
+                    </Link>
+                  )}
                 </div>
-                <p className="text-sm text-red-800 font-medium">{error}</p>
               </div>
             </div>
           )}

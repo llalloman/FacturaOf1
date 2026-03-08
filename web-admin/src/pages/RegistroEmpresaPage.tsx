@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/authService';
 import { User, Lock, Mail, Phone, MapPin, CreditCard, Eye, EyeOff, AlertCircle, Loader2, CheckCircle2, Shield, Zap } from 'lucide-react';
 
 export default function RegistroEmpresaPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const [form, setForm] = useState({ email: '', cedula: '', nombre: '', apellido: '', password: '', confirm_password: '', ciudad: '', telefono: '' });
+  const [form, setForm] = useState({ email: searchParams.get('email') || '', cedula: '', nombre: '', apellido: '', password: '', confirm_password: '', ciudad: '', telefono: '' });
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
