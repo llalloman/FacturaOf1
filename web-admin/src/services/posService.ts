@@ -1,4 +1,4 @@
-import apiClient from '../lib/apiClient';
+import apiClient from './apiClient';
 import type { ProductoPOS, ClientePOS, ItemCarrito, PagoPOS } from '../store/posStore';
 
 export const posService = {

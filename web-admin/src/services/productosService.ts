@@ -1,4 +1,4 @@
-import apiClient from '../lib/apiClient';
+import apiClient from './apiClient';
 import type { Producto } from '../types';
 
 export const productosService = {

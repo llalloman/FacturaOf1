@@ -1,4 +1,4 @@
-import apiClient from '../lib/apiClient';
+import apiClient from './apiClient';
 import type { Empresa } from '../types';
 
 export const empresasService = {
