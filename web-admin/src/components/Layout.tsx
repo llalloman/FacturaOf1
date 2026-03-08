@@ -53,9 +53,10 @@ const ROL_PATHS: Record<string, string[]> = {
 
 // Menú exclusivo del Super Admin (no está atado a ninguna empresa)
 const menuItemsSuperAdmin: MenuItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Building2,       label: 'Empresas',  path: '/empresas' },
-  { icon: Users,           label: 'Usuarios',  path: '/usuarios' },
+  { icon: LayoutDashboard, label: 'Dashboard',      path: '/' },
+  { icon: Building2,       label: 'Empresas',        path: '/empresas' },
+  { icon: CreditCard,      label: 'Suscripciones', path: '/suscripciones-admin' },
+  { icon: Users,           label: 'Usuarios',        path: '/usuarios' },
 ];
 
 export default function Layout() {

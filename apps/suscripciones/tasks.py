@@ -12,39 +12,36 @@ from .models import Suscripcion, PlanSuscripcion
 @shared_task
 def verificar_suscripciones_vencidas():
     """
-    Tarea que se ejecuta diariamente para verificar y desactivar suscripciones vencidas
+    Tarea diaria: vence suscripciones ACTIVA y PRUEBA que superaron su fecha_fin.
     """
     now = timezone.now()
-    
-    # Buscar suscripciones activas que ya vencieron
+
+    # Incluir PRUEBA además de ACTIVA
     suscripciones_vencidas = Suscripcion.objects.filter(
-        estado=Suscripcion.EstadoChoices.ACTIVA,
+        estado__in=[Suscripcion.EstadoChoices.ACTIVA, Suscripcion.EstadoChoices.PRUEBA],
         fecha_fin__lte=now
-    )
-    
+    ).select_related('empresa', 'plan')
+
     count = 0
     for suscripcion in suscripciones_vencidas:
-        # Si tiene auto-renovar, intentar renovar
-        if suscripcion.auto_renovar:
+        era_prueba = suscripcion.estado == Suscripcion.EstadoChoices.PRUEBA
+
+        if not era_prueba and suscripcion.auto_renovar:
             try:
                 suscripcion.renovar()
-                # Enviar notificación de renovación
                 enviar_notificacion_renovacion.delay(suscripcion.id)
-            except Exception as e:
-                # Si falla la renovación, marcar como vencida
+            except Exception:
                 suscripcion.marcar_como_vencida()
                 enviar_notificacion_vencimiento.delay(suscripcion.id)
         else:
-            # Marcar como vencida
             suscripcion.marcar_como_vencida()
             enviar_notificacion_vencimiento.delay(suscripcion.id)
-        
-        # Desactivar la empresa
+
+        # Desactivar la empresa cuando la suscripción vence
         suscripcion.empresa.activa = False
         suscripcion.empresa.save(update_fields=['activa'])
-        
         count += 1
-    
+
     return f"Se procesaron {count} suscripciones vencidas"
 
 

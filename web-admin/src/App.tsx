@@ -20,6 +20,7 @@ import RetencionesPage from './pages/retenciones/RetencionesPage';
 import GuiasRemisionPage from './pages/guias/GuiasRemisionPage';
 import NotasDebitoPage from './pages/notas-debito/NotasDebitoPage';
 import SuscripcionesPage from './pages/suscripciones/SuscripcionesPage';
+import SuscripcionesAdminPage from './pages/empresas/SuscripcionesAdminPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -92,6 +93,11 @@ function App() {
             <Route path="empresas" element={
               <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                 <EmpresasPage />
+              </ProtectedRoute>
+            } />
+            <Route path="suscripciones-admin" element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                <SuscripcionesAdminPage />
               </ProtectedRoute>
             } />
             <Route path="usuarios" element={

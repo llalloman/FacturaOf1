@@ -3,26 +3,32 @@ Middleware Multi-Tenant para manejar el contexto de empresa
 """
 from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
+from django.utils import timezone
+
+# Rutas que no requieren validación de suscripción
+_RUTAS_LIBRES = [
+    '/admin/',
+    '/api/auth/',
+    '/api/suscripciones/',
+    '/api/empresas/',
+    '/api/usuarios/me/',
+    '/api/health/',
+]
 
 
 class TenantMiddleware(MiddlewareMixin):
     """
-    Middleware para manejar el contexto de empresa (tenant) en cada request
+    Middleware para manejar el contexto de empresa (tenant) en cada request.
+    También bloquea el acceso si la suscripción de la empresa ha expirado.
     """
-    
+
     def process_request(self, request):
-        """
-        Extrae la empresa del usuario autenticado o del header
-        """
-        # Inicializar el tenant como None
         request.tenant = None
-        
-        # Si el usuario está autenticado y tiene empresa asignada
+
         if hasattr(request, 'user') and request.user.is_authenticated:
             if hasattr(request.user, 'empresa') and request.user.empresa:
                 request.tenant = request.user.empresa
-        
-        # Permitir especificar empresa via header (solo para super admins)
+
         empresa_id = request.headers.get('X-Empresa-ID')
         if empresa_id and hasattr(request, 'user') and request.user.is_authenticated:
             if request.user.es_super_admin:
@@ -31,33 +37,57 @@ class TenantMiddleware(MiddlewareMixin):
                     request.tenant = Empresa.objects.get(id=empresa_id)
                 except Empresa.DoesNotExist:
                     pass
-        
+
         return None
-    
+
     def process_view(self, request, view_func, view_args, view_kwargs):
-        """
-        Validar que endpoints protegidos tengan tenant
-        """
-        # Rutas que no requieren tenant
-        rutas_sin_tenant = [
-            '/admin/',
-            '/api/auth/',
-            '/api/usuarios/me/',
-        ]
-        
-        # Si la ruta no requiere tenant, continuar
-        for ruta in rutas_sin_tenant:
+        # Rutas que nunca requieren tenant ni suscripción
+        for ruta in _RUTAS_LIBRES:
             if request.path.startswith(ruta):
                 return None
-        
-        # Si es un endpoint de API y requiere empresa
-        if request.path.startswith('/api/') and hasattr(request, 'user'):
-            if request.user.is_authenticated and not request.user.es_super_admin:
-                # Rutas que requieren tenant
-                if any(x in request.path for x in ['/facturacion/', '/productos/', '/clientes/']):
-                    if not request.tenant:
-                        return JsonResponse({
-                            'error': 'No se ha especificado una empresa válida'
-                        }, status=400)
-        
+
+        if not request.path.startswith('/api/'):
+            return None
+
+        if not hasattr(request, 'user') or not request.user.is_authenticated:
+            return None
+
+        # Super admins pasan siempre
+        if request.user.es_super_admin:
+            return None
+
+        # ── Validar suscripción activa ────────────────────────────────────────
+        empresa = getattr(request, 'tenant', None)
+        if empresa:
+            from apps.suscripciones.models import Suscripcion
+            now = timezone.now()
+            suscripcion = (
+                Suscripcion.objects
+                .filter(empresa=empresa)
+                .exclude(estado__in=['CANCELADA'])
+                .order_by('-fecha_inicio')
+                .first()
+            )
+
+            if not suscripcion:
+                return JsonResponse({
+                    'error': 'sin_suscripcion',
+                    'mensaje': 'No tienes una suscripción activa. Contacta al administrador.',
+                }, status=403)
+
+            # Verificar si venció (incluye PRUEBA vencida)
+            if suscripcion.fecha_fin <= now and suscripcion.estado not in ['ACTIVA']:
+                return JsonResponse({
+                    'error': 'suscripcion_vencida',
+                    'mensaje': f'Tu suscripción venció el {suscripcion.fecha_fin.strftime("%d/%m/%Y")}. Renueva para continuar.',
+                    'fecha_fin': suscripcion.fecha_fin.isoformat(),
+                }, status=403)
+
+            if suscripcion.estado in ['SUSPENDIDA', 'VENCIDA']:
+                return JsonResponse({
+                    'error': 'suscripcion_inactiva',
+                    'mensaje': f'Tu suscripción está {suscripcion.estado.lower()}. Contacta al administrador.',
+                }, status=403)
+
         return None
+
