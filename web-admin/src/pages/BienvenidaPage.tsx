@@ -16,61 +16,102 @@ import {
   Clock,
 } from 'lucide-react';
 
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
+import { suscripcionesService } from '../services/suscripcionesService';
+import { useQuery } from '@tanstack/react-query';
+import type { PlanSuscripcion } from '../types';
+import {
+  CheckCircle2,
+  FileText,
+  User,
+  Zap,
+  Star,
+  BarChart3,
+  ArrowRight,
+  Rocket,
+  Shield,
+  Clock,
+  Check,
+} from 'lucide-react';
+
 function PlanCard({ plan }: { plan: PlanSuscripcion }) {
-  const gradients: Record<string, string> = {
-    BASICO: 'from-slate-500 to-slate-700',
-    PROFESIONAL: 'from-blue-500 to-blue-700',
-    EMPRESARIAL: 'from-sky-500 to-sky-800',
-    ILIMITADO: 'from-amber-500 to-orange-700',
-  };
-  const gradient = gradients[plan.tipo] ?? 'from-gray-500 to-gray-700';
   const isPopular = plan.tipo === 'PROFESIONAL';
 
+  const features: { icon: React.ElementType; label: string; highlight: boolean }[] = [
+    { icon: FileText, label: plan.facturas_mensuales === 0 ? 'Facturas ilimitadas' : `${plan.facturas_mensuales} facturas / mes`, highlight: false },
+    { icon: User, label: plan.usuarios_permitidos === 0 ? 'Usuarios ilimitados' : `${plan.usuarios_permitidos} usuario${plan.usuarios_permitidos !== 1 ? 's' : ''}`, highlight: false },
+    ...(plan.soporte_prioritario ? [{ icon: Star, label: 'Soporte prioritario', highlight: true }] : []),
+    ...(plan.reportes_avanzados ? [{ icon: BarChart3, label: 'Reportes avanzados', highlight: true }] : []),
+    ...(plan.api_access ? [{ icon: Zap, label: 'Acceso API', highlight: true }] : []),
+  ];
+
   return (
-    <div
-      className={`relative rounded-2xl border-2 overflow-hidden transition-all ${
-        isPopular ? 'border-blue-500 shadow-lg shadow-blue-100' : 'border-gray-100'
-      }`}
-    >
+    <div className={`relative flex flex-col bg-white rounded-2xl border-2 transition-all ${
+      isPopular
+        ? 'border-blue-500 shadow-2xl shadow-blue-100 scale-[1.03]'
+        : 'border-gray-200 shadow-md hover:shadow-xl hover:border-gray-300'
+    }`}>
+      {/* Popular badge */}
       {isPopular && (
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-          <span className="bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow">
-            Popular
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
+          <span className="inline-flex items-center gap-1.5 bg-blue-600 text-white text-xs font-black px-5 py-1.5 rounded-full shadow-lg uppercase tracking-wider">
+            <Star size={10} fill="currentColor" /> Popular
           </span>
         </div>
       )}
-      <div className={`bg-gradient-to-r ${gradient} p-5 text-white`}>
-        <p className="text-xs font-bold uppercase tracking-widest opacity-70">{plan.tipo}</p>
-        <p className="text-lg font-black mt-0.5">{plan.nombre}</p>
-        <p className="text-3xl font-black mt-2">
-          ${plan.precio}
-          <span className="text-sm font-medium opacity-70">/{plan.periodo.toLowerCase()}</span>
-        </p>
-      </div>
-      <div className="p-4 space-y-2.5 bg-white">
-        <div className="flex items-center gap-2 text-sm text-gray-700">
-          <FileText className="w-4 h-4 text-gray-400" />
-          {plan.facturas_mensuales === 0 ? 'Facturas ilimitadas' : `${plan.facturas_mensuales} facturas/mes`}
+
+      <div className="p-7 flex flex-col flex-1">
+        {/* Plan name */}
+        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">{plan.tipo}</p>
+        <h3 className="text-2xl font-black text-gray-900 mb-5">{plan.nombre}</h3>
+
+        {/* Price */}
+        <div className="mb-6">
+          <div className="flex items-end gap-1">
+            <span className="text-5xl font-black text-gray-900">${Number(plan.precio).toFixed(2)}</span>
+            <span className="text-gray-400 text-sm pb-1.5">/ mes</span>
+          </div>
+          <p className="text-gray-400 text-xs mt-1">Precio + IVA · Sin permanencia</p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-700">
-          <User className="w-4 h-4 text-gray-400" />
-          {plan.usuarios_permitidos === 0 ? 'Usuarios ilimitados' : `${plan.usuarios_permitidos} usuario${plan.usuarios_permitidos !== 1 ? 's' : ''}`}
-        </div>
-        {plan.soporte_prioritario && (
-          <div className="flex items-center gap-2 text-sm text-emerald-700">
-            <Star className="w-4 h-4" /> Soporte prioritario
-          </div>
-        )}
-        {plan.reportes_avanzados && (
-          <div className="flex items-center gap-2 text-sm text-emerald-700">
-            <BarChart3 className="w-4 h-4" /> Reportes avanzados
-          </div>
-        )}
-        {plan.api_access && (
-          <div className="flex items-center gap-2 text-sm text-emerald-700">
-            <Zap className="w-4 h-4" /> Acceso API
-          </div>
-        )}
+
+        {/* CTA button */}
+        <button className={`w-full py-3.5 rounded-xl font-black text-sm mb-7 transition-all active:scale-[.98] ${
+          isPopular
+            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-200'
+            : 'bg-gray-900 hover:bg-gray-800 text-white'
+        }`}>
+          ¡Elegir {plan.nombre}!
+        </button>
+
+        {/* Divider */}
+        <div className="border-t border-gray-100 mb-5" />
+
+        {/* Features */}
+        <ul className="space-y-3 flex-1">
+          <li className="flex items-center gap-3 text-sm text-gray-600">
+            <Check size={16} className="text-blue-500 shrink-0" />
+            Facturación electrónica SRI
+          </li>
+          <li className="flex items-center gap-3 text-sm text-gray-600">
+            <Check size={16} className="text-blue-500 shrink-0" />
+            POS y gestión de inventario
+          </li>
+          <li className="flex items-center gap-3 text-sm text-gray-600">
+            <Check size={16} className="text-blue-500 shrink-0" />
+            Gestión de clientes
+          </li>
+          {features.map(({ icon: Icon, label, highlight }) => (
+            <li key={label} className={`flex items-center gap-3 text-sm ${
+              highlight ? 'text-emerald-700 font-semibold' : 'text-gray-600'
+            }`}>
+              {highlight
+                ? <Icon size={16} className="text-emerald-500 shrink-0" />
+                : <Check size={16} className="text-blue-500 shrink-0" />}
+              {label}
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
@@ -142,7 +183,7 @@ export default function BienvenidaPage() {
                 <span className="text-blue-700 font-semibold">Sin tarjeta de crédito requerida durante la prueba.</span>
               </p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-start py-4">
               {planes.map((plan) => (
                 <PlanCard key={plan.id} plan={plan} />
               ))}
