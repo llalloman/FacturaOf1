@@ -1,11 +1,15 @@
 import { create } from 'zustand';
 
-interface User {
+export interface User {
   id: number;
   username: string;
   email: string;
+  first_name?: string;
+  last_name?: string;
   rol: string;
   empresa_id?: number;
+  email_verificado: boolean;
+  onboarding_completado: boolean;
 }
 
 interface AuthState {
@@ -15,6 +19,7 @@ interface AuthState {
   isAuthenticated: boolean;
   
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
+  updateUser: (partial: Partial<User>) => void;
   logout: () => void;
 }
 
@@ -38,6 +43,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.setItem('refresh_token', refreshToken);
     localStorage.setItem('user', JSON.stringify(user));
     set({ user, accessToken, refreshToken, isAuthenticated: true });
+  },
+
+  updateUser: (partial) => {
+    set((state) => {
+      const updated = state.user ? { ...state.user, ...partial } : state.user;
+      if (updated) localStorage.setItem('user', JSON.stringify(updated));
+      return { user: updated };
+    });
   },
 
   logout: () => {

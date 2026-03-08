@@ -6,27 +6,57 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
+import random
+import string
+import requests as http_requests
 
 User = get_user_model()
+
+
+def _generate_code():
+    return ''.join(random.choices(string.digits, k=6))
+
+
+def _send_verification_email(email: str, code: str):
+    send_mail(
+        subject='Código de verificación - OF1 Solutions',
+        message=(
+            f'Tu código de verificación es: {code}\n\n'
+            f'Este código es válido por 30 minutos.\n\n'
+            f'Si no solicitaste este código, ignora este mensaje.\n\n'
+            f'OF1 Solutions S.A.S.'
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[email],
+        fail_silently=False,
+    )
+
+
+def _user_dict(user, empresa=None):
+    emp = empresa or user.empresa
+    return {
+        'id': user.id,
+        'username': user.email,
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'rol': user.rol,
+        'empresa_id': emp.id if emp else None,
+        'email_verificado': user.email_verificado,
+        'onboarding_completado': emp.onboarding_completado if emp else False,
+    }
+
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        
-        # Agregar información del usuario
-        data['user'] = {
-            'id': self.user.id,
-            'username': self.user.email,
-            'email': self.user.email,
-            'first_name': self.user.first_name,
-            'last_name': self.user.last_name,
-            'rol': self.user.rol,
-            'empresa_id': self.user.empresa_id if hasattr(self.user, 'empresa') else None,
-        }
-        
+        emp = self.user.empresa if hasattr(self.user, 'empresa') else None
+        data['user'] = _user_dict(self.user, emp)
         return data
 
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -37,15 +67,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 def current_user(request):
     """Obtener información del usuario actual"""
     user = request.user
-    return Response({
-        'id': user.id,
-        'username': user.email,
-        'email': user.email,
-        'first_name': user.first_name,
-        'last_name': user.last_name,
-        'rol': user.rol,
-        'empresa_id': user.empresa_id if hasattr(user, 'empresa') else None,
-    })
+    return Response(_user_dict(user))
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -60,28 +82,20 @@ def registro_empresa(request):
     """
     Registro público de nueva empresa.
     Crea Empresa + Usuario ADMIN_EMPRESA + Suscripcion PRUEBA en una sola transacción.
-    Retorna tokens JWT para auto-login inmediato.
+    Envía email de verificación y retorna JWT (email_verificado=False hasta confirmar).
     """
     from apps.empresas.models import Empresa
     from apps.suscripciones.models import PlanSuscripcion, Suscripcion
 
     data = request.data
 
-    # Validaciones básicas
-    required = ['ruc', 'razon_social', 'email_empresa', 'email', 'password', 'nombre', 'apellido']
+    required = ['email', 'password', 'nombre', 'apellido']
     missing = [f for f in required if not data.get(f)]
     if missing:
         return Response(
             {'error': f"Campos requeridos: {', '.join(missing)}"},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
-    ruc = data['ruc'].strip()
-    if len(ruc) != 13 or not ruc.isdigit():
-        return Response({'error': 'El RUC debe tener exactamente 13 dígitos.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    if Empresa.objects.filter(ruc=ruc).exists():
-        return Response({'error': 'Ya existe una empresa registrada con ese RUC.'}, status=status.HTTP_400_BAD_REQUEST)
 
     email_admin = data['email'].strip().lower()
     if User.objects.filter(email=email_admin).exists():
@@ -91,29 +105,27 @@ def registro_empresa(request):
     if len(password) < 8:
         return Response({'error': 'La contraseña debe tener al menos 8 caracteres.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Obtener el plan (el indicado o el más barato disponible)
-    plan_id = data.get('plan_id')
-    if plan_id:
-        plan = PlanSuscripcion.objects.filter(id=plan_id, activo=True).first()
-        if not plan:
-            return Response({'error': 'Plan no encontrado o inactivo.'}, status=status.HTTP_400_BAD_REQUEST)
-    else:
-        plan = PlanSuscripcion.objects.filter(activo=True).order_by('precio').first()
-        if not plan:
-            return Response({'error': 'No hay planes disponibles en este momento.'}, status=status.HTTP_400_BAD_REQUEST)
+    plan = PlanSuscripcion.objects.filter(activo=True).order_by('precio').first()
+    if not plan:
+        return Response({'error': 'No hay planes disponibles en este momento.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Generar código de verificación
+    codigo = _generate_code()
+    ahora = timezone.now()
 
     try:
         with transaction.atomic():
-            # 1. Crear empresa
+            # 1. Crear empresa provisional (sin RUC/certificado — se completa en onboarding)
             empresa = Empresa.objects.create(
-                ruc=ruc,
-                razon_social=data['razon_social'].strip(),
-                nombre_comercial=data.get('nombre_comercial', '').strip(),
-                email=data['email_empresa'].strip().lower(),
+                ruc='0000000000001',  # placeholder — se actualiza en onboarding
+                razon_social='Por configurar',
+                email=email_admin,
                 telefono=data.get('telefono', '').strip(),
-                direccion_matriz=data.get('direccion', 'Sin dirección').strip(),
+                direccion_matriz='Sin dirección',
+                ciudad=data.get('ciudad', '').strip(),
                 activa=True,
-                ambiente='1',  # Pruebas por defecto
+                ambiente='1',
+                onboarding_completado=False,
             )
 
             # 2. Crear usuario ADMIN_EMPRESA
@@ -122,12 +134,17 @@ def registro_empresa(request):
                 password=password,
                 first_name=data['nombre'].strip(),
                 last_name=data['apellido'].strip(),
+                cedula=data.get('cedula', '').strip() or None,
+                telefono=data.get('telefono', '').strip(),
                 rol='ADMIN_EMPRESA',
                 empresa=empresa,
+                email_verificado=False,
+                codigo_verificacion=codigo,
+                codigo_verificacion_expira=ahora + timedelta(minutes=30),
+                intentos_reenvio=0,
             )
 
             # 3. Crear suscripción PRUEBA (30 días)
-            ahora = timezone.now()
             Suscripcion.objects.create(
                 empresa=empresa,
                 plan=plan,
@@ -139,18 +156,258 @@ def registro_empresa(request):
     except Exception as exc:
         return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # 4. Generar tokens JWT (auto-login)
+    # 4. Enviar email de verificación
+    try:
+        _send_verification_email(email_admin, codigo)
+    except Exception:
+        pass  # No bloquear el registro si el email falla — el usuario puede reenviar
+
+    # 5. Generar tokens JWT (auto-login, pero email_verificado=False)
     refresh = RefreshToken.for_user(usuario)
     return Response({
         'access': str(refresh.access_token),
         'refresh': str(refresh),
-        'user': {
-            'id': usuario.id,
-            'username': usuario.email,
-            'email': usuario.email,
-            'first_name': usuario.first_name,
-            'last_name': usuario.last_name,
-            'rol': usuario.rol,
-            'empresa_id': empresa.id,
-        },
+        'user': _user_dict(usuario, empresa),
     }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verificar_email(request):
+    """
+    Verifica el código de 6 dígitos enviado al email del usuario.
+    POST /api/auth/verificar-email/  { "codigo": "123456" }
+    """
+    user = request.user
+    codigo = (request.data.get('codigo') or '').strip()
+
+    if user.email_verificado:
+        return Response({'detail': 'El email ya está verificado.'})
+
+    if not codigo:
+        return Response({'error': 'Código requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    ahora = timezone.now()
+
+    if not user.codigo_verificacion or user.codigo_verificacion_expira is None:
+        return Response({'error': 'No hay un código activo. Solicita uno nuevo.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if ahora > user.codigo_verificacion_expira:
+        return Response({'error': 'El código ha expirado. Solicita uno nuevo.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if user.codigo_verificacion != codigo:
+        return Response({'error': 'Código incorrecto.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.email_verificado = True
+    user.codigo_verificacion = ''
+    user.codigo_verificacion_expira = None
+    user.save(update_fields=['email_verificado', 'codigo_verificacion', 'codigo_verificacion_expira'])
+
+    return Response({'detail': 'Email verificado correctamente.', 'user': _user_dict(user)})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reenviar_codigo(request):
+    """
+    Reenvía el código de verificación.
+    - Cooldown de 2 minutos entre reenvíos.
+    - Máximo 3 intentos (luego debe registrarse de nuevo).
+    POST /api/auth/reenviar-codigo/
+    """
+    user = request.user
+
+    if user.email_verificado:
+        return Response({'detail': 'El email ya está verificado.'})
+
+    MAX_INTENTOS = 3
+    COOLDOWN_SEGUNDOS = 120
+
+    if user.intentos_reenvio >= MAX_INTENTOS:
+        return Response(
+            {'error': 'Has alcanzado el máximo de reenvíos. Registra una nueva cuenta.'},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    ahora = timezone.now()
+    if user.ultimo_reenvio and (ahora - user.ultimo_reenvio).total_seconds() < COOLDOWN_SEGUNDOS:
+        segundos_restantes = int(COOLDOWN_SEGUNDOS - (ahora - user.ultimo_reenvio).total_seconds())
+        return Response(
+            {'error': f'Espera {segundos_restantes} segundos antes de solicitar otro código.', 'segundos_restantes': segundos_restantes},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    codigo = _generate_code()
+    user.codigo_verificacion = codigo
+    user.codigo_verificacion_expira = ahora + timedelta(minutes=30)
+    user.ultimo_reenvio = ahora
+    user.intentos_reenvio = user.intentos_reenvio + 1
+    user.save(update_fields=['codigo_verificacion', 'codigo_verificacion_expira', 'ultimo_reenvio', 'intentos_reenvio'])
+
+    try:
+        _send_verification_email(user.email, codigo)
+    except Exception as exc:
+        return Response({'error': f'No se pudo enviar el email: {exc}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    reenvios_restantes = MAX_INTENTOS - user.intentos_reenvio
+    return Response({'detail': 'Código reenviado correctamente.', 'reenvios_restantes': reenvios_restantes})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def consultar_ruc(request, ruc):
+    """
+    Consulta información de un contribuyente en el SRI por su RUC.
+    GET /api/auth/consultar-ruc/<ruc>/
+    """
+    ruc = ruc.strip()
+    if len(ruc) not in (10, 13) or not ruc.isdigit():
+        return Response({'error': 'RUC/cédula inválido. Debe tener 10 o 13 dígitos.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        sri_url = (
+            'https://srienlinea.sri.gob.ec/sri-catastro-sujeto-servicio-internet'
+            f'/rest/ConsolidadoContribuyente/obtenerPorNumerRuc?numeroRuc={ruc}'
+        )
+        resp = http_requests.get(sri_url, timeout=10)
+        if resp.status_code == 200:
+            sri_data = resp.json()
+            # Normalizar la respuesta para el frontend
+            contribuyente = sri_data if isinstance(sri_data, dict) else {}
+            razon_social = (
+                contribuyente.get('nombreComercial') or
+                contribuyente.get('razonSocial') or
+                ''
+            )
+            return Response({
+                'ruc': ruc,
+                'razon_social': razon_social,
+                'nombre_comercial': contribuyente.get('nombreComercial', ''),
+                'estado': contribuyente.get('estadoContribuyente', ''),
+                'tipo': contribuyente.get('tipoContribuyente', ''),
+                'direccion': contribuyente.get('direccionCompleta', ''),
+                'raw': contribuyente,
+            })
+        else:
+            return Response({'error': 'El SRI no devolvió información para ese RUC.'}, status=status.HTTP_404_NOT_FOUND)
+    except http_requests.Timeout:
+        return Response({'error': 'El servicio del SRI no respondió a tiempo. Ingresa los datos manualmente.'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except Exception as exc:
+        return Response({'error': f'Error consultando el SRI: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def validar_certificado(request):
+    """
+    Valida que un archivo .p12/.pfx:
+    - Sea un certificado PKCS#12 válido con la contraseña proporcionada.
+    - El RUC del sujeto del certificado coincida con el RUC indicado.
+    POST /api/auth/validar-certificado/
+    multipart: archivo=<file>, password=<str>, ruc=<str>
+    """
+    archivo = request.FILES.get('archivo')
+    password = (request.data.get('password') or '').encode('utf-8')
+    ruc = (request.data.get('ruc') or '').strip()
+
+    if not archivo:
+        return Response({'error': 'Archivo de certificado requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not ruc:
+        return Response({'error': 'RUC requerido para validar el certificado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        from cryptography.hazmat.primitives.serialization import pkcs12
+        cert_data = archivo.read()
+        private_key, certificate, _ = pkcs12.load_key_and_certificates(cert_data, password)
+    except Exception:
+        return Response({'error': 'Contraseña incorrecta o archivo de certificado inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Verificar que el RUC esté en el subject del certificado
+    try:
+        subject = certificate.subject
+        subject_str = subject.rfc4514_string()
+    except Exception:
+        subject_str = ''
+
+    if ruc not in subject_str:
+        # Intentar también en el serial number o SAN
+        try:
+            from cryptography import x509
+            san = certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+            san_str = str(san.value)
+        except Exception:
+            san_str = ''
+
+        if ruc not in san_str:
+            return Response(
+                {'error': f'El certificado no corresponde al RUC {ruc}. Verifica que subiste el certificado correcto.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    # Obtener fecha de vencimiento
+    not_after = certificate.not_valid_after_utc if hasattr(certificate, 'not_valid_after_utc') else certificate.not_valid_after
+    if timezone.now() > timezone.make_aware(not_after) if not_after.tzinfo is None else timezone.now() > not_after:
+        return Response({'error': 'El certificado está vencido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({
+        'valido': True,
+        'fecha_vencimiento': not_after.strftime('%Y-%m-%d'),
+        'subject': subject_str,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def completar_onboarding(request):
+    """
+    Guarda la configuración de la empresa y marca onboarding_completado=True.
+    POST /api/auth/completar-onboarding/
+    multipart/form-data (puede incluir certificado digital como archivo)
+    """
+    from apps.empresas.models import Empresa
+
+    user = request.user
+    if not user.empresa:
+        return Response({'error': 'Sin empresa asociada.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    empresa = user.empresa
+    data = request.data
+
+    ruc = (data.get('ruc') or '').strip()
+    if not ruc or len(ruc) != 13 or not ruc.isdigit():
+        return Response({'error': 'RUC de 13 dígitos requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Verificar que el RUC no esté en uso por OTRA empresa
+    if Empresa.objects.filter(ruc=ruc).exclude(id=empresa.id).exists():
+        return Response({'error': 'Ya existe otra empresa registrada con ese RUC.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Actualizar campos de empresa
+    empresa.ruc = ruc
+    empresa.razon_social = (data.get('razon_social') or '').strip() or empresa.razon_social
+    empresa.nombre_comercial = (data.get('nombre_comercial') or '').strip()
+    empresa.email = (data.get('email') or empresa.email).strip().lower()
+    empresa.telefono = (data.get('telefono') or empresa.telefono or '').strip()
+    empresa.ciudad = (data.get('ciudad') or '').strip()
+    empresa.direccion_matriz = (data.get('direccion_matriz') or 'Sin dirección').strip()
+    empresa.ambiente = data.get('ambiente', '1')
+    empresa.establecimiento_codigo = (data.get('establecimiento_codigo') or '001').strip()
+    empresa.punto_emision_codigo = (data.get('punto_emision_codigo') or '001').strip()
+
+    # Tipo de contribuyente
+    tipo_contrib = data.get('tipo_contribuyente', 'NATURAL')
+    if tipo_contrib in ('NATURAL', 'SOCIEDAD', 'PUBLICA'):
+        empresa.tipo_contribuyente = tipo_contrib
+
+    # Certificado digital (opcional — puede subirse después)
+    certificado = request.FILES.get('certificado_digital')
+    if certificado:
+        empresa.certificado_digital = certificado
+        empresa.password_certificado = (data.get('password_certificado') or '').strip()
+        fecha_venc = data.get('fecha_vencimiento_certificado')
+        if fecha_venc:
+            empresa.fecha_vencimiento_certificado = fecha_venc
+
+    empresa.onboarding_completado = True
+    empresa.save()
+
+    return Response({'detail': 'Onboarding completado.', 'user': _user_dict(user, empresa)})

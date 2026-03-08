@@ -5,6 +5,9 @@ import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import RegistroEmpresaPage from './pages/RegistroEmpresaPage';
+import VerificacionEmailPage from './pages/VerificacionEmailPage';
+import BienvenidaPage from './pages/BienvenidaPage';
+import OnboardingPage from './pages/OnboardingPage';
 import DashboardPage from './pages/DashboardPage';
 import ProductosPage from './pages/productos/ProductosPage';
 import ClientesPage from './pages/clientes/ClientesPage';
@@ -34,6 +37,14 @@ const queryClient = new QueryClient({
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
+
+  // Determine where an authenticated user should be redirected based on onboarding state
+  const authenticatedHome = () => {
+    if (!user?.email_verificado) return '/verificar-email';
+    if (!user?.onboarding_completado) return '/bienvenida';
+    return '/';
+  };
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -41,11 +52,55 @@ function App() {
         <Routes>
           <Route
             path="/login"
-            element={isAuthenticated ? <Navigate to="/" /> : <LoginPage />}
+            element={isAuthenticated ? <Navigate to={authenticatedHome()} /> : <LoginPage />}
           />
           <Route
             path="/registro"
-            element={isAuthenticated ? <Navigate to="/" /> : <RegistroEmpresaPage />}
+            element={isAuthenticated ? <Navigate to={authenticatedHome()} /> : <RegistroEmpresaPage />}
+          />
+
+          {/* Email verification — requires auth, no email verified yet */}
+          <Route
+            path="/verificar-email"
+            element={
+              !isAuthenticated ? (
+                <Navigate to="/login" />
+              ) : user?.email_verificado ? (
+                <Navigate to={user.onboarding_completado ? '/' : '/bienvenida'} />
+              ) : (
+                <VerificacionEmailPage />
+              )
+            }
+          />
+
+          {/* Bienvenida — requires verified email */}
+          <Route
+            path="/bienvenida"
+            element={
+              !isAuthenticated ? (
+                <Navigate to="/login" />
+              ) : !user?.email_verificado ? (
+                <Navigate to="/verificar-email" />
+              ) : (
+                <BienvenidaPage />
+              )
+            }
+          />
+
+          {/* Onboarding wizard — requires verified email, onboarding not done */}
+          <Route
+            path="/onboarding"
+            element={
+              !isAuthenticated ? (
+                <Navigate to="/login" />
+              ) : !user?.email_verificado ? (
+                <Navigate to="/verificar-email" />
+              ) : user?.onboarding_completado ? (
+                <Navigate to="/" />
+              ) : (
+                <OnboardingPage />
+              )
+            }
           />
 
           {/* POS - pantalla completa, sin el Layout del admin */}

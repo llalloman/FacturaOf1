@@ -66,6 +66,13 @@ class Usuario(AbstractUser):
     is_active = models.BooleanField(_('activo'), default=True)
     fecha_registro = models.DateTimeField(_('fecha de registro'), auto_now_add=True)
     ultima_actividad = models.DateTimeField(_('última actividad'), auto_now=True)
+
+    # Verificación de email
+    email_verificado = models.BooleanField(_('email verificado'), default=False)
+    codigo_verificacion = models.CharField(_('código de verificación'), max_length=8, blank=True)
+    codigo_verificacion_expira = models.DateTimeField(_('expiración código'), null=True, blank=True)
+    intentos_reenvio = models.IntegerField(_('intentos de reenvío'), default=0)
+    ultimo_reenvio = models.DateTimeField(_('último reenvío'), null=True, blank=True)
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name']

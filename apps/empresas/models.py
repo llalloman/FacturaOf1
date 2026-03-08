@@ -114,6 +114,7 @@ class Empresa(models.Model):
     # Estado
     activa = models.BooleanField(_('activa'), default=True)
     verificada = models.BooleanField(_('verificada'), default=False, help_text=_('Verificada por el SRI'))
+    onboarding_completado = models.BooleanField(_('onboarding completado'), default=False)
     
     # Metadata
     fecha_creacion = models.DateTimeField(_('fecha de creación'), auto_now_add=True)

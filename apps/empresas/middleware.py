@@ -89,5 +89,19 @@ class TenantMiddleware(MiddlewareMixin):
                     'mensaje': f'Tu suscripción está {suscripcion.estado.lower()}. Contacta al administrador.',
                 }, status=403)
 
+        # ── Validar email verificado ──────────────────────────────────────────
+        if not request.user.email_verificado:
+            return JsonResponse({
+                'error': 'email_no_verificado',
+                'mensaje': 'Debes verificar tu email antes de continuar.',
+            }, status=403)
+
+        # ── Validar onboarding completado ─────────────────────────────────────
+        if empresa and not empresa.onboarding_completado:
+            return JsonResponse({
+                'error': 'onboarding_incompleto',
+                'mensaje': 'Debes completar la configuración de tu empresa.',
+            }, status=403)
+
         return None
 

@@ -6,7 +6,10 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
-from apps.usuarios.auth_views import CustomTokenObtainPairView, current_user, logout, registro_empresa
+from apps.usuarios.auth_views import (
+    CustomTokenObtainPairView, current_user, logout, registro_empresa,
+    verificar_email, reenviar_codigo, consultar_ruc, validar_certificado, completar_onboarding,
+)
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
@@ -18,6 +21,11 @@ urlpatterns = [
     path('api/auth/me/', current_user, name='current_user'),
     path('api/auth/logout/', logout, name='logout'),
     path('api/auth/registro-empresa/', registro_empresa, name='registro_empresa'),
+    path('api/auth/verificar-email/', verificar_email, name='verificar_email'),
+    path('api/auth/reenviar-codigo/', reenviar_codigo, name='reenviar_codigo'),
+    path('api/auth/consultar-ruc/<str:ruc>/', consultar_ruc, name='consultar_ruc'),
+    path('api/auth/validar-certificado/', validar_certificado, name='validar_certificado'),
+    path('api/auth/completar-onboarding/', completar_onboarding, name='completar_onboarding'),
     
     # API endpoints
     path('api/usuarios/', include('apps.usuarios.urls')),
