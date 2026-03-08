@@ -5,7 +5,7 @@ interface LoginCredentials {
   password: string;
 }
 
-interface LoginResponse {
+interface AuthResponse {
   access: string;
   refresh: string;
   user: {
@@ -17,9 +17,26 @@ interface LoginResponse {
   };
 }
 
+export interface RegistroEmpresaData {
+  ruc: string;
+  razon_social: string;
+  email_empresa: string;
+  telefono?: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+  password: string;
+  plan_id?: number;
+}
+
 export const authService = {
-  login: async (credentials: LoginCredentials): Promise<LoginResponse> => {
+  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     const { data } = await apiClient.post('/auth/login/', credentials);
+    return data;
+  },
+
+  registroEmpresa: async (payload: RegistroEmpresaData): Promise<AuthResponse> => {
+    const { data } = await apiClient.post('/auth/registro-empresa/', payload);
     return data;
   },
 

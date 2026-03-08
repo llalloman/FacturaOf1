@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
+import RegistroEmpresaPage from './pages/RegistroEmpresaPage';
 import DashboardPage from './pages/DashboardPage';
 import ProductosPage from './pages/productos/ProductosPage';
 import ClientesPage from './pages/clientes/ClientesPage';
@@ -41,6 +42,10 @@ function App() {
           <Route
             path="/login"
             element={isAuthenticated ? <Navigate to="/" /> : <LoginPage />}
+          />
+          <Route
+            path="/registro"
+            element={isAuthenticated ? <Navigate to="/" /> : <RegistroEmpresaPage />}
           />
 
           {/* POS - pantalla completa, sin el Layout del admin */}

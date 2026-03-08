@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/authService';
 import { FileText, Lock, User, AlertCircle, Loader2, Sparkles, ShieldCheck, Zap } from 'lucide-react';
@@ -172,8 +172,17 @@ export default function LoginPage() {
 
           {/* Footer */}
           <div className="mt-10 pt-8 border-t border-gray-200 text-center">
-            <p className="text-sm text-gray-600 font-medium mb-2">Sistema de Facturación Electrónica</p>
-            <p className="text-xs text-gray-500">© 2026 SRI Ecuador - Todos los derechos reservados</p>
+            <p className="text-sm text-gray-600 font-medium mb-3">
+              ¿Aún no tienes cuenta?{' '}
+              <Link
+                to="/registro"
+                className="font-bold text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline transition-colors"
+              >
+                Registra tu empresa gratis
+              </Link>
+            </p>
+            <p className="text-sm text-gray-500 font-medium mb-1">Sistema de Facturación Electrónica</p>
+            <p className="text-xs text-gray-400">© 2026 SRI Ecuador - Todos los derechos reservados</p>
           </div>
         </div>
       </div>

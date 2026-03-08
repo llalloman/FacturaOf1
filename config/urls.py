@@ -6,7 +6,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
-from apps.usuarios.auth_views import CustomTokenObtainPairView, current_user, logout
+from apps.usuarios.auth_views import CustomTokenObtainPairView, current_user, logout, registro_empresa
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
@@ -17,6 +17,7 @@ urlpatterns = [
     path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/me/', current_user, name='current_user'),
     path('api/auth/logout/', logout, name='logout'),
+    path('api/auth/registro-empresa/', registro_empresa, name='registro_empresa'),
     
     # API endpoints
     path('api/usuarios/', include('apps.usuarios.urls')),
