@@ -41,6 +41,7 @@ function App() {
 
   // Determine where an authenticated user should be redirected based on onboarding state
   const authenticatedHome = () => {
+    if (user?.rol === 'SUPER_ADMIN') return '/';
     if (!user?.email_verificado) return '/verificar-email';
     if (!user?.onboarding_completado) return '/bienvenida';
     return '/';
@@ -59,42 +60,42 @@ function App() {
             element={isAuthenticated ? <Navigate to={authenticatedHome()} /> : <RegistroEmpresaPage />}
           />
 
-          {/* Email verification — requires auth, no email verified yet */}
+          {/* Email verification — requires auth, no email verified yet; SUPER_ADMIN skips */}
           <Route
             path="/verificar-email"
             element={
               !isAuthenticated ? (
                 <Navigate to="/login" />
-              ) : user?.email_verificado ? (
-                <Navigate to={user.onboarding_completado ? '/' : '/bienvenida'} />
+              ) : user?.rol === 'SUPER_ADMIN' || user?.email_verificado ? (
+                <Navigate to={authenticatedHome()} />
               ) : (
                 <VerificacionEmailPage />
               )
             }
           />
 
-          {/* Bienvenida — requires verified email */}
+          {/* Bienvenida — requires verified email; SUPER_ADMIN skips */}
           <Route
             path="/bienvenida"
             element={
               !isAuthenticated ? (
                 <Navigate to="/login" />
-              ) : !user?.email_verificado ? (
-                <Navigate to="/verificar-email" />
+              ) : user?.rol === 'SUPER_ADMIN' || !user?.email_verificado ? (
+                <Navigate to={authenticatedHome()} />
               ) : (
                 <BienvenidaPage />
               )
             }
           />
 
-          {/* Onboarding wizard — requires verified email, onboarding not done */}
+          {/* Onboarding wizard — requires verified email, onboarding not done; SUPER_ADMIN skips */}
           <Route
             path="/onboarding"
             element={
               !isAuthenticated ? (
                 <Navigate to="/login" />
-              ) : !user?.email_verificado ? (
-                <Navigate to="/verificar-email" />
+              ) : user?.rol === 'SUPER_ADMIN' || !user?.email_verificado ? (
+                <Navigate to={authenticatedHome()} />
               ) : user?.onboarding_completado ? (
                 <Navigate to="/" />
               ) : (

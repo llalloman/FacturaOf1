@@ -13,13 +13,13 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     return <Navigate to="/login" replace />;
   }
 
-  // Guard: email must be verified before accessing the main app
-  if (user && !user.email_verificado) {
+  // Guard: email must be verified before accessing the main app (SUPER_ADMIN exempt)
+  if (user && user.rol !== 'SUPER_ADMIN' && !user.email_verificado) {
     return <Navigate to="/verificar-email" replace />;
   }
 
-  // Guard: onboarding must be complete before accessing the main app
-  if (user && !user.onboarding_completado) {
+  // Guard: onboarding must be complete before accessing the main app (SUPER_ADMIN exempt)
+  if (user && user.rol !== 'SUPER_ADMIN' && !user.onboarding_completado) {
     return <Navigate to="/onboarding" replace />;
   }
 

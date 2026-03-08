@@ -88,13 +88,13 @@ export default function Layout() {
             <img
               src="/logo-of1-1.png"
               alt="OF1 Solutions"
-              className="h-10 w-auto object-contain rounded-lg bg-white px-1.5 py-0.5 flex-shrink-0"
+              className="h-14 w-auto object-contain rounded-lg bg-white px-2 py-1 flex-shrink-0"
             />
           ) : (
             <img
               src="/logo-of1-1.png"
               alt="OF1 Solutions"
-              className="h-8 w-8 object-contain rounded bg-white p-0.5 flex-shrink-0"
+              className="h-10 w-10 object-contain rounded bg-white p-0.5 flex-shrink-0"
             />
           )}
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-gray-700 transition-colors">
