@@ -49,6 +49,7 @@ def _user_dict(user, empresa=None):
         'empresa_id': emp.id if emp else None,
         'email_verificado': user.email_verificado,
         'onboarding_completado': emp.onboarding_completado if emp else False,
+        'debe_cambiar_password': user.debe_cambiar_password,
     }
 
 
@@ -450,3 +451,99 @@ def completar_onboarding(request):
     empresa.save()
 
     return Response({'detail': 'Onboarding completado.', 'user': _user_dict(user, empresa)})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Recuperación de contraseña
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _generate_temp_password(length=10):
+    """Genera una contraseña temporal legible (sin caracteres ambiguos)."""
+    chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'
+    return ''.join(random.choices(chars, k=length))
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def recuperar_password(request):
+    """
+    Genera una contraseña temporal y la envía al correo del usuario.
+    POST /api/auth/recuperar-password/
+    Body: { "email": "..." }
+    """
+    email = (request.data.get('email') or '').strip().lower()
+    if not email:
+        return Response({'error': 'El email es requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Siempre responder OK aunque el email no exista (evitar enumeración de usuarios)
+    try:
+        user = User.objects.get(email=email, is_active=True)
+    except User.DoesNotExist:
+        return Response({'detail': 'Si existe una cuenta con ese correo, recibirás las instrucciones en breve.'})
+
+    temp_pass = _generate_temp_password()
+    user.password_temporal = temp_pass  # guardamos en texto plano sólo para el envío
+    user.password_temporal_expira = timezone.now() + timedelta(hours=2)
+    user.debe_cambiar_password = True
+    user.set_password(temp_pass)
+    user.save(update_fields=['password', 'password_temporal', 'password_temporal_expira', 'debe_cambiar_password'])
+
+    try:
+        send_mail(
+            subject='Contraseña temporal - OF1 Solutions',
+            message=(
+                f'Hola {user.first_name},\n\n'
+                f'Recibimos una solicitud para restablecer tu contraseña.\n\n'
+                f'Tu contraseña temporal es:\n\n'
+                f'    {temp_pass}\n\n'
+                f'Esta contraseña es válida por 2 horas. Al iniciar sesión te pediremos que la cambies.\n\n'
+                f'Si no solicitaste este cambio, ignora este mensaje y tu cuenta seguirá segura.\n\n'
+                f'— OF1 Solutions S.A.S.'
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+    except Exception as exc:
+        # Si falla el envío de email revertimos los cambios de contraseña
+        user.debe_cambiar_password = False
+        user.password_temporal = ''
+        user.password_temporal_expira = None
+        user.save(update_fields=['password_temporal', 'password_temporal_expira', 'debe_cambiar_password'])
+        return Response(
+            {'error': f'No se pudo enviar el correo. Contacta soporte. ({exc})'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    return Response({'detail': 'Si existe una cuenta con ese correo, recibirás las instrucciones en breve.'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cambiar_password(request):
+    """
+    Cambia la contraseña del usuario autenticado.
+    Requerido cuando debe_cambiar_password=True (login con temporal).
+    POST /api/auth/cambiar-password/
+    Body: { "password_actual": "...", "password_nuevo": "..." }
+    """
+    password_actual = request.data.get('password_actual', '')
+    password_nuevo = request.data.get('password_nuevo', '')
+
+    if not password_actual or not password_nuevo:
+        return Response({'error': 'Ambas contraseñas son requeridas.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if len(password_nuevo) < 8:
+        return Response({'error': 'La nueva contraseña debe tener al menos 8 caracteres.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = request.user
+    if not user.check_password(password_actual):
+        return Response({'error': 'La contraseña actual es incorrecta.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(password_nuevo)
+    user.debe_cambiar_password = False
+    user.password_temporal = ''
+    user.password_temporal_expira = None
+    user.save(update_fields=['password', 'debe_cambiar_password', 'password_temporal', 'password_temporal_expira'])
+
+    return Response({'detail': 'Contraseña actualizada correctamente.', 'user': _user_dict(user)})

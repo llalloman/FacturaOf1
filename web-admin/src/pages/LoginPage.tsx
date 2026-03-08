@@ -27,7 +27,9 @@ export default function LoginPage() {
       const response = await authService.login({ email, password });
       const user = response.user;
       setAuth(user, response.access, response.refresh);
-      if (user.rol === 'SUPER_ADMIN' || (user.email_verificado && user.onboarding_completado)) {
+      if (user.debe_cambiar_password) {
+        navigate('/cambiar-password');
+      } else if (user.rol === 'SUPER_ADMIN' || (user.email_verificado && user.onboarding_completado)) {
         navigate('/');
       } else if (!user.email_verificado) {
         navigate('/verificar-email');
@@ -145,6 +147,12 @@ export default function LoginPage() {
                 <ArrowLeft className="w-5 h-5" />
                 Intentar nuevamente
               </button>
+              <Link
+                to="/recuperar-password"
+                className="block w-full text-center text-sm text-blue-600 hover:text-blue-800 font-semibold hover:underline transition-colors"
+              >
+                ¿Olvidaste tu contraseña? Recupérala por correo
+              </Link>
             </div>
           ) : (
             <>
@@ -242,15 +250,25 @@ export default function LoginPage() {
           {/* Footer */}
           <div className="mt-10 pt-8 border-t border-gray-200 text-center">
             {!notFound && !wrongPassword && (
-              <p className="text-sm text-gray-600 font-medium mb-3">
-                ¿Aún no tienes cuenta?{' '}
-                <Link
-                  to="/registro"
-                  className="font-bold text-blue-600 hover:text-blue-700 underline-offset-2 hover:underline transition-colors"
-                >
-                  Registra tu empresa gratis
-                </Link>
-              </p>
+              <>
+                <p className="text-sm text-gray-600 font-medium mb-3">
+                  ¿Aún no tienes cuenta?{' '}
+                  <Link
+                    to="/registro"
+                    className="font-bold text-blue-600 hover:text-blue-700 underline-offset-2 hover:underline transition-colors"
+                  >
+                    Registra tu empresa gratis
+                  </Link>
+                </p>
+                <p className="text-sm text-gray-500 mb-3">
+                  <Link
+                    to="/recuperar-password"
+                    className="text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </Link>
+                </p>
+              </>
             )}
             <p className="text-sm text-gray-500 font-medium mb-1">Sistema de Facturación Electrónica</p>
             <p className="text-xs text-gray-400">© 2026 OF1 Solutions S.A.S. - Todos los derechos reservados</p>

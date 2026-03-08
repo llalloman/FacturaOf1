@@ -25,6 +25,8 @@ import GuiasRemisionPage from './pages/guias/GuiasRemisionPage';
 import NotasDebitoPage from './pages/notas-debito/NotasDebitoPage';
 import SuscripcionesPage from './pages/suscripciones/SuscripcionesPage';
 import SuscripcionesAdminPage from './pages/empresas/SuscripcionesAdminPage';
+import RecuperarPasswordPage from './pages/RecuperarPasswordPage';
+import CambiarPasswordPage from './pages/CambiarPasswordPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +45,7 @@ function App() {
   const authenticatedHome = () => {
     if (user?.rol === 'SUPER_ADMIN') return '/';
     if (!user?.email_verificado) return '/verificar-email';
+    if (user?.debe_cambiar_password) return '/cambiar-password';
     if (!user?.onboarding_completado) return '/onboarding';
     return '/';
   };
@@ -58,6 +61,15 @@ function App() {
           <Route
             path="/registro"
             element={isAuthenticated ? <Navigate to={authenticatedHome()} /> : <RegistroEmpresaPage />}
+          />
+
+          {/* Password recovery — public */}
+          <Route path="/recuperar-password" element={<RecuperarPasswordPage />} />
+
+          {/* Forced password change — requires auth */}
+          <Route
+            path="/cambiar-password"
+            element={isAuthenticated ? <CambiarPasswordPage /> : <Navigate to="/login" />}
           />
 
           {/* Email verification — requires auth, no email verified yet; SUPER_ADMIN skips */}

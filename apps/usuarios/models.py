@@ -73,6 +73,11 @@ class Usuario(AbstractUser):
     codigo_verificacion_expira = models.DateTimeField(_('expiración código'), null=True, blank=True)
     intentos_reenvio = models.IntegerField(_('intentos de reenvío'), default=0)
     ultimo_reenvio = models.DateTimeField(_('último reenvío'), null=True, blank=True)
+
+    # Recuperación de contraseña
+    password_temporal = models.CharField(_('contraseña temporal'), max_length=128, blank=True)
+    password_temporal_expira = models.DateTimeField(_('expiración contraseña temporal'), null=True, blank=True)
+    debe_cambiar_password = models.BooleanField(_('debe cambiar contraseña'), default=False)
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name']

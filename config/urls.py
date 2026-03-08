@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from apps.usuarios.auth_views import (
     CustomTokenObtainPairView, current_user, logout, registro_empresa,
     verificar_email, reenviar_codigo, consultar_ruc, validar_certificado, completar_onboarding,
+    recuperar_password, cambiar_password,
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -26,6 +27,8 @@ urlpatterns = [
     path('api/auth/consultar-ruc/<str:ruc>/', consultar_ruc, name='consultar_ruc'),
     path('api/auth/validar-certificado/', validar_certificado, name='validar_certificado'),
     path('api/auth/completar-onboarding/', completar_onboarding, name='completar_onboarding'),
+    path('api/auth/recuperar-password/', recuperar_password, name='recuperar_password'),
+    path('api/auth/cambiar-password/', cambiar_password, name='cambiar_password'),
     
     # API endpoints
     path('api/usuarios/', include('apps.usuarios.urls')),

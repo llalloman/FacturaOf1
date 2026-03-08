@@ -59,6 +59,16 @@ export const authService = {
     return data;
   },
 
+  recuperarPassword: async (email: string) => {
+    const { data } = await apiClient.post('/auth/recuperar-password/', { email });
+    return data;
+  },
+
+  cambiarPassword: async (password_actual: string, password_nuevo: string) => {
+    const { data } = await apiClient.post('/auth/cambiar-password/', { password_actual, password_nuevo });
+    return data;
+  },
+
   validarCertificado: async (formData: FormData) => {
     const { data } = await apiClient.post('/auth/validar-certificado/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
