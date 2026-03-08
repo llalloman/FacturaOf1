@@ -30,7 +30,8 @@ export default function LoginPage() {
       } else if (!user.email_verificado) {
         navigate('/verificar-email');
       } else {
-        navigate('/bienvenida');
+        // email verificado pero onboarding pendiente → ir directamente al wizard
+        navigate('/onboarding');
       }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status?: number; data?: { detail?: string } } };

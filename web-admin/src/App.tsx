@@ -43,7 +43,7 @@ function App() {
   const authenticatedHome = () => {
     if (user?.rol === 'SUPER_ADMIN') return '/';
     if (!user?.email_verificado) return '/verificar-email';
-    if (!user?.onboarding_completado) return '/bienvenida';
+    if (!user?.onboarding_completado) return '/onboarding';
     return '/';
   };
 
