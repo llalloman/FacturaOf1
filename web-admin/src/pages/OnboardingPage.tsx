@@ -175,7 +175,7 @@ export default function OnboardingPage() {
     setLoadingRuc(true);
     try {
       const res = await authService.consultarRuc(ruc);
-      if (res.razon_social) {
+      if (res.found) {
         setEmpresa((f) => ({
           ...f,
           razon_social: res.razon_social || f.razon_social,
@@ -183,7 +183,7 @@ export default function OnboardingPage() {
           direccion_matriz: res.direccion || f.direccion_matriz,
         }));
       } else {
-        setError('El SRI no devolvió datos para este RUC. Puedes continuar ingresando los datos manualmente.');
+        setError(res.error || 'No se encontró información en el SRI. Ingresa los datos manualmente.');
       }
     } catch (err: any) {
       setError(err?.response?.data?.error || 'No se pudo consultar el SRI. Ingresa los datos manualmente.');

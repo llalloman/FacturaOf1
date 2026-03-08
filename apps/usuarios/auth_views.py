@@ -264,36 +264,62 @@ def consultar_ruc(request, ruc):
     if len(ruc) not in (10, 13) or not ruc.isdigit():
         return Response({'error': 'RUC/cédula inválido. Debe tener 10 o 13 dígitos.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    SRI_URL = (
+        'https://srienlinea.sri.gob.ec/sri-catastro-sujeto-servicio-internet'
+        f'/rest/ConsolidadoContribuyente/obtenerPorNumerRuc?numeroRuc={ruc}'
+    )
+
     try:
-        sri_url = (
-            'https://srienlinea.sri.gob.ec/sri-catastro-sujeto-servicio-internet'
-            f'/rest/ConsolidadoContribuyente/obtenerPorNumerRuc?numeroRuc={ruc}'
-        )
-        resp = http_requests.get(sri_url, timeout=10)
-        if resp.status_code == 200:
-            sri_data = resp.json()
-            # Normalizar la respuesta para el frontend
-            contribuyente = sri_data if isinstance(sri_data, dict) else {}
-            razon_social = (
-                contribuyente.get('nombreComercial') or
-                contribuyente.get('razonSocial') or
-                ''
-            )
-            return Response({
-                'ruc': ruc,
-                'razon_social': razon_social,
-                'nombre_comercial': contribuyente.get('nombreComercial', ''),
-                'estado': contribuyente.get('estadoContribuyente', ''),
-                'tipo': contribuyente.get('tipoContribuyente', ''),
-                'direccion': contribuyente.get('direccionCompleta', ''),
-                'raw': contribuyente,
-            })
-        else:
-            return Response({'error': 'El SRI no devolvió información para ese RUC.'}, status=status.HTTP_404_NOT_FOUND)
+        resp = http_requests.get(SRI_URL, timeout=10)
     except http_requests.Timeout:
-        return Response({'error': 'El servicio del SRI no respondió a tiempo. Ingresa los datos manualmente.'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+        return Response(
+            {'found': False, 'error': 'El servicio del SRI no respondió a tiempo. Ingresa los datos manualmente.'},
+            status=status.HTTP_200_OK,
+        )
     except Exception as exc:
-        return Response({'error': f'Error consultando el SRI: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response(
+            {'found': False, 'error': f'No se pudo conectar al SRI: {exc}. Ingresa los datos manualmente.'},
+            status=status.HTTP_200_OK,
+        )
+
+    if resp.status_code != 200:
+        # 422 indica "el endpoint existe pero no se encontró el RUC en SRI"
+        # (no usar 404 porque confunde al browser/interceptor — parecería que la ruta no existe)
+        return Response(
+            {'found': False, 'error': 'El SRI no devolvió información para ese RUC. Puedes ingresar los datos manualmente.'},
+            status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    try:
+        sri_data = resp.json()
+    except Exception:
+        return Response(
+            {'found': False, 'error': 'Respuesta inválida del SRI. Ingresa los datos manualmente.'},
+            status=status.HTTP_200_OK,
+        )
+
+    contribuyente = sri_data if isinstance(sri_data, dict) else {}
+    razon_social = (
+        contribuyente.get('razonSocial') or
+        contribuyente.get('nombreComercial') or
+        ''
+    )
+
+    if not razon_social:
+        return Response(
+            {'found': False, 'error': 'El SRI no devolvió nombre para ese RUC. Ingresa los datos manualmente.'},
+            status=status.HTTP_200_OK,
+        )
+
+    return Response({
+        'found': True,
+        'ruc': ruc,
+        'razon_social': razon_social,
+        'nombre_comercial': contribuyente.get('nombreComercial', ''),
+        'estado': contribuyente.get('estadoContribuyente', ''),
+        'tipo': contribuyente.get('tipoContribuyente', ''),
+        'direccion': contribuyente.get('direccionCompleta', ''),
+    })
 
 
 @api_view(['POST'])
