@@ -13,12 +13,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notFound, setNotFound] = useState(false);
+  const [wrongPassword, setWrongPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setNotFound(false);
+    setWrongPassword(false);
     setLoading(true);
 
     try {
@@ -37,8 +39,14 @@ export default function LoginPage() {
       const axiosErr = err as { response?: { status?: number; data?: { detail?: string } } };
       const status = axiosErr.response?.status;
       const detail = axiosErr.response?.data?.detail || '';
-      if (status === 401 || detail.toLowerCase().includes('no active account')) {
+      const detailLower = detail.toLowerCase();
+      // El API devuelve 401 tanto para cuenta inexistente como para contraseña incorrecta.
+      // Distinguimos por el mensaje.
+      if (detailLower.includes('no active account') || detailLower.includes('no existe') || detailLower.includes('no encontr')) {
         setNotFound(true);
+      } else if (status === 401) {
+        // Cuenta existe pero credenciales incorrectas
+        setWrongPassword(true);
       } else {
         setError(detail || 'Error al iniciar sesión. Intenta de nuevo.');
       }
@@ -120,6 +128,22 @@ export default function LoginPage() {
               >
                 <ArrowLeft className="w-4 h-4" />
                 Intentar con otro correo
+              </button>
+            </div>
+          ) : wrongPassword ? (
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Lock className="w-8 h-8 text-red-500" />
+              </div>
+              <h2 className="text-xl font-black text-gray-900 mb-2">Contraseña incorrecta</h2>
+              <p className="text-sm text-gray-500 mb-1">La contraseña ingresada no es correcta para:</p>
+              <p className="text-sm font-bold text-gray-800 mb-6 break-all">{email}</p>
+              <button
+                onClick={() => { setWrongPassword(false); setError(''); setPassword(''); }}
+                className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white rounded-xl font-bold text-base shadow-lg transition-all mb-4"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                Intentar nuevamente
               </button>
             </div>
           ) : (
@@ -217,7 +241,7 @@ export default function LoginPage() {
 
           {/* Footer */}
           <div className="mt-10 pt-8 border-t border-gray-200 text-center">
-            {!notFound && (
+            {!notFound && !wrongPassword && (
               <p className="text-sm text-gray-600 font-medium mb-3">
                 ¿Aún no tienes cuenta?{' '}
                 <Link
