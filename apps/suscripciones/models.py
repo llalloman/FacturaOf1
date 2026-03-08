@@ -14,6 +14,7 @@ class PlanSuscripcion(models.Model):
     """
     
     class TipoPlanChoices(models.TextChoices):
+        FREE = 'FREE', _('Gratuito')
         BASICO = 'BASICO', _('Básico')
         PROFESIONAL = 'PROFESIONAL', _('Profesional')
         EMPRESARIAL = 'EMPRESARIAL', _('Empresarial')

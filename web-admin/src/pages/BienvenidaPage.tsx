@@ -21,6 +21,20 @@ import {
 
 const PLAN_STORAGE_KEY = 'of1_plan_elegido';
 
+const planBadge: Record<string, { label: string; cls: string }> = {
+  FREE:        { label: 'Gratis',  cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  BASICO:      { label: 'Básico',  cls: 'bg-slate-100 text-slate-600' },
+  PROFESIONAL: { label: 'Popular', cls: 'bg-blue-600 text-white shadow-lg' },
+  EMPRESARIAL: { label: 'Premium', cls: 'bg-indigo-100 text-indigo-700' },
+  ILIMITADO:   { label: 'Max',     cls: 'bg-amber-100 text-amber-700' },
+};
+
+function docsLabel(plan: PlanSuscripcion): string {
+  if (plan.tipo === 'FREE') return `${plan.facturas_mensuales} documentos / año`;
+  if (plan.facturas_mensuales === 0) return 'Facturas ilimitadas';
+  return `${plan.facturas_mensuales} facturas / mes`;
+}
+
 function PlanCard({
   plan,
   seleccionado,
@@ -30,10 +44,12 @@ function PlanCard({
   seleccionado: boolean;
   onElegir: (plan: PlanSuscripcion) => void;
 }) {
+  const isFree = plan.tipo === 'FREE';
   const isPopular = plan.tipo === 'PROFESIONAL';
+  const badge = planBadge[plan.tipo] ?? planBadge.BASICO;
 
   const features: { icon: React.ElementType; label: string; highlight: boolean }[] = [
-    { icon: FileText, label: plan.facturas_mensuales === 0 ? 'Facturas ilimitadas' : `${plan.facturas_mensuales} facturas / mes`, highlight: false },
+    { icon: FileText, label: docsLabel(plan), highlight: false },
     { icon: User, label: plan.usuarios_permitidos === 0 ? 'Usuarios ilimitados' : `${plan.usuarios_permitidos} usuario${plan.usuarios_permitidos !== 1 ? 's' : ''}`, highlight: false },
     ...(plan.soporte_prioritario ? [{ icon: Star, label: 'Soporte prioritario', highlight: true }] : []),
     ...(plan.reportes_avanzados ? [{ icon: BarChart3, label: 'Reportes avanzados', highlight: true }] : []),
@@ -49,17 +65,17 @@ function PlanCard({
           : 'border-gray-200 shadow-md hover:shadow-xl hover:border-gray-300'
     }`}>
       {/* Badges */}
-      {seleccionado && (
+      {seleccionado ? (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap z-10">
           <span className="inline-flex items-center gap-1.5 bg-green-500 text-white text-xs font-black px-5 py-1.5 rounded-full shadow-lg uppercase tracking-wider">
             <CheckCircle size={11} fill="currentColor" /> Plan elegido
           </span>
         </div>
-      )}
-      {!seleccionado && isPopular && (
+      ) : (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-          <span className="inline-flex items-center gap-1.5 bg-blue-600 text-white text-xs font-black px-5 py-1.5 rounded-full shadow-lg uppercase tracking-wider">
-            <Star size={10} fill="currentColor" /> Popular
+          <span className={`inline-flex items-center gap-1.5 text-xs font-black px-5 py-1.5 rounded-full ${badge.cls}`}>
+            {isPopular && <Star size={10} fill="currentColor" />}
+            {badge.label}
           </span>
         </div>
       )}
@@ -81,12 +97,14 @@ function PlanCard({
           className={`w-full py-3.5 rounded-xl font-black text-sm mb-7 transition-all active:scale-[.98] ${
             seleccionado
               ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-200'
-              : isPopular
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-200'
-                : 'bg-gray-900 hover:bg-gray-800 text-white'
+              : isFree
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : isPopular
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-200'
+                  : 'bg-gray-900 hover:bg-gray-800 text-white'
           }`}
         >
-          {seleccionado ? '✓ Plan seleccionado' : `¡Elegir ${plan.nombre}!`}
+          {seleccionado ? '✓ Plan seleccionado' : isFree ? '¡Empezar gratis!' : `¡Elegir ${plan.nombre}!`}
         </button>
 
         <div className="border-t border-gray-100 mb-5" />
@@ -197,7 +215,7 @@ export default function BienvenidaPage() {
               </p>
               <p className="text-blue-700 font-semibold text-sm mt-1">Sin tarjeta de crédito requerida durante la prueba.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-start py-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-start py-4">
               {planes.map((plan) => (
                 <PlanCard
                   key={plan.id}

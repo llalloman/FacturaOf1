@@ -288,7 +288,7 @@ export interface PlanSuscripcion {
   id: number;
   nombre: string;
   codigo: string;
-  tipo: 'BASICO' | 'PROFESIONAL' | 'EMPRESARIAL' | 'ILIMITADO';
+  tipo: 'FREE' | 'BASICO' | 'PROFESIONAL' | 'EMPRESARIAL' | 'ILIMITADO';
   periodo: 'MENSUAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
   precio: number;
   facturas_mensuales: number;

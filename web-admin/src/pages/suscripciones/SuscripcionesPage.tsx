@@ -45,8 +45,7 @@ const planConfig: Record<string, {
   badgeClass: string;
   btnClass: string;
   descuentoAnual: number;
-}> = {
-  BASICO:      { tagline: 'Ideal para emprendedores',          featured: false, badgeClass: 'bg-slate-100 text-slate-600',   btnClass: 'bg-slate-800 hover:bg-slate-900 text-white',    descuentoAnual: 0.17 },
+}> = {  FREE:        { tagline: 'Para comenzar sin costo',            featured: false, badgeClass: 'bg-emerald-100 text-emerald-700', btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',  descuentoAnual: 0 },  BASICO:      { tagline: 'Ideal para emprendedores',          featured: false, badgeClass: 'bg-slate-100 text-slate-600',   btnClass: 'bg-slate-800 hover:bg-slate-900 text-white',    descuentoAnual: 0.17 },
   PROFESIONAL: { tagline: 'El favorito de las PyMEs',          featured: true,  badgeClass: 'bg-blue-500/20 text-blue-200',  btnClass: 'bg-white hover:bg-blue-50 text-blue-700',       descuentoAnual: 0.20 },
   EMPRESARIAL: { tagline: 'Poder ilimitado, sin restricciones', featured: false, badgeClass: 'bg-indigo-100 text-indigo-700', btnClass: 'bg-indigo-600 hover:bg-indigo-700 text-white',  descuentoAnual: 0.25 },
   ILIMITADO:   { tagline: 'Sin restricciones de ningún tipo',  featured: false, badgeClass: 'bg-amber-100 text-amber-700',   btnClass: 'bg-amber-500 hover:bg-amber-600 text-white',    descuentoAnual: 0.25 },
@@ -187,13 +186,17 @@ function PlanCard({ plan, esPlanActual, anual }: { plan: PlanSuscripcion; esPlan
   const periodoStr = anual ? 'año' : periodoLabel[plan.periodo];
 
   const features = [
-    { label: plan.facturas_mensuales === 0 ? 'Facturas ilimitadas' : `${plan.facturas_mensuales} facturas / mes`, ok: true },
+    { label: plan.tipo === 'FREE'
+        ? `${plan.facturas_mensuales} documentos / año`
+        : plan.facturas_mensuales === 0 ? 'Facturas ilimitadas' : `${plan.facturas_mensuales} facturas / mes`, ok: true },
     { label: plan.usuarios_permitidos === 0 ? 'Usuarios ilimitados' : `${plan.usuarios_permitidos} usuarios`, ok: true },
     { label: `${plan.empresas_permitidas} empresa${plan.empresas_permitidas > 1 ? 's' : ''}`, ok: true },
     { label: 'Soporte prioritario', ok: plan.soporte_prioritario },
     { label: 'Acceso API', ok: plan.api_access },
     { label: 'Reportes avanzados', ok: plan.reportes_avanzados },
   ];
+
+  const isFree = plan.tipo === 'FREE';
 
   if (cfg.featured) {
     return (
@@ -216,18 +219,28 @@ function PlanCard({ plan, esPlanActual, anual }: { plan: PlanSuscripcion; esPlan
         <p className="text-blue-200/70 text-sm mb-4">{cfg.tagline}</p>
 
         <div className="mb-6">
-          {anual && (
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-blue-300/60 line-through text-sm">${(precioMensual * 12).toFixed(2)}/año</span>
-              <span className="bg-amber-400 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full">-{descPct}%</span>
-            </div>
+          {isFree ? (
+            <>
+              {anual && <p className="text-blue-200/50 text-xs line-through mb-1">Siempre gratis</p>}
+              <div><span className="text-5xl font-black">Gratis</span></div>
+              <p className="text-blue-200/60 text-xs mt-1">50 docs / año · 30 días de prueba</p>
+            </>
+          ) : (
+            <>
+              {anual && (
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-blue-300/60 line-through text-sm">${(precioMensual * 12).toFixed(2)}/año</span>
+                  <span className="bg-amber-400 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full">-{descPct}%</span>
+                </div>
+              )}
+              <div>
+                <span className="text-5xl font-black">${precioPrincipal.toFixed(2)}</span>
+                <span className="text-blue-200/70 text-sm ml-1">/ {periodoStr}</span>
+              </div>
+              {anual && <p className="text-blue-200/60 text-xs mt-1">≈ ${(precioAnualDescuento / 12).toFixed(2)} / mes</p>}
+              <p className="text-blue-200/50 text-xs mt-0.5">Precio + IVA</p>
+            </>
           )}
-          <div>
-            <span className="text-5xl font-black">${precioPrincipal.toFixed(2)}</span>
-            <span className="text-blue-200/70 text-sm ml-1">/ {periodoStr}</span>
-          </div>
-          {anual && <p className="text-blue-200/60 text-xs mt-1">≈ ${(precioAnualDescuento / 12).toFixed(2)} / mes</p>}
-          <p className="text-blue-200/50 text-xs mt-0.5">Precio + IVA</p>
         </div>
 
         <ul className="space-y-3.5 flex-1 mb-8">
@@ -267,18 +280,27 @@ function PlanCard({ plan, esPlanActual, anual }: { plan: PlanSuscripcion; esPlan
         <p className="text-gray-500 text-sm mb-4">{cfg.tagline}</p>
 
         <div className="mb-6">
-          {anual && (
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-gray-400 line-through text-sm">${(precioMensual * 12).toFixed(2)}/año</span>
-              <span className="bg-amber-400 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full">-{descPct}%</span>
-            </div>
+          {isFree ? (
+            <>
+              <div><span className="text-5xl font-black text-emerald-600">Gratis</span></div>
+              <p className="text-gray-400 text-xs mt-1">50 docs / año · 30 días de prueba</p>
+            </>
+          ) : (
+            <>
+              {anual && (
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-gray-400 line-through text-sm">${(precioMensual * 12).toFixed(2)}/año</span>
+                  <span className="bg-amber-400 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full">-{descPct}%</span>
+                </div>
+              )}
+              <div>
+                <span className="text-5xl font-black text-gray-900">${precioPrincipal.toFixed(2)}</span>
+                <span className="text-gray-400 text-sm ml-1">/ {periodoStr}</span>
+              </div>
+              {anual && <p className="text-gray-400 text-xs mt-1">≈ ${(precioAnualDescuento / 12).toFixed(2)} / mes</p>}
+              <p className="text-gray-400 text-xs mt-0.5">Precio + IVA</p>
+            </>
           )}
-          <div>
-            <span className="text-5xl font-black text-gray-900">${precioPrincipal.toFixed(2)}</span>
-            <span className="text-gray-400 text-sm ml-1">/ {periodoStr}</span>
-          </div>
-          {anual && <p className="text-gray-400 text-xs mt-1">≈ ${(precioAnualDescuento / 12).toFixed(2)} / mes</p>}
-          <p className="text-gray-400 text-xs mt-0.5">Precio + IVA</p>
         </div>
 
         <ul className="space-y-3.5 flex-1 mb-8">
@@ -413,7 +435,7 @@ export default function SuscripcionesPage() {
             <p>No hay planes disponibles en este momento</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center max-w-4xl mx-auto py-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center max-w-5xl mx-auto py-6">
             {planesArray.map(plan => (
               <PlanCard
                 key={plan.id}
