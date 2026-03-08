@@ -2,24 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { suscripcionesService } from '../services/suscripcionesService';
 import { useQuery } from '@tanstack/react-query';
-import type { PlanSuscripcion } from '../types';
-import {
-  CheckCircle2,
-  FileText,
-  User,
-  Zap,
-  Star,
-  BarChart3,
-  ArrowRight,
-  Rocket,
-  Shield,
-  Clock,
-} from 'lucide-react';
-
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
-import { suscripcionesService } from '../services/suscripcionesService';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import type { PlanSuscripcion } from '../types';
 import {
   CheckCircle2,
@@ -33,9 +16,20 @@ import {
   Shield,
   Clock,
   Check,
+  CheckCircle,
 } from 'lucide-react';
 
-function PlanCard({ plan }: { plan: PlanSuscripcion }) {
+const PLAN_STORAGE_KEY = 'of1_plan_elegido';
+
+function PlanCard({
+  plan,
+  seleccionado,
+  onElegir,
+}: {
+  plan: PlanSuscripcion;
+  seleccionado: boolean;
+  onElegir: (plan: PlanSuscripcion) => void;
+}) {
   const isPopular = plan.tipo === 'PROFESIONAL';
 
   const features: { icon: React.ElementType; label: string; highlight: boolean }[] = [
@@ -48,12 +42,21 @@ function PlanCard({ plan }: { plan: PlanSuscripcion }) {
 
   return (
     <div className={`relative flex flex-col bg-white rounded-2xl border-2 transition-all ${
-      isPopular
-        ? 'border-blue-500 shadow-2xl shadow-blue-100 scale-[1.03]'
-        : 'border-gray-200 shadow-md hover:shadow-xl hover:border-gray-300'
+      seleccionado
+        ? 'border-green-500 shadow-2xl shadow-green-100 scale-[1.03]'
+        : isPopular
+          ? 'border-blue-500 shadow-2xl shadow-blue-100 scale-[1.03]'
+          : 'border-gray-200 shadow-md hover:shadow-xl hover:border-gray-300'
     }`}>
-      {/* Popular badge */}
-      {isPopular && (
+      {/* Badges */}
+      {seleccionado && (
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap z-10">
+          <span className="inline-flex items-center gap-1.5 bg-green-500 text-white text-xs font-black px-5 py-1.5 rounded-full shadow-lg uppercase tracking-wider">
+            <CheckCircle size={11} fill="currentColor" /> Plan elegido
+          </span>
+        </div>
+      )}
+      {!seleccionado && isPopular && (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
           <span className="inline-flex items-center gap-1.5 bg-blue-600 text-white text-xs font-black px-5 py-1.5 rounded-full shadow-lg uppercase tracking-wider">
             <Star size={10} fill="currentColor" /> Popular
@@ -62,11 +65,9 @@ function PlanCard({ plan }: { plan: PlanSuscripcion }) {
       )}
 
       <div className="p-7 flex flex-col flex-1">
-        {/* Plan name */}
         <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">{plan.tipo}</p>
         <h3 className="text-2xl font-black text-gray-900 mb-5">{plan.nombre}</h3>
 
-        {/* Price */}
         <div className="mb-6">
           <div className="flex items-end gap-1">
             <span className="text-5xl font-black text-gray-900">${Number(plan.precio).toFixed(2)}</span>
@@ -75,19 +76,21 @@ function PlanCard({ plan }: { plan: PlanSuscripcion }) {
           <p className="text-gray-400 text-xs mt-1">Precio + IVA · Sin permanencia</p>
         </div>
 
-        {/* CTA button */}
-        <button className={`w-full py-3.5 rounded-xl font-black text-sm mb-7 transition-all active:scale-[.98] ${
-          isPopular
-            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-200'
-            : 'bg-gray-900 hover:bg-gray-800 text-white'
-        }`}>
-          ¡Elegir {plan.nombre}!
+        <button
+          onClick={() => onElegir(plan)}
+          className={`w-full py-3.5 rounded-xl font-black text-sm mb-7 transition-all active:scale-[.98] ${
+            seleccionado
+              ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-200'
+              : isPopular
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-200'
+                : 'bg-gray-900 hover:bg-gray-800 text-white'
+          }`}
+        >
+          {seleccionado ? '✓ Plan seleccionado' : `¡Elegir ${plan.nombre}!`}
         </button>
 
-        {/* Divider */}
         <div className="border-t border-gray-100 mb-5" />
 
-        {/* Features */}
         <ul className="space-y-3 flex-1">
           <li className="flex items-center gap-3 text-sm text-gray-600">
             <Check size={16} className="text-blue-500 shrink-0" />
@@ -121,11 +124,23 @@ export default function BienvenidaPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
+  const [planSeleccionado, setPlanSeleccionado] = useState<PlanSuscripcion | null>(() => {
+    try {
+      const saved = localStorage.getItem(PLAN_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+
   const { data: planes = [] } = useQuery<PlanSuscripcion[]>({
     queryKey: ['planes'],
     queryFn: suscripcionesService.getPlanes,
     staleTime: 5 * 60 * 1000,
   });
+
+  const handleElegirPlan = (plan: PlanSuscripcion) => {
+    setPlanSeleccionado(plan);
+    localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(plan));
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-slate-800">
@@ -148,7 +163,7 @@ export default function BienvenidaPage() {
               ¡Bienvenido, {user?.first_name || user?.email?.split('@')[0]}! 🎉
             </h1>
             <p className="text-blue-100 text-lg max-w-xl mx-auto">
-              Tu cuenta fue creada exitosamente. Tienes <strong className="text-white">30 días de acceso completo gratuito</strong> para explorar todas las funcionalidades.
+              Tu cuenta fue creada exitosamente. Tu <strong className="text-white">facturación electrónica SRI está activa por 1 año</strong> y tienes <strong className="text-white">30 días de prueba gratuita</strong> para todos los demás servicios.
             </p>
 
             {/* Trial highlights */}
@@ -156,12 +171,12 @@ export default function BienvenidaPage() {
               <div className="bg-white/10 rounded-2xl p-4 text-center">
                 <Clock className="w-8 h-8 text-sky-300 mx-auto mb-2" />
                 <p className="text-white font-bold text-lg">30 días</p>
-                <p className="text-blue-200 text-xs">prueba gratuita</p>
+                <p className="text-blue-200 text-xs">prueba gratis de POS, inventario y más</p>
               </div>
               <div className="bg-white/10 rounded-2xl p-4 text-center">
                 <FileText className="w-8 h-8 text-sky-300 mx-auto mb-2" />
-                <p className="text-white font-bold text-lg">Facturas</p>
-                <p className="text-blue-200 text-xs">electrónicas ilimitadas</p>
+                <p className="text-white font-bold text-lg">1 año</p>
+                <p className="text-blue-200 text-xs">de facturación electrónica activa</p>
               </div>
               <div className="bg-white/10 rounded-2xl p-4 text-center">
                 <Shield className="w-8 h-8 text-sky-300 mx-auto mb-2" />
@@ -176,21 +191,31 @@ export default function BienvenidaPage() {
         {planes.length > 0 && (
           <div className="bg-white rounded-3xl p-8 mb-8 shadow-2xl">
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-black text-gray-900 mb-2">Nuestros Planes</h2>
+              <h2 className="text-2xl font-black text-gray-900 mb-2">Elige tu plan</h2>
               <p className="text-gray-500 text-sm">
-                Después de los 30 días, elige el plan que mejor se adapte a tu negocio.
-                <br />
-                <span className="text-blue-700 font-semibold">Sin tarjeta de crédito requerida durante la prueba.</span>
+                Selecciona el plan que mejor se adapte a tu negocio. Lo activaremos al vencer los 30 días de prueba.
               </p>
+              <p className="text-blue-700 font-semibold text-sm mt-1">Sin tarjeta de crédito requerida durante la prueba.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-start py-4">
               {planes.map((plan) => (
-                <PlanCard key={plan.id} plan={plan} />
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  seleccionado={planSeleccionado?.id === plan.id}
+                  onElegir={handleElegirPlan}
+                />
               ))}
             </div>
-            <p className="text-center text-xs text-gray-400 mt-5">
-              * Al vencer el período de prueba, si no contratas un plan solo tendrás acceso a facturación y 1 usuario administrador.
-            </p>
+            {planSeleccionado ? (
+              <p className="text-center text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl py-2 px-4 mt-5">
+                ✓ Has elegido el plan <strong>{planSeleccionado.nombre}</strong> — lo activaremos automáticamente al finalizar tu período de prueba.
+              </p>
+            ) : (
+              <p className="text-center text-xs text-gray-400 mt-5">
+                * Al vencer los 30 días, si no elegiste un plan solo tendrás acceso a facturación y 1 usuario administrador.
+              </p>
+            )}
           </div>
         )}
 
