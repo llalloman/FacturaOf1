@@ -264,13 +264,12 @@ def consultar_ruc(request, ruc):
     if len(ruc) not in (10, 13) or not ruc.isdigit():
         return Response({'error': 'RUC/cédula inválido. Debe tener 10 o 13 dígitos.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    SRI_URL = (
-        'https://srienlinea.sri.gob.ec/sri-catastro-sujeto-servicio-internet'
-        f'/rest/ConsolidadoContribuyente/obtenerPorNumerRuc?numeroRuc={ruc}'
-    )
+    SRI_BASE = 'https://srienlinea.sri.gob.ec/sri-catastro-sujeto-servicio-internet/rest/ConsolidadoContribuyente'
+    SRI_EXISTE  = f'{SRI_BASE}/existePorNumeroRuc?numeroRuc={ruc}'
+    SRI_DETALLE = f'{SRI_BASE}/obtenerPorNumerosRuc?&ruc={ruc}'
 
     try:
-        resp = http_requests.get(SRI_URL, timeout=10)
+        existe_resp = http_requests.get(SRI_EXISTE, timeout=10)
     except http_requests.Timeout:
         return Response(
             {'found': False, 'error': 'El servicio del SRI no respondió a tiempo. Ingresa los datos manualmente.'},
@@ -282,42 +281,54 @@ def consultar_ruc(request, ruc):
             status=status.HTTP_200_OK,
         )
 
-    if resp.status_code != 200:
-        # 422 indica "el endpoint existe pero no se encontró el RUC en SRI"
-        # (no usar 404 porque confunde al browser/interceptor — parecería que la ruta no existe)
+    # existePorNumeroRuc devuelve true/false como texto o booleano JSON
+    if existe_resp.status_code != 200:
         return Response(
             {'found': False, 'error': 'El SRI no devolvió información para ese RUC. Puedes ingresar los datos manualmente.'},
             status=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
 
     try:
-        sri_data = resp.json()
+        existe = existe_resp.json()
     except Exception:
+        existe = existe_resp.text.strip().lower() == 'true'
+
+    if not existe:
         return Response(
-            {'found': False, 'error': 'Respuesta inválida del SRI. Ingresa los datos manualmente.'},
-            status=status.HTTP_200_OK,
+            {'found': False, 'error': 'El RUC no existe o no está registrado en el SRI.'},
+            status=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
 
-    contribuyente = sri_data if isinstance(sri_data, dict) else {}
+    # Obtener datos del contribuyente
+    try:
+        detalle_resp = http_requests.get(SRI_DETALLE, timeout=10)
+        detalle_resp.raise_for_status()
+        sri_data = detalle_resp.json()
+    except Exception:
+        # Si falla el detalle pero el RUC existe, devolver found=True sin datos
+        return Response({'found': True, 'ruc': ruc, 'razon_social': '', 'nombre_comercial': '',
+                         'estado': '', 'tipo': '', 'direccion': ''})
+
+    # obtenerPorNumerosRuc puede devolver un dict o una lista con un solo elemento
+    if isinstance(sri_data, list):
+        contribuyente = sri_data[0] if sri_data else {}
+    else:
+        contribuyente = sri_data if isinstance(sri_data, dict) else {}
+
     razon_social = (
         contribuyente.get('razonSocial') or
         contribuyente.get('nombreComercial') or
         ''
     )
 
-    if not razon_social:
-        return Response(
-            {'found': False, 'error': 'El SRI no devolvió nombre para ese RUC. Ingresa los datos manualmente.'},
-            status=status.HTTP_200_OK,
-        )
-
     return Response({
         'found': True,
         'ruc': ruc,
         'razon_social': razon_social,
-        'nombre_comercial': contribuyente.get('nombreComercial', ''),
-        'estado': contribuyente.get('estadoContribuyente', ''),
+        'nombre_comercial': contribuyente.get('nombreComercial', '') or razon_social,
+        'estado': contribuyente.get('estadoContribuyenteRuc', '') or contribuyente.get('estadoContribuyente', ''),
         'tipo': contribuyente.get('tipoContribuyente', ''),
+        'actividad': contribuyente.get('actividadEconomicaPrincipal', ''),
         'direccion': contribuyente.get('direccionCompleta', ''),
     })
 
