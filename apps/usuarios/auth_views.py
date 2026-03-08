@@ -10,7 +10,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, timezone as dt_timezone
 import random
 import string
 import requests as http_requests
@@ -346,7 +346,9 @@ def validar_certificado(request):
 
     # Obtener fecha de vencimiento
     not_after = certificate.not_valid_after_utc if hasattr(certificate, 'not_valid_after_utc') else certificate.not_valid_after
-    if timezone.now() > timezone.make_aware(not_after) if not_after.tzinfo is None else timezone.now() > not_after:
+    if not_after.tzinfo is None:
+        not_after = not_after.replace(tzinfo=dt_timezone.utc)  # not_valid_after is always UTC
+    if timezone.now() > not_after:
         return Response({'error': 'El certificado está vencido.'}, status=status.HTTP_400_BAD_REQUEST)
 
     return Response({
