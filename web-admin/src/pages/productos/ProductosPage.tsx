@@ -60,17 +60,17 @@ export default function ProductosPage() {
   const lowStockProducts = productosArray.filter((p: Producto) => Number(p.stock_actual) < Number(p.stock_minimo));
 
   return (
-    <div className="p-8 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 min-h-screen">
+    <div className="p-8 bg-gradient-to-br from-blue-50 via-blue-50 to-sky-50 min-h-screen">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">Productos</h1>
+            <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 bg-clip-text text-transparent mb-2">Productos</h1>
             <p className="text-gray-600">Gestión de inventario y catálogo</p>
           </div>
           <button
             onClick={handleCreate}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
+            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-blue-700 hover:to-sky-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
           >
             <Plus size={20} />
             <span className="font-semibold">Nuevo Producto</span>
@@ -91,29 +91,29 @@ export default function ProductosPage() {
 
 
         {/* Filters */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-indigo-100">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-blue-100">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-indigo-400" size={20} />
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-blue-400" size={20} />
                 <input
                   type="text"
                   placeholder="Buscar por nombre o código..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white/70"
+                  className="w-full pl-12 pr-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white/70"
                 />
               </div>
             </div>
             <div className="flex gap-2">
-              <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors text-indigo-700">
+              <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
                 <Filter size={18} />
                 <span className="font-medium">Filtros</span>
               </button>
-              <button className="flex items-center gap-2 px-4 py-3 border border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors text-indigo-700">
+              <button className="flex items-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
                 <Download size={18} />
               </button>
-              <button className="flex items-center gap-2 px-4 py-3 border border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors text-indigo-700">
+              <button className="flex items-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
                 <Upload size={18} />
               </button>
             </div>
@@ -125,12 +125,12 @@ export default function ProductosPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-blue-100 hover:shadow-xl transition-shadow">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-xl shadow-md">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-3 rounded-xl shadow-md">
               <Package className="w-6 h-6 text-white" />
             </div>
             <div>
               <p className="text-gray-600 text-sm font-medium">Total Productos</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{productosArray.length}</p>
+              <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">{productosArray.length}</p>
             </div>
           </div>
         </div>
@@ -158,14 +158,14 @@ export default function ProductosPage() {
             </div>
           </div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-purple-100 hover:shadow-xl transition-shadow">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-sky-100 hover:shadow-xl transition-shadow">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-3 rounded-xl shadow-md">
+            <div className="bg-gradient-to-br from-sky-500 to-sky-600 p-3 rounded-xl shadow-md">
               <Package className="w-6 h-6 text-white" />
             </div>
             <div>
               <p className="text-gray-600 text-sm font-medium">Valor Inventario</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent truncate">
+              <p className="text-2xl font-bold bg-gradient-to-r from-sky-500 to-blue-700 bg-clip-text text-transparent truncate">
                 ${productosArray.reduce((sum: number, p: Producto) => sum + Number(p.costo) * Number(p.stock_actual), 0).toLocaleString()}
               </p>
             </div>
@@ -174,10 +174,10 @@ export default function ProductosPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-indigo-100 overflow-hidden">
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-blue-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-200">
+            <thead className="bg-gradient-to-r from-blue-50 to-sky-50 border-b border-blue-200">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Código</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Producto</th>
@@ -193,7 +193,7 @@ export default function ProductosPage() {
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center">
                     <div className="flex items-center justify-center">
-                      <div className="animate-spin h-8 w-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div>
+                      <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full"></div>
                     </div>
                   </td>
                 </tr>
@@ -205,7 +205,7 @@ export default function ProductosPage() {
                 </tr>
               ) : (
                 filteredProductos.map((producto: Producto) => (
-                  <tr key={producto.id} className="hover:bg-indigo-50/50 transition-colors">
+                  <tr key={producto.id} className="hover:bg-blue-50/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="font-mono text-sm font-medium text-gray-900">{producto.codigo_principal}</span>
                     </td>
@@ -243,7 +243,7 @@ export default function ProductosPage() {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => handleEdit(producto)}
-                          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors hover:shadow-md"
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors hover:shadow-md"
                         >
                           <Edit size={18} />
                         </button>

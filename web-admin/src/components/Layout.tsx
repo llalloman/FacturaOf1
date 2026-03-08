@@ -83,12 +83,19 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className={`bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 ${sidebarOpen ? 'w-72' : 'w-20'} flex flex-col`}>
         {/* Logo */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-700">
-          {sidebarOpen && (
-            <div>
-              <h1 className="text-2xl font-extrabold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">SRI</h1>
-              <p className="text-xs text-gray-400 mt-1">Sistema Facturación</p>
-            </div>
+        <div className="flex items-center justify-between p-4 border-b border-gray-700/80">
+          {sidebarOpen ? (
+            <img
+              src="/logo-of1-1.png"
+              alt="OF1 Solutions"
+              className="h-10 w-auto object-contain rounded-lg bg-white px-1.5 py-0.5 flex-shrink-0"
+            />
+          ) : (
+            <img
+              src="/logo-of1-1.png"
+              alt="OF1 Solutions"
+              className="h-8 w-8 object-contain rounded bg-white p-0.5 flex-shrink-0"
+            />
           )}
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-gray-700 transition-colors">
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
@@ -109,7 +116,7 @@ export default function Layout() {
                   to={item.path}
                   className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 ${
                     isActive(item.path)
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg shadow-blue-500/50'
+                      ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
                       : 'hover:bg-gray-800 hover:translate-x-1'
                   }`}
                 >
@@ -127,7 +134,7 @@ export default function Layout() {
                   to={item.path}
                   className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 ${
                     isActive(item.path)
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg shadow-blue-500/50'
+                      ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
                       : 'hover:bg-gray-800 hover:translate-x-1'
                   }`}
                 >
@@ -141,7 +148,7 @@ export default function Layout() {
                   to="/usuarios"
                   className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 ${
                     isActive('/usuarios')
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg shadow-blue-500/50'
+                      ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
                       : 'hover:bg-gray-800 hover:translate-x-1'
                   }`}
                 >
@@ -173,7 +180,7 @@ export default function Layout() {
         {/* User Section */}
         <div className="p-4 border-t border-gray-700">
           <div className={`flex items-center gap-3 p-4 rounded-xl bg-gray-800 mb-3 ${!sidebarOpen && 'justify-center'}`}>
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-slate-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
               {(user?.username || user?.email || 'U').charAt(0).toUpperCase()}
             </div>
             {sidebarOpen && (

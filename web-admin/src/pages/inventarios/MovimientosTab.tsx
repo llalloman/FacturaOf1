@@ -37,7 +37,7 @@ const MovimientosTab: React.FC = () => {
       <div className="flex justify-end">
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-700 to-blue-900 text-white rounded-lg hover:from-blue-800 hover:to-blue-950 transition-all duration-300 shadow-lg hover:shadow-xl"
         >
           <FiPlus /> Nuevo Movimiento
         </button>
@@ -51,7 +51,7 @@ const MovimientosTab: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
+              <tr className="bg-gradient-to-r from-blue-50 to-slate-50">
                 <th className="text-left p-4 font-semibold text-gray-700">Fecha</th>
                 <th className="text-left p-4 font-semibold text-gray-700">Tipo</th>
                 <th className="text-left p-4 font-semibold text-gray-700">Bodega</th>

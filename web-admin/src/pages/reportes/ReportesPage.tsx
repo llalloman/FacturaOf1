@@ -141,7 +141,7 @@ export default function ReportesPage() {
         {[
           { label: 'Total Ventas (Período)', value: `$${totalVentas.toFixed(2)}`, icon: DollarSign, color: 'border-green-500', iconColor: 'text-green-500' },
           { label: 'Cantidad Ventas', value: cantidadVentas.toString(), icon: ShoppingCart, color: 'border-blue-500', iconColor: 'text-blue-500' },
-          { label: 'Promedio por Venta', value: `$${promedioVenta.toFixed(2)}`, icon: TrendingUp, color: 'border-purple-500', iconColor: 'text-purple-500' },
+          { label: 'Promedio por Venta', value: `$${promedioVenta.toFixed(2)}`, icon: TrendingUp, color: 'border-blue-500', iconColor: 'text-blue-600' },
           { label: 'Ventas Hoy', value: ventasHoy.toString(), icon: Calendar, color: 'border-orange-500', iconColor: 'text-orange-500' },
         ].map(({ label, value, icon: Icon, color, iconColor }) => (
           <div key={label} className={`bg-white rounded-xl shadow-sm p-5 border-l-4 ${color}`}>

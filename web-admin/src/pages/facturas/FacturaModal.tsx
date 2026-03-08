@@ -103,7 +103,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 flex justify-between items-center">
+        <div className="sticky top-0 bg-gradient-to-r from-blue-700 to-blue-900 text-white p-6 flex justify-between items-center">
           <h2 className="text-2xl font-bold">
             {factura ? 'Editar Factura' : 'Nueva Factura'}
           </h2>
@@ -277,7 +277,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
             <button
               type="submit"
               disabled={mutation.isPending || detalles.length === 0}
-              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50"
+              className="px-6 py-2 bg-gradient-to-r from-blue-700 to-blue-900 text-white rounded-lg hover:from-blue-800 hover:to-blue-950 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50"
             >
               {mutation.isPending ? 'Guardando...' : factura ? 'Actualizar' : 'Crear'}
             </button>

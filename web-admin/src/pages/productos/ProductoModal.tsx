@@ -77,15 +77,15 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-blue-900/50 via-indigo-900/50 to-purple-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-indigo-100">
+    <div className="fixed inset-0 bg-gradient-to-br from-blue-900/50 via-blue-900/50 to-sky-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-blue-100">
 
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-indigo-100 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+        <div className="flex items-center justify-between p-6 border-b border-blue-100 bg-gradient-to-r from-blue-50 via-blue-50 to-sky-50">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 bg-clip-text text-transparent">
             {producto ? 'Editar Producto' : 'Nuevo Producto'}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-indigo-100 rounded-lg transition-colors text-indigo-700">
+          <button onClick={onClose} className="p-2 hover:bg-blue-100 rounded-lg transition-colors text-blue-700">
             <X size={24} />
           </button>
         </div>
@@ -99,14 +99,14 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
 
           {/* Tipo */}
           <div>
-            <label className="block text-sm font-semibold text-indigo-900 mb-2">Tipo *</label>
+            <label className="block text-sm font-semibold text-blue-900 mb-2">Tipo *</label>
             <div className="grid grid-cols-2 gap-3">
               {(['BIEN', 'SERVICIO'] as const).map((t) => (
                 <button key={t} type="button" onClick={() => set('tipo', t)}
                   className={`py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
                     formData.tipo === t
-                      ? 'border-indigo-600 bg-indigo-600 text-white shadow-md'
-                      : 'border-indigo-200 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50'
+                      ? 'border-blue-600 bg-blue-600 text-white shadow-md'
+                      : 'border-blue-200 text-blue-600 hover:border-blue-400 hover:bg-blue-50'
                   }`}>
                   {t === 'BIEN' ? 'Bien / Producto' : 'Servicio'}
                 </button>
@@ -117,75 +117,75 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           {/* Códigos */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-indigo-900 mb-2">Código Principal *</label>
+              <label className="block text-sm font-semibold text-blue-900 mb-2">Código Principal *</label>
               <input type="text" value={formData.codigo_principal}
                 onChange={(e) => set('codigo_principal', e.target.value)}
-                className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="P001" required />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-indigo-900 mb-2">Código Auxiliar</label>
+              <label className="block text-sm font-semibold text-blue-900 mb-2">Código Auxiliar</label>
               <input type="text" value={formData.codigo_auxiliar}
                 onChange={(e) => set('codigo_auxiliar', e.target.value)}
-                className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Código de barra (opcional)" />
             </div>
           </div>
 
           {/* Nombre */}
           <div>
-            <label className="block text-sm font-semibold text-indigo-900 mb-2">Nombre *</label>
+            <label className="block text-sm font-semibold text-blue-900 mb-2">Nombre *</label>
             <input type="text" value={formData.nombre}
               onChange={(e) => set('nombre', e.target.value)}
-              className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Nombre del producto o servicio" required />
           </div>
 
           {/* Descripción */}
           <div>
-            <label className="block text-sm font-semibold text-indigo-900 mb-2">Descripción</label>
+            <label className="block text-sm font-semibold text-blue-900 mb-2">Descripción</label>
             <textarea value={formData.descripcion} rows={2}
               onChange={(e) => set('descripcion', e.target.value)}
-              className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Descripción opcional" />
           </div>
 
           {/* Precio y Costo */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-indigo-900 mb-2">Precio de Venta *</label>
+              <label className="block text-sm font-semibold text-blue-900 mb-2">Precio de Venta *</label>
               <input type="number" step="0.01" min="0"
                 value={formData.precio}
                 onChange={(e) => set('precio', toNum(e.target.value))}
-                className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-indigo-900 mb-2">Costo</label>
+              <label className="block text-sm font-semibold text-blue-900 mb-2">Costo</label>
               <input type="number" step="0.01" min="0"
                 value={formData.costo}
                 onChange={(e) => set('costo', toNum(e.target.value))}
-                className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
           </div>
 
           {/* IVA */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-indigo-900 mb-2">IVA</label>
+              <label className="block text-sm font-semibold text-blue-900 mb-2">IVA</label>
               <select value={formData.aplica_iva ? 'true' : 'false'}
                 onChange={(e) => set('aplica_iva', e.target.value === 'true')}
-                className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                 <option value="true">Aplica IVA</option>
                 <option value="false">No aplica IVA</option>
               </select>
             </div>
             {formData.aplica_iva && (
               <div>
-                <label className="block text-sm font-semibold text-indigo-900 mb-2">Tarifa IVA</label>
+                <label className="block text-sm font-semibold text-blue-900 mb-2">Tarifa IVA</label>
                 <select value={formData.porcentaje_iva}
                   onChange={(e) => set('porcentaje_iva', e.target.value)}
-                  className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                  className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                   <option value="2">12%</option>
                   <option value="4">15%</option>
                   <option value="0">0%</option>
@@ -202,26 +202,26 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
               <div className="flex items-center gap-3">
                 <input type="checkbox" id="maneja_inventario" checked={formData.maneja_inventario}
                   onChange={(e) => set('maneja_inventario', e.target.checked)}
-                  className="w-5 h-5 rounded border-indigo-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500" />
-                <label htmlFor="maneja_inventario" className="text-sm font-semibold text-indigo-900">
+                  className="w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-2 focus:ring-blue-500" />
+                <label htmlFor="maneja_inventario" className="text-sm font-semibold text-blue-900">
                   Controlar inventario
                 </label>
               </div>
               {formData.maneja_inventario && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-indigo-900 mb-2">Stock Inicial</label>
+                    <label className="block text-sm font-semibold text-blue-900 mb-2">Stock Inicial</label>
                     <input type="number" step="0.01" min="0"
                       value={formData.stock_actual}
                       onChange={(e) => set('stock_actual', toNum(e.target.value))}
-                      className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-indigo-900 mb-2">Stock Mínimo (alerta)</label>
+                    <label className="block text-sm font-semibold text-blue-900 mb-2">Stock Mínimo (alerta)</label>
                     <input type="number" step="0.01" min="0"
                       value={formData.stock_minimo}
                       onChange={(e) => set('stock_minimo', toNum(e.target.value))}
-                      className="w-full px-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                   </div>
                 </div>
               )}
@@ -232,18 +232,18 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           <div className="flex items-center gap-3">
             <input type="checkbox" id="activo" checked={formData.activo}
               onChange={(e) => set('activo', e.target.checked)}
-              className="w-5 h-5 rounded border-indigo-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500" />
-            <label htmlFor="activo" className="text-sm font-semibold text-indigo-900">Producto Activo</label>
+              className="w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-2 focus:ring-blue-500" />
+            <label htmlFor="activo" className="text-sm font-semibold text-blue-900">Producto Activo</label>
           </div>
 
           {/* Botones */}
-          <div className="flex gap-3 pt-4 border-t border-indigo-200">
+          <div className="flex gap-3 pt-4 border-t border-blue-200">
             <button type="button" onClick={onClose}
-              className="flex-1 px-6 py-3 border border-indigo-300 rounded-xl hover:bg-indigo-50 font-semibold transition-colors text-indigo-700">
+              className="flex-1 px-6 py-3 border border-blue-300 rounded-xl hover:bg-blue-50 font-semibold transition-colors text-blue-700">
               Cancelar
             </button>
             <button type="submit" disabled={mutation.isPending}
-              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 disabled:opacity-50 font-semibold shadow-lg transition-all">
+              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-blue-700 hover:to-sky-700 disabled:opacity-50 font-semibold shadow-lg transition-all">
               <Save size={20} />
               {mutation.isPending ? 'Guardando...' : 'Guardar'}
             </button>

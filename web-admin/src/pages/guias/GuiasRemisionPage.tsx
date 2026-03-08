@@ -198,7 +198,7 @@ const GuiasRemisionPage: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
-          <Truck className="h-7 w-7 text-indigo-600" />
+          <Truck className="h-7 w-7 text-blue-700" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Guías de Remisión</h1>
             <p className="text-sm text-gray-500">Gestión de guías de remisión electrónicas (codDoc 06)</p>
@@ -206,7 +206,7 @@ const GuiasRemisionPage: React.FC = () => {
         </div>
         <button
           onClick={() => { setShowForm(true); resetForm(); }}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          className="flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition-colors"
         >
           <FiPlus /> Nueva Guía
         </button>
@@ -235,7 +235,7 @@ const GuiasRemisionPage: React.FC = () => {
             placeholder="Buscar por número, transportista o placa..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
           />
         </div>
       </div>
@@ -291,7 +291,7 @@ const GuiasRemisionPage: React.FC = () => {
                           <button
                             onClick={() => enviarSRIMutation.mutate(guia.id)}
                             disabled={enviarSRIMutation.isPending}
-                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                             title="Enviar al SRI"
                           >
                             <FiSend className="h-4 w-4" />
@@ -352,7 +352,7 @@ const GuiasRemisionPage: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">RUC Transportista *</label>
                     <input
                       type="text" value={formRuc} onChange={e => setFormRuc(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600"
                       placeholder="1234567890001" required
                     />
                   </div>
@@ -360,7 +360,7 @@ const GuiasRemisionPage: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Razón Social *</label>
                     <input
                       type="text" value={formRazon} onChange={e => setFormRazon(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600"
                       required
                     />
                   </div>
@@ -368,7 +368,7 @@ const GuiasRemisionPage: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Placa *</label>
                     <input
                       type="text" value={formPlaca} onChange={e => setFormPlaca(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600"
                       placeholder="ABC-1234" required
                     />
                   </div>
@@ -376,7 +376,7 @@ const GuiasRemisionPage: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Dirección de Partida *</label>
                     <input
                       type="text" value={formDirPartida} onChange={e => setFormDirPartida(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600"
                       required
                     />
                   </div>
@@ -388,17 +388,17 @@ const GuiasRemisionPage: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Emisión</label>
                   <input type="date" value={formFechaEmision} onChange={e => setFormFechaEmision(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Inicio Transporte *</label>
                   <input type="date" value={formFechaInicio} onChange={e => setFormFechaInicio(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" required />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600" required />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fin Transporte *</label>
                   <input type="date" value={formFechaFin} onChange={e => setFormFechaFin(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" required />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600" required />
                 </div>
               </div>
 
@@ -407,7 +407,7 @@ const GuiasRemisionPage: React.FC = () => {
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Destinatarios</h3>
                   <button type="button" onClick={addDestinatario}
-                    className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                    className="text-sm text-blue-700 hover:text-blue-800 flex items-center gap-1">
                     <FiPlus className="h-4 w-4" /> Añadir destinatario
                   </button>
                 </div>
@@ -467,7 +467,7 @@ const GuiasRemisionPage: React.FC = () => {
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-xs font-semibold text-gray-600 uppercase">Mercadería</span>
                         <button type="button" onClick={() => addDetalle(destIdx)}
-                          className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                          className="text-xs text-blue-700 hover:text-blue-800 flex items-center gap-1">
                           <FiPlus className="h-3 w-3" /> Añadir ítem
                         </button>
                       </div>
@@ -518,7 +518,7 @@ const GuiasRemisionPage: React.FC = () => {
                   Cancelar
                 </button>
                 <button type="submit" disabled={createMutation.isPending}
-                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors font-medium">
+                  className="flex-1 py-2.5 bg-blue-700 text-white rounded-xl hover:bg-blue-800 disabled:opacity-50 transition-colors font-medium">
                   {createMutation.isPending ? 'Creando...' : 'Crear Guía'}
                 </button>
               </div>

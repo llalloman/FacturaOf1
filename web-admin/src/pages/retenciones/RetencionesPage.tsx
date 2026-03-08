@@ -193,14 +193,14 @@ const RetencionesPage: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-sky-600 to-blue-600 bg-clip-text text-transparent">
             Retenciones en la Fuente
           </h1>
           <p className="text-gray-600 mt-1">Comprobantes de retención electrónicos (codDoc 07)</p>
         </div>
         <button
           onClick={() => { setShowForm(true); resetForm(); }}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:opacity-90 transition-all shadow-lg"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-lg hover:opacity-90 transition-all shadow-lg"
         >
           <FiPlus /> Nueva Retención
         </button>
@@ -208,7 +208,7 @@ const RetencionesPage: React.FC = () => {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-xl shadow-sm border-l-4 border-purple-500">
+        <div className="bg-white p-5 rounded-xl shadow-sm border-l-4 border-sky-500">
           <p className="text-gray-500 text-sm">Total Emitidas</p>
           <p className="text-3xl font-bold text-gray-800">{retencionesArray.length}</p>
         </div>
@@ -216,7 +216,7 @@ const RetencionesPage: React.FC = () => {
           <p className="text-gray-500 text-sm">Autorizadas</p>
           <p className="text-3xl font-bold text-gray-800">{totalAutorizadas}</p>
         </div>
-        <div className="bg-white p-5 rounded-xl shadow-sm border-l-4 border-indigo-500">
+        <div className="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-500">
           <p className="text-gray-500 text-sm">Total Retenido (Autorizadas)</p>
           <p className="text-3xl font-bold text-gray-800">${totalRetenido.toFixed(2)}</p>
         </div>
@@ -231,19 +231,19 @@ const RetencionesPage: React.FC = () => {
             placeholder="Buscar por número o proveedor..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500"
           />
         </div>
 
         {isLoading ? (
           <div className="text-center py-10">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto" />
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sky-600 mx-auto" />
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-gradient-to-r from-purple-50 to-indigo-50">
+                <tr className="bg-gradient-to-r from-sky-50 to-blue-50">
                   <th className="text-left p-4 font-semibold text-gray-700">Número</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Proveedor</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Período</th>
@@ -333,7 +333,7 @@ const RetencionesPage: React.FC = () => {
                   <select
                     value={formProveedor}
                     onChange={(e) => setFormProveedor(Number(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">Seleccionar...</option>
                     {proveedoresArray.map(c => (
@@ -347,7 +347,7 @@ const RetencionesPage: React.FC = () => {
                     type="date"
                     value={formFecha}
                     onChange={(e) => setFormFecha(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
               </div>
@@ -358,7 +358,7 @@ const RetencionesPage: React.FC = () => {
                   value={formPeriodo}
                   onChange={(e) => setFormPeriodo(e.target.value)}
                   placeholder="03/2026"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500"
                 />
               </div>
 
@@ -368,7 +368,7 @@ const RetencionesPage: React.FC = () => {
                   <h3 className="font-semibold text-gray-700">Impuestos a Retener</h3>
                   <button
                     onClick={() => setFormImpuestos(prev => [...prev, emptyImpuesto()])}
-                    className="text-sm text-purple-600 hover:text-purple-800 font-medium"
+                    className="text-sm text-sky-600 hover:text-sky-800 font-medium"
                   >+ Agregar impuesto</button>
                 </div>
 
@@ -465,9 +465,9 @@ const RetencionesPage: React.FC = () => {
               </div>
 
               {/* Total */}
-              <div className="bg-purple-50 rounded-xl p-4 text-right">
+              <div className="bg-sky-50 rounded-xl p-4 text-right">
                 <span className="text-sm text-gray-600">Total a Retener: </span>
-                <span className="text-xl font-bold text-purple-700">
+                <span className="text-xl font-bold text-sky-700">
                   ${formImpuestos.reduce((s, imp) => s + Number(imp.valor_retenido), 0).toFixed(2)}
                 </span>
               </div>
@@ -485,7 +485,7 @@ const RetencionesPage: React.FC = () => {
               <button
                 onClick={handleSubmit}
                 disabled={crearMutation.isPending}
-                className="px-5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                className="px-5 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors disabled:opacity-50"
               >
                 {crearMutation.isPending ? 'Creando...' : 'Crear Retención'}
               </button>

@@ -53,7 +53,7 @@ const MovimientoModal: React.FC<MovimientoModalProps> = ({ onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 flex justify-between items-center rounded-t-xl">
+        <div className="bg-gradient-to-r from-blue-700 to-blue-900 text-white p-6 flex justify-between items-center rounded-t-xl">
           <h2 className="text-2xl font-bold">Nuevo Movimiento</h2>
           <button
             onClick={onClose}
@@ -171,7 +171,7 @@ const MovimientoModal: React.FC<MovimientoModalProps> = ({ onClose }) => {
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50"
+              className="px-6 py-2 bg-gradient-to-r from-blue-700 to-blue-900 text-white rounded-lg hover:from-blue-800 hover:to-blue-950 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50"
             >
               {mutation.isPending ? 'Guardando...' : 'Crear Movimiento'}
             </button>

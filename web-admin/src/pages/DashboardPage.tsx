@@ -77,7 +77,7 @@ export default function DashboardPage() {
     const statsSA = [
       { label: 'Empresas Registradas', value: String(empresasArray.length), icon: Building2, bgColor: 'bg-blue-50', iconColor: 'text-blue-600' },
       { label: 'Empresas Activas', value: String(empresasActivas), icon: ShieldCheck, bgColor: 'bg-green-50', iconColor: 'text-green-600' },
-      { label: 'Usuarios Totales', value: String(usuariosArray.length), icon: Users, bgColor: 'bg-purple-50', iconColor: 'text-purple-600' },
+      { label: 'Usuarios Totales', value: String(usuariosArray.length), icon: Users, bgColor: 'bg-sky-50', iconColor: 'text-sky-600' },
       { label: 'Administradores', value: String(adminsEmpresa), icon: ShieldCheck, bgColor: 'bg-orange-50', iconColor: 'text-orange-600' },
     ];
 
@@ -86,7 +86,7 @@ export default function DashboardPage() {
         <div className="mb-8">
           <h1 className="text-4xl font-extrabold text-gray-900 mb-2">Panel de Administración</h1>
           <p className="text-gray-500 text-sm flex items-center gap-2">
-            <ShieldCheck size={16} className="text-purple-500" />
+            <ShieldCheck size={16} className="text-sky-500" />
             Super Admin — Vista general del sistema. No estás vinculado a ninguna empresa.
           </p>
         </div>
@@ -193,8 +193,8 @@ export default function DashboardPage() {
       label: 'Productos Activos',
       value: String(productosActivos),
       icon: Package,
-      bgColor: 'bg-purple-50',
-      iconColor: 'text-purple-600',
+      bgColor: 'bg-sky-50',
+      iconColor: 'text-sky-600',
     },
     {
       label: 'Clientes Activos',
@@ -271,7 +271,7 @@ export default function DashboardPage() {
 
         <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
           <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-purple-600" />
+            <FileText className="w-5 h-5 text-sky-600" />
             Estado de Facturas
           </h3>
           <p className="text-xs text-gray-400 mb-4">Distribución por estado de los comprobantes</p>
@@ -316,7 +316,7 @@ export default function DashboardPage() {
               {topProductos.map((product, index) => (
                 <div key={index} className="flex items-center justify-between p-4 rounded-xl hover:bg-gray-50">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">{index + 1}</div>
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center text-white font-bold">{index + 1}</div>
                     <div>
                       <p className="font-semibold text-gray-900">{product.nombre}</p>
                       <p className="text-sm text-gray-500">Stock: {product.stock} uds.</p>

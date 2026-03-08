@@ -326,7 +326,7 @@ export default function SuscripcionesAdminPage() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <CreditCard size={28} className="text-indigo-600" />
+        <CreditCard size={28} className="text-blue-600" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestión de Suscripciones</h1>
           <p className="text-sm text-gray-500">Control de acceso y períodos de prueba por empresa</p>
@@ -359,7 +359,7 @@ export default function SuscripcionesAdminPage() {
             placeholder="Buscar empresa o RUC..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-8 pr-4 py-2 border border-gray-300 rounded-lg text-sm w-64 focus:ring-2 focus:ring-indigo-500"
+            className="pl-8 pr-4 py-2 border border-gray-300 rounded-lg text-sm w-64 focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div className="flex gap-1 flex-wrap">
@@ -375,7 +375,7 @@ export default function SuscripcionesAdminPage() {
             <button
               key={key}
               onClick={() => setFiltroEstado(key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filtroEstado === key ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filtroEstado === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               {label}
             </button>
@@ -387,7 +387,7 @@ export default function SuscripcionesAdminPage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mr-3" />
+            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mr-3" />
             <span className="text-gray-500">Cargando empresas...</span>
           </div>
         ) : (

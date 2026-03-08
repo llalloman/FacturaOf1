@@ -197,7 +197,7 @@ const FacturasPage: React.FC = () => {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-slate-600 bg-clip-text text-transparent">
             Facturación Electrónica
           </h1>
           <p className="text-gray-600 mt-1">Gestión de facturas electrónicas SRI</p>
@@ -207,7 +207,7 @@ const FacturasPage: React.FC = () => {
             setSelectedFactura(null);
             setIsModalOpen(true);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-700 to-blue-900 text-white rounded-lg hover:from-blue-800 hover:to-blue-950 transition-all duration-300 shadow-lg hover:shadow-xl"
         >
           <FiPlus /> Nueva Factura
         </button>
@@ -309,7 +309,7 @@ const FacturasPage: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                <tr className="bg-gradient-to-r from-blue-50 to-slate-50">
                   <th className="text-left p-4 font-semibold text-gray-700">Número</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Cliente</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Fecha</th>
@@ -379,7 +379,7 @@ const FacturasPage: React.FC = () => {
                             </button>
                             <button
                               onClick={() => handleDescargarXML(factura.id, factura.numero_factura)}
-                              className="text-indigo-600 hover:text-indigo-800 transition-colors"
+                              className="text-blue-700 hover:text-blue-800 transition-colors"
                               title="Descargar XML"
                             >
                               <FiFileText />

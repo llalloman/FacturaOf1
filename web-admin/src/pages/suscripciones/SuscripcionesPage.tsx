@@ -33,8 +33,8 @@ const periodoLabel: Record<string, string> = {
 
 const tipoColor: Record<string, string> = {
   BASICO:       'from-gray-400 to-gray-600',
-  PROFESIONAL:  'from-blue-500 to-indigo-600',
-  EMPRESARIAL:  'from-purple-500 to-pink-600',
+  PROFESIONAL:  'from-blue-500 to-blue-600',
+  EMPRESARIAL:  'from-sky-500 to-sky-600',
   ILIMITADO:    'from-amber-400 to-orange-500',
 };
 
@@ -66,7 +66,7 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
   return (
     <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
       {/* Header degradado */}
-      <div className={`bg-gradient-to-r ${tipoColor[plan.tipo] ?? 'from-blue-500 to-indigo-600'} p-6 text-white`}>
+      <div className={`bg-gradient-to-r ${tipoColor[plan.tipo] ?? 'from-blue-500 to-blue-600'} p-6 text-white`}>
         <div className="flex justify-between items-start">
           <div>
             <p className="text-white/70 text-sm font-medium uppercase tracking-wider">Plan actual</p>
@@ -181,7 +181,7 @@ function PlanCard({ plan, esPlanActual }: { plan: PlanSuscripcion; esPlanActual:
           PLAN ACTUAL
         </div>
       )}
-      <div className={`bg-gradient-to-r ${tipoColor[plan.tipo] ?? 'from-blue-500 to-indigo-600'} ${esPlanActual ? 'rounded-t-none' : 'rounded-t-xl'} p-5 text-white`}>
+      <div className={`bg-gradient-to-r ${tipoColor[plan.tipo] ?? 'from-blue-500 to-blue-600'} ${esPlanActual ? 'rounded-t-none' : 'rounded-t-xl'} p-5 text-white`}>
         <h3 className="text-xl font-bold">{plan.nombre}</h3>
         <p className="text-white/70 text-xs uppercase tracking-wider mt-0.5">{plan.tipo}</p>
         <div className="mt-3">
@@ -224,7 +224,7 @@ export default function SuscripcionesPage() {
     <div className="p-6 space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">
           Suscripción
         </h1>
         <p className="text-gray-600 mt-1">Gestiona tu plan y visualiza el uso de tu cuenta</p>
@@ -255,7 +255,7 @@ export default function SuscripcionesPage() {
               { label: 'Plan', value: suscripcion.plan_detalle.nombre, color: 'text-blue-600' },
               { label: 'Días restantes', value: `${suscripcion.dias_restantes}`, color: suscripcion.dias_restantes <= 7 ? 'text-red-600' : 'text-green-600' },
               { label: 'Estado', value: suscripcion.estado, color: 'text-gray-800' },
-              { label: 'Facturas este mes', value: `${suscripcion.facturas_emitidas_mes_actual}`, color: 'text-indigo-600' },
+              { label: 'Facturas este mes', value: `${suscripcion.facturas_emitidas_mes_actual}`, color: 'text-blue-600' },
               { label: 'Límite facturas', value: suscripcion.plan_detalle.facturas_mensuales === 0 ? '∞' : `${suscripcion.plan_detalle.facturas_mensuales}`, color: 'text-gray-800' },
               { label: 'Usuarios permitidos', value: suscripcion.plan_detalle.usuarios_permitidos === 0 ? '∞' : `${suscripcion.plan_detalle.usuarios_permitidos}`, color: 'text-gray-800' },
             ].map(({ label, value, color }) => (

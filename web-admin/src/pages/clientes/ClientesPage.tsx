@@ -58,17 +58,17 @@ export default function ClientesPage() {
   );
 
   return (
-    <div className="p-8 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 min-h-screen">
+    <div className="p-8 bg-gradient-to-br from-blue-50 via-blue-50 to-sky-50 min-h-screen">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">Clientes</h1>
+            <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 bg-clip-text text-transparent mb-2">Clientes</h1>
             <p className="text-gray-600">Gestión de clientes y contactos</p>
           </div>
           <button
             onClick={handleCreate}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
+            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-blue-700 hover:to-sky-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
           >
             <Plus size={20} />
             <span className="font-semibold">Nuevo Cliente</span>
@@ -76,26 +76,26 @@ export default function ClientesPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-indigo-100">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-blue-100">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-indigo-400" size={20} />
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-blue-400" size={20} />
                 <input
                   type="text"
                   placeholder="Buscar por nombre o identificación..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white/70"
+                  className="w-full pl-12 pr-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white/70"
                 />
               </div>
             </div>
             <div className="flex gap-2">
-              <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors text-indigo-700">
+              <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
                 <Filter size={18} />
                 <span className="font-medium">Filtros</span>
               </button>
-              <button className="flex items-center gap-2 px-4 py-3 border border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors text-indigo-700">
+              <button className="flex items-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
                 <Download size={18} />
               </button>
             </div>
@@ -107,12 +107,12 @@ export default function ClientesPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-blue-100 hover:shadow-xl transition-shadow">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-xl shadow-md">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-3 rounded-xl shadow-md">
               <Users className="w-6 h-6 text-white" />
             </div>
             <div>
               <p className="text-gray-600 text-sm font-medium">Total Clientes</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{clientesArray.length}</p>
+              <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">{clientesArray.length}</p>
             </div>
           </div>
         </div>
@@ -142,14 +142,14 @@ export default function ClientesPage() {
             </div>
           </div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-purple-100 hover:shadow-xl transition-shadow">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-sky-100 hover:shadow-xl transition-shadow">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-3 rounded-xl shadow-md">
+            <div className="bg-gradient-to-br from-sky-500 to-sky-600 p-3 rounded-xl shadow-md">
               <Phone className="w-6 h-6 text-white" />
             </div>
             <div>
               <p className="text-gray-600 text-sm font-medium">Con Teléfono</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold bg-gradient-to-r from-sky-500 to-blue-700 bg-clip-text text-transparent">
                 {clientesArray.filter((c: Cliente) => c.telefono).length}
               </p>
             </div>
@@ -158,17 +158,17 @@ export default function ClientesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-indigo-100 overflow-hidden">
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-blue-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-200">
+            <thead className="bg-gradient-to-r from-blue-50 to-sky-50 border-b border-blue-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider">Identificación</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider">Cliente</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider">Contacto</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider">Dirección</th>
-                <th className="px-6 py-4 text-center text-xs font-semibold text-indigo-700 uppercase tracking-wider">Estado</th>
-                <th className="px-6 py-4 text-center text-xs font-semibold text-indigo-700 uppercase tracking-wider">Acciones</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-blue-700 uppercase tracking-wider">Identificación</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-blue-700 uppercase tracking-wider">Cliente</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-blue-700 uppercase tracking-wider">Contacto</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-blue-700 uppercase tracking-wider">Dirección</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-blue-700 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-blue-700 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -176,7 +176,7 @@ export default function ClientesPage() {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex items-center justify-center">
-                      <div className="animate-spin h-8 w-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div>
+                      <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full"></div>
                     </div>
                   </td>
                 </tr>
@@ -188,7 +188,7 @@ export default function ClientesPage() {
                 </tr>
               ) : (
                 filteredClientes.map((cliente: Cliente) => (
-                  <tr key={cliente.id} className="hover:bg-indigo-50/50 transition-colors">
+                  <tr key={cliente.id} className="hover:bg-blue-50/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="font-mono text-sm font-medium text-gray-900">{cliente.identificacion}</span>
                       <p className="text-xs text-gray-500">{cliente.tipo_identificacion}</p>
@@ -236,7 +236,7 @@ export default function ClientesPage() {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => handleEdit(cliente)}
-                          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors hover:shadow-md"
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors hover:shadow-md"
                         >
                           <Edit size={18} />
                         </button>

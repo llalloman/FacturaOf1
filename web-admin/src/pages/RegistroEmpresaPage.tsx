@@ -8,7 +8,6 @@ import type { PlanSuscripcion } from '../types';
 import type { ReactElement } from 'react';
 import {
   FileText,
-  Sparkles,
   Building2,
   User,
   Lock,
@@ -48,8 +47,8 @@ function PlanCard({
 }) {
   const gradients: Record<string, string> = {
     BASICO: 'from-slate-500 to-slate-700',
-    PROFESIONAL: 'from-blue-500 to-indigo-700',
-    EMPRESARIAL: 'from-purple-500 to-purple-800',
+    PROFESIONAL: 'from-blue-500 to-blue-700',
+    EMPRESARIAL: 'from-sky-500 to-sky-800',
     ILIMITADO: 'from-amber-500 to-orange-700',
   };
   const gradient = gradients[plan.tipo] ?? 'from-gray-500 to-gray-700';
@@ -60,13 +59,13 @@ function PlanCard({
       onClick={onSelect}
       className={`relative w-full text-left rounded-2xl border-2 transition-all duration-200 overflow-hidden ${
         selected
-          ? 'border-indigo-500 shadow-lg shadow-indigo-100 scale-[1.01]'
-          : 'border-gray-200 hover:border-indigo-300 hover:shadow-md'
+          ? 'border-blue-600 shadow-lg shadow-blue-100 scale-[1.01]'
+          : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
       }`}
     >
       {selected && (
         <div className="absolute top-3 right-3 z-10">
-          <CheckCircle2 className="w-5 h-5 text-indigo-600" />
+          <CheckCircle2 className="w-5 h-5 text-blue-700" />
         </div>
       )}
       <div className={`bg-gradient-to-r ${gradient} p-4 text-white`}>
@@ -140,7 +139,7 @@ function Stepper({ current }: { current: number }) {
                   done
                     ? 'bg-emerald-500 text-white'
                     : active
-                    ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg'
+                    ? 'bg-gradient-to-br from-blue-700 to-blue-900 text-white shadow-lg'
                     : 'bg-gray-100 text-gray-400'
                 }`}
               >
@@ -148,7 +147,7 @@ function Stepper({ current }: { current: number }) {
               </div>
               <span
                 className={`text-xs mt-1 font-semibold ${
-                  active ? 'text-indigo-700' : done ? 'text-emerald-600' : 'text-gray-400'
+                  active ? 'text-blue-700' : done ? 'text-emerald-600' : 'text-gray-400'
                 }`}
               >
                 {step.label}
@@ -314,7 +313,7 @@ export default function RegistroEmpresaPage() {
           >
             <Icon
               className={`h-5 w-5 transition-colors duration-200 ${
-                focused ? 'text-indigo-600' : 'text-gray-400'
+                focused ? 'text-blue-700' : 'text-gray-400'
               }`}
             />
           </div>
@@ -324,7 +323,7 @@ export default function RegistroEmpresaPage() {
             onChange={(e) => onChange(e.target.value)}
             onFocus={() => setFocusedInput(id)}
             onBlur={() => setFocusedInput(null)}
-            className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200 outline-none text-gray-900 placeholder-gray-400 font-medium text-sm"
+            className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-white focus:border-blue-700 focus:ring-4 focus:ring-blue-100 transition-all duration-200 outline-none text-gray-900 placeholder-gray-400 font-medium text-sm"
             placeholder={placeholder}
             required={required}
           />
@@ -459,33 +458,31 @@ export default function RegistroEmpresaPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-900 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-slate-800 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000" />
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-slate-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-15 animate-blob animation-delay-4000" />
       </div>
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#4f46e510_1px,transparent_1px),linear-gradient(to_bottom,#4f46e510_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e40af15_1px,transparent_1px),linear-gradient(to_bottom,#1e40af15_1px,transparent_1px)] bg-[size:4rem_4rem]" />
 
       {/* Card */}
       <div className="relative w-full max-w-lg">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl blur-2xl opacity-20 animate-pulse" />
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-slate-600 rounded-3xl blur-2xl opacity-20 animate-pulse" />
 
         <div className="relative bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20">
           {/* Header */}
           <div className="text-center mb-6">
-            <div className="relative inline-block mb-4">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl blur-lg opacity-50 animate-pulse" />
-              <div className="relative inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-xl">
-                <FileText className="w-8 h-8 text-white" strokeWidth={2.5} />
-                <div className="absolute -top-1 -right-1">
-                  <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
-                </div>
-              </div>
+            <div className="relative inline-block mb-3">
+              <img
+                src="/logo-of1-1.png"
+                alt="OF1 Solutions"
+                className="h-20 w-auto drop-shadow-xl transform transition-all hover:scale-105 duration-500"
+              />
             </div>
             <h1 className="text-2xl font-black">
-              <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-blue-700 to-slate-600 bg-clip-text text-transparent">
                 Crear Cuenta
               </span>
             </h1>
@@ -502,9 +499,9 @@ export default function RegistroEmpresaPage() {
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               <span className="text-xs font-semibold text-emerald-700">30 días gratis</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 rounded-full">
-              <Zap className="w-3.5 h-3.5 text-purple-600" />
-              <span className="text-xs font-semibold text-purple-700">Sin tarjeta</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-full">
+              <Zap className="w-3.5 h-3.5 text-slate-600" />
+              <span className="text-xs font-semibold text-slate-700">Sin tarjeta</span>
             </div>
           </div>
 
@@ -512,7 +509,7 @@ export default function RegistroEmpresaPage() {
 
           {/* Error */}
           {error && (
-            <div className="mb-5 bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-red-500 rounded-r-xl p-3.5 animate-shake shadow-sm">
+            <div className="mb-5 bg-gradient-to-r from-red-50 to-sky-50 border-l-4 border-red-500 rounded-r-xl p-3.5 animate-shake shadow-sm">
               <div className="flex items-center gap-3">
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
                 <p className="text-sm text-red-800 font-medium">{error}</p>
@@ -544,7 +541,7 @@ export default function RegistroEmpresaPage() {
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5"
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5"
                 >
                   Siguiente
                   <ArrowRight className="w-4 h-4" />
@@ -555,8 +552,8 @@ export default function RegistroEmpresaPage() {
                   disabled={loading}
                   className="relative flex-1 group overflow-hidden"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-xl blur opacity-50 group-hover:opacity-75 transition-opacity" />
-                  <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white py-3.5 px-6 rounded-xl font-bold shadow-xl hover:shadow-2xl transform transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-center gap-2 border border-white/20">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-blue-900 rounded-xl blur opacity-50 group-hover:opacity-75 transition-opacity" />
+                  <div className="relative bg-gradient-to-r from-blue-700 to-blue-900 text-white py-3.5 px-6 rounded-xl font-bold shadow-xl hover:shadow-2xl transform transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-center gap-2 border border-white/20">
                     {loading ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
@@ -579,11 +576,12 @@ export default function RegistroEmpresaPage() {
             ¿Ya tienes cuenta?{' '}
             <Link
               to="/login"
-              className="font-bold text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline transition-colors"
+              className="font-bold text-blue-700 hover:text-blue-800 underline-offset-2 hover:underline transition-colors"
             >
               Iniciar sesión
             </Link>
           </p>
+          <p className="mt-2 text-center text-xs text-gray-400">© 2026 OF1 Solutions S.A.S. - Todos los derechos reservados</p>
         </div>
       </div>
     </div>

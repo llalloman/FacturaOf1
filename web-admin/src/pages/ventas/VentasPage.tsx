@@ -53,7 +53,7 @@ export default function VentasPage() {
   const metodoPagoColor: Record<string, string> = {
     EFECTIVO: 'bg-green-100 text-green-800',
     TARJETA: 'bg-blue-100 text-blue-800',
-    TRANSFERENCIA: 'bg-purple-100 text-purple-800',
+    TRANSFERENCIA: 'bg-sky-100 text-sky-800',
     CHEQUE: 'bg-yellow-100 text-yellow-800',
   };
 
@@ -62,7 +62,7 @@ export default function VentasPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-slate-600 bg-clip-text text-transparent">
             Ventas
           </h1>
           <p className="text-gray-600 mt-1">Historial y reporte de ventas del POS</p>
@@ -71,13 +71,13 @@ export default function VentasPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-indigo-500">
+        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-600">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Total Ventas</p>
               <p className="text-2xl font-bold text-gray-800">{ventasArray.length}</p>
             </div>
-            <ShoppingCart className="text-indigo-500" size={32} />
+            <ShoppingCart className="text-blue-600" size={32} />
           </div>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
@@ -102,7 +102,7 @@ export default function VentasPage() {
             <TrendingUp className="text-blue-500" size={32} />
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-500">
+        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-sky-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Promedio por Venta</p>
@@ -110,7 +110,7 @@ export default function VentasPage() {
                 ${ventasArray.length > 0 ? (totalMes / ventasArray.length).toFixed(2) : '0.00'}
               </p>
             </div>
-            <DollarSign className="text-purple-500" size={32} />
+            <DollarSign className="text-sky-500" size={32} />
           </div>
         </div>
       </div>
@@ -124,7 +124,7 @@ export default function VentasPage() {
             placeholder="Buscar por número de venta o cliente..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
           />
         </div>
       </div>
@@ -133,7 +133,7 @@ export default function VentasPage() {
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600" />
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-700" />
           </div>
         ) : filteredVentas.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -160,7 +160,7 @@ export default function VentasPage() {
                 {filteredVentas.map((venta: Venta) => (
                   <tr key={venta.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
-                      <span className="font-mono text-sm font-semibold text-indigo-600">
+                      <span className="font-mono text-sm font-semibold text-blue-700">
                         {venta.numero_venta}
                       </span>
                     </td>
@@ -194,7 +194,7 @@ export default function VentasPage() {
                     <td className="px-6 py-4 text-center">
                       <button
                         onClick={() => setSelectedVenta(venta)}
-                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Ver detalle"
                       >
                         <Eye size={18} />
@@ -270,7 +270,7 @@ export default function VentasPage() {
                 </div>
                 <div className="flex justify-between font-bold text-base border-t pt-2">
                   <span>Total</span>
-                  <span className="text-indigo-600">${Number(selectedVenta.total || 0).toFixed(2)}</span>
+                  <span className="text-blue-700">${Number(selectedVenta.total || 0).toFixed(2)}</span>
                 </div>
               </div>
             </div>
