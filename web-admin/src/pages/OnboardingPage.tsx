@@ -279,7 +279,7 @@ export default function OnboardingPage() {
         <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-10">
           {/* Logo */}
           <div className="text-center mb-6">
-            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-16 mx-auto object-contain" />
+            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-32 mx-auto object-contain" />
             <h1 className="text-xl font-black text-gray-900 mt-3">Configura tu empresa</h1>
             <p className="text-xs text-gray-500 mt-1">Completa estos pasos para comenzar a facturar</p>
           </div>

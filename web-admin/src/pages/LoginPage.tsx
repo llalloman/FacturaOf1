@@ -69,7 +69,7 @@ export default function LoginPage() {
               <img
                 src="/logo-of1-1.png"
                 alt="OF1 Solutions"
-                className="h-28 w-auto drop-shadow-2xl transform transition-all hover:scale-105 duration-500"
+                className="h-44 w-auto drop-shadow-2xl transform transition-all hover:scale-105 duration-500"
               />
             </div>
             

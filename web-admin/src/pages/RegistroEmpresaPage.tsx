@@ -48,7 +48,7 @@ export default function RegistroEmpresaPage() {
       <div className="relative w-full max-w-lg">
         <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-10">
           <div className="text-center mb-8">
-            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-20 mx-auto mb-4 object-contain" />
+            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-36 mx-auto mb-4 object-contain" />
             <h1 className="text-2xl font-black text-gray-900 mb-1">Crea tu cuenta gratis</h1>
             <p className="text-sm text-gray-500">30 días de prueba · Sin tarjeta de crédito</p>
             <div className="flex items-center justify-center gap-3 mt-3">
