@@ -4,6 +4,7 @@ import { proveedoresService } from '../../services/proveedoresService';
 import type { Proveedor } from '../../types';
 import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiPackage } from 'react-icons/fi';
 import ProveedorModal from './ProveedorModal';
+import { confirmDialog } from '../../store/confirmStore';
 
 const ProveedoresPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -35,8 +36,8 @@ const ProveedoresPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (window.confirm('¿Está seguro de eliminar este proveedor?')) {
+  const handleDelete = async (id: number) => {
+    if (await confirmDialog('¿Está seguro de eliminar este proveedor?', undefined, 'danger')) {
       deleteMutation.mutate(id);
     }
   };

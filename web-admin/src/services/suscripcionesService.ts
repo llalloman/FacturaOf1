@@ -50,4 +50,15 @@ export const suscripcionesService = {
     const { data } = await apiClient.post(`/suscripciones/suscripciones/${id}/cancelar/`);
     return data;
   },
+
+  cambiarPlan: async (plan_id: number): Promise<Suscripcion> => {
+    const { data } = await apiClient.post('/suscripciones/suscripciones/cambiar-plan/', { plan_id });
+    return data;
+  },
+
+  toggleAutoRenovar: async (enabled?: boolean): Promise<Suscripcion> => {
+    const body = enabled !== undefined ? { enabled } : {};
+    const { data } = await apiClient.post('/suscripciones/suscripciones/toggle-auto-renovar/', body);
+    return data;
+  },
 };

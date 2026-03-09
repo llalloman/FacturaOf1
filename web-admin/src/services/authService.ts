@@ -31,6 +31,7 @@ export interface RegistroData {
   cedula?: string;
   telefono?: string;
   ciudad?: string;
+  plan_id?: number;
 }
 
 export const authService = {

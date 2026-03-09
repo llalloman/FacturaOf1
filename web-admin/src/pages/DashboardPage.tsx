@@ -12,8 +12,11 @@ import {
   Clock,
   Building2,
   ShieldCheck,
+  Activity,
+  FlaskConical,
 } from 'lucide-react';
-import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, ComposedChart, Bar, ReferenceLine, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import type { ProyeccionesData } from '../services/ventasService';
 import { facturasService } from '../services/facturasService';
 import { productosService } from '../services/productosService';
 import { clientesService } from '../services/clientesService';
@@ -65,6 +68,19 @@ export default function DashboardPage() {
     queryKey: ['ventas', 'mensual', now.getMonth() + 1, now.getFullYear()],
     queryFn: () => ventasService.getReporteMensual(now.getMonth() + 1, now.getFullYear()),
     enabled: !isSuperAdmin,
+  });
+
+  const { data: ultimos6Meses = [] } = useQuery({
+    queryKey: ['ventas', 'ultimos-6-meses'],
+    queryFn: () => ventasService.getReporteUltimosMeses(6),
+    enabled: !isSuperAdmin,
+  });
+
+  const { data: proyeccionesData } = useQuery<ProyeccionesData>({
+    queryKey: ['ventas', 'proyecciones'],
+    queryFn: () => ventasService.getProyecciones(30, 14, 7),
+    enabled: !isSuperAdmin,
+    staleTime: 5 * 60 * 1000,
   });
 
   // ── Dashboard SUPER_ADMIN ────────────────────────────────────────────────────
@@ -138,33 +154,29 @@ export default function DashboardPage() {
   const productosArray = Array.isArray(productos) ? productos : [];
   const clientesArray = Array.isArray(clientes) ? clientes : [];
 
-  const ventasMesTotal: number = (ventasMes as Record<string, unknown>)?.total as number ?? 0;
-  const facturasEmitidas = facturasArray.filter(f => f.estado !== 'ANULADO').length;
+  const ventasMesTotal: number = ((ventasMes as Record<string, unknown>)?.total_ventas as number) ?? 0;
+  const facturasEmitidas = facturasArray.filter(f => ['AUTORIZADO', 'ENVIADO'].includes(f.estado)).length;
   const facturasEnviadas = facturasArray.filter(f => f.estado === 'ENVIADO').length;
   const productosActivos = (productosArray as Producto[]).filter((p) => p.activo !== false).length;
   const clientesActivos = (clientesArray as Cliente[]).filter((c) => c.activo !== false).length;
   const productosStockBajo = (productosArray as Producto[]).filter((p) => p.maneja_inventario && p.stock_actual <= p.stock_minimo);
 
-  // ── Ventas por mes (últimos 6 meses aproximado con dato real del mes actual) ─
-  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const salesData = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    const esActual = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    return {
-      mes: meses[d.getMonth()],
-      ventas: esActual ? ventasMesTotal : 0,
-    };
-  });
+  // ── Ventas por mes (últimos 6 meses desde la API) ──────────────────────────
+  const MESES_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const salesData = (ultimos6Meses as { mes: number; anio: number; total_ventas: number }[]).map(m => ({
+    mes: `${MESES_LABELS[m.mes - 1]} ${m.anio !== now.getFullYear() ? m.anio : ''}`.trim(),
+    ventas: m.total_ventas,
+  }));
 
-  // ── Top Productos (por stock vendido = stock_minimo - stock_actual como proxy) ─
+  // ── Top Productos (por precio, mayor a menor) ──────────────────────────────
   const topProductos = [...(productosArray as Producto[])]
-    .filter((p) => p.maneja_inventario)
-    .sort((a, b) => (b.precio * (b.stock_minimo || 1)) - (a.precio * (a.stock_minimo || 1)))
+    .filter((p) => p.activo !== false)
+    .sort((a, b) => Number(b.precio) - Number(a.precio))
     .slice(0, 4)
     .map((p) => ({
       nombre: p.nombre,
       precio: p.precio,
-      stock: p.stock_actual,
+      stock: p.stock_actual ?? '—',
     }));
 
   // ── Facturas recientes ────────────────────────────────────────────────────────
@@ -256,7 +268,7 @@ export default function DashboardPage() {
             <TrendingUp className="w-5 h-5 text-blue-600" />
             Tendencia de Ventas
           </h3>
-          <p className="text-xs text-gray-400 mb-4">Total facturado por mes (meses anteriores en $0 cuando no hay historial)</p>
+          <p className="text-xs text-gray-400 mb-4">Total vendido por mes (últimos 6 meses)</p>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={salesData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -307,7 +319,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
           <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-blue-600" />
-            Top Productos (por precio × stock mínimo)
+            Top Productos (por precio)
           </h3>
           {topProductos.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-8">Sin productos con inventario registrados</p>
@@ -354,6 +366,87 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* ── Proyecciones ───────────────────────────────────────────────────────── */}
+      {proyeccionesData && (
+        <div className="mt-8 space-y-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Activity className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-xl font-bold text-gray-900">Proyecciones</h2>
+            <span className="text-xs text-gray-400 font-normal">Basado en media móvil de 7 días · Historial: {proyeccionesData.dias_historial} días · Promedio diario: ${proyeccionesData.promedio_diario.toFixed(2)}</span>
+          </div>
+
+          {/* Gráfico ventas históricas + proyección */}
+          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+            <h3 className="text-base font-bold text-gray-900 mb-1">Tendencia de Ventas Diarias y Proyección</h3>
+            <p className="text-xs text-gray-400 mb-4">Barras azules = ventas reales · Línea naranja punteada = proyección (14 días)</p>
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart
+                data={[
+                  ...proyeccionesData.historico.map(d => ({ fecha: d.fecha.slice(5), total: d.total, proyectado: undefined })),
+                  ...proyeccionesData.proyeccion.map(d => ({ fecha: d.fecha.slice(5), total: undefined, proyectado: d.proyectado })),
+                ]}
+                margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="fecha" stroke="#9ca3af" tick={{ fontSize: 11 }} />
+                <YAxis stroke="#9ca3af" tickFormatter={(v: number) => `$${v}`} />
+                <Tooltip formatter={(v: number | string | undefined, name: string | undefined) => [`$${Number(v ?? 0).toFixed(2)}`, name === 'total' ? 'Venta real' : 'Proyectado']} />
+                <Legend formatter={(v: string) => v === 'total' ? 'Venta real' : 'Proyección'} />
+                <ReferenceLine x={new Date().toISOString().slice(5, 10)} stroke="#6366f1" strokeDasharray="4 4" label={{ value: 'Hoy', fill: '#6366f1', fontSize: 11 }} />
+                <Bar dataKey="total" fill="#3b82f6" opacity={0.85} radius={[3,3,0,0]} />
+                <Line dataKey="proyectado" stroke="#f97316" strokeWidth={2.5} strokeDasharray="6 3" dot={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Tabla proyección de stock */}
+          {proyeccionesData.proyeccion_stock.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+              <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-2">
+                <FlaskConical className="w-4 h-4 text-emerald-600" />
+                Proyección de Agotamiento de Stock
+              </h3>
+              <p className="text-xs text-gray-400 mb-4">Basado en velocidad de ventas de los últimos 30 días</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                      <th className="pb-3 font-semibold">Producto</th>
+                      <th className="pb-3 font-semibold text-right">Stock actual</th>
+                      <th className="pb-3 font-semibold text-right">Vendido/día</th>
+                      <th className="pb-3 font-semibold text-right">Días restantes</th>
+                      <th className="pb-3 font-semibold text-center">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {proyeccionesData.proyeccion_stock.map((p) => {
+                      const dias = p.dias_hasta_agotamiento;
+                      const urgente = dias !== null && dias <= 7;
+                      const advertencia = dias !== null && dias > 7 && dias <= 14;
+                      const statusColor = urgente ? 'bg-red-100 text-red-700' : advertencia ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700';
+                      const statusLabel = urgente ? 'Crítico' : advertencia ? 'Bajo' : 'OK';
+                      return (
+                        <tr key={p.producto_id} className="hover:bg-gray-50">
+                          <td className="py-3 font-medium text-gray-900 max-w-[200px] truncate">{p.nombre}</td>
+                          <td className="py-3 text-right text-gray-700">{p.stock_actual}</td>
+                          <td className="py-3 text-right text-gray-500">{p.tasa_diaria.toFixed(2)}</td>
+                          <td className={`py-3 text-right font-semibold ${urgente ? 'text-red-600' : advertencia ? 'text-yellow-600' : 'text-green-600'}`}>
+                            {dias !== null ? `${dias} días` : '—'}
+                          </td>
+                          <td className="py-3 text-center">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Alert stock bajo */}
       {productosStockBajo.length > 0 && (

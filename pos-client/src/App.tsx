@@ -5,6 +5,7 @@ import { syncService } from './services/syncService';
 import POSScreen from './pages/POSScreen';
 import ConfigScreen from './pages/ConfigScreen';
 import VentasHistorial from './pages/VentasHistorial';
+import ToastContainer from './components/ToastContainer';
 
 function App() {
   const config = usePOSStore((state) => state.config);
@@ -46,10 +47,16 @@ function App() {
 
   // Si no hay configuración, mostrar pantalla de configuración
   if (!config) {
-    return <ConfigScreen />;
+    return (
+      <>
+        <ConfigScreen />
+        <ToastContainer />
+      </>
+    );
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gray-100">
       {/* Barra de estado */}
       <div className="bg-blue-600 text-white px-4 py-2 flex justify-between items-center">
@@ -96,6 +103,8 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
+    <ToastContainer />
+    </>
   );
 }
 

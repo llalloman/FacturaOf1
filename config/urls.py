@@ -40,6 +40,7 @@ urlpatterns = [
     path('api/inventarios/', include('apps.inventarios.urls')),
     path('api/ventas/', include('apps.ventas.urls')),
     path('api/proveedores/', include('apps.proveedores.urls')),
+    path('api/pedidos/', include('apps.pedidos.urls')),
     
     # Health check para verificar conexión desde POS
     path('api/health/', lambda request: JsonResponse({'status': 'ok'})),

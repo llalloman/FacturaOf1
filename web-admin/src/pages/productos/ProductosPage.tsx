@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productosService } from '../../services/productosService';
 import type { Producto } from '../../types';
+import { confirmDialog } from '../../store/confirmStore';
 import {
   Plus,
   Search,
@@ -44,7 +45,7 @@ export default function ProductosPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('¿Está seguro de eliminar este producto?')) {
+    if (await confirmDialog('¿Está seguro de eliminar este producto?', undefined, 'danger')) {
       await deleteMutation.mutateAsync(id);
     }
   };

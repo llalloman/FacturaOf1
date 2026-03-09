@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore';
+import { confirmDialog } from '../../store/confirmStore';
 import { empresasService } from '../../services/empresasService';
 import { usuariosService } from '../../services/usuariosService';
 import { cajasService } from '../../services/cajasService';
@@ -423,7 +424,7 @@ function UsuariosTab() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() => { if (window.confirm('¿Eliminar usuario?')) deleteMutation.mutate(u.id); }}
+                      onClick={async () => { if (await confirmDialog('¿Eliminar usuario?', undefined, 'danger')) deleteMutation.mutate(u.id); }}
                       className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                     >
                       <Trash2 size={16} />
@@ -596,7 +597,7 @@ function CajasTab() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() => { if (window.confirm('¿Eliminar caja?')) deleteMutation.mutate(c.id); }}
+                      onClick={async () => { if (await confirmDialog('¿Eliminar caja?', undefined, 'danger')) deleteMutation.mutate(c.id); }}
                       className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                     >
                       <Trash2 size={16} />

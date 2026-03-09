@@ -5,6 +5,8 @@ import { clientesService } from '../../services/clientesService';
 import type { NotaDebito, DetalleNotaDebito, Cliente } from '../../types';
 import { FiPlus, FiSearch, FiSend, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 import { FileMinus } from 'lucide-react';
+import { toast } from '../../store/toastStore';
+import { confirmDialog } from '../../store/confirmStore';
 
 const estadoColor = (estado: string) => {
   switch (estado) {
@@ -76,7 +78,7 @@ const NotasDebitoPage: React.FC = () => {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error
         || 'Error al enviar';
-      alert(msg);
+      toast.error(msg);
     },
   });
 
@@ -234,7 +236,7 @@ const NotasDebitoPage: React.FC = () => {
                             <FiSend className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => { if (confirm('¿Eliminar nota de débito?')) deleteMutation.mutate(nota.id); }}
+                            onClick={async () => { if (await confirmDialog('¿Eliminar nota de débito?', undefined, 'danger')) deleteMutation.mutate(nota.id); }}
                             className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             title="Eliminar"
                           >

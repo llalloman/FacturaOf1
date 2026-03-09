@@ -39,7 +39,7 @@ export default function RecuperarPasswordPage() {
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-10 border border-white/20">
           {/* Logo */}
           <div className="text-center mb-8">
-            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-24 mx-auto mb-4 object-contain" />
+            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-40 mx-auto mb-4 object-contain drop-shadow-md" />
             <h1 className="text-2xl font-black text-gray-900">Recuperar contraseña</h1>
             <p className="text-gray-500 text-sm mt-1">Te enviaremos una contraseña temporal a tu correo</p>
           </div>

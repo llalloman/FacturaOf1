@@ -171,10 +171,9 @@ class Suscripcion(models.Model):
         )
     
     def dias_restantes(self):
-        """Retorna los días restantes de la suscripción"""
-        if not self.esta_activa():
+        """Retorna los días restantes de la suscripción (aplica para cualquier estado activo/prueba)"""
+        if self.estado == self.EstadoChoices.CANCELADA:
             return 0
-        
         diferencia = self.fecha_fin - timezone.now()
         return max(0, diferencia.days)
     

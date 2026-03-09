@@ -4,6 +4,8 @@ import { retencionesService } from '../../services/retencionesService';
 import { proveedoresService } from '../../services/proveedoresService';
 import type { ImpuestoRetencion, Proveedor } from '../../types';
 import { FiPlus, FiSearch, FiSend, FiRefreshCw, FiXCircle, FiTrash2 } from 'react-icons/fi';
+import { toast } from '../../store/toastStore';
+import { confirmDialog } from '../../store/confirmStore';
 
 // Tabla de porcentajes SRI (parcial — los más comunes)
 const PORCENTAJES_RENTA = [
@@ -99,13 +101,15 @@ const RetencionesPage: React.FC = () => {
     onSuccess: (data: unknown) => {
       queryClient.invalidateQueries({ queryKey: ['retenciones'] });
       const res = data as { estado?: string; numero_autorizacion?: string; mensaje?: string };
-      alert(res?.estado === 'AUTORIZADO'
-        ? `✅ Retención AUTORIZADA\nNro.: ${res.numero_autorizacion}`
-        : `Estado: ${res?.estado ?? 'ENVIADO'}\n${res?.mensaje ?? ''}`);
+      if (res?.estado === 'AUTORIZADO') {
+        toast.success('Retención AUTORIZADA', `Nro.: ${res.numero_autorizacion}`);
+      } else {
+        toast.info(`Estado: ${res?.estado ?? 'ENVIADO'}`, res?.mensaje || undefined);
+      }
     },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg || 'Error al enviar al SRI');
+      toast.error(msg || 'Error al enviar al SRI');
     },
   });
 
@@ -114,20 +118,22 @@ const RetencionesPage: React.FC = () => {
     onSuccess: (data: unknown) => {
       queryClient.invalidateQueries({ queryKey: ['retenciones'] });
       const res = data as { estado?: string; numero_autorizacion?: string; mensaje?: string };
-      alert(res?.estado === 'AUTORIZADO'
-        ? `✅ AUTORIZADA\nNro.: ${res.numero_autorizacion}`
-        : `${res?.estado ?? '—'} — ${res?.mensaje ?? ''}`);
+      if (res?.estado === 'AUTORIZADO') {
+        toast.success('Retención AUTORIZADA', `Nro.: ${res.numero_autorizacion}`);
+      } else {
+        toast.info(res?.estado ?? '—', res?.mensaje || undefined);
+      }
     },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg || 'Error al reprocesar');
+      toast.error(msg || 'Error al reprocesar');
     },
   });
 
   const eliminarMutation = useMutation({
     mutationFn: retencionesService.delete,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['retenciones'] }),
-    onError: () => alert('Error al eliminar la retención'),
+    onError: () => toast.error('Error al eliminar la retención'),
   });
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -271,12 +277,12 @@ const RetencionesPage: React.FC = () => {
                         {ret.estado === 'BORRADOR' && (
                           <>
                             <button
-                              onClick={() => { if (window.confirm('¿Enviar retención al SRI?')) enviarSRIMutation.mutate(ret.id); }}
+                              onClick={async () => { if (await confirmDialog('¿Enviar retención al SRI?')) enviarSRIMutation.mutate(ret.id); }}
                               className="text-green-600 hover:text-green-800"
                               title="Enviar al SRI"
                             ><FiSend /></button>
                             <button
-                              onClick={() => { if (window.confirm('¿Eliminar esta retención?')) eliminarMutation.mutate(ret.id); }}
+                              onClick={async () => { if (await confirmDialog('¿Eliminar esta retención?', undefined, 'danger')) eliminarMutation.mutate(ret.id); }}
                               className="text-red-600 hover:text-red-800"
                               title="Eliminar"
                             ><FiTrash2 /></button>
@@ -284,7 +290,7 @@ const RetencionesPage: React.FC = () => {
                         )}
                         {ret.estado === 'ENVIADO' && (
                           <button
-                            onClick={() => { if (window.confirm('Consultar autorización al SRI?')) reprocesarMutation.mutate(ret.id); }}
+                            onClick={async () => { if (await confirmDialog('Consultar autorización al SRI?')) reprocesarMutation.mutate(ret.id); }}
                             className="text-blue-600 hover:text-blue-800"
                             title="Consultar SRI"
                           ><FiRefreshCw /></button>
@@ -292,12 +298,12 @@ const RetencionesPage: React.FC = () => {
                         {(ret.estado === 'RECHAZADO' || ret.estado === 'NO_AUTORIZADO') && (
                           <>
                             <button
-                              onClick={() => { if (window.confirm('Re-enviar al SRI?')) enviarSRIMutation.mutate(ret.id); }}
+                              onClick={async () => { if (await confirmDialog('Re-enviar al SRI?')) enviarSRIMutation.mutate(ret.id); }}
                               className="text-green-600 hover:text-green-800"
                               title="Re-enviar"
                             ><FiSend /></button>
                             <button
-                              onClick={() => { if (window.confirm('¿Eliminar?')) eliminarMutation.mutate(ret.id); }}
+                              onClick={async () => { if (await confirmDialog('¿Eliminar?', undefined, 'danger')) eliminarMutation.mutate(ret.id); }}
                               className="text-red-600 hover:text-red-800"
                               title="Eliminar"
                             ><FiXCircle /></button>

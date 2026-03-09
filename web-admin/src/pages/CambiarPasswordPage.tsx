@@ -6,12 +6,10 @@ import { Lock, Eye, EyeOff, CheckCircle, Loader2, AlertCircle, ShieldCheck } fro
 
 export default function CambiarPasswordPage() {
   const navigate = useNavigate();
-  const { user, setAuth, token, refreshToken } = useAuthStore((s) => ({
-    user: s.user,
-    setAuth: s.setAuth,
-    token: s.token,
-    refreshToken: s.refreshToken,
-  }));
+  const user = useAuthStore((s) => s.user);
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const token = useAuthStore((s) => s.token);
+  const refreshToken = useAuthStore((s) => s.refreshToken);
 
   const [passwordActual, setPasswordActual] = useState('');
   const [passwordNuevo, setPasswordNuevo] = useState('');
@@ -59,7 +57,7 @@ export default function CambiarPasswordPage() {
       <div className="relative w-full max-w-md">
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-10 border border-white/20">
           <div className="text-center mb-8">
-            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-24 mx-auto mb-4 object-contain" />
+            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-36 mx-auto mb-4 object-contain drop-shadow-md" />
             <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <ShieldCheck className="w-7 h-7 text-amber-500" />
             </div>

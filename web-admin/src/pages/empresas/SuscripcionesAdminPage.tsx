@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { suscripcionesService, type ResumenEmpresaSuscripcion } from '../../services/suscripcionesService';
 import type { PlanSuscripcion, Suscripcion } from '../../types';
+import { confirmDialog } from '../../store/confirmStore';
 import {
   Building2, CreditCard, CheckCircle, XCircle, Clock, AlertTriangle,
   Play, Pause, RefreshCw, Plus, X, ChevronDown, ChevronUp,
@@ -217,7 +218,7 @@ function FilaEmpresa({
             {/* PRUEBA: activar */}
             {sus && sus.estado === 'PRUEBA' && (
               <button
-                onClick={() => { if (window.confirm('¿Activar suscripción completa?')) activarMutation.mutate(); }}
+                onClick={async () => { if (await confirmDialog('¿Activar suscripción completa?')) activarMutation.mutate(); }}
                 disabled={isPending}
                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
                 title="Activar"
@@ -228,7 +229,7 @@ function FilaEmpresa({
             {/* ACTIVA/PRUEBA: suspender */}
             {sus && (sus.estado === 'ACTIVA' || sus.estado === 'PRUEBA') && (
               <button
-                onClick={() => { if (window.confirm('¿Suspender el acceso a esta empresa?')) suspenderMutation.mutate(); }}
+                onClick={async () => { if (await confirmDialog('¿Suspender el acceso a esta empresa?', undefined, 'warning')) suspenderMutation.mutate(); }}
                 disabled={isPending}
                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors disabled:opacity-50"
                 title="Suspender"
@@ -239,7 +240,7 @@ function FilaEmpresa({
             {/* VENCIDA/SUSPENDIDA: renovar */}
             {sus && (sus.estado === 'VENCIDA' || sus.estado === 'SUSPENDIDA') && (
               <button
-                onClick={() => { if (window.confirm('¿Renovar suscripción por otro periodo?')) renovarMutation.mutate(); }}
+                onClick={async () => { if (await confirmDialog('¿Renovar suscripción por otro periodo?')) renovarMutation.mutate(); }}
                 disabled={isPending}
                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
                 title="Renovar"

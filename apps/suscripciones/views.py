@@ -189,3 +189,76 @@ class SuscripcionViewSet(viewsets.ReadOnlyModelViewSet):
         suscripcion.cancelar()
         return Response(SuscripcionSerializer(suscripcion).data)
 
+    # ── Cambiar plan (empresa admin) ───────────────────────────────────────────
+    @action(detail=False, methods=['post'], url_path='cambiar-plan')
+    def cambiar_plan(self, request):
+        """
+        Cambia el plan de la suscripción activa de la empresa del usuario.
+        Requiere: { plan_id }
+        Crea una nueva suscripción con el plan elegido (duración según el plan).
+        """
+        empresa = getattr(request.user, 'empresa', None)
+        if not empresa:
+            return Response({'detail': 'No tienes empresa asignada.'}, status=status.HTTP_404_NOT_FOUND)
+
+        plan_id = request.data.get('plan_id')
+        if not plan_id:
+            return Response({'error': 'plan_id es requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            plan = PlanSuscripcion.objects.get(id=plan_id, activo=True)
+        except PlanSuscripcion.DoesNotExist:
+            return Response({'error': 'Plan no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Cancelar suscripciones activas anteriores
+        Suscripcion.objects.filter(
+            empresa=empresa,
+            estado__in=['ACTIVA', 'PRUEBA', 'SUSPENDIDA', 'VENCIDA'],
+        ).update(estado='CANCELADA')
+
+        ahora = timezone.now()
+        dias = plan.get_dias_periodo()
+        nueva = Suscripcion.objects.create(
+            empresa=empresa,
+            plan=plan,
+            fecha_inicio=ahora,
+            fecha_fin=ahora + timedelta(days=dias),
+            fecha_proximo_pago=ahora + timedelta(days=dias),
+            estado=Suscripcion.EstadoChoices.ACTIVA,
+            auto_renovar=True,
+        )
+        empresa.activa = True
+        empresa.save(update_fields=['activa'])
+
+        return Response(SuscripcionSerializer(nueva).data, status=status.HTTP_201_CREATED)
+
+    # ── Toggle auto-renovar ───────────────────────────────────────────────────
+    @action(detail=False, methods=['post'], url_path='toggle-auto-renovar')
+    def toggle_auto_renovar(self, request):
+        """
+        Activa o desactiva el auto-renovar en la suscripción activa del usuario.
+        Body opcional: { enabled: true/false }. Si no se pasa, invierte el valor actual.
+        """
+        empresa = getattr(request.user, 'empresa', None)
+        if not empresa:
+            return Response({'detail': 'No tienes empresa asignada.'}, status=status.HTTP_404_NOT_FOUND)
+
+        suscripcion = (
+            Suscripcion.objects
+            .filter(empresa=empresa)
+            .exclude(estado='CANCELADA')
+            .order_by('-fecha_inicio')
+            .first()
+        )
+        if not suscripcion:
+            return Response({'detail': 'No hay suscripción activa.'}, status=status.HTTP_404_NOT_FOUND)
+
+        enabled = request.data.get('enabled')
+        if enabled is None:
+            suscripcion.auto_renovar = not suscripcion.auto_renovar
+        else:
+            suscripcion.auto_renovar = bool(enabled)
+        suscripcion.save(update_fields=['auto_renovar'])
+
+        return Response(SuscripcionSerializer(suscripcion).data)
+

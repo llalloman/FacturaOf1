@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { usePOSStore } from '../../store/posStore';
 import type { ClientePOS, PagoPOS } from '../../store/posStore';
+import { confirmDialog } from '../../store/confirmStore';
 import { posService } from '../../services/posService';
 import {
   Search, ShoppingCart, Trash2, Plus, Minus, X, CreditCard,
@@ -456,7 +457,7 @@ export default function POSPage() {
         {/* Limpiar */}
         {items.length > 0 && (
           <button
-            onClick={() => { if (confirm('¿Limpiar carrito?')) limpiarCarrito(); }}
+            onClick={async () => { if (await confirmDialog('¿Limpiar carrito?', undefined, 'danger')) limpiarCarrito(); }}
             className="p-2 bg-red-700 hover:bg-red-600 rounded-xl text-sm transition-colors"
             title="Vaciar carrito"
           >

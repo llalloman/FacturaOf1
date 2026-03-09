@@ -13,7 +13,7 @@ from decimal import Decimal
 from apps.productos.models import Producto
 from apps.empresas.models import Empresa
 
-empresa = Empresa.objects.first()
+empresa = Empresa.objects.filter(ruc='1752758720001').first()
 if not empresa:
     print("ERROR: No se encontró ninguna empresa.")
     exit(1)

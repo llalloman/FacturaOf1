@@ -211,7 +211,7 @@ export default function BienvenidaPage() {
       <div className="relative max-w-6xl mx-auto px-4 py-12">
         {/* Logo */}
         <div className="text-center mb-10">
-          <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-36 mx-auto mb-6 object-contain" />
+          <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-44 mx-auto mb-6 object-contain drop-shadow-md" />
 
           {/* Welcome hero */}
           <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8 mb-8 text-white">

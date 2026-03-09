@@ -21,6 +21,7 @@ import {
   Truck,
   FileMinus,
   CreditCard,
+  LayoutGrid,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -38,6 +39,7 @@ const ALL_ITEMS: MenuItem[] = [
   { icon: Package,         label: 'Productos',      path: '/productos' },
   { icon: Users,           label: 'Clientes',       path: '/clientes' },
   { icon: ShoppingCart,    label: 'Ventas',         path: '/ventas' },
+  { icon: LayoutGrid,      label: 'Mesas / Pedidos', path: '/pedidos' },
   { icon: TrendingUp,      label: 'Reportes',       path: '/reportes' },
   { icon: Settings,        label: 'Configuración',  path: '/configuracion' },
   { icon: CreditCard,      label: 'Suscripción',    path: '/suscripcion' },
@@ -45,9 +47,9 @@ const ALL_ITEMS: MenuItem[] = [
 
 // Menú por rol (paths permitidos en el sidebar)
 const ROL_PATHS: Record<string, string[]> = {
-  ADMIN_EMPRESA: ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/reportes', '/configuracion', '/suscripcion'],
+  ADMIN_EMPRESA: ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion'],
   CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/clientes', '/reportes'],
-  VENDEDOR:      ['/', '/ventas', '/clientes', '/productos'],
+  VENDEDOR:      ['/', '/ventas', '/pedidos', '/clientes', '/productos'],
   CONSULTOR:     ['/', '/facturacion', '/retenciones', '/ventas', '/reportes'],
 };
 
@@ -70,7 +72,8 @@ export default function Layout() {
     navigate('/login');
   };
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) =>
+    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
   // Menú filtrado por rol del usuario
   const rol = user?.rol ?? '';
@@ -83,23 +86,34 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className={`bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 ${sidebarOpen ? 'w-72' : 'w-20'} flex flex-col`}>
         {/* Logo */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700/80">
+        <div className="border-b border-gray-700/80">
           {sidebarOpen ? (
-            <img
-              src="/logo-of1-1.png"
-              alt="OF1 Solutions"
-              className="h-20 w-auto object-contain rounded-lg bg-white px-2 py-1 flex-shrink-0"
-            />
+            <div className="px-4 pt-5 pb-3 flex items-center justify-between gap-2">
+              <div className="bg-white rounded-2xl shadow-xl flex-1 h-20 overflow-hidden">
+                <img
+                  src="/logo-of1-1.png"
+                  alt="OF1 Solutions"
+                  className="w-full h-full object-contain p-1"
+                />
+              </div>
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded-lg hover:bg-gray-700 transition-colors text-gray-400 hover:text-white flex-shrink-0">
+                <X size={18} />
+              </button>
+            </div>
           ) : (
-            <img
-              src="/logo-of1-1.png"
-              alt="OF1 Solutions"
-              className="h-14 w-14 object-contain rounded bg-white p-0.5 flex-shrink-0"
-            />
+            <div className="flex flex-col items-center gap-2 py-3 px-2">
+              <div className="bg-white rounded-xl shadow-lg w-full h-14 overflow-hidden">
+                <img
+                  src="/logo-of1-1.png"
+                  alt="OF1 Solutions"
+                  className="w-full h-full object-contain p-0.5"
+                />
+              </div>
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded-lg hover:bg-gray-700 transition-colors text-gray-400 hover:text-white">
+                <Menu size={18} />
+              </button>
+            </div>
           )}
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-gray-700 transition-colors">
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
         </div>
 
         {/* Navigation */}

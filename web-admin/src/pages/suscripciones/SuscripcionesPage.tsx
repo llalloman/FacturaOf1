@@ -4,8 +4,10 @@ import { suscripcionesService } from '../../services/suscripcionesService';
 import type { PlanSuscripcion, Suscripcion } from '../../types';
 import {
   CreditCard, CheckCircle, XCircle, Clock, AlertTriangle,
-  RefreshCw, Star, Sparkles,
+  RefreshCw, Star, Sparkles, ToggleLeft, ToggleRight,
 } from 'lucide-react';
+import { toast } from '../../store/toastStore';
+import { confirmDialog } from '../../store/confirmStore';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const estadoBadge = (estado: Suscripcion['estado']) => {
@@ -59,7 +61,13 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
   const renovarMutation = useMutation({
     mutationFn: () => suscripcionesService.renovar(suscripcion.id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suscripcion-activa'] }),
-    onError: () => alert('Error al renovar la suscripción'),
+    onError: () => toast.error('Error al renovar la suscripción'),
+  });
+
+  const toggleAutoRenovarMutation = useMutation({
+    mutationFn: () => suscripcionesService.toggleAutoRenovar(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suscripcion-activa'] }),
+    onError: () => toast.error('Error al cambiar la configuración'),
   });
 
   const diasTotales = plan.periodo === 'MENSUAL' ? 30
@@ -142,12 +150,21 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
                 : '—'}
             </p>
           </div>
-          <div className="bg-gray-50 rounded-xl p-3">
+          <button
+            onClick={() => { if (!toggleAutoRenovarMutation.isPending) toggleAutoRenovarMutation.mutate(); }}
+            disabled={toggleAutoRenovarMutation.isPending}
+            className="bg-gray-50 hover:bg-gray-100 rounded-xl p-3 text-left transition-colors disabled:opacity-50 cursor-pointer w-full"
+          >
             <p className="text-gray-500 text-xs">Auto-renovar</p>
-            <p className={`font-semibold mt-0.5 ${suscripcion.auto_renovar ? 'text-green-600' : 'text-gray-500'}`}>
-              {suscripcion.auto_renovar ? 'Activado' : 'Desactivado'}
-            </p>
-          </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              {suscripcion.auto_renovar
+                ? <ToggleRight size={20} className="text-green-600 shrink-0" />
+                : <ToggleLeft size={20} className="text-gray-400 shrink-0" />}
+              <p className={`font-semibold ${suscripcion.auto_renovar ? 'text-green-600' : 'text-gray-500'}`}>
+                {toggleAutoRenovarMutation.isPending ? 'Guardando...' : suscripcion.auto_renovar ? 'Activado' : 'Desactivado'}
+              </p>
+            </div>
+          </button>
         </div>
 
         {/* Alerta por vencer */}
@@ -163,7 +180,7 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
 
         {(suscripcion.estado === 'VENCIDA' || porVencer) && (
           <button
-            onClick={() => { if (window.confirm('¿Renovar suscripción por otro periodo?')) renovarMutation.mutate(); }}
+            onClick={async () => { if (await confirmDialog('¿Renovar suscripción por otro periodo?')) renovarMutation.mutate(); }}
             disabled={renovarMutation.isPending}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
           >
@@ -177,7 +194,12 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
 }
 
 // ─── Card de plan ─────────────────────────────────────────────────────────────
-function PlanCard({ plan, esPlanActual, anual }: { plan: PlanSuscripcion; esPlanActual: boolean; anual: boolean }) {
+function PlanCard({ plan, esPlanActual, anual, onElegir }: {
+  plan: PlanSuscripcion;
+  esPlanActual: boolean;
+  anual: boolean;
+  onElegir: (plan: PlanSuscripcion) => void;
+}) {
   const cfg = planConfig[plan.tipo] ?? planConfig.BASICO;
   const precioMensual = Number(plan.precio);
   const descPct = Math.round(cfg.descuentoAnual * 100);
@@ -256,7 +278,9 @@ function PlanCard({ plan, esPlanActual, anual }: { plan: PlanSuscripcion; esPlan
 
         {esPlanActual
           ? <div className="w-full text-center py-3.5 rounded-2xl bg-white/20 border border-white/30 font-bold text-sm">✓ Tu plan actual</div>
-          : <button className="w-full py-3.5 rounded-2xl bg-white hover:bg-blue-50 text-blue-700 font-black text-sm transition-all shadow-lg hover:shadow-xl active:scale-[.98]">
+          : <button
+              onClick={() => onElegir(plan)}
+              className="w-full py-3.5 rounded-2xl bg-white hover:bg-blue-50 text-blue-700 font-black text-sm transition-all shadow-lg hover:shadow-xl active:scale-[.98]">
               Elegir {plan.nombre}
             </button>
         }
@@ -316,7 +340,9 @@ function PlanCard({ plan, esPlanActual, anual }: { plan: PlanSuscripcion; esPlan
 
         {esPlanActual
           ? <div className="w-full text-center py-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 font-bold text-sm">✓ Tu plan actual</div>
-          : <button className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all active:scale-[.98] ${cfg.btnClass}`}>
+          : <button
+              onClick={() => onElegir(plan)}
+              className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all active:scale-[.98] ${cfg.btnClass}`}>
               Elegir {plan.nombre}
             </button>
         }
@@ -327,6 +353,7 @@ function PlanCard({ plan, esPlanActual, anual }: { plan: PlanSuscripcion; esPlan
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SuscripcionesPage() {
+  const queryClient = useQueryClient();
   const { data: suscripcion, isLoading: loadingSus, error: errorSus } = useQuery({
     queryKey: ['suscripcion-activa'],
     queryFn: suscripcionesService.getSuscripcionActiva,
@@ -340,9 +367,49 @@ export default function SuscripcionesPage() {
 
   const planesArray: PlanSuscripcion[] = Array.isArray(planes) ? planes : [];
   const [anual, setAnual] = useState(false);
+  const [planAElegir, setPlanAElegir] = useState<PlanSuscripcion | null>(null);
+
+  const cambiarPlanMutation = useMutation({
+    mutationFn: (plan_id: number) => suscripcionesService.cambiarPlan(plan_id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suscripcion-activa'] });
+      setPlanAElegir(null);
+    },
+    onError: () => toast.error('Error al cambiar el plan. Intenta nuevamente.'),
+  });
 
   return (
     <div className="p-6 space-y-8">
+      {/* Confirmation modal — cambiar plan */}
+      {planAElegir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-xl font-black text-gray-900 mb-2">¿Cambiar al plan {planAElegir.nombre}?</h3>
+            <p className="text-gray-500 text-sm mb-1">
+              Tu suscripción actual se cancelará y comenzarás inmediatamente el nuevo plan.
+            </p>
+            <p className="text-blue-700 font-bold text-sm mb-6">
+              ${Number(planAElegir.precio).toFixed(2)} / {periodoLabel[planAElegir.periodo] ?? planAElegir.periodo} + IVA
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPlanAElegir(null)}
+                disabled={cambiarPlanMutation.isPending}
+                className="flex-1 py-3 rounded-xl border border-gray-200 font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => cambiarPlanMutation.mutate(planAElegir.id)}
+                disabled={cambiarPlanMutation.isPending}
+                className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black transition-colors disabled:opacity-50"
+              >
+                {cambiarPlanMutation.isPending ? 'Cambiando...' : 'Confirmar cambio'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">
@@ -442,6 +509,7 @@ export default function SuscripcionesPage() {
                 plan={plan}
                 esPlanActual={suscripcion?.plan === plan.id}
                 anual={anual}
+                onElegir={setPlanAElegir}
               />
             ))}
           </div>

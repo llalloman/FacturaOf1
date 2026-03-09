@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { usePOSStore } from '../store/posStore';
 import { ConfigPOS } from '../types';
+import { toast } from '../store/toastStore';
 
 export default function ConfigScreen() {
   const setConfig = usePOSStore((state) => state.setConfig);
@@ -25,7 +26,7 @@ export default function ConfigScreen() {
       localStorage.setItem('pos_config', JSON.stringify(formData));
     }
     setConfig(formData);
-    alert('Configuración guardada correctamente');
+    toast.success('Configuración guardada correctamente');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

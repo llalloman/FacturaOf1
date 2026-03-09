@@ -4,6 +4,8 @@ import { facturasService } from '../../services/facturasService';
 import type { Factura } from '../../types';
 import { FiPlus, FiSearch, FiFileText, FiCheckCircle, FiXCircle, FiDownload, FiSend, FiRefreshCw, FiMail } from 'react-icons/fi';
 import FacturaModal from './FacturaModal';
+import { toast } from '../../store/toastStore';
+import { confirmDialog, promptDialog } from '../../store/confirmStore';
 
 const FacturasPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,16 +39,16 @@ const FacturasPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['facturas'] });
       const res = data as { estado?: string; numero_autorizacion?: string; mensaje?: string };
       if (res?.estado === 'AUTORIZADO') {
-        alert(`✅ Factura AUTORIZADA\nNro. Autorización: ${res.numero_autorizacion}`);
+        toast.success('Factura AUTORIZADA', `Nro. Autorización: ${res.numero_autorizacion}`);
       } else if (res?.estado === 'RECHAZADO' || res?.estado === 'NO_AUTORIZADO') {
-        alert(`❌ ${res.estado}\n\n${res.mensaje || 'Sin detalle del SRI'}`);
+        toast.error(res.estado ?? 'Rechazado', res.mensaje || 'Sin detalle del SRI');
       } else {
-        alert(`Estado: ${res?.estado ?? 'ENVIADO'}\n${res?.mensaje ?? ''}`);
+        toast.info(`Estado: ${res?.estado ?? 'ENVIADO'}`, res?.mensaje || undefined);
       }
     },
     onError: (error: unknown) => {
       const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg || 'Error al enviar factura al SRI');
+      toast.error(msg || 'Error al enviar factura al SRI');
     },
   });
 
@@ -56,16 +58,16 @@ const FacturasPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['facturas'] });
       const res = data as { estado?: string; numero_autorizacion?: string; mensaje?: string };
       if (res?.estado === 'AUTORIZADO') {
-        alert(`✅ Factura AUTORIZADA\nNro. Autorización: ${res.numero_autorizacion}`);
+        toast.success('Factura AUTORIZADA', `Nro. Autorización: ${res.numero_autorizacion}`);
       } else if (res?.estado === 'ENVIADO') {
-        alert(`⏳ Aún pendiente de autorización en el SRI.\n${res?.mensaje ?? ''}\n\nPuede volver a intentar en unos segundos.`);
+        toast.warning('Pendiente de autorización en el SRI', res?.mensaje || 'Puede volver a intentar en unos segundos.');
       } else {
-        alert(`Estado: ${res?.estado ?? '—'}\n${res?.mensaje ?? ''}`);
+        toast.info(`Estado: ${res?.estado ?? '—'}`, res?.mensaje || undefined);
       }
     },
     onError: (error: unknown) => {
       const errData = (error as { response?: { data?: { error?: string; mensaje?: string } } })?.response?.data;
-      alert(errData?.error || errData?.mensaje || 'Error al reprocesar');
+      toast.error(errData?.error || errData?.mensaje || 'Error al reprocesar');
     },
   });
 
@@ -73,11 +75,11 @@ const FacturasPage: React.FC = () => {
     mutationFn: facturasService.reenviarEmail,
     onSuccess: (data: unknown) => {
       const res = data as { mensaje?: string };
-      alert(`✅ ${res?.mensaje || 'Email enviado exitosamente'}`);
+      toast.success(res?.mensaje || 'Email enviado exitosamente');
     },
     onError: (error: unknown) => {
       const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg || 'Error al reenviar el email');
+      toast.error(msg || 'Error al reenviar el email');
     },
   });
 
@@ -88,19 +90,19 @@ const FacturasPage: React.FC = () => {
       const res = data as { mensaje?: string; nota_credito?: { numero: string; estado: string; numero_autorizacion?: string } };
       if (res?.nota_credito) {
         const nc = res.nota_credito;
-        const autMsg = nc.numero_autorizacion ? `\nAutorización SRI: ${nc.numero_autorizacion}` : '';
-        alert(`Factura anulada.\n\nNota de Crédito generada:\n• Número: ${nc.numero}\n• Estado: ${nc.estado}${autMsg}`);
+        const autMsg = nc.numero_autorizacion ? ` · Aut: ${nc.numero_autorizacion}` : '';
+        toast.success('Factura anulada', `NC: ${nc.numero} — ${nc.estado}${autMsg}`);
       } else {
-        alert(res?.mensaje || 'Factura anulada exitosamente');
+        toast.success(res?.mensaje || 'Factura anulada exitosamente');
       }
     },
     onError: (error: unknown) => {
       const resData = (error as { response?: { data?: { error?: string; nota_credito?: { numero: string; estado: string; mensaje: string } } } })?.response?.data;
       if (resData?.nota_credito) {
         const nc = resData.nota_credito;
-        alert(`La Nota de Crédito fue rechazada por el SRI. La factura no fue anulada.\n\nNC: ${nc.numero}\nEstado: ${nc.estado}\n${nc.mensaje}`);
+        toast.error('NC rechazada por el SRI', `NC: ${nc.numero} — ${nc.estado}: ${nc.mensaje}`);
       } else {
-        alert(resData?.error || 'Error al anular la factura');
+        toast.error(resData?.error || 'Error al anular la factura');
       }
     },
   });
@@ -123,29 +125,36 @@ const FacturasPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (window.confirm('¿Está seguro de eliminar esta factura?')) {
+  const handleDelete = async (id: number) => {
+    if (await confirmDialog('¿Está seguro de eliminar esta factura?', undefined, 'danger')) {
       deleteMutation.mutate(id);
     }
   };
 
-  const handleEnviarSRI = (id: number) => {
-    if (window.confirm('¿Enviar factura al SRI?')) {
+  const handleEnviarSRI = async (id: number) => {
+    if (await confirmDialog('¿Enviar factura al SRI?')) {
       enviarSRIMutation.mutate(id);
     }
   };
 
-  const handleAnular = (id: number, estado?: string) => {
+  const handleAnular = async (id: number, estado?: string) => {
     const esAutorizada = estado === 'AUTORIZADO';
-    const confirmMsg = esAutorizada
-      ? '⚠️ Esta factura está AUTORIZADA.\nSe generará y enviará una Nota de Crédito al SRI automáticamente.\n\n¿Confirmar anulación?'
-      : '¿Anular esta factura?';
-    if (!window.confirm(confirmMsg)) return;
+    const ok = await confirmDialog(
+      esAutorizada ? '⚠️ Anular factura AUTORIZADA' : '¿Anular esta factura?',
+      esAutorizada ? 'Se generará y enviará una Nota de Crédito al SRI automáticamente.' : undefined,
+      'danger',
+    );
+    if (!ok) return;
 
     let motivo = 'Anulación de factura';
     if (esAutorizada) {
-      const input = window.prompt('Motivo de anulación (requerido por el SRI):', 'Anulación de factura');
-      if (input === null) return; // canceló el prompt
+      const input = await promptDialog(
+        'Motivo de anulación',
+        'Requerido por el SRI.',
+        'Motivo',
+        'Anulación de factura',
+      );
+      if (input === null) return;
       motivo = input.trim() || 'Anulación de factura';
     }
     anularMutation.mutate({ id, motivo });
@@ -160,7 +169,7 @@ const FacturasPage: React.FC = () => {
       a.download = `factura_${numero}.pdf`;
       a.click();
     } catch {
-      alert('Error al descargar PDF');
+      toast.error('Error al descargar PDF');
     }
   };
 
@@ -173,7 +182,7 @@ const FacturasPage: React.FC = () => {
       a.download = `factura_${numero}.xml`;
       a.click();
     } catch {
-      alert('Error al descargar XML');
+      toast.error('Error al descargar XML');
     }
   };
 
@@ -385,8 +394,8 @@ const FacturasPage: React.FC = () => {
                               <FiFileText />
                             </button>
                             <button
-                              onClick={() => {
-                                if (window.confirm('Reenviar PDF+XML al email del cliente?')) {
+                              onClick={async () => {
+                                if (await confirmDialog('Reenviar PDF+XML al email del cliente?')) {
                                   reenviarEmailMutation.mutate(factura.id);
                                 }
                               }}
@@ -406,8 +415,8 @@ const FacturasPage: React.FC = () => {
                         )}
                         {factura.estado === 'ENVIADO' && (
                           <button
-                            onClick={() => {
-                              if (window.confirm('Consultar y reintentar autorización SRI?\n(puede tardar hasta ~30 segundos)')) {
+                            onClick={async () => {
+                              if (await confirmDialog('Consultar y reintentar autorización SRI?', 'Puede tardar hasta ~30 segundos.')) {
                                 reprocesarMutation.mutate(factura.id);
                               }
                             }}
@@ -421,8 +430,8 @@ const FacturasPage: React.FC = () => {
                         {(factura.estado === 'RECHAZADO' || factura.estado === 'NO_AUTORIZADO') && (
                           <>
                             <button
-                              onClick={() => {
-                                if (window.confirm('Re-enviar esta factura al SRI?')) {
+                              onClick={async () => {
+                                if (await confirmDialog('Re-enviar esta factura al SRI?')) {
                                   enviarSRIMutation.mutate(factura.id);
                                 }
                               }}

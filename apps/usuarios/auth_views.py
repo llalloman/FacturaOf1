@@ -107,6 +107,12 @@ def registro_empresa(request):
         return Response({'error': 'La contraseña debe tener al menos 8 caracteres.'}, status=status.HTTP_400_BAD_REQUEST)
 
     plan = PlanSuscripcion.objects.filter(activo=True).order_by('precio').first()
+    plan_id = data.get('plan_id')
+    if plan_id:
+        try:
+            plan = PlanSuscripcion.objects.get(id=plan_id, activo=True)
+        except PlanSuscripcion.DoesNotExist:
+            return Response({'error': 'El plan seleccionado no existe.'}, status=status.HTTP_400_BAD_REQUEST)
     if not plan:
         return Response({'error': 'No hay planes disponibles en este momento.'}, status=status.HTTP_400_BAD_REQUEST)
 

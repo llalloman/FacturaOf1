@@ -27,6 +27,10 @@ import SuscripcionesPage from './pages/suscripciones/SuscripcionesPage';
 import SuscripcionesAdminPage from './pages/empresas/SuscripcionesAdminPage';
 import RecuperarPasswordPage from './pages/RecuperarPasswordPage';
 import CambiarPasswordPage from './pages/CambiarPasswordPage';
+import MesasPage from './pages/pedidos/MesasPage';
+import PedidoDetallePage from './pages/pedidos/PedidoDetallePage';
+import ToastContainer from './components/ToastContainer';
+import ConfirmModal from './components/ConfirmModal';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -178,9 +182,13 @@ function App() {
                 <UsuariosPage />
               </ProtectedRoute>
             } />
+            <Route path="pedidos" element={<MesasPage />} />
+            <Route path="pedidos/:id" element={<PedidoDetallePage />} />
           </Route>
         </Routes>
       </BrowserRouter>
+      <ToastContainer />
+      <ConfirmModal />
     </QueryClientProvider>
   );
 }

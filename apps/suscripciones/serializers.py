@@ -17,6 +17,8 @@ class SuscripcionSerializer(serializers.ModelSerializer):
     plan_detalle = PlanSuscripcionSerializer(source='plan', read_only=True)
     dias_restantes = serializers.SerializerMethodField()
     empresa_nombre = serializers.CharField(source='empresa.razon_social', read_only=True)
+    # Computed from real factura records so the counter is always accurate
+    facturas_emitidas_mes_actual = serializers.SerializerMethodField()
 
     class Meta:
         model = Suscripcion
@@ -32,6 +34,20 @@ class SuscripcionSerializer(serializers.ModelSerializer):
 
     def get_dias_restantes(self, obj):
         return obj.dias_restantes()
+
+    def get_facturas_emitidas_mes_actual(self, obj):
+        """Cuenta facturas reales del mes actual para esta empresa (excl. ANULADAS)."""
+        from django.utils import timezone
+        try:
+            from apps.facturacion.models import Factura
+            now = timezone.now()
+            return Factura.objects.filter(
+                comprobante__empresa=obj.empresa,
+                comprobante__fecha_emision__month=now.month,
+                comprobante__fecha_emision__year=now.year,
+            ).exclude(comprobante__estado='ANULADO').count()
+        except Exception:
+            return obj.facturas_emitidas_mes_actual
 
 
 class PagoSerializer(serializers.ModelSerializer):

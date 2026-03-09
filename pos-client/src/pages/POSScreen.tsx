@@ -5,6 +5,7 @@ import ProductList from '../components/ProductList';
 import Cart from '../components/Cart';
 import PaymentModal from '../components/PaymentModal';
 import ClientSelector from '../components/ClientSelector';
+import { toast } from '../store/toastStore';
 
 export default function POSScreen() {
   const config = usePOSStore((state) => state.config);
@@ -39,22 +40,22 @@ export default function POSScreen() {
         setCodigoBarras('');
         inputRef.current?.focus();
       } else {
-        alert('Producto no encontrado');
+        toast.warning('Producto no encontrado');
       }
     } catch (error) {
       console.error('Error buscando producto:', error);
-      alert('Error buscando el producto');
+      toast.error('Error buscando el producto');
     }
   };
 
   const handleFinalizarVenta = () => {
     if (items.length === 0) {
-      alert('No hay productos en el carrito');
+      toast.warning('No hay productos en el carrito');
       return;
     }
 
     if (!cliente) {
-      alert('Debe seleccionar un cliente');
+      toast.warning('Debe seleccionar un cliente');
       setShowClientSelector(true);
       return;
     }

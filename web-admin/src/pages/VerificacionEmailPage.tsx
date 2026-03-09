@@ -140,7 +140,7 @@ export default function VerificacionEmailPage() {
         <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-10">
           {/* Header */}
           <div className="text-center mb-8">
-            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-32 mx-auto mb-5 object-contain" />
+            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-40 mx-auto mb-5 object-contain drop-shadow-md" />
             <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Mail className="w-8 h-8 text-blue-700" />
             </div>

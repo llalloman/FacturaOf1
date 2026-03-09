@@ -4,6 +4,8 @@ import { guiasService } from '../../services/guiasService';
 import type { GuiaRemision, DestinatarioGuia, DetalleGuia } from '../../types';
 import { FiPlus, FiSearch, FiSend, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 import { Truck } from 'lucide-react';
+import { toast } from '../../store/toastStore';
+import { confirmDialog } from '../../store/confirmStore';
 
 const estadoColor = (estado: string) => {
   switch (estado) {
@@ -91,7 +93,7 @@ const GuiasRemisionPage: React.FC = () => {
         ?.response?.data?.error
         || (err as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje
         || 'Error al enviar';
-      alert(msg);
+      toast.error(msg);
     },
   });
 
@@ -297,7 +299,7 @@ const GuiasRemisionPage: React.FC = () => {
                             <FiSend className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => { if (confirm('¿Eliminar guía?')) deleteMutation.mutate(guia.id); }}
+                            onClick={async () => { if (await confirmDialog('¿Eliminar guía?', undefined, 'danger')) deleteMutation.mutate(guia.id); }}
                             className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             title="Eliminar"
                           >

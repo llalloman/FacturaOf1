@@ -4,6 +4,7 @@ import { bodegasService } from '../../services/bodegasService';
 import type { Bodega } from '../../types';
 import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
 import BodegaModal from './BodegaModal';
+import { confirmDialog } from '../../store/confirmStore';
 
 const BodegasTab: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -29,8 +30,8 @@ const BodegasTab: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (window.confirm('¿Está seguro de eliminar esta bodega?')) {
+  const handleDelete = async (id: number) => {
+    if (await confirmDialog('¿Está seguro de eliminar esta bodega?', undefined, 'danger')) {
       deleteMutation.mutate(id);
     }
   };

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { usePOSStore } from '../store/posStore';
 import { apiService } from '../services/apiService';
 import { PagoVenta, Venta } from '../types';
+import { toast } from '../store/toastStore';
 
 interface SRIResultado {
   ventaNumero: string;
@@ -47,7 +48,7 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
   const agregarPago = () => {
     const montoNum = parseFloat(monto);
     if (isNaN(montoNum) || montoNum <= 0) {
-      alert('Ingrese un monto válido');
+      toast.warning('Ingrese un monto válido');
       return;
     }
 
@@ -61,12 +62,12 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
 
   const handleFinalizarVenta = async () => {
     if (pendiente > 0) {
-      alert('Aún falta por cobrar');
+      toast.warning('Aún falta por cobrar');
       return;
     }
 
     if (!cliente || !config) {
-      alert('Datos incompletos');
+      toast.error('Datos incompletos');
       return;
     }
 
@@ -144,7 +145,7 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
       setEtapa('resultado');
     } catch (error: any) {
       console.error('Error procesando venta:', error);
-      alert(`Error: ${error.message}`);
+      toast.error('Error al procesar la venta', error.message);
       setEtapa('pago');
     } finally {
       setProcesando(false);

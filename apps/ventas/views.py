@@ -297,6 +297,125 @@ class VentaViewSet(viewsets.ModelViewSet):
             'cantidad_ventas': totales['cantidad_ventas'] or 0,
         })
 
+    @action(detail=False, methods=['get'], url_path='reporte-ultimos-meses')
+    def reporte_ultimos_meses(self, request):
+        """Ventas totales de los últimos N meses (default 6), agrupadas por mes."""
+        from calendar import monthrange
+        from dateutil.relativedelta import relativedelta
+        meses = int(request.query_params.get('meses', 6))
+        ahora = timezone.now()
+        resultado = []
+        for i in range(meses - 1, -1, -1):
+            fecha = ahora - relativedelta(months=i)
+            mes, anio = fecha.month, fecha.year
+            _, ultimo_dia = monthrange(anio, mes)
+            inicio = timezone.datetime(anio, mes, 1, tzinfo=timezone.get_current_timezone())
+            fin = timezone.datetime(anio, mes, ultimo_dia, 23, 59, 59, tzinfo=timezone.get_current_timezone())
+            qs = self.get_queryset().filter(estado='COMPLETADA', fecha_venta__gte=inicio, fecha_venta__lte=fin)
+            agg = qs.aggregate(total_ventas=Sum('total'), cantidad_ventas=Count('id'))
+            resultado.append({
+                'mes': mes,
+                'anio': anio,
+                'total_ventas': float(agg['total_ventas'] or 0),
+                'cantidad_ventas': agg['cantidad_ventas'] or 0,
+            })
+        return Response(resultado)
+
+    @action(detail=False, methods=['get'], url_path='proyecciones')
+    def proyecciones(self, request):
+        """
+        Devuelve ventas históricas diarias + proyección por media móvil,
+        y proyección de agotamiento de stock por producto.
+        """
+        from datetime import timedelta, date as date_type
+        from apps.ventas.models import DetalleVenta
+
+        dias_historial = int(request.query_params.get('dias', 30))
+        dias_proyeccion = int(request.query_params.get('proyeccion', 14))
+        ventana_ma = int(request.query_params.get('ventana', 7))  # media móvil N días
+
+        hoy = timezone.now().date()
+        inicio = hoy - timedelta(days=dias_historial - 1)
+
+        # --- Ventas diarias históricas ---
+        qs = self.get_queryset().filter(
+            estado='COMPLETADA',
+            fecha_venta__date__gte=inicio,
+            fecha_venta__date__lte=hoy,
+        )
+        ventas_raw = (
+            qs.values('fecha_venta__date')
+            .annotate(total_dia=Sum('total'), cantidad=Count('id'))
+            .order_by('fecha_venta__date')
+        )
+        ventas_por_dia = {
+            str(v['fecha_venta__date']): float(v['total_dia'] or 0)
+            for v in ventas_raw
+        }
+        historico = [
+            {
+                'fecha': str(inicio + timedelta(days=i)),
+                'total': ventas_por_dia.get(str(inicio + timedelta(days=i)), 0.0),
+            }
+            for i in range(dias_historial)
+        ]
+
+        # --- Proyección: media móvil ponderada (días más recientes pesan más) ---
+        valores = [d['total'] for d in historico]
+        ventana = min(ventana_ma, len(valores))
+        if ventana > 0:
+            # Pesos lineales: el más reciente pesa más
+            pesos = list(range(1, ventana + 1))
+            ultimos = valores[-ventana:]
+            promedio = sum(v * p for v, p in zip(ultimos, pesos)) / sum(pesos)
+        else:
+            promedio = 0.0
+
+        proyeccion = [
+            {'fecha': str(hoy + timedelta(days=i)), 'proyectado': round(promedio, 2)}
+            for i in range(1, dias_proyeccion + 1)
+        ]
+
+        # --- Proyección de stock por producto ---
+        empresa = getattr(request.user, 'empresa', None)
+        proyeccion_stock = []
+        if empresa:
+            detalles_qs = (
+                DetalleVenta.objects
+                .filter(
+                    venta__empresa=empresa,
+                    venta__estado='COMPLETADA',
+                    venta__fecha_venta__date__gte=inicio,
+                )
+                .values('producto_id', 'producto__nombre', 'producto__stock_actual', 'producto__maneja_inventario', 'producto__stock_minimo')
+                .annotate(total_vendido=Sum('cantidad'))
+                .order_by('-total_vendido')
+            )
+            for d in detalles_qs[:12]:
+                tasa_diaria = float(d['total_vendido'] or 0) / dias_historial
+                stock = float(d['producto__stock_actual'] or 0)
+                dias_hasta_agotamiento = None
+                if tasa_diaria > 0:
+                    dias_hasta_agotamiento = round(stock / tasa_diaria, 1)
+                proyeccion_stock.append({
+                    'producto_id': d['producto_id'],
+                    'nombre': d['producto__nombre'],
+                    'stock_actual': round(stock, 2),
+                    'stock_minimo': float(d['producto__stock_minimo'] or 0),
+                    'vendido_periodo': float(d['total_vendido'] or 0),
+                    'tasa_diaria': round(tasa_diaria, 2),
+                    'dias_hasta_agotamiento': dias_hasta_agotamiento,
+                    'maneja_inventario': d['producto__maneja_inventario'],
+                })
+
+        return Response({
+            'historico': historico,
+            'proyeccion': proyeccion,
+            'proyeccion_stock': proyeccion_stock,
+            'promedio_diario': round(promedio, 2),
+            'dias_historial': dias_historial,
+        })
+
     @action(detail=False, methods=['get'])
     def resumen(self, request):
         """Resumen de ventas"""

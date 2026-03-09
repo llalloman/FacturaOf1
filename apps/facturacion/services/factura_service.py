@@ -115,6 +115,14 @@ def crear_factura_desde_venta(venta):
     venta.factura = factura
     venta.save(update_fields=['factura'])
 
+    # Incrementar contador en la suscripción activa de la empresa
+    try:
+        suscripcion = venta.empresa.suscripciones.exclude(estado='CANCELADA').order_by('-fecha_inicio').first()
+        if suscripcion:
+            suscripcion.incrementar_contador_facturas()
+    except Exception:
+        pass  # No debe bloquear la facturación
+
     return factura
 
 
