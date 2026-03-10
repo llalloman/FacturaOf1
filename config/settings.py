@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'apps.declaraciones',
     'apps.cotizaciones',
     'apps.contabilidad',
+    'apps.bancos',
 ]
 
 MIDDLEWARE = [

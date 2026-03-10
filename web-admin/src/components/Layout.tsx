@@ -27,6 +27,7 @@ import {
   FileBarChart2,
   ClipboardList,
   BookOpen,
+  Banknote,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -44,6 +45,7 @@ const ALL_ITEMS: MenuItem[] = [
   { icon: FileBarChart2,   label: 'Declaraciones',  path: '/declaraciones' },
   { icon: ClipboardList,   label: 'Cotizaciones',   path: '/cotizaciones' },
   { icon: BookOpen,         label: 'Contabilidad',   path: '/contabilidad' },
+  { icon: Banknote,         label: 'Bancos',          path: '/bancos' },
   { icon: Warehouse,       label: 'Inventarios',    path: '/inventarios' },
   { icon: ShoppingBag,     label: 'Proveedores',    path: '/proveedores' },
   { icon: Package,         label: 'Productos',      path: '/productos' },
@@ -57,8 +59,8 @@ const ALL_ITEMS: MenuItem[] = [
 
 // Menú por rol (paths permitidos en el sidebar)
 const ROL_PATHS: Record<string, string[]> = {
-  ADMIN_EMPRESA: ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/contabilidad', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion'],
-  CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/contabilidad', '/clientes', '/reportes'],
+  ADMIN_EMPRESA: ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/contabilidad', '/bancos', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion'],
+  CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/contabilidad', '/bancos', '/clientes', '/reportes'],
   VENDEDOR:      ['/', '/ventas', '/pedidos', '/cotizaciones', '/clientes', '/productos'],
   CONSULTOR:     ['/', '/facturacion', '/retenciones', '/ventas', '/reportes'],
 };
