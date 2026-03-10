@@ -6,9 +6,10 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { TrendingUp, DollarSign, ShoppingCart, Calendar, Download } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingCart, Calendar, Download, Printer, FileSpreadsheet } from 'lucide-react';
 import { format, subDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { exportToExcelMultiSheet, printElement } from '../../utils/exportUtils';
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'];
 
@@ -98,8 +99,49 @@ export default function ReportesPage() {
     URL.revokeObjectURL(url);
   };
 
+  const exportarExcel = () => {
+    const detalleVentas = ventasFiltradas.map((v) => ({
+      'Fecha': (v.fecha_venta ?? '').split('T')[0].split(' ')[0],
+      'N° Venta': v.numero_venta ?? '',
+      'Cliente': v.cliente_detalle?.razon_social ?? 'Consumidor Final',
+      'Estado': v.estado ?? '',
+      'Subtotal': Number(v.subtotal || 0).toFixed(2),
+      'IVA': Number(v.iva || 0).toFixed(2),
+      'Total': Number(v.total || 0).toFixed(2),
+      'Método de pago': v.pagos?.map((p) => p.forma_pago).join('/') || 'OTRO',
+    }));
+
+    const resumenPorDia = ventasPorDia.map((d) => ({
+      'Fecha': d.fecha,
+      'Ventas ($)': d.total,
+    }));
+
+    const resumenPorMetodo = ventasPorMetodo.map((m) => ({
+      'Método': m.name,
+      'Total ($)': m.value,
+    }));
+
+    const resumenGeneral = [{
+      'Período': `${dateFrom} — ${dateTo}`,
+      'Total ventas ($)': totalVentas.toFixed(2),
+      'Cantidad ventas': cantidadVentas,
+      'Promedio por venta ($)': promedioVenta.toFixed(2),
+      'Ventas hoy': ventasHoy,
+    }];
+
+    exportToExcelMultiSheet(
+      [
+        { name: 'Resumen', data: resumenGeneral as Record<string, unknown>[] },
+        { name: 'Ventas por Día', data: resumenPorDia as Record<string, unknown>[] },
+        { name: 'Por Método de Pago', data: resumenPorMetodo as Record<string, unknown>[] },
+        { name: 'Detalle Ventas', data: detalleVentas as Record<string, unknown>[] },
+      ],
+      `reporte_ventas_${dateFrom}_${dateTo}`,
+    );
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6" id="reporte-contenido">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -128,10 +170,26 @@ export default function ReportesPage() {
           <button
             onClick={exportarCSV}
             disabled={ventasFiltradas.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
           >
             <Download size={16} />
-            Exportar CSV
+            CSV
+          </button>
+          <button
+            onClick={exportarExcel}
+            disabled={ventasFiltradas.length === 0}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+          >
+            <FileSpreadsheet size={16} />
+            Excel
+          </button>
+          <button
+            onClick={() => printElement('reporte-contenido')}
+            disabled={ventasFiltradas.length === 0}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+          >
+            <Printer size={16} />
+            Imprimir PDF
           </button>
         </div>
       </div>
