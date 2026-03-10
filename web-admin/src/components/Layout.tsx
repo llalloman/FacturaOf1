@@ -23,6 +23,9 @@ import {
   FileCheck2,
   CreditCard,
   LayoutGrid,
+  Landmark,
+  FileBarChart2,
+  ClipboardList,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -36,6 +39,9 @@ const ALL_ITEMS: MenuItem[] = [
   { icon: Truck,           label: 'Guías Remisión', path: '/guias-remision' },
   { icon: FileMinus,       label: 'Notas Débito',  path: '/notas-debito' },
   { icon: FileCheck2,      label: 'Notas Crédito', path: '/notas-credito' },
+  { icon: Landmark,        label: 'Cartera',        path: '/cartera' },
+  { icon: FileBarChart2,   label: 'Declaraciones',  path: '/declaraciones' },
+  { icon: ClipboardList,   label: 'Cotizaciones',   path: '/cotizaciones' },
   { icon: Warehouse,       label: 'Inventarios',    path: '/inventarios' },
   { icon: ShoppingBag,     label: 'Proveedores',    path: '/proveedores' },
   { icon: Package,         label: 'Productos',      path: '/productos' },
@@ -49,9 +55,9 @@ const ALL_ITEMS: MenuItem[] = [
 
 // Menú por rol (paths permitidos en el sidebar)
 const ROL_PATHS: Record<string, string[]> = {
-  ADMIN_EMPRESA: ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion'],
-  CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/clientes', '/reportes'],
-  VENDEDOR:      ['/', '/ventas', '/pedidos', '/clientes', '/productos'],
+  ADMIN_EMPRESA: ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion'],
+  CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/clientes', '/reportes'],
+  VENDEDOR:      ['/', '/ventas', '/pedidos', '/cotizaciones', '/clientes', '/productos'],
   CONSULTOR:     ['/', '/facturacion', '/retenciones', '/ventas', '/reportes'],
 };
 

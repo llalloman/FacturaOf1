@@ -312,6 +312,63 @@ export interface NotaCredito {
   detalles?: DetalleNotaCredito[];
 }
 
+// ─── Cartera (Cuentas por Cobrar) ─────────────────────────────────────────────
+export interface PagoCliente {
+  id: number;
+  cuenta: number;
+  fecha_pago: string;
+  monto: number;
+  forma_pago: 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA_DEBITO' | 'TARJETA_CREDITO' | 'CHEQUE' | 'OTRO';
+  referencia: string;
+  notas: string;
+  created_at: string;
+}
+
+export interface CuentaPorCobrar {
+  id: number;
+  empresa: number;
+  cliente: number;
+  cliente_nombre: string;
+  factura?: number;
+  factura_numero?: string;
+  numero_cuenta: string;
+  fecha_emision: string;
+  fecha_vencimiento: string;
+  monto_total: number;
+  saldo: number;
+  total_pagado: number;
+  estado: 'PENDIENTE' | 'PARCIAL' | 'PAGADO' | 'VENCIDA' | 'INCOBRABLE';
+  dias_vencimiento: number;
+  bucket_aging: 'vigente' | '1-30' | '31-60' | '61-90' | '+90';
+  notas: string;
+  created_at: string;
+  pagos?: PagoCliente[];
+}
+
+export interface AgingBucket {
+  bucket: string;
+  label: string;
+  cantidad: number;
+  total: number;
+  cuentas: {
+    id: number;
+    numero_cuenta: string;
+    cliente: string;
+    fecha_vencimiento: string;
+    saldo: number;
+    dias_vencimiento: number;
+  }[];
+}
+
+export interface CarteraResumen {
+  total_por_cobrar: number;
+  cuentas_pendientes: number;
+  total_vencido: number;
+  cuentas_vencidas: number;
+  cobrado_mes: number;
+  total_incobrable: number;
+}
+
 // ─── Suscripciones ────────────────────────────────────────────────────────────
 export interface PlanSuscripcion {
   id: number;

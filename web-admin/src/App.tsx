@@ -24,6 +24,9 @@ import RetencionesPage from './pages/retenciones/RetencionesPage';
 import GuiasRemisionPage from './pages/guias/GuiasRemisionPage';
 import NotasDebitoPage from './pages/notas-debito/NotasDebitoPage';
 import NotasCreditoPage from './pages/notas-credito/NotasCreditoPage';
+import CarteraPage from './pages/cartera/CarteraPage';
+import DeclaracionesPage from './pages/declaraciones/DeclaracionesPage';
+import CotizacionesPage from './pages/cotizaciones/CotizacionesPage';
 import SuscripcionesPage from './pages/suscripciones/SuscripcionesPage';
 import SuscripcionesAdminPage from './pages/empresas/SuscripcionesAdminPage';
 import RecuperarPasswordPage from './pages/RecuperarPasswordPage';
@@ -164,6 +167,9 @@ function App() {
             <Route path="guias-remision" element={<GuiasRemisionPage />} />
             <Route path="notas-debito" element={<NotasDebitoPage />} />
             <Route path="notas-credito" element={<NotasCreditoPage />} />
+            <Route path="cartera" element={<CarteraPage />} />
+            <Route path="declaraciones" element={<DeclaracionesPage />} />
+            <Route path="cotizaciones" element={<CotizacionesPage />} />
             <Route path="suscripcion" element={
               <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
                 <SuscripcionesPage />
