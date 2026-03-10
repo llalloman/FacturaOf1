@@ -1,7 +1,7 @@
 from decimal import Decimal
 from django.utils import timezone
 from rest_framework import serializers
-from .models import ComprobanteElectronico, Factura, DetalleFactura, Retencion, ImpuestoRetencion, GuiaRemision, DestinatarioGuia, DetalleGuiaRemision, NotaDebito, DetalleNotaDebito
+from .models import ComprobanteElectronico, Factura, DetalleFactura, Retencion, ImpuestoRetencion, GuiaRemision, DestinatarioGuia, DetalleGuiaRemision, NotaDebito, DetalleNotaDebito, NotaCredito, DetalleNotaCredito
 
 
 class DetalleFacturaSerializer(serializers.ModelSerializer):
@@ -448,3 +448,45 @@ class NotaDebitoSerializer(serializers.ModelSerializer):
             factura_origen=factura_origen,
             fecha_emision=fecha_emision,
         )
+
+
+# ─── Nota de Crédito ──────────────────────────────────────────────────────────
+
+class DetalleNotaCreditoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DetalleNotaCredito
+        fields = [
+            'id', 'codigo_principal', 'descripcion', 'cantidad',
+            'precio_unitario', 'descuento', 'precio_total_sin_impuesto',
+            'tarifa', 'valor_impuesto',
+        ]
+
+
+class NotaCreditoSerializer(serializers.ModelSerializer):
+    numero_nota_credito = serializers.SerializerMethodField()
+    estado              = serializers.SerializerMethodField()
+    fecha_emision       = serializers.SerializerMethodField()
+    numero_autorizacion = serializers.SerializerMethodField()
+    mensajes_sri        = serializers.SerializerMethodField()
+    numero_factura_origen = serializers.SerializerMethodField()
+    cliente_nombre      = serializers.SerializerMethodField()
+    detalles            = DetalleNotaCreditoSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = NotaCredito
+        fields = [
+            'id', 'factura_origen', 'numero_factura_origen', 'cliente_nombre',
+            'motivo', 'numero_nota_credito', 'estado',
+            'fecha_emision', 'numero_autorizacion', 'mensajes_sri',
+            'subtotal_sin_impuestos', 'total_descuento', 'total',
+            'detalles',
+        ]
+        read_only_fields = ['subtotal_sin_impuestos', 'total_descuento', 'total']
+
+    def get_numero_nota_credito(self, obj): return obj.comprobante.numero_comprobante
+    def get_estado(self, obj):              return obj.comprobante.estado
+    def get_fecha_emision(self, obj):       return obj.comprobante.fecha_emision
+    def get_numero_autorizacion(self, obj): return obj.comprobante.numero_autorizacion
+    def get_mensajes_sri(self, obj):        return obj.comprobante.mensajes_sri or ''
+    def get_numero_factura_origen(self, obj): return obj.factura_origen.comprobante.numero_comprobante
+    def get_cliente_nombre(self, obj):      return obj.factura_origen.cliente.razon_social

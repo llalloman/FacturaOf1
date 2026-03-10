@@ -283,6 +283,35 @@ export interface NotaDebito {
   detalles?: DetalleNotaDebito[];
 }
 
+export interface DetalleNotaCredito {
+  id: number;
+  codigo_principal: string;
+  descripcion: string;
+  cantidad: number;
+  precio_unitario: number;
+  descuento: number;
+  precio_total_sin_impuesto: number;
+  tarifa: number;
+  valor_impuesto: number;
+}
+
+export interface NotaCredito {
+  id: number;
+  numero_nota_credito: string;
+  factura_origen: number;
+  numero_factura_origen: string;
+  cliente_nombre: string;
+  motivo: string;
+  fecha_emision: string;
+  estado: 'BORRADOR' | 'FIRMADO' | 'ENVIADO' | 'AUTORIZADO' | 'RECHAZADO' | 'NO_AUTORIZADO' | 'ANULADO';
+  numero_autorizacion?: string;
+  mensajes_sri?: string;
+  subtotal_sin_impuestos: number;
+  total_descuento: number;
+  total: number;
+  detalles?: DetalleNotaCredito[];
+}
+
 // ─── Suscripciones ────────────────────────────────────────────────────────────
 export interface PlanSuscripcion {
   id: number;

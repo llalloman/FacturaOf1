@@ -21,6 +21,10 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Promise compartida para que múltiples requests 401 simultáneos usen UN solo refresh
+// (evita la carrera con ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION)
+let refreshPromise: Promise<string> | null = null;
+
 // Interceptor para manejar errores de autenticación
 apiClient.interceptors.response.use(
   (response) => response,
@@ -28,29 +32,44 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     // No interceptar 401 en endpoints de autenticación (login, registro, etc.)
-    const url = originalRequest.url || '';
-    const isAuthEndpoint = url.includes('/auth/login/') || url.includes('/auth/registro');
+    const url = originalRequest?.url || '';
+    const isAuthEndpoint =
+      url.includes('/auth/login/') ||
+      url.includes('/auth/registro') ||
+      url.includes('/auth/refresh/');
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        const response = await axios.post(`${API_URL}/auth/refresh/`, {
-          refresh: refreshToken,
-        });
+        // Si ya hay un refresh en curso, reusar el mismo promise
+        if (!refreshPromise) {
+          const refreshToken = localStorage.getItem('refresh_token');
+          refreshPromise = axios
+            .post(`${API_URL}/auth/refresh/`, { refresh: refreshToken })
+            .then((r) => {
+              const { access, refresh } = r.data;
+              localStorage.setItem('access_token', access);
+              // Con ROTATE_REFRESH_TOKENS el servidor devuelve un nuevo refresh token
+              if (refresh) localStorage.setItem('refresh_token', refresh);
+              return access as string;
+            })
+            .catch((err) => {
+              localStorage.removeItem('access_token');
+              localStorage.removeItem('refresh_token');
+              window.location.href = '/login';
+              throw err;
+            })
+            .finally(() => {
+              refreshPromise = null;
+            });
+        }
 
-        const { access } = response.data;
-        localStorage.setItem('access_token', access);
-
-        originalRequest.headers.Authorization = `Bearer ${access}`;
+        const newAccess = await refreshPromise;
+        originalRequest.headers.Authorization = `Bearer ${newAccess}`;
         return apiClient(originalRequest);
-      } catch (refreshError) {
-        // Si falla el refresh, redirigir al login
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
+      } catch {
+        return Promise.reject(error);
       }
     }
 

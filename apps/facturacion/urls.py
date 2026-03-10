@@ -6,8 +6,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Factura, DetalleFactura, Retencion, GuiaRemision, NotaDebito
-from .serializers import FacturaSerializer, DetalleFacturaSerializer, RetencionSerializer, GuiaRemisionSerializer, NotaDebitoSerializer
+from .models import Factura, DetalleFactura, Retencion, GuiaRemision, NotaDebito, NotaCredito
+from .serializers import FacturaSerializer, DetalleFacturaSerializer, RetencionSerializer, GuiaRemisionSerializer, NotaDebitoSerializer, NotaCreditoSerializer
 
 
 class FacturaFilter(django_filters.FilterSet):
@@ -516,11 +516,82 @@ class NotaDebitoViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class NotaCreditoViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Lista y detalle de Notas de Crédito (generadas al anular facturas autorizadas).
+    Las NC no se crean aquí — se crean automáticamente al anular una Factura AUTORIZADA.
+    Acción adicional: reprocesar (consultar autorización al SRI si está en ENVIADO).
+    """
+    serializer_class = NotaCreditoSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = [
+        'comprobante__numero_comprobante',
+        'factura_origen__cliente__razon_social',
+        'motivo',
+    ]
+    ordering_fields = ['comprobante__fecha_emision', 'total']
+    ordering = ['-comprobante__fecha_emision']
+
+    def _get_empresa(self):
+        empresa = getattr(self.request, 'tenant', None)
+        if not empresa and self.request.user.is_authenticated:
+            empresa = getattr(self.request.user, 'empresa', None)
+        return empresa
+
+    def get_queryset(self):
+        empresa = self._get_empresa()
+        if empresa:
+            return NotaCredito.objects.select_related(
+                'comprobante',
+                'factura_origen__comprobante',
+                'factura_origen__cliente',
+            ).filter(comprobante__empresa=empresa)
+        return NotaCredito.objects.none()
+
+    @action(detail=True, methods=['post'])
+    def reprocesar(self, request, pk=None):
+        """Consulta al SRI si ya autorizó la Nota de Crédito (para estado ENVIADO)."""
+        from apps.facturacion.services.sri_service import SRIService
+        from apps.facturacion.models import ComprobanteElectronico
+        nc = self.get_object()
+        comp = nc.comprobante
+        if comp.estado not in ('ENVIADO', 'RECHAZADO', 'NO_AUTORIZADO'):
+            return Response(
+                {'error': f'Solo se reprocesa en estado ENVIADO/RECHAZADO. Estado actual: {comp.estado}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if comp.estado in ('RECHAZADO', 'NO_AUTORIZADO'):
+            from apps.facturacion.services.nota_credito_service import procesar_nota_credito_sri
+            result = procesar_nota_credito_sri(nc)
+            http_status = status.HTTP_200_OK if result.get('success') else status.HTTP_422_UNPROCESSABLE_ENTITY
+            return Response(result, status=http_status)
+        sri = SRIService(comp.empresa)
+        try:
+            auth = sri.autorizar_comprobante_sri(comp.clave_acceso)
+            if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
+                aut = auth.autorizaciones.autorizacion[0]
+                if aut.estado == 'AUTORIZADO':
+                    comp.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
+                    comp.numero_autorizacion = getattr(aut, 'numeroAutorizacion', '')
+                    comp.fecha_autorizacion  = getattr(aut, 'fechaAutorizacion', None)
+                    comp.mensajes_sri = ''
+                    comp.save()
+                    return Response({
+                        'estado': comp.estado,
+                        'numero_autorizacion': comp.numero_autorizacion,
+                        'mensaje': f'Autorizada: {comp.numero_autorizacion}',
+                    })
+            return Response({'estado': comp.estado, 'mensaje': 'Sin autorizaciones aún. Reintente en unos segundos.'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 router = DefaultRouter()
 router.register(r'facturas', FacturaViewSet, basename='factura')
-router.register(r'retenciones', RetencionViewSet, basename='retencion')
 router.register(r'guias-remision', GuiaRemisionViewSet, basename='guia-remision')
 router.register(r'notas-debito', NotaDebitoViewSet, basename='nota-debito')
+router.register(r'notas-credito', NotaCreditoViewSet, basename='nota-credito')
 
 urlpatterns = [
     path('', include(router.urls)),
