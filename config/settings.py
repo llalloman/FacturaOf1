@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'apps.cotizaciones',
     'apps.contabilidad',
     'apps.bancos',
+    'apps.nomina',
 ]
 
 MIDDLEWARE = [

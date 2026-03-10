@@ -29,6 +29,7 @@ import DeclaracionesPage from './pages/declaraciones/DeclaracionesPage';
 import CotizacionesPage from './pages/cotizaciones/CotizacionesPage';
 import ContabilidadPage from './pages/contabilidad/ContabilidadPage';
 import BancosPage from './pages/bancos/BancosPage';
+import NominaPage from './pages/nomina/NominaPage';
 import SuscripcionesPage from './pages/suscripciones/SuscripcionesPage';
 import SuscripcionesAdminPage from './pages/empresas/SuscripcionesAdminPage';
 import RecuperarPasswordPage from './pages/RecuperarPasswordPage';
@@ -174,6 +175,7 @@ function App() {
             <Route path="cotizaciones" element={<CotizacionesPage />} />
             <Route path="contabilidad" element={<ContabilidadPage />} />
             <Route path="bancos" element={<BancosPage />} />
+            <Route path="nomina" element={<NominaPage />} />
             <Route path="suscripcion" element={
               <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
                 <SuscripcionesPage />

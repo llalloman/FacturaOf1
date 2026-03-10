@@ -46,6 +46,7 @@ urlpatterns = [
     path('api/cotizaciones/', include('apps.cotizaciones.urls')),
     path('api/contabilidad/', include('apps.contabilidad.urls')),
     path('api/bancos/', include('apps.bancos.urls')),
+    path('api/nomina/', include('apps.nomina.urls')),
     
     # Health check para verificar conexión desde POS
     path('api/health/', lambda request: JsonResponse({'status': 'ok'})),
