@@ -27,6 +27,7 @@ import NotasCreditoPage from './pages/notas-credito/NotasCreditoPage';
 import CarteraPage from './pages/cartera/CarteraPage';
 import DeclaracionesPage from './pages/declaraciones/DeclaracionesPage';
 import CotizacionesPage from './pages/cotizaciones/CotizacionesPage';
+import ContabilidadPage from './pages/contabilidad/ContabilidadPage';
 import SuscripcionesPage from './pages/suscripciones/SuscripcionesPage';
 import SuscripcionesAdminPage from './pages/empresas/SuscripcionesAdminPage';
 import RecuperarPasswordPage from './pages/RecuperarPasswordPage';
@@ -170,6 +171,7 @@ function App() {
             <Route path="cartera" element={<CarteraPage />} />
             <Route path="declaraciones" element={<DeclaracionesPage />} />
             <Route path="cotizaciones" element={<CotizacionesPage />} />
+            <Route path="contabilidad" element={<ContabilidadPage />} />
             <Route path="suscripcion" element={
               <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
                 <SuscripcionesPage />

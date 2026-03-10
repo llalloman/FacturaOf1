@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'apps.cartera',
     'apps.declaraciones',
     'apps.cotizaciones',
+    'apps.contabilidad',
 ]
 
 MIDDLEWARE = [
