@@ -11,6 +11,7 @@ from .serializers import EmpleadoSerializer, RolPagoSerializer, RolPagoCreateSer
 class EmpleadoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = EmpleadoSerializer
+    pagination_class = None
 
     def get_queryset(self):
         qs = Empleado.objects.filter(empresa=self.request.user.empresa)
@@ -63,6 +64,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
 class RolPagoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         qs = RolPago.objects.filter(

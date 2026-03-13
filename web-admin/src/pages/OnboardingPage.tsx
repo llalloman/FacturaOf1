@@ -185,8 +185,9 @@ export default function OnboardingPage() {
       } else {
         setError(res.error || 'No se encontró información en el SRI. Ingresa los datos manualmente.');
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'No se pudo consultar el SRI. Ingresa los datos manualmente.');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e?.response?.data?.error || 'No se pudo consultar el SRI. Ingresa los datos manualmente.');
     } finally {
       setLoadingRuc(false);
     }
@@ -219,8 +220,9 @@ export default function OnboardingPage() {
       if (res.fecha_vencimiento) {
         setCert((f) => ({ ...f, fecha_vencimiento: res.fecha_vencimiento }));
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Certificado inválido o contraseña incorrecta.');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e?.response?.data?.error || 'Certificado inválido o contraseña incorrecta.');
     } finally {
       setLoadingCert(false);
     }
@@ -260,8 +262,9 @@ export default function OnboardingPage() {
       const res = await authService.completarOnboarding(fd);
       updateUser(res.user);
       navigate('/');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Error al guardar la configuración.');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e?.response?.data?.error || 'Error al guardar la configuración.');
     } finally {
       setSubmitting(false);
     }

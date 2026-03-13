@@ -29,34 +29,66 @@ import {
   BookOpen,
   Banknote,
   UsersRound,
+  ChevronDown,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 type MenuItem = { icon: React.ElementType; label: string; path: string };
+type MenuGroup = { label: string; items: MenuItem[] };
 
-// Todos los ítems disponibles para empresas
-const ALL_ITEMS: MenuItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard',      path: '/' },
-  { icon: FileText,        label: 'Facturación',    path: '/facturacion' },
-  { icon: Receipt,         label: 'Retenciones',    path: '/retenciones' },
-  { icon: Truck,           label: 'Guías Remisión', path: '/guias-remision' },
-  { icon: FileMinus,       label: 'Notas Débito',  path: '/notas-debito' },
-  { icon: FileCheck2,      label: 'Notas Crédito', path: '/notas-credito' },
-  { icon: Landmark,        label: 'Cartera',        path: '/cartera' },
-  { icon: FileBarChart2,   label: 'Declaraciones',  path: '/declaraciones' },
-  { icon: ClipboardList,   label: 'Cotizaciones',   path: '/cotizaciones' },
-  { icon: BookOpen,         label: 'Contabilidad',   path: '/contabilidad' },
-  { icon: Banknote,         label: 'Bancos',          path: '/bancos' },
-  { icon: UsersRound,       label: 'Nómina',          path: '/nomina' },
-  { icon: Warehouse,       label: 'Inventarios',    path: '/inventarios' },
-  { icon: ShoppingBag,     label: 'Proveedores',    path: '/proveedores' },
-  { icon: Package,         label: 'Productos',      path: '/productos' },
-  { icon: Users,           label: 'Clientes',       path: '/clientes' },
-  { icon: ShoppingCart,    label: 'Ventas',         path: '/ventas' },
-  { icon: LayoutGrid,      label: 'Mesas / Pedidos', path: '/pedidos' },
-  { icon: TrendingUp,      label: 'Reportes',       path: '/reportes' },
-  { icon: Settings,        label: 'Configuración',  path: '/configuracion' },
-  { icon: CreditCard,      label: 'Suscripción',    path: '/suscripcion' },
+// Menú agrupado por sección para empresas
+const MENU_GROUPS: MenuGroup[] = [
+  {
+    label: 'General',
+    items: [
+      { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    ],
+  },
+  {
+    label: 'Facturación SRI',
+    items: [
+      { icon: FileText,   label: 'Facturación',    path: '/facturacion' },
+      { icon: Receipt,    label: 'Retenciones',    path: '/retenciones' },
+      { icon: Truck,      label: 'Guías Remisión', path: '/guias-remision' },
+      { icon: FileMinus,  label: 'Notas Débito',   path: '/notas-debito' },
+      { icon: FileCheck2, label: 'Notas Crédito',  path: '/notas-credito' },
+    ],
+  },
+  {
+    label: 'Finanzas',
+    items: [
+      { icon: Landmark,      label: 'Cartera',       path: '/cartera' },
+      { icon: FileBarChart2, label: 'Declaraciones', path: '/declaraciones' },
+      { icon: BookOpen,      label: 'Contabilidad',  path: '/contabilidad' },
+      { icon: Banknote,      label: 'Bancos',        path: '/bancos' },
+      { icon: UsersRound,    label: 'Nómina',        path: '/nomina' },
+    ],
+  },
+  {
+    label: 'Comercial',
+    items: [
+      { icon: ClipboardList, label: 'Cotizaciones',    path: '/cotizaciones' },
+      { icon: ShoppingCart,  label: 'Ventas',          path: '/ventas' },
+      { icon: LayoutGrid,    label: 'Mesas / Pedidos', path: '/pedidos' },
+      { icon: Users,         label: 'Clientes',        path: '/clientes' },
+    ],
+  },
+  {
+    label: 'Catálogo',
+    items: [
+      { icon: Package,     label: 'Productos',   path: '/productos' },
+      { icon: ShoppingBag, label: 'Proveedores', path: '/proveedores' },
+      { icon: Warehouse,   label: 'Inventarios', path: '/inventarios' },
+    ],
+  },
+  {
+    label: 'Administración',
+    items: [
+      { icon: TrendingUp, label: 'Reportes',      path: '/reportes' },
+      { icon: Settings,   label: 'Configuración', path: '/configuracion' },
+      { icon: CreditCard, label: 'Suscripción',   path: '/suscripcion' },
+    ],
+  },
 ];
 
 // Menú por rol (paths permitidos en el sidebar)
@@ -80,6 +112,7 @@ export default function Layout() {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const handleLogout = () => {
     logout();
@@ -92,8 +125,23 @@ export default function Layout() {
   // Menú filtrado por rol del usuario
   const rol = user?.rol ?? '';
   const allowedPaths = ROL_PATHS[rol] ?? ROL_PATHS['ADMIN_EMPRESA'];
-  const menuItems = ALL_ITEMS.filter((item) => allowedPaths.includes(item.path));
+  const menuGroups = MENU_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((i) => allowedPaths.includes(i.path)) }))
+    .filter((g) => g.items.length > 0);
   const showPOS = rol !== 'CONSULTOR';
+
+  // Abrir automáticamente el grupo que contiene la ruta activa
+  useEffect(() => {
+    const initial: Record<string, boolean> = {};
+    menuGroups.forEach((g) => {
+      if (g.items.some((i) => isActive(i.path))) initial[g.label] = true;
+    });
+    setOpenGroups(initial);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  const toggleGroup = (label: string) =>
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -154,35 +202,79 @@ export default function Layout() {
               ))}
             </>
           ) : (
-            /* Usuarios con empresa: menú completo de operaciones */
+            /* Usuarios con empresa: menú agrupado desplegable */
             <>
-              {menuItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 ${
-                    isActive(item.path)
-                      ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
-                      : 'hover:bg-gray-800 hover:translate-x-1'
-                  }`}
-                >
-                  <item.icon size={22} className={isActive(item.path) ? 'text-white' : 'text-gray-400'} />
-                  {sidebarOpen && <span className={`font-medium ${isActive(item.path) ? 'text-white' : 'text-gray-300'}`}>{item.label}</span>}
-                </Link>
-              ))}
+              {menuGroups.map((group) => {
+                const isOpen = !!openGroups[group.label];
+                const hasActive = group.items.some((i) => isActive(i.path));
+                return (
+                  <div key={group.label} className="mb-0.5">
+                    {sidebarOpen ? (
+                      /* Cabecera del grupo — clickable */
+                      <button
+                        onClick={() => toggleGroup(group.label)}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${
+                          hasActive ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                      >
+                        <span className="text-xs font-semibold uppercase tracking-wider">{group.label}</span>
+                        <ChevronDown
+                          size={14}
+                          className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+                    ) : (
+                      <div className="my-1 border-t border-gray-700/60" />
+                    )}
+
+                    {/* Ítems del grupo */}
+                    <div
+                      className={`overflow-hidden transition-all duration-200 ${
+                        !sidebarOpen || isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                      }`}
+                    >
+                      {group.items.map((item) => (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
+                            isActive(item.path)
+                              ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
+                              : 'hover:bg-gray-800 hover:translate-x-1'
+                          }`}
+                        >
+                          <item.icon size={20} className={isActive(item.path) ? 'text-white' : 'text-gray-400'} />
+                          {sidebarOpen && (
+                            <span className={`text-sm font-medium ${isActive(item.path) ? 'text-white' : 'text-gray-300'}`}>
+                              {item.label}
+                            </span>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
               {/* Gestión de usuarios para ADMIN_EMPRESA */}
               {user?.rol === 'ADMIN_EMPRESA' && (
-                <Link
-                  to="/usuarios"
-                  className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 ${
-                    isActive('/usuarios')
-                      ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
-                      : 'hover:bg-gray-800 hover:translate-x-1'
-                  }`}
-                >
-                  <Users size={22} className={isActive('/usuarios') ? 'text-white' : 'text-gray-400'} />
-                  {sidebarOpen && <span className={`font-medium ${isActive('/usuarios') ? 'text-white' : 'text-gray-300'}`}>Usuarios</span>}
-                </Link>
+                <>
+                  {sidebarOpen && <div className="my-1 border-t border-gray-700/60" />}
+                  <Link
+                    to="/usuarios"
+                    className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 ${
+                      isActive('/usuarios')
+                        ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
+                        : 'hover:bg-gray-800 hover:translate-x-1'
+                    }`}
+                  >
+                    <Users size={20} className={isActive('/usuarios') ? 'text-white' : 'text-gray-400'} />
+                    {sidebarOpen && (
+                      <span className={`text-sm font-medium ${isActive('/usuarios') ? 'text-white' : 'text-gray-300'}`}>
+                        Usuarios
+                      </span>
+                    )}
+                  </Link>
+                </>
               )}
               {/* Botón POS — solo roles que operan caja */}
               {showPOS && (

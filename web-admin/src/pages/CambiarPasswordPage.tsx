@@ -40,8 +40,9 @@ export default function CambiarPasswordPage() {
       }
       setDone(true);
       setTimeout(() => navigate('/'), 2000);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'No se pudo cambiar la contraseña.');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e?.response?.data?.error || 'No se pudo cambiar la contraseña.');
     } finally {
       setLoading(false);
     }

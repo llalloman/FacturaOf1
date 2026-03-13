@@ -13,7 +13,6 @@ import {
   getEstadoResultados,
   type CuentaContable,
   type AsientoContable,
-  type LineaAsiento,
   type TipoAsiento,
   type BalanceGeneral,
   type EstadoResultados,
@@ -138,8 +137,9 @@ function AsientoModal({ cuentas, onClose, onSaved }: AsientoModalProps) {
       });
       showToast('Asiento registrado.', 'success');
       onSaved();
-    } catch (err: any) {
-      showToast(err?.response?.data?.detail || JSON.stringify(err?.response?.data) || 'Error', 'error');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      showToast(e?.response?.data?.detail || 'Error', 'error');
     } finally {
       setSaving(false);
     }
@@ -288,8 +288,10 @@ function AsientoModal({ cuentas, onClose, onSaved }: AsientoModalProps) {
 
 // ── Informes ──────────────────────────────────────────────────────────────
 
-function BalanceView({ data }: { data: BalanceGeneral }) {
-  const Section = ({ title, group, cls }: { title: string; group: BalanceGeneral['activo']; cls: string }) => (
+type SectionGroup = BalanceGeneral['activo'];
+
+function BalanceSection({ title, group, cls }: { title: string; group: SectionGroup; cls: string }) {
+  return (
     <div>
       <div className={`flex justify-between items-center font-semibold px-3 py-2 rounded-t-lg ${cls}`}>
         <span>{title}</span>
@@ -308,15 +310,17 @@ function BalanceView({ data }: { data: BalanceGeneral }) {
       </table>
     </div>
   );
+}
 
+function BalanceView({ data }: { data: BalanceGeneral }) {
   return (
     <div className="grid grid-cols-2 gap-6">
       <div className="space-y-4">
-        <Section title="ACTIVO" group={data.activo} cls="bg-blue-50 text-blue-800" />
+        <BalanceSection title="ACTIVO" group={data.activo} cls="bg-blue-50 text-blue-800" />
       </div>
       <div className="space-y-4">
-        <Section title="PASIVO" group={data.pasivo} cls="bg-orange-50 text-orange-800" />
-        <Section title="PATRIMONIO" group={data.patrimonio} cls="bg-purple-50 text-purple-800" />
+        <BalanceSection title="PASIVO" group={data.pasivo} cls="bg-orange-50 text-orange-800" />
+        <BalanceSection title="PATRIMONIO" group={data.patrimonio} cls="bg-purple-50 text-purple-800" />
         <div className={`flex justify-between font-bold px-3 py-2 rounded-lg ${data.cuadra ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
           <span>PASIVO + PATRIMONIO</span>
           <span>{fmt(data.total_pasivo_patrimonio)}</span>
@@ -422,7 +426,7 @@ export default function ContabilidadPage() {
     } finally {
       setLoadingPlan(false);
     }
-  }, []);
+  }, [showToast]);
 
   // ── Load diario ────────────────────────────────────────────────────────
   const loadDiario = useCallback(async () => {
@@ -438,7 +442,7 @@ export default function ContabilidadPage() {
     } finally {
       setLoadingDiario(false);
     }
-  }, [filAnio, filMes]);
+  }, [filAnio, filMes, showToast]);
 
   // ── Load informes ──────────────────────────────────────────────────────
   const loadInformes = useCallback(async () => {
@@ -455,19 +459,20 @@ export default function ContabilidadPage() {
     } finally {
       setLoadingInf(false);
     }
-  }, [infAnio, infMes]);
+  }, [infAnio, infMes, showToast]);
 
-  useEffect(() => { loadPlan(); }, []);
-  useEffect(() => { if (tab === 'diario') loadDiario(); }, [tab, filAnio, filMes]);
-  useEffect(() => { if (tab === 'balance' || tab === 'er') loadInformes(); }, [tab]);
+  useEffect(() => { loadPlan(); }, [loadPlan]);
+  useEffect(() => { if (tab === 'diario') loadDiario(); }, [tab, loadDiario]);
+  useEffect(() => { if (tab === 'balance' || tab === 'er') loadInformes(); }, [tab, loadInformes]);
 
   const handleInicializar = async () => {
     try {
       const res = await inicializarPlan();
       showToast(res.detail, 'success');
       loadPlan();
-    } catch (err: any) {
-      showToast(err?.response?.data?.detail || 'Error', 'error');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      showToast(e?.response?.data?.detail || 'Error', 'error');
     }
   };
 
@@ -476,8 +481,9 @@ export default function ContabilidadPage() {
       await bloquearAsiento(id);
       showToast('Asiento bloqueado.', 'success');
       loadDiario();
-    } catch (err: any) {
-      showToast(err?.response?.data?.detail || 'Error', 'error');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      showToast(e?.response?.data?.detail || 'Error', 'error');
     }
   };
 

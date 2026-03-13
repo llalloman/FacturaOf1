@@ -64,32 +64,32 @@ export interface ResumenBancos {
 // ── Cuentas ───────────────────────────────────────────────────────────────
 
 export const getCuentas = () =>
-  apiClient.get<CuentaBancaria[]>('/api/bancos/cuentas/').then(r => r.data);
+  apiClient.get<CuentaBancaria[]>('/bancos/cuentas/').then(r => r.data);
 
 export const getResumen = () =>
-  apiClient.get<ResumenBancos>('/api/bancos/cuentas/resumen/').then(r => r.data);
+  apiClient.get<ResumenBancos>('/bancos/cuentas/resumen/').then(r => r.data);
 
 export const crearCuenta = (data: Partial<CuentaBancaria>) =>
-  apiClient.post<CuentaBancaria>('/api/bancos/cuentas/', data).then(r => r.data);
+  apiClient.post<CuentaBancaria>('/bancos/cuentas/', data).then(r => r.data);
 
 export const actualizarCuenta = (id: number, data: Partial<CuentaBancaria>) =>
-  apiClient.patch<CuentaBancaria>(`/api/bancos/cuentas/${id}/`, data).then(r => r.data);
+  apiClient.patch<CuentaBancaria>(`/bancos/cuentas/${id}/`, data).then(r => r.data);
 
 // ── Movimientos ───────────────────────────────────────────────────────────
 
 export const getMovimientos = (params: Record<string, string> = {}) =>
-  apiClient.get<MovimientoBancario[]>('/api/bancos/movimientos/', { params }).then(r => r.data);
+  apiClient.get<MovimientoBancario[]>('/bancos/movimientos/', { params }).then(r => r.data);
 
 export const crearMovimiento = (data: Partial<MovimientoBancario>) =>
-  apiClient.post<MovimientoBancario>('/api/bancos/movimientos/', data).then(r => r.data);
+  apiClient.post<MovimientoBancario>('/bancos/movimientos/', data).then(r => r.data);
 
 export const conciliarMovimiento = (id: number) =>
-  apiClient.post(`/api/bancos/movimientos/${id}/conciliar/`).then(r => r.data);
+  apiClient.post(`/bancos/movimientos/${id}/conciliar/`).then(r => r.data);
 
 export const conciliarMultiples = (ids: number[], conciliado: boolean) =>
-  apiClient.post('/api/bancos/movimientos/conciliar_multiples/', { ids, conciliado }).then(r => r.data);
+  apiClient.post('/bancos/movimientos/conciliar_multiples/', { ids, conciliado }).then(r => r.data);
 
 export const getExtracto = (cuentaId: number, params: Record<string, string> = {}) =>
-  apiClient.get<ExtractoResponse>('/api/bancos/movimientos/extracto/', {
+  apiClient.get<ExtractoResponse>('/bancos/movimientos/extracto/', {
     params: { cuenta: cuentaId, ...params },
   }).then(r => r.data);

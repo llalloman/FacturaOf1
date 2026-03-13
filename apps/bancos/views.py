@@ -11,6 +11,7 @@ from .serializers import CuentaBancariaSerializer, MovimientoBancarioSerializer
 class CuentaBancariaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = CuentaBancariaSerializer
+    pagination_class = None
 
     def get_queryset(self):
         return CuentaBancaria.objects.filter(empresa=self.request.user.empresa)
@@ -34,6 +35,7 @@ class CuentaBancariaViewSet(viewsets.ModelViewSet):
 class MovimientoBancarioViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = MovimientoBancarioSerializer
+    pagination_class = None
 
     def get_queryset(self):
         qs = MovimientoBancario.objects.filter(

@@ -259,28 +259,25 @@ const CotizacionesPage: React.FC = () => {
     queryFn: cotizacionesService.getAll,
   });
 
-  const { data: resumen } = useQuery({
+  useQuery({
     queryKey: ['cotizaciones-resumen'],
     queryFn: cotizacionesService.getResumen,
   });
 
-  const makeAction = (fn: (id: number) => Promise<unknown>, successMsg: string) =>
-    useMutation({
-      mutationFn: fn,
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['cotizaciones'] });
-        queryClient.invalidateQueries({ queryKey: ['cotizaciones-resumen'] });
-        toast.success(successMsg);
-      },
-      onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
-        toast.error(msg);
-      },
-    });
+  const actionCallbacks = {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cotizaciones'] });
+      queryClient.invalidateQueries({ queryKey: ['cotizaciones-resumen'] });
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error';
+      toast.error(msg);
+    },
+  };
 
-  const enviarMut    = makeAction(cotizacionesService.enviar,  'Cotización enviada');
-  const aceptarMut   = makeAction(cotizacionesService.aceptar, 'Cotización aceptada');
-  const rechazarMut  = makeAction(cotizacionesService.rechazar,'Cotización rechazada');
+  const enviarMut   = useMutation({ mutationFn: cotizacionesService.enviar,   ...actionCallbacks, onSuccess: () => { actionCallbacks.onSuccess(); toast.success('Cotización enviada'); } });
+  const aceptarMut  = useMutation({ mutationFn: cotizacionesService.aceptar,  ...actionCallbacks, onSuccess: () => { actionCallbacks.onSuccess(); toast.success('Cotización aceptada'); } });
+  const rechazarMut = useMutation({ mutationFn: cotizacionesService.rechazar, ...actionCallbacks, onSuccess: () => { actionCallbacks.onSuccess(); toast.success('Cotización rechazada'); } });
   const deleteMut    = useMutation({
     mutationFn: cotizacionesService.delete,
     onSuccess: () => {

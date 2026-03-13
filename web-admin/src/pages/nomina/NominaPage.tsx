@@ -71,8 +71,9 @@ function EmpleadoModal({
       }
       showToast(isEdit ? 'Empleado actualizado.' : 'Empleado creado.', 'success');
       onSaved();
-    } catch (err: any) {
-      showToast(err?.response?.data?.cedula?.[0] || err?.response?.data?.detail || JSON.stringify(err?.response?.data) || 'Error', 'error');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { cedula?: string[]; detail?: string } } };
+      showToast(e?.response?.data?.cedula?.[0] || e?.response?.data?.detail || 'Error', 'error');
     } finally {
       setSaving(false);
     }
@@ -304,8 +305,9 @@ function RolModal({
       }
       showToast('Rol guardado.', 'success');
       onSaved();
-    } catch (err: any) {
-      showToast(err?.response?.data?.non_field_errors?.[0] || JSON.stringify(err?.response?.data) || 'Error', 'error');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { non_field_errors?: string[]; detail?: string } } };
+      showToast(e?.response?.data?.non_field_errors?.[0] || e?.response?.data?.detail || 'Error', 'error');
     } finally {
       setSaving(false);
     }
@@ -370,8 +372,7 @@ function RolModal({
 
 // ── Main Page ─────────────────────────────────────────────────────────────
 
-const TABS = ['roles', 'empleados'] as const;
-type Tab = (typeof TABS)[number];
+type Tab = 'roles' | 'empleados';
 
 export default function NominaPage() {
   const { showToast } = useToast();
@@ -415,18 +416,19 @@ export default function NominaPage() {
     } finally {
       setLoading(false);
     }
-  }, [filAnio, filMes]);
+  }, [filAnio, filMes, showToast]);
 
-  useEffect(() => { loadEmpleados(); }, []);
-  useEffect(() => { if (tab === 'roles') loadRoles(); }, [tab, filAnio, filMes]);
+  useEffect(() => { loadEmpleados(); }, [loadEmpleados]);
+  useEffect(() => { if (tab === 'roles') loadRoles(); }, [tab, loadRoles]);
 
   const handleGenerar = async () => {
     try {
       const res = await generarRoles(parseInt(filAnio), parseInt(filMes));
       showToast(res.detail, 'success');
       loadRoles();
-    } catch (err: any) {
-      showToast(err?.response?.data?.detail || 'Error', 'error');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      showToast(e?.response?.data?.detail || 'Error', 'error');
     }
   };
 
@@ -435,8 +437,9 @@ export default function NominaPage() {
       await aprobarRol(id);
       showToast('Rol aprobado.', 'success');
       loadRoles();
-    } catch (err: any) {
-      showToast(err?.response?.data?.detail || 'Error', 'error');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      showToast(e?.response?.data?.detail || 'Error', 'error');
     }
   };
 
@@ -445,8 +448,9 @@ export default function NominaPage() {
       await marcarPagadoRol(id);
       showToast('Rol marcado como pagado.', 'success');
       loadRoles();
-    } catch (err: any) {
-      showToast(err?.response?.data?.detail || 'Error', 'error');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      showToast(e?.response?.data?.detail || 'Error', 'error');
     }
   };
 

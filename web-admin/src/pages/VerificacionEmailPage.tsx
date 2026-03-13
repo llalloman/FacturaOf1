@@ -96,8 +96,9 @@ export default function VerificacionEmailPage() {
       updateUser(res.user);
       setSuccess('¡Email verificado correctamente!');
       setTimeout(() => navigate('/bienvenida'), 1200);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Código incorrecto. Intenta de nuevo.');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e?.response?.data?.error || 'Código incorrecto. Intenta de nuevo.');
       // Clear digits on error
       setDigits(Array(CODE_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
@@ -116,8 +117,8 @@ export default function VerificacionEmailPage() {
       setCooldown(COOLDOWN_SECONDS);
       setSuccess('Código reenviado. Revisa tu bandeja de entrada.');
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      const respErr = err?.response?.data;
+    } catch (err: unknown) {
+      const respErr = (err as { response?: { data?: { error?: string; segundos_restantes?: number } } })?.response?.data;
       if (respErr?.segundos_restantes) {
         setCooldown(respErr.segundos_restantes);
       }

@@ -38,7 +38,6 @@ const DeclaracionesPage: React.FC = () => {
     data: data104,
     isLoading: loading104,
     error: error104,
-    refetch: refetch104,
   } = useQuery({
     queryKey: ['form104', anio, mes],
     queryFn: () => declaracionesService.getForm104(anio, mes),
@@ -49,7 +48,6 @@ const DeclaracionesPage: React.FC = () => {
     data: data103,
     isLoading: loading103,
     error: error103,
-    refetch: refetch103,
   } = useQuery({
     queryKey: ['form103', anio, mes],
     queryFn: () => declaracionesService.getForm103(anio, mes),

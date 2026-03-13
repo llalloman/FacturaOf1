@@ -3,7 +3,7 @@ import {
   Building2, Plus, RefreshCw, CheckCircle2, Circle, ArrowDownLeft, ArrowUpRight,
 } from 'lucide-react';
 import {
-  getResumen, getCuentas, crearCuenta, getExtracto, crearMovimiento, conciliarMovimiento, conciliarMultiples,
+  getResumen, crearCuenta, getExtracto, crearMovimiento, conciliarMovimiento, conciliarMultiples,
   type CuentaBancaria, type ExtractoRow, type TipoMovimiento,
 } from '../../services/bancosService';
 import { useToast } from '../../hooks/useToast';
@@ -24,8 +24,6 @@ const TIPO_LABELS: Record<TipoMovimiento, string> = {
   PAGO: 'Pago',
   OTRO: 'Otro',
 };
-
-const TIPOS_ENTRADA: TipoMovimiento[] = ['DEPOSITO', 'TRANSFERENCIA_ENTRADA', 'NOTA_CREDITO'];
 
 const TIPO_COLOR: Record<string, string> = {
   DEPOSITO: 'bg-green-100 text-green-700',
@@ -92,8 +90,9 @@ function NuevaCuentaModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
       await crearCuenta({ ...form, saldo_inicial: parseFloat(form.saldo_inicial) || 0 });
       showToast('Cuenta creada.', 'success');
       onSaved();
-    } catch (err: any) {
-      showToast(err?.response?.data?.detail || JSON.stringify(err?.response?.data) || 'Error', 'error');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      showToast(e?.response?.data?.detail || 'Error', 'error');
     } finally {
       setSaving(false);
     }
@@ -186,8 +185,9 @@ function NuevoMovimientoModal({
       await crearMovimiento({ ...form, cuenta: parseInt(form.cuenta), monto: parseFloat(form.monto) });
       showToast('Movimiento registrado.', 'success');
       onSaved();
-    } catch (err: any) {
-      showToast(err?.response?.data?.detail || JSON.stringify(err?.response?.data) || 'Error', 'error');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      showToast(e?.response?.data?.detail || 'Error', 'error');
     } finally {
       setSaving(false);
     }
@@ -297,7 +297,7 @@ export default function BancosPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCuenta]);
+  }, [selectedCuenta, showToast]);
 
   const loadExtracto = useCallback(async () => {
     if (!selectedCuenta) return;
@@ -314,10 +314,10 @@ export default function BancosPage() {
     } finally {
       setLoadingExtracto(false);
     }
-  }, [selectedCuenta, filAnio, filMes]);
+  }, [selectedCuenta, filAnio, filMes, showToast]);
 
-  useEffect(() => { loadCuentas(); }, []);
-  useEffect(() => { loadExtracto(); }, [selectedCuenta, filAnio, filMes]);
+  useEffect(() => { loadCuentas(); }, [loadCuentas]);
+  useEffect(() => { loadExtracto(); }, [loadExtracto]);
 
   const toggleSelect = (id: number) => {
     setSelected(prev => {

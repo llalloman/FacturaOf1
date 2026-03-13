@@ -4,7 +4,7 @@ import { FiSearch, FiPlus, FiChevronDown, FiChevronUp, FiDollarSign } from 'reac
 import { Landmark, AlertTriangle, CheckCircle2, TrendingUp } from 'lucide-react';
 import { carteraService } from '../../services/carteraService';
 import { toast } from '../../store/toastStore';
-import type { CuentaPorCobrar, AgingBucket } from '../../types/index';
+import type { CuentaPorCobrar } from '../../types/index';
 
 const fmtCurrency = (v: number) =>
   new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(v);

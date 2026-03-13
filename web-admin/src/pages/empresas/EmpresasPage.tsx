@@ -45,7 +45,7 @@ export default function EmpresasPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Empresa> }) =>
-      empresasService.update(id, data),
+      empresasService.update(id, data as Parameters<typeof empresasService.update>[1]),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['empresas'] }); closeModal(); },
     onError: (e: unknown) => setError((e as {response?: {data?: unknown}}).response?.data ? JSON.stringify((e as {response?: {data?: unknown}}).response?.data) : 'Error al actualizar empresa'),
   });

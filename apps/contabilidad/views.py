@@ -16,6 +16,7 @@ from .serializers import (
 class CuentaContableViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = CuentaContableSerializer
+    pagination_class = None
 
     def get_queryset(self):
         return CuentaContable.objects.filter(
@@ -119,6 +120,7 @@ class CuentaContableViewSet(viewsets.ModelViewSet):
 
 class AsientoContableViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         qs = AsientoContable.objects.filter(

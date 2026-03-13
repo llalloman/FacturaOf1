@@ -70,33 +70,33 @@ export interface ResumenNomina {
 // ── Empleados ──────────────────────────────────────────────────────────────
 
 export const getEmpleados = (params: Record<string, string> = {}) =>
-  apiClient.get<Empleado[]>('/api/nomina/empleados/', { params }).then(r => r.data);
+  apiClient.get<Empleado[]>('/nomina/empleados/', { params }).then(r => r.data);
 
 export const crearEmpleado = (data: Partial<Empleado>) =>
-  apiClient.post<Empleado>('/api/nomina/empleados/', data).then(r => r.data);
+  apiClient.post<Empleado>('/nomina/empleados/', data).then(r => r.data);
 
 export const actualizarEmpleado = (id: number, data: Partial<Empleado>) =>
-  apiClient.patch<Empleado>(`/api/nomina/empleados/${id}/`, data).then(r => r.data);
+  apiClient.patch<Empleado>(`/nomina/empleados/${id}/`, data).then(r => r.data);
 
 export const generarRoles = (anio: number, mes: number) =>
-  apiClient.post('/api/nomina/empleados/generar_roles/', { anio, mes }).then(r => r.data);
+  apiClient.post('/nomina/empleados/generar_roles/', { anio, mes }).then(r => r.data);
 
 // ── Roles de Pago ──────────────────────────────────────────────────────────
 
 export const getRoles = (params: Record<string, string> = {}) =>
-  apiClient.get<RolPago[]>('/api/nomina/roles/', { params }).then(r => r.data);
+  apiClient.get<RolPago[]>('/nomina/roles/', { params }).then(r => r.data);
 
 export const crearRol = (data: Partial<RolPago>) =>
-  apiClient.post<RolPago>('/api/nomina/roles/', data).then(r => r.data);
+  apiClient.post<RolPago>('/nomina/roles/', data).then(r => r.data);
 
 export const actualizarRol = (id: number, data: Partial<RolPago>) =>
-  apiClient.patch<RolPago>(`/api/nomina/roles/${id}/`, data).then(r => r.data);
+  apiClient.patch<RolPago>(`/nomina/roles/${id}/`, data).then(r => r.data);
 
 export const aprobarRol = (id: number) =>
-  apiClient.post(`/api/nomina/roles/${id}/aprobar/`).then(r => r.data);
+  apiClient.post(`/nomina/roles/${id}/aprobar/`).then(r => r.data);
 
 export const marcarPagadoRol = (id: number) =>
-  apiClient.post(`/api/nomina/roles/${id}/marcar_pagado/`).then(r => r.data);
+  apiClient.post(`/nomina/roles/${id}/marcar_pagado/`).then(r => r.data);
 
 export const getResumenNomina = (anio?: string, mes?: string) =>
-  apiClient.get<ResumenNomina>('/api/nomina/roles/resumen/', { params: { anio, mes } }).then(r => r.data);
+  apiClient.get<ResumenNomina>('/nomina/roles/resumen/', { params: { anio, mes } }).then(r => r.data);

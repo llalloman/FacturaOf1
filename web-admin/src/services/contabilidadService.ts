@@ -84,24 +84,24 @@ export interface LibroMayor {
 // ── Cuentas ──────────────────────────────────────────────────────────────────
 
 export const getCuentas = () =>
-  apiClient.get<CuentaContable[]>('/api/contabilidad/cuentas/').then(r => r.data);
+  apiClient.get<CuentaContable[]>('/contabilidad/cuentas/').then(r => r.data);
 
 export const getCuentasArbol = () =>
-  apiClient.get<CuentaContable[]>('/api/contabilidad/cuentas/arbol/').then(r => r.data);
+  apiClient.get<CuentaContable[]>('/contabilidad/cuentas/arbol/').then(r => r.data);
 
 export const inicializarPlan = () =>
-  apiClient.post('/api/contabilidad/cuentas/inicializar/').then(r => r.data);
+  apiClient.post('/contabilidad/cuentas/inicializar/').then(r => r.data);
 
 export const crearCuenta = (data: Partial<CuentaContable>) =>
-  apiClient.post<CuentaContable>('/api/contabilidad/cuentas/', data).then(r => r.data);
+  apiClient.post<CuentaContable>('/contabilidad/cuentas/', data).then(r => r.data);
 
 export const actualizarCuenta = (id: number, data: Partial<CuentaContable>) =>
-  apiClient.patch<CuentaContable>(`/api/contabilidad/cuentas/${id}/`, data).then(r => r.data);
+  apiClient.patch<CuentaContable>(`/contabilidad/cuentas/${id}/`, data).then(r => r.data);
 
 // ── Asientos ─────────────────────────────────────────────────────────────────
 
 export const getAsientos = (params: Record<string, string> = {}) =>
-  apiClient.get<AsientoContable[]>('/api/contabilidad/asientos/', { params }).then(r => r.data);
+  apiClient.get<AsientoContable[]>('/contabilidad/asientos/', { params }).then(r => r.data);
 
 export const crearAsiento = (data: {
   numero?: string;
@@ -110,20 +110,20 @@ export const crearAsiento = (data: {
   descripcion: string;
   referencia?: string;
   lineas: Omit<LineaAsiento, 'id' | 'cuenta_codigo' | 'cuenta_nombre'>[];
-}) => apiClient.post<AsientoContable>('/api/contabilidad/asientos/', data).then(r => r.data);
+}) => apiClient.post<AsientoContable>('/contabilidad/asientos/', data).then(r => r.data);
 
 export const bloquearAsiento = (id: number) =>
-  apiClient.post(`/api/contabilidad/asientos/${id}/bloquear/`).then(r => r.data);
+  apiClient.post(`/contabilidad/asientos/${id}/bloquear/`).then(r => r.data);
 
 // ── Informes ─────────────────────────────────────────────────────────────────
 
 export const getBalanceGeneral = (al?: string) =>
-  apiClient.get<BalanceGeneral>('/api/contabilidad/asientos/balance_general/', { params: al ? { al } : {} }).then(r => r.data);
+  apiClient.get<BalanceGeneral>('/contabilidad/asientos/balance_general/', { params: al ? { al } : {} }).then(r => r.data);
 
 export const getEstadoResultados = (anio?: string, mes?: string) =>
-  apiClient.get<EstadoResultados>('/api/contabilidad/asientos/estado_resultados/', { params: { anio, mes } }).then(r => r.data);
+  apiClient.get<EstadoResultados>('/contabilidad/asientos/estado_resultados/', { params: { anio, mes } }).then(r => r.data);
 
 export const getLibroMayor = (cuentaId: number, anio?: string, mes?: string) =>
-  apiClient.get<LibroMayor>('/api/contabilidad/asientos/libro_mayor/', {
+  apiClient.get<LibroMayor>('/contabilidad/asientos/libro_mayor/', {
     params: { cuenta_id: cuentaId, anio, mes },
   }).then(r => r.data);

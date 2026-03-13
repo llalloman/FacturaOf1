@@ -21,8 +21,9 @@ export default function RecuperarPasswordPage() {
     try {
       await authService.recuperarPassword(email.trim().toLowerCase());
       setSent(true);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'No se pudo enviar el correo. Intenta de nuevo.');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e?.response?.data?.error || 'No se pudo enviar el correo. Intenta de nuevo.');
     } finally {
       setLoading(false);
     }
