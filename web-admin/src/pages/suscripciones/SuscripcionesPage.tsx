@@ -443,8 +443,8 @@ export default function SuscripcionesPage() {
               { label: 'Plan', value: suscripcion.plan_detalle.nombre, color: 'text-blue-600' },
               { label: 'Días restantes', value: `${suscripcion.dias_restantes}`, color: suscripcion.dias_restantes <= 7 ? 'text-red-600' : 'text-green-600' },
               { label: 'Estado', value: suscripcion.estado, color: 'text-gray-800' },
-              { label: 'Facturas este mes', value: `${suscripcion.facturas_emitidas_mes_actual}`, color: 'text-blue-600' },
-              { label: 'Límite facturas', value: suscripcion.plan_detalle.facturas_mensuales === 0 ? '∞' : `${suscripcion.plan_detalle.facturas_mensuales}`, color: 'text-gray-800' },
+              { label: 'Facturas del período', value: `${suscripcion.facturas_emitidas_mes_actual}`, color: 'text-blue-600' },
+              { label: 'Límite del período', value: suscripcion.plan_detalle.facturas_mensuales === 0 ? '∞' : `${suscripcion.plan_detalle.facturas_mensuales}`, color: 'text-gray-800' },
               { label: 'Usuarios permitidos', value: suscripcion.plan_detalle.usuarios_permitidos === 0 ? '∞' : `${suscripcion.plan_detalle.usuarios_permitidos}`, color: 'text-gray-800' },
             ].map(({ label, value, color }) => (
               <div key={label} className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">

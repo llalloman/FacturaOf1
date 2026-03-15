@@ -31,8 +31,8 @@ const planBadge: Record<string, { label: string; cls: string }> = {
 
 function docsLabel(plan: PlanSuscripcion): string {
   if (plan.tipo === 'FREE') return `${plan.facturas_mensuales} documentos / año`;
-  if (plan.facturas_mensuales === 0) return 'Facturas ilimitadas';
-  return `${plan.facturas_mensuales} facturas / mes`;
+  if (plan.facturas_mensuales === 0) return 'Docs ilimitados';
+  return `${plan.facturas_mensuales} docs / período`;
 }
 
 function PlanCard({
