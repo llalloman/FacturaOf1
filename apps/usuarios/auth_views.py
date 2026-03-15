@@ -495,17 +495,14 @@ def recuperar_password(request):
         return Response({'detail': 'Si existe una cuenta con ese correo, recibirás las instrucciones en breve.'})
 
     temp_pass = _generate_temp_password()
-    user.password_temporal = temp_pass  # guardamos en texto plano sólo para el envío
-    user.password_temporal_expira = timezone.now() + timedelta(hours=2)
-    user.debe_cambiar_password = True
-    user.set_password(temp_pass)
-    user.save(update_fields=['password', 'password_temporal', 'password_temporal_expira', 'debe_cambiar_password'])
 
+    # Intentar enviar el correo ANTES de persistir el cambio de contraseña.
+    # Si el envío falla, el usuario conserva su contraseña original.
     try:
         send_mail(
             subject='Contraseña temporal - OF1 Solutions',
             message=(
-                f'Hola {user.first_name},\n\n'
+                f'Hola {user.first_name or user.email},\n\n'
                 f'Recibimos una solicitud para restablecer tu contraseña.\n\n'
                 f'Tu contraseña temporal es:\n\n'
                 f'    {temp_pass}\n\n'
@@ -518,15 +515,19 @@ def recuperar_password(request):
             fail_silently=False,
         )
     except Exception as exc:
-        # Si falla el envío de email revertimos los cambios de contraseña
-        user.debe_cambiar_password = False
-        user.password_temporal = ''
-        user.password_temporal_expira = None
-        user.save(update_fields=['password_temporal', 'password_temporal_expira', 'debe_cambiar_password'])
+        import logging
+        logging.getLogger(__name__).error('recuperar_password send_mail failed: %s', exc)
         return Response(
-            {'error': f'No se pudo enviar el correo. Contacta soporte. ({exc})'},
-            status=status.HTTP_502_BAD_GATEWAY,
+            {'error': 'No se pudo enviar el correo. Verifica que tu dirección sea correcta o contacta soporte.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
+
+    # Solo guardamos los cambios si el correo se envió correctamente
+    user.set_password(temp_pass)
+    user.password_temporal = temp_pass
+    user.password_temporal_expira = timezone.now() + timedelta(hours=2)
+    user.debe_cambiar_password = True
+    user.save(update_fields=['password', 'password_temporal', 'password_temporal_expira', 'debe_cambiar_password'])
 
     return Response({'detail': 'Si existe una cuenta con ese correo, recibirás las instrucciones en breve.'})
 
