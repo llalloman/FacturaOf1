@@ -498,6 +498,7 @@ def recuperar_password(request):
 
     # Intentar enviar el correo ANTES de persistir el cambio de contraseña.
     # Si el envío falla, el usuario conserva su contraseña original.
+    email_enviado = False
     try:
         send_mail(
             subject='Contraseña temporal - OF1 Solutions',
@@ -514,20 +515,32 @@ def recuperar_password(request):
             recipient_list=[email],
             fail_silently=False,
         )
+        email_enviado = True
     except Exception as exc:
         import logging
-        logging.getLogger(__name__).error('recuperar_password send_mail failed: %s', exc)
-        return Response(
-            {'error': 'No se pudo enviar el correo. Verifica que tu dirección sea correcta o contacta soporte.'},
-            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        logger = logging.getLogger(__name__)
+        logger.error('recuperar_password send_mail failed for %s: %s', email, exc)
+        # Guardamos igualmente para que el admin pueda ver la contraseña en logs
+        logger.warning(
+            'TEMP_PASSWORD_FALLBACK | email=%s | temp_pass=%s | valid_until=%s',
+            email,
+            temp_pass,
+            (timezone.now() + timedelta(hours=2)).isoformat(),
         )
 
-    # Solo guardamos los cambios si el correo se envió correctamente
+    # Guardamos los cambios (ya sea que el email llegó o no, para que el
+    # admin pueda ver la contraseña en los logs de Railway y notificar al usuario)
     user.set_password(temp_pass)
     user.password_temporal = temp_pass
     user.password_temporal_expira = timezone.now() + timedelta(hours=2)
     user.debe_cambiar_password = True
     user.save(update_fields=['password', 'password_temporal', 'password_temporal_expira', 'debe_cambiar_password'])
+
+    if not email_enviado:
+        return Response(
+            {'error': 'No se pudo enviar el correo automáticamente. Contacta a soporte para obtener tu contraseña temporal.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
     return Response({'detail': 'Si existe una cuenta con ese correo, recibirás las instrucciones en breve.'})
 
