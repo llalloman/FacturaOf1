@@ -324,8 +324,8 @@ def _enviar_factura_email(factura):
     num_doc = comp.numero_comprobante
     num_aut = comp.numero_autorizacion
 
-    zepto_token = getattr(settings, 'ZEPTOMAIL_API_TOKEN', None) or settings.EMAIL_HOST_PASSWORD
-    zepto_from  = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
+    resend_key = getattr(settings, 'RESEND_API_KEY', None)
+    from_email  = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
 
     asunto = f"Factura Electrónica {num_doc} — {empresa.razon_social}"
     cuerpo = (
@@ -343,8 +343,7 @@ def _enviar_factura_email(factura):
     xml_bytes = comp.xml_firmado.encode('utf-8') if comp.xml_firmado else b''
     if xml_bytes:
         attachments.append({
-            "name": f"{num_doc}.xml",
-            "mime_type": "application/xml",
+            "filename": f"{num_doc}.xml",
             "content": base64.b64encode(xml_bytes).decode('utf-8'),
         })
 
@@ -352,35 +351,33 @@ def _enviar_factura_email(factura):
     try:
         pdf_bytes = generar_ride_pdf(factura)
         attachments.append({
-            "name": f"RIDE-{num_doc}.pdf",
-            "mime_type": "application/pdf",
+            "filename": f"RIDE-{num_doc}.pdf",
             "content": base64.b64encode(pdf_bytes).decode('utf-8'),
         })
     except Exception as ride_err:
         logger.warning("No se pudo generar RIDE para email de %s: %s", num_doc, ride_err)
 
     payload = {
-        "from": {"address": zepto_from, "name": empresa.razon_social or "OF1 Solutions"},
-        "to": [{"email_address": {"address": destino, "name": cliente.razon_social or destino}}],
+        "from": f"{empresa.razon_social or 'OF1 Solutions'} <{from_email}>",
+        "to": [destino],
         "subject": asunto,
-        "textbody": cuerpo,
+        "text": cuerpo,
     }
     if attachments:
         payload["attachments"] = attachments
 
     resp = http_requests.post(
-        'https://api.zeptomail.com/v1.1/email',
+        'https://api.resend.com/emails',
         json=payload,
         headers={
-            'Authorization': f'Zoho-enczapikey {zepto_token}',
+            'Authorization': f'Bearer {resend_key}',
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
         },
         timeout=20,
     )
     if resp.status_code not in (200, 201):
-        logger.error("ZeptoMail error enviando factura %s: %s %s", num_doc, resp.status_code, resp.text)
-        raise Exception(f"ZeptoMail {resp.status_code}: {resp.text}")
+        logger.error("Resend error enviando factura %s: %s %s", num_doc, resp.status_code, resp.text)
+        raise Exception(f"Resend {resp.status_code}: {resp.text}")
 
     logger.info("Factura %s enviada por email a %s", num_doc, destino)
 

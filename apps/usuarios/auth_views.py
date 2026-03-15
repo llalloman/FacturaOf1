@@ -502,14 +502,14 @@ def recuperar_password(request):
     logger = logging.getLogger(__name__)
     email_enviado = False
     try:
-        zepto_token = getattr(settings, 'ZEPTOMAIL_API_TOKEN', None) or settings.EMAIL_HOST_PASSWORD
-        zepto_from = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
+        resend_key = getattr(settings, 'RESEND_API_KEY', None)
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
         nombre_usuario = user.first_name or user.email
         payload = {
-            "from": {"address": zepto_from, "name": "OF1 Solutions"},
-            "to": [{"email_address": {"address": email, "name": nombre_usuario}}],
+            "from": f"OF1 Solutions <{from_email}>",
+            "to": [email],
             "subject": "Contraseña temporal - OF1 Solutions",
-            "textbody": (
+            "text": (
                 f"Hola {nombre_usuario},\n\n"
                 f"Recibimos una solicitud para restablecer tu contraseña.\n\n"
                 f"Tu contraseña temporal es:\n\n"
@@ -520,19 +520,18 @@ def recuperar_password(request):
             ),
         }
         resp = http_requests.post(
-            'https://api.zeptomail.com/v1.1/email',
+            'https://api.resend.com/emails',
             json=payload,
             headers={
-                'Authorization': f'Zoho-enczapikey {zepto_token}',
+                'Authorization': f'Bearer {resend_key}',
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
             },
             timeout=15,
         )
         if resp.status_code in (200, 201):
             email_enviado = True
         else:
-            logger.error('recuperar_password ZeptoMail API error for %s: %s %s', email, resp.status_code, resp.text)
+            logger.error('recuperar_password Resend API error for %s: %s %s', email, resp.status_code, resp.text)
     except Exception as exc:
         logger.error('recuperar_password ZeptoMail API failed for %s: %s', email, exc)
 
