@@ -116,6 +116,7 @@ class Empresa(models.Model):
     
     # Logo y marca
     logo = models.ImageField(_('logo'), upload_to='logos/', null=True, blank=True)
+    logo_data = models.BinaryField(null=True, blank=True, editable=False)  # persiste en DB (Railway ephemeral FS)
     mensaje_personalizado = models.TextField(_('mensaje personalizado'), blank=True)
     
     # Estado
@@ -155,6 +156,23 @@ class Empresa(models.Model):
                 pass
         else:
             self.certificado_data = None
+
+        if self.logo:
+            try:
+                f = self.logo
+                if hasattr(f, 'file') and hasattr(f.file, 'read'):
+                    pos = f.file.tell()
+                    f.file.seek(0)
+                    self.logo_data = f.file.read()
+                    f.file.seek(pos)
+                elif f.name and not self.logo_data:
+                    with f.open('rb') as fp:
+                        self.logo_data = fp.read()
+            except Exception:
+                pass
+        else:
+            self.logo_data = None
+
         super().save(*args, **kwargs)
 
     def tiene_suscripcion_activa(self):

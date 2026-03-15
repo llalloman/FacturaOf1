@@ -9,7 +9,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph,
-    Spacer, HRFlowable,
+    Spacer, HRFlowable, Image,
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
@@ -58,7 +58,29 @@ def generar_ride_pdf(factura) -> bytes:
     clave_acc = comp.clave_acceso or ''
     ambiente_txt = 'PRODUCCIÓN' if comp.empresa.ambiente == '2' else 'PRUEBAS'
 
-    left_data = [
+    left_data = []
+
+    # Logo (desde BD primero para que funcione en Railway, luego filesystem)
+    logo_bytes = None
+    if empresa.logo_data:
+        logo_bytes = bytes(empresa.logo_data)
+    elif empresa.logo:
+        try:
+            with empresa.logo.open('rb') as f:
+                logo_bytes = f.read()
+        except Exception:
+            logo_bytes = None
+
+    if logo_bytes:
+        try:
+            logo_io = BytesIO(logo_bytes)
+            logo_img = Image(logo_io, width=55 * mm, height=25 * mm, kind='proportional')
+            logo_img.hAlign = 'CENTER'
+            left_data.append([logo_img])
+        except Exception:
+            pass
+
+    left_data += [
         [Paragraph(f'<b>{nombre_com}</b>', title_st)],
         [Paragraph(razon, centered)],
         [Paragraph(f'Dirección Matriz: {dir_mat}', centered)],
