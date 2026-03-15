@@ -292,10 +292,14 @@ def generar_ride_pdf(factura) -> bytes:
     ]))
     story.append(pago_table)
 
-    # ── PIE: observaciones / firma electrónica ────────────────────────────────
+    # ── PIE: observaciones / mensaje personalizado / firma electrónica ─────────
     if factura.observaciones:
         story.append(Spacer(1, 3 * mm))
         story.append(Paragraph(f'<b>Observaciones:</b> {factura.observaciones}', small))
+
+    if empresa.mensaje_personalizado:
+        story.append(Spacer(1, 3 * mm))
+        story.append(Paragraph(empresa.mensaje_personalizado, small))
 
     story.append(Spacer(1, 4 * mm))
     story.append(HRFlowable(width='100%', thickness=0.5, color=colors.grey))
