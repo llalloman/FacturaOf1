@@ -225,7 +225,7 @@ function ModalPlan({ plan, onClose }: { plan?: PlanSuscripcion; onClose: () => v
     nombre: plan?.nombre ?? '',
     codigo: plan?.codigo ?? '',
     tipo: plan?.tipo ?? 'BASICO',
-    periodo: plan?.periodo ?? 'MENSUAL',
+    periodo: plan?.periodo ?? 'ANUAL',
     precio: plan?.precio?.toString() ?? '0',
     facturas_mensuales: plan?.facturas_mensuales?.toString() ?? '50',
     usuarios_permitidos: plan?.usuarios_permitidos?.toString() ?? '3',
@@ -286,7 +286,7 @@ function ModalPlan({ plan, onClose }: { plan?: PlanSuscripcion; onClose: () => v
               <label className="block text-sm font-medium text-gray-700 mb-1">Período</label>
               <select value={form.periodo} onChange={e => set('periodo', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                {['MENSUAL','TRIMESTRAL','SEMESTRAL','ANUAL'].map(p => <option key={p} value={p}>{p}</option>)}
+                {[{v:'MENSUAL',l:'Mensual'},{v:'TRIMESTRAL',l:'Trimestral'},{v:'SEMESTRAL',l:'Semestral'},{v:'ANUAL',l:'Anual'}].map(p => <option key={p.v} value={p.v}>{p.l}</option>)}
               </select>
             </div>
           </div>

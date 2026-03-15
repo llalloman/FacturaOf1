@@ -366,7 +366,7 @@ export default function SuscripcionesPage() {
   });
 
   const planesArray: PlanSuscripcion[] = Array.isArray(planes) ? planes : [];
-  const [anual, setAnual] = useState(false);
+  const [anual, setAnual] = useState(true);
   const [planAElegir, setPlanAElegir] = useState<PlanSuscripcion | null>(null);
 
   const cambiarPlanMutation = useMutation({
