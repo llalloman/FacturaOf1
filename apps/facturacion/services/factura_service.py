@@ -304,9 +304,11 @@ def _extraer_mensajes_recepcion(response):
 def _enviar_factura_email(factura):
     """
     Envía la factura autorizada al correo del cliente adjuntando el XML firmado y el RIDE PDF.
-    No lanza excepción si el cliente no tiene email — simplemente hace log y retorna.
+    Usa la API HTTP de ZeptoMail (puerto 443) para evitar el bloqueo SMTP de Railway.
+    No lanza excepción si el cliente no tiene email.
     """
-    from django.core.mail import EmailMessage
+    import base64
+    import requests as http_requests
     from django.conf import settings
     from apps.facturacion.services.ride_service import generar_ride_pdf
 
@@ -317,11 +319,13 @@ def _enviar_factura_email(factura):
                     cliente.identificacion, factura.comprobante.numero_comprobante)
         return
 
-    comp       = factura.comprobante
-    empresa    = comp.empresa
-    num_doc    = comp.numero_comprobante
-    num_aut    = comp.numero_autorizacion
-    remitente  = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@localhost')
+    comp    = factura.comprobante
+    empresa = comp.empresa
+    num_doc = comp.numero_comprobante
+    num_aut = comp.numero_autorizacion
+
+    zepto_token = getattr(settings, 'ZEPTOMAIL_API_TOKEN', None) or settings.EMAIL_HOST_PASSWORD
+    zepto_from  = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
 
     asunto = f"Factura Electrónica {num_doc} — {empresa.razon_social}"
     cuerpo = (
@@ -333,25 +337,51 @@ def _enviar_factura_email(factura):
         f"Saludos,\n{empresa.razon_social}"
     )
 
-    email = EmailMessage(
-        subject=asunto,
-        body=cuerpo,
-        from_email=remitente,
-        to=[destino],
-    )
+    attachments = []
+
     # Adjuntar XML firmado
     xml_bytes = comp.xml_firmado.encode('utf-8') if comp.xml_firmado else b''
     if xml_bytes:
-        email.attach(f"{num_doc}.xml", xml_bytes, 'application/xml')
+        attachments.append({
+            "name": f"{num_doc}.xml",
+            "mime_type": "application/xml",
+            "content": base64.b64encode(xml_bytes).decode('utf-8'),
+        })
 
     # Adjuntar RIDE PDF
     try:
         pdf_bytes = generar_ride_pdf(factura)
-        email.attach(f"RIDE-{num_doc}.pdf", pdf_bytes, 'application/pdf')
+        attachments.append({
+            "name": f"RIDE-{num_doc}.pdf",
+            "mime_type": "application/pdf",
+            "content": base64.b64encode(pdf_bytes).decode('utf-8'),
+        })
     except Exception as ride_err:
         logger.warning("No se pudo generar RIDE para email de %s: %s", num_doc, ride_err)
 
-    email.send(fail_silently=False)
+    payload = {
+        "from": {"address": zepto_from, "name": empresa.razon_social or "OF1 Solutions"},
+        "to": [{"email_address": {"address": destino, "name": cliente.razon_social or destino}}],
+        "subject": asunto,
+        "textbody": cuerpo,
+    }
+    if attachments:
+        payload["attachments"] = attachments
+
+    resp = http_requests.post(
+        'https://api.zeptomail.com/v1.1/email',
+        json=payload,
+        headers={
+            'Authorization': f'Zoho-enczapikey {zepto_token}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        timeout=20,
+    )
+    if resp.status_code not in (200, 201):
+        logger.error("ZeptoMail error enviando factura %s: %s %s", num_doc, resp.status_code, resp.text)
+        raise Exception(f"ZeptoMail {resp.status_code}: {resp.text}")
+
     logger.info("Factura %s enviada por email a %s", num_doc, destino)
 
 
