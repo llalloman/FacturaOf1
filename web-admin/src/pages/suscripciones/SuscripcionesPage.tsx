@@ -194,18 +194,21 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
 }
 
 // ─── Card de plan ─────────────────────────────────────────────────────────────
-function PlanCard({ plan, esPlanActual, anual, onElegir }: {
+function PlanCard({ plan, esPlanActual, precioMensualRef, onElegir }: {
   plan: PlanSuscripcion;
   esPlanActual: boolean;
-  anual: boolean;
+  precioMensualRef: number;
   onElegir: (plan: PlanSuscripcion) => void;
 }) {
   const cfg = planConfig[plan.tipo] ?? planConfig.BASICO;
-  const precioMensual = Number(plan.precio);
-  const descPct = Math.round(cfg.descuentoAnual * 100);
-  const precioAnualDescuento = precioMensual * 12 * (1 - cfg.descuentoAnual);
-  const precioPrincipal = anual ? precioAnualDescuento : precioMensual;
-  const periodoStr = anual ? 'año' : periodoLabel[plan.periodo];
+  const precioPrincipal = Number(plan.precio);
+  const periodoStr = periodoLabel[plan.periodo] ?? plan.periodo;
+  // Ahorro real: solo cuando el plan mostrado es ANUAL
+  const isAnualPlan = plan.periodo === 'ANUAL';
+  const precioAnualSinDesc = precioMensualRef * 12;
+  const descPct = isAnualPlan && precioAnualSinDesc > 0
+    ? Math.round((1 - precioPrincipal / precioAnualSinDesc) * 100)
+    : 0;
 
   const features = [
     { label: plan.tipo === 'FREE'
@@ -243,15 +246,14 @@ function PlanCard({ plan, esPlanActual, anual, onElegir }: {
         <div className="mb-6">
           {isFree ? (
             <>
-              {anual && <p className="text-blue-200/50 text-xs line-through mb-1">Siempre gratis</p>}
               <div><span className="text-5xl font-black">Gratis</span></div>
               <p className="text-blue-200/60 text-xs mt-1">{plan.facturas_mensuales} docs / período · 30 días de prueba</p>
             </>
           ) : (
             <>
-              {anual && (
+              {isAnualPlan && descPct > 0 && (
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-blue-300/60 line-through text-sm">${(precioMensual * 12).toFixed(2)}/año</span>
+                  <span className="text-blue-300/60 line-through text-sm">${precioAnualSinDesc.toFixed(2)}/año</span>
                   <span className="bg-amber-400 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full">-{descPct}%</span>
                 </div>
               )}
@@ -259,7 +261,7 @@ function PlanCard({ plan, esPlanActual, anual, onElegir }: {
                 <span className="text-5xl font-black">${precioPrincipal.toFixed(2)}</span>
                 <span className="text-blue-200/70 text-sm ml-1">/ {periodoStr}</span>
               </div>
-              {anual && <p className="text-blue-200/60 text-xs mt-1">≈ ${(precioAnualDescuento / 12).toFixed(2)} / mes</p>}
+              {isAnualPlan && <p className="text-blue-200/60 text-xs mt-1">≈ ${(precioPrincipal / 12).toFixed(2)} / mes</p>}
               <p className="text-blue-200/50 text-xs mt-0.5">Precio + IVA</p>
             </>
           )}
@@ -311,9 +313,9 @@ function PlanCard({ plan, esPlanActual, anual, onElegir }: {
             </>
           ) : (
             <>
-              {anual && (
+              {isAnualPlan && descPct > 0 && (
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-gray-400 line-through text-sm">${(precioMensual * 12).toFixed(2)}/año</span>
+                  <span className="text-gray-400 line-through text-sm">${precioAnualSinDesc.toFixed(2)}/año</span>
                   <span className="bg-amber-400 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full">-{descPct}%</span>
                 </div>
               )}
@@ -321,7 +323,7 @@ function PlanCard({ plan, esPlanActual, anual, onElegir }: {
                 <span className="text-5xl font-black text-gray-900">${precioPrincipal.toFixed(2)}</span>
                 <span className="text-gray-400 text-sm ml-1">/ {periodoStr}</span>
               </div>
-              {anual && <p className="text-gray-400 text-xs mt-1">≈ ${(precioAnualDescuento / 12).toFixed(2)} / mes</p>}
+              {isAnualPlan && <p className="text-gray-400 text-xs mt-1">≈ ${(precioPrincipal / 12).toFixed(2)} / mes</p>}
               <p className="text-gray-400 text-xs mt-0.5">Precio + IVA</p>
             </>
           )}
@@ -367,6 +369,25 @@ export default function SuscripcionesPage() {
 
   const planesArray: PlanSuscripcion[] = Array.isArray(planes) ? planes : [];
   const [anual, setAnual] = useState(true);
+
+  // Agrupar planes por tipo y seleccionar el correcto según el toggle
+  const TIPOS_ORDEN = ['FREE', 'BASICO', 'PROFESIONAL', 'EMPRESARIAL', 'ILIMITADO'] as const;
+  const planesPorTipo = new Map<string, { mensual?: PlanSuscripcion; anual?: PlanSuscripcion }>();
+  planesArray.forEach((p) => {
+    const entry = planesPorTipo.get(p.tipo) ?? {};
+    if (p.periodo === 'MENSUAL') entry.mensual = p;
+    else if (p.periodo === 'ANUAL') entry.anual = p;
+    planesPorTipo.set(p.tipo, entry);
+  });
+  const planesToShow = TIPOS_ORDEN
+    .map((tipo) => {
+      const entry = planesPorTipo.get(tipo);
+      if (!entry) return null;
+      const plan = anual ? (entry.anual ?? entry.mensual) : (entry.mensual ?? entry.anual);
+      if (!plan) return null;
+      return { plan, precioMensualRef: Number(entry.mensual?.precio ?? plan.precio) };
+    })
+    .filter((x): x is { plan: PlanSuscripcion; precioMensualRef: number } => x !== null);
   const [planAElegir, setPlanAElegir] = useState<PlanSuscripcion | null>(null);
 
   const cambiarPlanMutation = useMutation({
@@ -496,19 +517,19 @@ export default function SuscripcionesPage() {
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
           </div>
-        ) : planesArray.length === 0 ? (
+        ) : planesToShow.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <CreditCard size={48} className="mx-auto mb-3 text-gray-300" />
             <p>No hay planes disponibles en este momento</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center max-w-5xl mx-auto py-6">
-            {planesArray.map(plan => (
+            {planesToShow.map(({ plan, precioMensualRef }) => (
               <PlanCard
                 key={plan.id}
                 plan={plan}
+                precioMensualRef={precioMensualRef}
                 esPlanActual={suscripcion?.plan === plan.id}
-                anual={anual}
                 onElegir={setPlanAElegir}
               />
             ))}

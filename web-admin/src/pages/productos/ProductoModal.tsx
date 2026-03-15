@@ -159,6 +159,19 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
                 onChange={(e) => set('precio', toNum(e.target.value))}
                 className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required />
+              {(() => {
+                const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
+                const rate = formData.aplica_iva ? (IVA_PCT[formData.porcentaje_iva] ?? 0) : 0;
+                const conIva = formData.precio * (1 + rate / 100);
+                if (formData.precio <= 0) return null;
+                return (
+                  <p className="mt-1.5 text-xs text-blue-600 font-semibold">
+                    {rate > 0
+                      ? <>Precio con IVA ({rate}%): <span className="text-blue-800">${conIva.toFixed(2)}</span></>
+                      : <span className="text-gray-400">Sin IVA aplicado</span>}
+                  </p>
+                );
+              })()}
             </div>
             <div>
               <label className="block text-sm font-semibold text-blue-900 mb-2">Costo</label>

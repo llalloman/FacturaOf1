@@ -13,6 +13,7 @@ interface FacturaModalProps {
 
 const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
   const queryClient = useQueryClient();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     cliente: factura?.cliente || 0,
     fecha_emision: factura?.fecha_emision || new Date().toISOString().split('T')[0],
@@ -43,6 +44,16 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['facturas'] });
       onClose();
+    },
+    onError: (error: unknown) => {
+      const data = (error as { response?: { data?: Record<string, unknown> } })?.response?.data;
+      const msg =
+        typeof data?.error === 'string' ? data.error :
+        typeof data?.detail === 'string' ? data.detail :
+        typeof data?.non_field_errors === 'string' ? data.non_field_errors :
+        Array.isArray(data?.non_field_errors) ? (data.non_field_errors as string[]).join(' ') :
+        'Error al guardar la factura. Verifica los datos e intenta de nuevo.';
+      setErrorMsg(msg);
     },
   });
 
@@ -90,6 +101,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
     mutation.mutate({
       cliente: formData.cliente,
       fecha_emision_input: formData.fecha_emision,
@@ -267,6 +279,11 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
           </div>
 
           <div className="flex gap-4 justify-end pt-6 border-t">
+            {errorMsg && (
+              <div className="flex-1 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm self-center">
+                {errorMsg}
+              </div>
+            )}
             <button
               type="button"
               onClick={onClose}

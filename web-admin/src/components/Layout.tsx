@@ -111,7 +111,9 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+  );
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const handleLogout = () => {
@@ -144,9 +146,19 @@ export default function Layout() {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Backdrop para móvil */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className={`bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 ${sidebarOpen ? 'w-72' : 'w-20'} flex flex-col`}>
+      <aside className={`fixed md:relative inset-y-0 left-0 z-50 h-full md:h-screen flex-shrink-0 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 flex flex-col ${
+        sidebarOpen ? 'w-72 translate-x-0' : 'w-72 -translate-x-full md:translate-x-0 md:w-20'
+      }`}>
         {/* Logo */}
         <div className="border-b border-gray-700/80">
           {sidebarOpen ? (
@@ -321,9 +333,16 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top Bar */}
         <header className="bg-white border-b border-gray-200 p-4 flex items-center justify-between shadow-sm">
+          {/* Botón hamburguesa para móvil */}
+          <button
+            className="md:hidden p-2 rounded-lg hover:bg-gray-100 mr-2 flex-shrink-0"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu size={22} className="text-gray-600" />
+          </button>
           <div className="flex-1 max-w-2xl">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
