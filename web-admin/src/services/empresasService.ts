@@ -20,7 +20,7 @@ export const empresasService = {
     const fd = new FormData();
     Object.entries(payload).forEach(([key, value]) => {
       if (key === 'certificado_digital' || key === 'logo') {
-        if (value instanceof File) fd.append(key, value);
+        if (value != null && (value as unknown) instanceof File) fd.append(key, value as File);
         return;
       }
       if (value !== undefined && value !== null && value !== '') {
@@ -39,7 +39,7 @@ export const empresasService = {
     Object.entries(payload).forEach(([key, value]) => {
       // Skip file fields that are already-saved URLs (strings) — only append actual File objects
       if (key === 'certificado_digital' || key === 'logo') {
-        if (value instanceof File) fd.append(key, value);
+        if (value != null && (value as unknown) instanceof File) fd.append(key, value as File);
         return;
       }
       if (value !== undefined && value !== null && value !== '') {

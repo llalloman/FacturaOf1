@@ -262,7 +262,7 @@ export default function EmpresasPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { ...form, ...(certFile ? { certificado_digital: certFile } : {}), ...(logoFile ? { logo: logoFile } : {}) };
+    const payload = { ...form, ...(certFile ? { certificado_digital: certFile } : {}), ...(logoFile ? { logo: logoFile } : {}) } as Partial<Empresa> & { certificado_digital?: File; logo?: File };
     if (editing) {
       updateMutation.mutate({ id: editing.id, data: payload });
     } else {
