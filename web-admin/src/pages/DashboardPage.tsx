@@ -274,7 +274,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="mes" stroke="#9ca3af" />
               <YAxis stroke="#9ca3af" />
-              <Tooltip formatter={(v: number | string | undefined) => [`$${Number(v ?? 0).toLocaleString()}`, 'Ventas']} />
+              <Tooltip formatter={((v: number | string) => [`$${Number(v ?? 0).toLocaleString()}`, 'Ventas']) as any} />
               <Legend />
               <Line type="monotone" dataKey="ventas" stroke="#3b82f6" strokeWidth={3} name="Ventas ($)" dot={{ r: 4 }} />
             </LineChart>
@@ -391,7 +391,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="fecha" stroke="#9ca3af" tick={{ fontSize: 11 }} />
                 <YAxis stroke="#9ca3af" tickFormatter={(v: number) => `$${v}`} />
-                <Tooltip formatter={(v: number | string | undefined, name: string | undefined) => [`$${Number(v ?? 0).toFixed(2)}`, name === 'total' ? 'Venta real' : 'Proyectado']} />
+                <Tooltip formatter={((v: number | string, name: string) => [`$${Number(v ?? 0).toFixed(2)}`, name === 'total' ? 'Venta real' : 'Proyectado']) as any} />
                 <Legend formatter={(v: string) => v === 'total' ? 'Venta real' : 'Proyección'} />
                 <ReferenceLine x={new Date().toISOString().slice(5, 10)} stroke="#6366f1" strokeDasharray="4 4" label={{ value: 'Hoy', fill: '#6366f1', fontSize: 11 }} />
                 <Bar dataKey="total" fill="#3b82f6" opacity={0.85} radius={[3,3,0,0]} />
