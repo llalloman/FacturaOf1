@@ -33,7 +33,12 @@ class Secuencial(models.Model):
     establecimiento = models.CharField(_('establecimiento'), max_length=3)
     punto_emision = models.CharField(_('punto de emisión'), max_length=3)
     secuencial_actual = models.IntegerField(_('secuencial actual'), default=0)
-    
+    configurado = models.BooleanField(
+        _('configurado'),
+        default=False,
+        help_text=_('Indica si el secuencial inicial fue configurado manualmente. Una vez True, no se puede reducir el valor.')
+    )
+
     class Meta:
         verbose_name = _('secuencial')
         verbose_name_plural = _('secuenciales')

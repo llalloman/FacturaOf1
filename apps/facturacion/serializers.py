@@ -1,7 +1,7 @@
 from decimal import Decimal
 from django.utils import timezone
 from rest_framework import serializers
-from .models import ComprobanteElectronico, Factura, DetalleFactura, Retencion, ImpuestoRetencion, GuiaRemision, DestinatarioGuia, DetalleGuiaRemision, NotaDebito, DetalleNotaDebito, NotaCredito, DetalleNotaCredito
+from .models import ComprobanteElectronico, Factura, DetalleFactura, Retencion, ImpuestoRetencion, GuiaRemision, DestinatarioGuia, DetalleGuiaRemision, NotaDebito, DetalleNotaDebito, NotaCredito, DetalleNotaCredito, Secuencial
 
 
 class DetalleFacturaSerializer(serializers.ModelSerializer):
@@ -490,3 +490,25 @@ class NotaCreditoSerializer(serializers.ModelSerializer):
     def get_mensajes_sri(self, obj):        return obj.comprobante.mensajes_sri or ''
     def get_numero_factura_origen(self, obj): return obj.factura_origen.comprobante.numero_comprobante
     def get_cliente_nombre(self, obj):      return obj.factura_origen.cliente.razon_social
+
+
+class SecuencialSerializer(serializers.ModelSerializer):
+    tipo_comprobante_display = serializers.CharField(
+        source='get_tipo_comprobante_display', read_only=True
+    )
+
+    class Meta:
+        model = Secuencial
+        fields = [
+            'id', 'empresa', 'tipo_comprobante', 'tipo_comprobante_display',
+            'establecimiento', 'punto_emision', 'secuencial_actual', 'configurado',
+        ]
+        read_only_fields = ['configurado']
+
+    def validate_secuencial_actual(self, value):
+        # On update: never allow reducing the current sequential value
+        if self.instance is not None and value < self.instance.secuencial_actual:
+            raise serializers.ValidationError(
+                'No se puede reducir el secuencial actual.'
+            )
+        return value

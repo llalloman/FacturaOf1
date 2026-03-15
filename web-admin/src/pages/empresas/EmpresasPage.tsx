@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { empresasService } from '../../services/empresasService';
-import type { Empresa } from '../../types';
+import { secuencialesService } from '../../services/secuencialesService';
+import type { Empresa, Secuencial } from '../../types';
 import {
   Building2, Plus, Pencil, Trash2, Search, CheckCircle, XCircle,
-  AlertCircle, X,
+  AlertCircle, X, Hash, ChevronDown, ChevronRight, Lock,
 } from 'lucide-react';
 
 const EMPTY_FORM: Partial<Empresa> = {
@@ -23,6 +24,157 @@ const EMPTY_FORM: Partial<Empresa> = {
   activa: true,
 };
 
+// ─── Panel Secuenciales (SUPER_ADMIN override) ────────────────────────────────
+const TIPO_LABELS: Record<string, string> = {
+  '01': 'Factura',
+  '04': 'Nota de Crédito',
+  '05': 'Nota de Débito',
+  '06': 'Guía de Remisión',
+  '07': 'Comp. Retención',
+};
+
+function SecuencialesPanel({ empresaId, empresaNombre }: { empresaId: number; empresaNombre: string }) {
+  const qc = useQueryClient();
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [patchError, setPatchError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<number | null>(null);
+
+  const { data: secuenciales = [], isLoading } = useQuery({
+    queryKey: ['secuenciales', empresaId],
+    queryFn: () => secuencialesService.getAll(empresaId),
+  });
+
+  const patchMutation = useMutation({
+    mutationFn: ({ id, val }: { id: number; val: number }) =>
+      secuencialesService.patch(id, { secuencial_actual: val }),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ['secuenciales', empresaId] });
+      setEditingId(null);
+      setSaved(id);
+      setPatchError(null);
+      setTimeout(() => setSaved(null), 3000);
+    },
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { detail?: string; secuencial_actual?: string[] } } };
+      setPatchError(
+        err.response?.data?.detail ||
+        err.response?.data?.secuencial_actual?.[0] ||
+        'Error al guardar'
+      );
+    },
+  });
+
+  const handleSave = (id: number) => {
+    const val = parseInt(editValue, 10);
+    if (isNaN(val) || val < 0) { setPatchError('Número inválido'); return; }
+    patchMutation.mutate({ id, val });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Hash size={16} className="text-blue-600" />
+        <span className="font-semibold text-sm text-gray-700">
+          Secuenciales de {empresaNombre}
+        </span>
+        <span className="text-xs text-gray-400">(override SUPER_ADMIN)</span>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+        </div>
+      ) : secuenciales.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">
+          Sin secuenciales aún — se crean al emitir el primer comprobante.
+        </p>
+      ) : (
+        <table className="w-full text-sm bg-white rounded-lg border border-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Tipo</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Estab.</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Pto. Emis.</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Secuencial</th>
+              <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500">Estado</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {secuenciales.map((s: Secuencial) => (
+              <tr key={s.id}>
+                <td className="px-3 py-2 text-gray-700">
+                  {TIPO_LABELS[s.tipo_comprobante] || s.tipo_comprobante}
+                </td>
+                <td className="px-3 py-2 font-mono text-gray-600">{s.establecimiento}</td>
+                <td className="px-3 py-2 font-mono text-gray-600">{s.punto_emision}</td>
+                <td className="px-3 py-2">
+                  {editingId === s.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="w-28 px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        autoFocus
+                      />
+                      {patchError && <span className="text-xs text-red-600">{patchError}</span>}
+                    </div>
+                  ) : (
+                    <span className="font-mono font-semibold text-blue-700">
+                      {String(s.secuencial_actual).padStart(9, '0')}
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-center">
+                  {s.configurado ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+                      <Lock size={10} /> Bloq.
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                      Pendiente
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {editingId === s.id ? (
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => handleSave(s.id)}
+                        disabled={patchMutation.isPending}
+                        className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded font-medium disabled:opacity-50"
+                      >
+                        {patchMutation.isPending ? '...' : 'Guardar'}
+                      </button>
+                      <button
+                        onClick={() => { setEditingId(null); setPatchError(null); }}
+                        className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setEditingId(s.id); setEditValue(String(s.secuencial_actual)); setPatchError(null); }}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                    >
+                      ⚡ Override
+                    </button>
+                  )}
+                  {saved === s.id && <span className="text-xs text-green-600 ml-1">✓</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 export default function EmpresasPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -31,6 +183,7 @@ export default function EmpresasPage() {
   const [form, setForm] = useState<Partial<Empresa>>(EMPTY_FORM);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expandedEmpresa, setExpandedEmpresa] = useState<number | null>(null);
 
   const { data: empresas = [], isLoading } = useQuery({
     queryKey: ['empresas'],
@@ -151,54 +304,74 @@ export default function EmpresasPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.map((emp) => (
-                <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-semibold text-gray-900">{emp.razon_social}</div>
-                    {emp.nombre_comercial && (
-                      <div className="text-xs text-gray-400">{emp.nombre_comercial}</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 font-mono text-gray-700">{emp.ruc}</td>
-                  <td className="px-6 py-4 text-gray-600">{emp.email ?? '—'}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      emp.ambiente === '2'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {emp.ambiente === '2' ? 'Producción' : 'Pruebas'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {emp.activa ? (
-                      <span className="flex items-center gap-1 text-green-600">
-                        <CheckCircle size={14} /> Activa
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-gray-400">
-                        <XCircle size={14} /> Inactiva
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                <>
+                  <tr key={`row-${emp.id}`} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
                       <button
-                        onClick={() => openEdit(emp)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Editar"
+                        onClick={() => setExpandedEmpresa(expandedEmpresa === emp.id ? null : emp.id)}
+                        className="flex items-center gap-2 text-left"
                       >
-                        <Pencil size={15} />
+                        {expandedEmpresa === emp.id
+                          ? <ChevronDown size={16} className="text-blue-600 flex-shrink-0" />
+                          : <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+                        }
+                        <div>
+                          <div className="font-semibold text-gray-900">{emp.razon_social}</div>
+                          {emp.nombre_comercial && (
+                            <div className="text-xs text-gray-400">{emp.nombre_comercial}</div>
+                          )}
+                        </div>
                       </button>
-                      <button
-                        onClick={() => setDeleteConfirm(emp.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                    <td className="px-6 py-4 font-mono text-gray-700">{emp.ruc}</td>
+                    <td className="px-6 py-4 text-gray-600">{emp.email ?? '—'}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        emp.ambiente === '2'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {emp.ambiente === '2' ? 'Producción' : 'Pruebas'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {emp.activa ? (
+                        <span className="flex items-center gap-1 text-green-600">
+                          <CheckCircle size={14} /> Activa
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-gray-400">
+                          <XCircle size={14} /> Inactiva
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEdit(emp)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm(emp.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedEmpresa === emp.id && (
+                    <tr key={`secuenciales-${emp.id}`}>
+                      <td colSpan={6} className="px-6 py-4 bg-blue-50/50 border-t border-blue-100">
+                        <SecuencialesPanel empresaId={emp.id} empresaNombre={emp.razon_social} />
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>

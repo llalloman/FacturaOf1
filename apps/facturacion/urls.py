@@ -6,8 +6,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Factura, DetalleFactura, Retencion, GuiaRemision, NotaDebito, NotaCredito
-from .serializers import FacturaSerializer, DetalleFacturaSerializer, RetencionSerializer, GuiaRemisionSerializer, NotaDebitoSerializer, NotaCreditoSerializer
+from .models import Factura, DetalleFactura, Retencion, GuiaRemision, NotaDebito, NotaCredito, Secuencial
+from .serializers import FacturaSerializer, DetalleFacturaSerializer, RetencionSerializer, GuiaRemisionSerializer, NotaDebitoSerializer, NotaCreditoSerializer, SecuencialSerializer
 
 
 class FacturaFilter(django_filters.FilterSet):
@@ -587,12 +587,71 @@ class NotaCreditoViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+
+class SecuencialViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar secuenciales de comprobantes.
+
+    - SUPER_ADMIN: acceso total (GET/PUT/PATCH/DELETE) a todos los secuenciales.
+    - ADMIN_EMPRESA: GET lista/detalle propios + PATCH para configurar el secuencial
+      inicial (solo si configurado=False). Una vez configurado, no puede modificarlo.
+    """
+    serializer_class = SecuencialSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+
+    def _get_empresa(self):
+        empresa = getattr(self.request, 'tenant', None)
+        if not empresa and self.request.user.is_authenticated:
+            empresa = getattr(self.request.user, 'empresa', None)
+        return empresa
+
+    def _is_super_admin(self):
+        return getattr(self.request.user, 'rol', None) == 'SUPER_ADMIN'
+
+    def get_queryset(self):
+        if self._is_super_admin():
+            empresa_id = self.request.query_params.get('empresa')
+            if empresa_id:
+                return Secuencial.objects.filter(empresa_id=empresa_id)
+            return Secuencial.objects.select_related('empresa').all()
+        empresa = self._get_empresa()
+        if empresa:
+            return Secuencial.objects.filter(empresa=empresa)
+        return Secuencial.objects.none()
+
+    def perform_create(self, serializer):
+        if self._is_super_admin():
+            serializer.save()
+        else:
+            empresa = self._get_empresa()
+            serializer.save(empresa=empresa)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # ADMIN_EMPRESA can only configure if not yet configured
+        if not self._is_super_admin() and instance.configurado:
+            return Response(
+                {'detail': 'El secuencial ya fue configurado. Contacta al SUPER_ADMIN para modificarlo.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        # Mark as configured once saved by ADMIN_EMPRESA
+        save_kwargs = {}
+        if not self._is_super_admin():
+            save_kwargs['configurado'] = True
+        serializer.save(**save_kwargs)
+        return Response(serializer.data)
+
+
 router = DefaultRouter()
 router.register(r'facturas', FacturaViewSet, basename='factura')
 router.register(r'retenciones', RetencionViewSet, basename='retencion')
 router.register(r'guias-remision', GuiaRemisionViewSet, basename='guia-remision')
 router.register(r'notas-debito', NotaDebitoViewSet, basename='nota-debito')
 router.register(r'notas-credito', NotaCreditoViewSet, basename='nota-credito')
+router.register(r'secuenciales', SecuencialViewSet, basename='secuencial')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -312,6 +312,17 @@ export interface NotaCredito {
   detalles?: DetalleNotaCredito[];
 }
 
+export interface Secuencial {
+  id: number;
+  empresa: number;
+  tipo_comprobante: '01' | '04' | '05' | '06' | '07';
+  tipo_comprobante_display: string;
+  establecimiento: string;
+  punto_emision: string;
+  secuencial_actual: number;
+  configurado: boolean;
+}
+
 // ─── Cartera (Cuentas por Cobrar) ─────────────────────────────────────────────
 export interface PagoCliente {
   id: number;

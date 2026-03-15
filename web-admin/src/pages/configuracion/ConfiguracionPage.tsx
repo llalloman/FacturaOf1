@@ -6,7 +6,8 @@ import { empresasService } from '../../services/empresasService';
 import { usuariosService } from '../../services/usuariosService';
 import { cajasService } from '../../services/cajasService';
 import { bodegasService } from '../../services/bodegasService';
-import type { Empresa, Usuario, Caja, Bodega } from '../../types';
+import { secuencialesService } from '../../services/secuencialesService';
+import type { Empresa, Usuario, Caja, Bodega, Secuencial } from '../../types';
 import {
   Building2,
   Users,
@@ -16,9 +17,12 @@ import {
   Trash2,
   CheckCircle,
   XCircle,
+  Hash,
+  Lock,
+  AlertTriangle,
 } from 'lucide-react';
 
-type Tab = 'empresa' | 'usuarios' | 'cajas';
+type Tab = 'empresa' | 'usuarios' | 'cajas' | 'facturacion';
 
 // ─── Tab Empresa ───────────────────────────────────────────────────────────────
 function EmpresaTab() {
@@ -613,11 +617,190 @@ function CajasTab() {
   );
 }
 
+// ─── Tab Facturación ──────────────────────────────────────────────────────────
+const TIPO_LABELS: Record<string, string> = {
+  '01': 'Factura',
+  '04': 'Nota de Crédito',
+  '05': 'Nota de Débito',
+  '06': 'Guía de Remisión',
+  '07': 'Comp. Retención',
+};
+
+function FacturacionTab() {
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.rol === 'SUPER_ADMIN';
+
+  const { data: secuenciales = [], isLoading } = useQuery({
+    queryKey: ['secuenciales-mi-empresa'],
+    queryFn: () => secuencialesService.getAll(),
+  });
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [saved, setSaved] = useState<number | null>(null);
+  const [patchError, setPatchError] = useState<string | null>(null);
+
+  const patchMutation = useMutation({
+    mutationFn: ({ id, val }: { id: number; val: number }) =>
+      secuencialesService.patch(id, { secuencial_actual: val }),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['secuenciales-mi-empresa'] });
+      setEditingId(null);
+      setSaved(id);
+      setPatchError(null);
+      setTimeout(() => setSaved(null), 3000);
+    },
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { detail?: string; secuencial_actual?: string[] } } };
+      const msg = err.response?.data?.detail ||
+        err.response?.data?.secuencial_actual?.[0] ||
+        'Error al guardar';
+      setPatchError(msg);
+    },
+  });
+
+  const handleEdit = (s: Secuencial) => {
+    setEditingId(s.id);
+    setEditValue(String(s.secuencial_actual));
+    setPatchError(null);
+  };
+
+  const handleSave = (id: number) => {
+    const val = parseInt(editValue, 10);
+    if (isNaN(val) || val < 0) {
+      setPatchError('Ingresa un número válido mayor o igual a 0');
+      return;
+    }
+    patchMutation.mutate({ id, val });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-10">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+        <AlertTriangle size={18} className="text-amber-600 mt-0.5 flex-shrink-0" />
+        <div className="text-sm text-amber-800">
+          <strong>Secuencial inicial:</strong> configura aquí el número desde el cual comenzarán
+          los comprobantes. Una vez guardado queda bloqueado para evitar duplicados con el SRI.
+          {!isSuperAdmin && ' Para corregirlo contacta al administrador del sistema.'}
+        </div>
+      </div>
+
+      {secuenciales.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <Hash size={48} className="mx-auto mb-3 text-gray-300" />
+          <p className="font-medium">No hay secuenciales registrados aún</p>
+          <p className="text-sm mt-1">Se crean automáticamente al emitir el primer comprobante</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Tipo</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Estab.</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Pto. Emis.</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Secuencial actual</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Estado</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {secuenciales.map((s: Secuencial) => (
+                <tr key={s.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium text-gray-800">
+                    {s.tipo_comprobante_display || TIPO_LABELS[s.tipo_comprobante] || s.tipo_comprobante}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-gray-600">{s.establecimiento}</td>
+                  <td className="px-4 py-3 font-mono text-gray-600">{s.punto_emision}</td>
+                  <td className="px-4 py-3">
+                    {editingId === s.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={s.secuencial_actual}
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="w-32 px-2 py-1 border border-blue-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          autoFocus
+                        />
+                        {patchError && (
+                          <span className="text-xs text-red-600">{patchError}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="font-mono font-semibold text-blue-700">
+                        {String(s.secuencial_actual).padStart(9, '0')}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {s.configurado ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+                        <Lock size={11} /> Bloqueado
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                        Pendiente
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {editingId === s.id ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleSave(s.id)}
+                          disabled={patchMutation.isPending}
+                          className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50"
+                        >
+                          {patchMutation.isPending ? '...' : 'Guardar'}
+                        </button>
+                        <button
+                          onClick={() => { setEditingId(null); setPatchError(null); }}
+                          className="px-3 py-1 text-xs border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      // Allow editing if: not configured yet OR SUPER_ADMIN
+                      (!s.configurado || isSuperAdmin) && (
+                        <button
+                          onClick={() => handleEdit(s)}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          {s.configurado && isSuperAdmin ? '⚡ Forzar' : 'Configurar'}
+                        </button>
+                      )
+                    )}
+                    {saved === s.id && (
+                      <span className="text-xs text-green-600 ml-2">✓ Guardado</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Configuración Page ────────────────────────────────────────────────────────
 const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'empresa', label: 'Empresa', icon: Building2 },
   { key: 'usuarios', label: 'Usuarios', icon: Users },
   { key: 'cajas', label: 'Cajas', icon: Monitor },
+  { key: 'facturacion', label: 'Facturación', icon: Hash },
 ];
 
 export default function ConfiguracionPage() {
@@ -655,6 +838,7 @@ export default function ConfiguracionPage() {
           {activeTab === 'empresa' && <EmpresaTab />}
           {activeTab === 'usuarios' && <UsuariosTab />}
           {activeTab === 'cajas' && <CajasTab />}
+          {activeTab === 'facturacion' && <FacturacionTab />}
         </div>
       </div>
     </div>
