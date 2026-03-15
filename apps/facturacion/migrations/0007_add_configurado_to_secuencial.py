@@ -3,6 +3,24 @@
 from django.db import migrations, models
 
 
+def add_configurado_safe(apps, schema_editor):
+    """Add configurado column only if it doesn't already exist."""
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'facturacion_secuencial'
+              AND column_name = 'configurado'
+            """
+        )
+        if not cursor.fetchone():
+            cursor.execute(
+                "ALTER TABLE facturacion_secuencial "
+                "ADD COLUMN configurado boolean NOT NULL DEFAULT false"
+            )
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,13 +28,23 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name="secuencial",
-            name="configurado",
-            field=models.BooleanField(
-                default=False,
-                help_text="Indica si el secuencial inicial fue configurado manualmente. Una vez True, no se puede reducir el valor.",
-                verbose_name="configurado",
-            ),
+        # Use RunPython so we can check column existence before adding it.
+        # This prevents DuplicateColumn if the column was already created
+        # by a previous failed/partial deploy.
+        migrations.RunPython(add_configurado_safe, migrations.RunPython.noop),
+        # Keep Django's internal state in sync without touching the DB again.
+        migrations.SeparateDatabaseAndState(
+            database_operations=[],
+            state_operations=[
+                migrations.AddField(
+                    model_name="secuencial",
+                    name="configurado",
+                    field=models.BooleanField(
+                        default=False,
+                        help_text="Indica si el secuencial inicial fue configurado manualmente. Una vez True, no se puede reducir el valor.",
+                        verbose_name="configurado",
+                    ),
+                ),
+            ],
         ),
     ]
