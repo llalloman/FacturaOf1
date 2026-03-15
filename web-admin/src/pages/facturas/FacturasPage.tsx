@@ -215,6 +215,7 @@ const FacturasPage: React.FC = () => {
     switch (estado) {
       case 'AUTORIZADO': return 'text-green-600 bg-green-50';
       case 'BORRADOR': return 'text-yellow-600 bg-yellow-50';
+      case 'FIRMADO': return 'text-purple-600 bg-purple-50';
       case 'ANULADO': return 'text-red-600 bg-red-50';
       case 'ENVIADO': return 'text-blue-600 bg-blue-50';
       case 'RECHAZADO': return 'text-red-700 bg-red-100';
@@ -301,6 +302,7 @@ const FacturasPage: React.FC = () => {
           >
             <option value="">Todos los estados</option>
             <option value="BORRADOR">Borrador</option>
+            <option value="FIRMADO">Firmado</option>
             <option value="ENVIADO">Enviado</option>
             <option value="AUTORIZADO">Autorizado</option>
             <option value="RECHAZADO">Rechazado</option>
@@ -376,7 +378,12 @@ const FacturasPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="p-4 text-center text-xs text-gray-600">
-                      {factura.numero_autorizacion || '-'}
+                      {factura.numero_autorizacion
+                        ? <span title={factura.clave_acceso ?? ''}>{factura.numero_autorizacion}</span>
+                        : factura.clave_acceso
+                          ? <span className="text-gray-400" title={factura.clave_acceso}>{factura.clave_acceso.slice(0, 12)}…</span>
+                          : '-'
+                      }
                     </td>
                     <td className="p-4">
                       <div className="flex gap-2 justify-center">
@@ -440,6 +447,15 @@ const FacturasPage: React.FC = () => {
                               <FiXCircle />
                             </button>
                           </>
+                        )}
+                        {factura.estado === 'FIRMADO' && (
+                          <button
+                            onClick={() => handleEnviarSRI(factura.id)}
+                            className="text-green-600 hover:text-green-800 transition-colors"
+                            title="Enviar al SRI (ya firmado)"
+                          >
+                            <FiSend />
+                          </button>
                         )}
                         {factura.estado === 'ENVIADO' && (
                           <button
