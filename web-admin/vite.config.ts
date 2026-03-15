@@ -49,9 +49,11 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globIgnores: ['**/logo-of1-*.png'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MB
         runtimeCaching: [
           {
-            urlPattern: /^http:\/\/localhost:8000\/api\/.*/,
+            urlPattern: /\/api\/.*/,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',

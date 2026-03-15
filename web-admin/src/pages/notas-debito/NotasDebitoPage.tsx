@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notasDebitoService } from '../../services/notasDebitoService';
 import { clientesService } from '../../services/clientesService';
-import type { NotaDebito, DetalleNotaDebito, Cliente } from '../../types';
+import type { DetalleNotaDebito, Cliente } from '../../types';
 import { FiPlus, FiSearch, FiSend, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 import { FileMinus } from 'lucide-react';
 import { toast } from '../../store/toastStore';

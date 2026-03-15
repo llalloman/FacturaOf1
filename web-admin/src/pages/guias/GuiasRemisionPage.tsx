@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { guiasService } from '../../services/guiasService';
-import type { GuiaRemision, DestinatarioGuia, DetalleGuia } from '../../types';
+import type { DestinatarioGuia, DetalleGuia } from '../../types';
 import { FiPlus, FiSearch, FiSend, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 import { Truck } from 'lucide-react';
 import { toast } from '../../store/toastStore';
