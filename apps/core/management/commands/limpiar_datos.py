@@ -44,9 +44,10 @@ class Command(BaseCommand):
             Cotizacion.objects.all().delete()
             self.stdout.write('  ✓ cotizaciones')
 
-            # Contabilidad
-            from apps.contabilidad.models import CuentaContable
-            CuentaContable.objects.all().delete()
+            # Contabilidad — tiene FK padre→hijo (PROTECT), usar SQL directo
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute('DELETE FROM contabilidad_cuentacontable')
             self.stdout.write('  ✓ contabilidad')
 
             # Celery results
