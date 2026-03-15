@@ -54,6 +54,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -120,6 +121,7 @@ USE_TZ = True
 # Static files
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -142,6 +144,15 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
     'DATETIME_FORMAT': '%Y-%m-%d %H:%M:%S',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '200/hour',
+        'user': '2000/hour',
+        'login': '5/minute',
+    },
 }
 
 # JWT Settings
@@ -156,14 +167,16 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS Settings
+# CORS Settings - lee dominios adicionales de producción desde env
+_cors_extra = config('CORS_ALLOWED_ORIGINS', default='')
+_cors_extra_list = [o.strip() for o in _cors_extra.split(',') if o.strip()]
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
     "http://localhost:8080",
-]
+] + _cors_extra_list
 CORS_ALLOW_CREDENTIALS = True
 
 # Celery Configuration
@@ -208,3 +221,15 @@ SRI_PRODUCCION_AUTORIZACION_URL = config(
 # File Upload Settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+
+# ── Seguridad extra en producción (DEBUG=False) ────────────────────────────────
+if not DEBUG:
+    SECURE_HSTS_SECONDS = 31536000          # 1 año
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

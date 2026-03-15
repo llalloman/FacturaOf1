@@ -3,6 +3,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
@@ -60,8 +61,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['user'] = _user_dict(self.user, emp)
         return data
 
+class LoginRateThrottle(AnonRateThrottle):
+    """Throttle estricto para el endpoint de login: 5 intentos/minuto por IP."""
+    scope = 'login'
+
+
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+    throttle_classes = [LoginRateThrottle]
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
