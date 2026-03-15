@@ -649,12 +649,17 @@ class SRIService:
         from cryptography.hazmat.primitives import serialization as _serial
         from cryptography.hazmat.primitives.asymmetric import padding as _pad
 
-        if not self.empresa.certificado_digital:
+        if not self.empresa.certificado_digital and not self.empresa.certificado_data:
             raise ValueError("La empresa no tiene configurado un certificado digital")
 
-        cert_path = self.empresa.certificado_digital.path
-        with open(cert_path, 'rb') as f:
-            cert_data = f.read()
+        # Preferir contenido en BD (persiste en Railway con filesystem efímero)
+        # Si no está en BD, leer desde el filesystem (primera subida en la misma sesión)
+        if self.empresa.certificado_data:
+            cert_data = bytes(self.empresa.certificado_data)
+        else:
+            cert_path = self.empresa.certificado_digital.path
+            with open(cert_path, 'rb') as f:
+                cert_data = f.read()
         pwd = (self.empresa.password_certificado or '').encode('utf-8')
         private_key, certificate, _ = _pkcs12.load_key_and_certificates(cert_data, pwd)
 

@@ -80,6 +80,13 @@ class Empresa(models.Model):
         blank=True,
         help_text=_('Archivo .p12 o .pfx del certificado de firma electrónica')
     )
+    # Contenido binario del certificado guardado en DB para sobrevivir reinicios del filesystem
+    certificado_data = models.BinaryField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text='Bytes del certificado, persistidos en BD para ambientes con filesystem efímero'
+    )
     password_certificado = models.CharField(
         _('contraseña del certificado'),
         max_length=255,
@@ -128,6 +135,28 @@ class Empresa(models.Model):
     def __str__(self):
         return f"{self.razon_social} ({self.ruc})"
     
+    def save(self, *args, **kwargs):
+        # Al subir un nuevo archivo de certificado, guardamos su contenido en la BD
+        # para que persista aunque el filesystem de Railway se reinicie.
+        if self.certificado_digital:
+            try:
+                f = self.certificado_digital
+                # Si el campo tiene un archivo abierto en memoria (recién subido)
+                if hasattr(f, 'file') and hasattr(f.file, 'read'):
+                    pos = f.file.tell()
+                    f.file.seek(0)
+                    self.certificado_data = f.file.read()
+                    f.file.seek(pos)
+                elif f.name and not self.certificado_data:
+                    # Fallback: leer desde el storage si aún no tenemos los bytes
+                    with f.open('rb') as fp:
+                        self.certificado_data = fp.read()
+            except Exception:
+                pass
+        else:
+            self.certificado_data = None
+        super().save(*args, **kwargs)
+
     def tiene_suscripcion_activa(self):
         """Verifica si la empresa tiene una suscripción activa"""
         from apps.suscripciones.models import Suscripcion
@@ -153,7 +182,7 @@ class Empresa(models.Model):
         if not self.activa:
             return False, "La empresa está inactiva"
         
-        if not self.certificado_digital:
+        if not self.certificado_digital and not self.certificado_data:
             return False, "No se ha configurado el certificado digital"
         
         suscripcion = self.get_suscripcion_activa()
