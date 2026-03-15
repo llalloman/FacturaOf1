@@ -497,30 +497,46 @@ def recuperar_password(request):
     temp_pass = _generate_temp_password()
 
     # Intentar enviar el correo ANTES de persistir el cambio de contraseña.
-    # Si el envío falla, el usuario conserva su contraseña original.
+    # Usamos la API HTTP de ZeptoMail (puerto 443) para evitar bloqueos de SMTP en Railway.
+    import logging
+    logger = logging.getLogger(__name__)
     email_enviado = False
     try:
-        send_mail(
-            subject='Contraseña temporal - OF1 Solutions',
-            message=(
-                f'Hola {user.first_name or user.email},\n\n'
-                f'Recibimos una solicitud para restablecer tu contraseña.\n\n'
-                f'Tu contraseña temporal es:\n\n'
-                f'    {temp_pass}\n\n'
-                f'Esta contraseña es válida por 2 horas. Al iniciar sesión te pediremos que la cambies.\n\n'
-                f'Si no solicitaste este cambio, ignora este mensaje y tu cuenta seguirá segura.\n\n'
-                f'— OF1 Solutions S.A.S.'
+        zepto_token = getattr(settings, 'ZEPTOMAIL_API_TOKEN', None) or settings.EMAIL_HOST_PASSWORD
+        zepto_from = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
+        nombre_usuario = user.first_name or user.email
+        payload = {
+            "from": {"address": zepto_from, "name": "OF1 Solutions"},
+            "to": [{"email_address": {"address": email, "name": nombre_usuario}}],
+            "subject": "Contraseña temporal - OF1 Solutions",
+            "textbody": (
+                f"Hola {nombre_usuario},\n\n"
+                f"Recibimos una solicitud para restablecer tu contraseña.\n\n"
+                f"Tu contraseña temporal es:\n\n"
+                f"    {temp_pass}\n\n"
+                f"Esta contraseña es válida por 2 horas. Al iniciar sesión te pediremos que la cambies.\n\n"
+                f"Si no solicitaste este cambio, ignora este mensaje y tu cuenta seguirá segura.\n\n"
+                f"— OF1 Solutions S.A.S."
             ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=False,
+        }
+        resp = http_requests.post(
+            'https://api.zeptomail.com/v1.1/email',
+            json=payload,
+            headers={
+                'Authorization': f'Zoho-enczapikey {zepto_token}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            timeout=15,
         )
-        email_enviado = True
+        if resp.status_code in (200, 201):
+            email_enviado = True
+        else:
+            logger.error('recuperar_password ZeptoMail API error for %s: %s %s', email, resp.status_code, resp.text)
     except Exception as exc:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error('recuperar_password send_mail failed for %s: %s', email, exc)
-        # Guardamos igualmente para que el admin pueda ver la contraseña en logs
+        logger.error('recuperar_password ZeptoMail API failed for %s: %s', email, exc)
+
+    if not email_enviado:
         logger.warning(
             'TEMP_PASSWORD_FALLBACK | email=%s | temp_pass=%s | valid_until=%s',
             email,
