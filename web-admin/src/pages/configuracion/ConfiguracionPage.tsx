@@ -660,6 +660,13 @@ function FacturacionTab() {
     },
   });
 
+  const inicializarMutation = useMutation({
+    mutationFn: () => secuencialesService.inicializar(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['secuenciales-mi-empresa'] });
+    },
+  });
+
   const handleEdit = (s: Secuencial) => {
     setEditingId(s.id);
     setEditValue(String(s.secuencial_actual));
@@ -697,8 +704,16 @@ function FacturacionTab() {
       {secuenciales.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <Hash size={48} className="mx-auto mb-3 text-gray-300" />
-          <p className="font-medium">No hay secuenciales registrados aún</p>
-          <p className="text-sm mt-1">Se crean automáticamente al emitir el primer comprobante</p>
+          <p className="font-medium text-gray-600">Aún no hay secuenciales configurados</p>
+          <p className="text-sm mt-1 mb-4">Inicializa los secuenciales para poder emitir comprobantes</p>
+          <button
+            onClick={() => inicializarMutation.mutate()}
+            disabled={inicializarMutation.isPending}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors disabled:opacity-50"
+          >
+            <Plus size={16} />
+            {inicializarMutation.isPending ? 'Inicializando...' : 'Inicializar secuenciales'}
+          </button>
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-gray-200">

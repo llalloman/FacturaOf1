@@ -65,6 +65,13 @@ function SecuencialesPanel({ empresaId, empresaNombre }: { empresaId: number; em
     },
   });
 
+  const inicializarMutation = useMutation({
+    mutationFn: () => secuencialesService.inicializar(empresaId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['secuenciales', empresaId] });
+    },
+  });
+
   const handleSave = (id: number) => {
     const val = parseInt(editValue, 10);
     if (isNaN(val) || val < 0) { setPatchError('Número inválido'); return; }
@@ -86,9 +93,18 @@ function SecuencialesPanel({ empresaId, empresaNombre }: { empresaId: number; em
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
         </div>
       ) : secuenciales.length === 0 ? (
-        <p className="text-sm text-gray-400 italic">
-          Sin secuenciales aún — se crean al emitir el primer comprobante.
-        </p>
+        <div className="text-center py-6 text-gray-400">
+          <Hash size={32} className="mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-500 mb-3">Aún no hay secuenciales configurados</p>
+          <button
+            onClick={() => inicializarMutation.mutate()}
+            disabled={inicializarMutation.isPending}
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors disabled:opacity-50"
+          >
+            <Plus size={14} />
+            {inicializarMutation.isPending ? 'Inicializando...' : 'Inicializar secuenciales'}
+          </button>
+        </div>
       ) : (
         <table className="w-full text-sm bg-white rounded-lg border border-gray-200">
           <thead className="bg-gray-50">

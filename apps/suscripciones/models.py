@@ -181,19 +181,20 @@ class Suscripcion(models.Model):
         """Verifica si puede emitir más facturas según el plan"""
         if not self.esta_activa():
             return False, "La suscripción no está activa"
-        
-        # Reset contador si es un nuevo mes
-        hoy = timezone.now().date()
-        if self.ultimo_reset_contador.month != hoy.month or self.ultimo_reset_contador.year != hoy.year:
+
+        # Reset contador al inicio de cada período de suscripción (no mensualmente).
+        # Esto soporta planes mensuales, trimestrales, semestrales y anuales.
+        fecha_inicio_date = self.fecha_inicio.date() if hasattr(self.fecha_inicio, 'date') else self.fecha_inicio
+        if self.ultimo_reset_contador < fecha_inicio_date:
             self.facturas_emitidas_mes_actual = 0
-            self.ultimo_reset_contador = hoy
+            self.ultimo_reset_contador = timezone.now().date()
             self.save(update_fields=['facturas_emitidas_mes_actual', 'ultimo_reset_contador'])
-        
+
         # Verificar límite (0 = ilimitado)
         if self.plan.facturas_mensuales > 0:
             if self.facturas_emitidas_mes_actual >= self.plan.facturas_mensuales:
-                return False, f"Has alcanzado el límite de {self.plan.facturas_mensuales} facturas mensuales"
-        
+                return False, f"Has alcanzado el límite de {self.plan.facturas_mensuales} documentos del período"
+
         return True, "OK"
     
     def incrementar_contador_facturas(self):
@@ -208,6 +209,9 @@ class Suscripcion(models.Model):
         self.fecha_proximo_pago = self.fecha_fin
         self.estado = self.EstadoChoices.ACTIVA
         self.notificado_por_vencer = False
+        # Resetear contador al renovar
+        self.facturas_emitidas_mes_actual = 0
+        self.ultimo_reset_contador = timezone.now().date()
         self.save()
         
         # Crear registro de pago

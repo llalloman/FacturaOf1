@@ -122,10 +122,10 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
           </div>
         </div>
 
-        {/* Facturas del mes */}
+        {/* Facturas del período */}
         <div>
           <div className="flex justify-between text-sm mb-2">
-            <span className="font-medium text-gray-700">Facturas este mes</span>
+            <span className="font-medium text-gray-700">Facturas del período</span>
             <span className="font-semibold text-gray-800">
               {facturasUsadas} / {facturasLimite === 0 ? '∞' : facturasLimite}
             </span>
@@ -210,7 +210,7 @@ function PlanCard({ plan, esPlanActual, anual, onElegir }: {
   const features = [
     { label: plan.tipo === 'FREE'
         ? `${plan.facturas_mensuales} documentos / año`
-        : plan.facturas_mensuales === 0 ? 'Facturas ilimitadas' : `${plan.facturas_mensuales} facturas / mes`, ok: true },
+        : plan.facturas_mensuales === 0 ? 'Facturas ilimitadas' : `${plan.facturas_mensuales} docs / período`, ok: true },
     { label: plan.usuarios_permitidos === 0 ? 'Usuarios ilimitados' : `${plan.usuarios_permitidos} usuarios`, ok: true },
     { label: `${plan.empresas_permitidas} empresa${plan.empresas_permitidas > 1 ? 's' : ''}`, ok: true },
     { label: 'Soporte prioritario', ok: plan.soporte_prioritario },

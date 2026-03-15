@@ -644,6 +644,44 @@ class SecuencialViewSet(viewsets.ModelViewSet):
         serializer.save(**save_kwargs)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['post'])
+    def inicializar(self, request):
+        """
+        Crea los 5 registros de secuenciales por defecto para la empresa
+        (01-Factura, 04-NC, 05-ND, 06-Guía, 07-Retención) si aún no existen.
+        """
+        if self._is_super_admin():
+            empresa_id = request.data.get('empresa')
+            if not empresa_id:
+                return Response({'detail': 'Se requiere el campo empresa.'}, status=status.HTTP_400_BAD_REQUEST)
+            from apps.empresas.models import Empresa
+            try:
+                empresa = Empresa.objects.get(pk=empresa_id)
+            except Empresa.DoesNotExist:
+                return Response({'detail': 'Empresa no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            empresa = self._get_empresa()
+            if not empresa:
+                return Response({'detail': 'Sin empresa asociada.'}, status=status.HTTP_403_FORBIDDEN)
+
+        establecimiento = getattr(empresa, 'establecimiento_codigo', None) or '001'
+        punto_emision = getattr(empresa, 'punto_emision_codigo', None) or '001'
+
+        TIPOS = ['01', '04', '05', '06', '07']
+        objs = []
+        for tipo in TIPOS:
+            obj, _ = Secuencial.objects.get_or_create(
+                empresa=empresa,
+                tipo_comprobante=tipo,
+                establecimiento=establecimiento,
+                punto_emision=punto_emision,
+                defaults={'secuencial_actual': 0, 'configurado': False},
+            )
+            objs.append(obj)
+
+        serializer = self.get_serializer(objs, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 
 router = DefaultRouter()
 router.register(r'facturas', FacturaViewSet, basename='factura')

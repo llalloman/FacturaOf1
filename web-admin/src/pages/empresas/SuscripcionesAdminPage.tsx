@@ -297,10 +297,10 @@ function ModalPlan({ plan, onClose }: { plan?: PlanSuscripcion; onClose: () => v
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Facturas/mes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Facturas por período</label>
               <input type="number" min={0} value={form.facturas_mensuales} onChange={e => set('facturas_mensuales', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-              <p className="text-xs text-gray-400 mt-0.5">0 = ilimitado</p>
+              <p className="text-xs text-gray-400 mt-0.5">0 = ilimitado (total del período)</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Usuarios</label>
@@ -401,7 +401,7 @@ function TabPlanes() {
               </div>
               <div className="grid grid-cols-2 gap-1.5 text-xs">
                 <span className="bg-gray-50 rounded-lg px-2 py-1">
-                  📄 {plan.facturas_mensuales === 0 ? 'Ilimitadas' : `${plan.facturas_mensuales}/mes`}
+                  📄 {plan.facturas_mensuales === 0 ? 'Ilimitadas' : `${plan.facturas_mensuales}/período`}
                 </span>
                 <span className="bg-gray-50 rounded-lg px-2 py-1">
                   👤 {plan.usuarios_permitidos === 0 ? 'Ilimitados' : `${plan.usuarios_permitidos} usuarios`}
@@ -541,7 +541,7 @@ function FilaEmpresa({
           <td colSpan={6} className="px-6 py-3">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               {[
-                { label: 'Facturas emitidas / mes', value: `${sus.facturas_emitidas_mes_actual} / ${sus.plan_detalle.facturas_mensuales === 0 ? '∞' : sus.plan_detalle.facturas_mensuales}` },
+                { label: 'Docs emitidos / período', value: `${sus.facturas_emitidas_mes_actual} / ${sus.plan_detalle.facturas_mensuales === 0 ? '∞' : sus.plan_detalle.facturas_mensuales}` },
                 { label: 'Período', value: sus.plan_detalle.periodo },
                 { label: 'Precio plan', value: `$${Number(sus.plan_detalle.precio).toFixed(2)}` },
                 { label: 'Auto-renovar', value: sus.auto_renovar ? 'Sí' : 'No' },

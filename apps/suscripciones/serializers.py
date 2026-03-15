@@ -36,15 +36,14 @@ class SuscripcionSerializer(serializers.ModelSerializer):
         return obj.dias_restantes()
 
     def get_facturas_emitidas_mes_actual(self, obj):
-        """Cuenta facturas reales del mes actual para esta empresa (excl. ANULADAS)."""
+        """Cuenta facturas reales del período de suscripción actual (excl. ANULADAS)."""
         from django.utils import timezone
         try:
             from apps.facturacion.models import Factura
-            now = timezone.now()
             return Factura.objects.filter(
                 comprobante__empresa=obj.empresa,
-                comprobante__fecha_emision__month=now.month,
-                comprobante__fecha_emision__year=now.year,
+                comprobante__fecha_emision__gte=obj.fecha_inicio,
+                comprobante__fecha_emision__lte=timezone.now(),
             ).exclude(comprobante__estado='ANULADO').count()
         except Exception:
             return obj.facturas_emitidas_mes_actual
