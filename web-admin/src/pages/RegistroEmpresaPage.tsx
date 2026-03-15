@@ -25,7 +25,7 @@ function PlanCard({ plan, selected, onSelect }: { plan: PlanSuscripcion; selecte
   const subClass  = isFeatured ? 'text-blue-100' : 'text-gray-500';
 
   const features = [
-    plan.facturas_mensuales === -1 ? 'Facturas ilimitadas' : `${plan.facturas_mensuales} facturas/mes`,
+    plan.facturas_mensuales === -1 ? 'Docs ilimitados' : `${plan.facturas_mensuales} docs / período`,
     plan.usuarios_permitidos === -1 ? 'Usuarios ilimitados' : `${plan.usuarios_permitidos} usuario${plan.usuarios_permitidos !== 1 ? 's' : ''}`,
     plan.soporte_prioritario && 'Soporte prioritario',
     plan.reportes_avanzados && 'Reportes avanzados',

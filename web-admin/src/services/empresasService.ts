@@ -25,6 +25,11 @@ export const empresasService = {
     // Always use multipart/form-data to support file uploads (certificado, logo)
     const fd = new FormData();
     Object.entries(payload).forEach(([key, value]) => {
+      // Skip file fields that are already-saved URLs (strings) — only append actual File objects
+      if (key === 'certificado_digital' || key === 'logo') {
+        if (value instanceof File) fd.append(key, value);
+        return;
+      }
       if (value !== undefined && value !== null && value !== '') {
         fd.append(key, value as any);
       }
