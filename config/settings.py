@@ -193,8 +193,15 @@ CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
-EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
-EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
+# cast=bool via decouple no es fiable cuando Railway pasa los valores con comillas literales.
+# Usamos comparación explícita de cadena para garantizar el comportamiento correcto.
+_email_use_tls_raw = config('EMAIL_USE_TLS', default='True').strip().strip('"\'')
+_email_use_ssl_raw = config('EMAIL_USE_SSL', default='False').strip().strip('"\'')
+EMAIL_USE_TLS = _email_use_tls_raw.lower() in ('true', '1', 'yes')
+EMAIL_USE_SSL = _email_use_ssl_raw.lower() in ('true', '1', 'yes')
+# Zoho puerto 465 requiere SSL=True, TLS=False. Ambos True es inválido.
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    EMAIL_USE_TLS = False  # SSL tiene prioridad cuando el puerto es 465
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER)
