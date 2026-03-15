@@ -14,6 +14,7 @@ export const posService = {
       aplica_iva: p.aplica_iva as boolean,
       porcentaje_iva: p.porcentaje_iva as string,
       stock_actual: parseFloat((p.stock_actual as string) ?? '0'),
+      imagen: (p.imagen as string) ?? null,
     }));
     return list;
   },

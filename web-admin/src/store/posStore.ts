@@ -9,6 +9,7 @@ export interface ProductoPOS {
   aplica_iva: boolean;
   porcentaje_iva: string;
   stock_actual: number;
+  imagen?: string | null;
 }
 
 export interface ClientePOS {

@@ -14,6 +14,7 @@ export interface Producto {
   stock_actual: number;
   stock_minimo: number;
   activo: boolean;
+  imagen?: string | null;
   fecha_creacion?: string;
   fecha_modificacion?: string;
 }

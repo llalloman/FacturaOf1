@@ -487,8 +487,10 @@ export default function POSPage() {
                   onClick={() => agregarItem(p)}
                   className="bg-white rounded-xl border border-gray-200 p-3 text-left hover:border-blue-400 hover:shadow-md transition-all active:scale-95 group"
                 >
-                  <div className="w-full aspect-square bg-blue-50 rounded-lg mb-2 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                    <Package size={28} className="text-blue-400" />
+                  <div className="w-full aspect-square bg-blue-50 rounded-lg mb-2 flex items-center justify-center group-hover:bg-blue-100 transition-colors overflow-hidden">
+                    {p.imagen
+                      ? <img src={p.imagen} alt={p.nombre} className="w-full h-full object-cover" />
+                      : <Package size={28} className="text-blue-400" />}
                   </div>
                   <p className="text-xs font-semibold text-gray-800 line-clamp-2 leading-tight mb-1">{p.nombre}</p>
                   <p className="text-xs text-gray-400 font-mono">{p.codigo_principal}</p>

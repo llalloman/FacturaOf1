@@ -40,7 +40,7 @@ function MesaModal({ zonas, onClose, onSaved, mesa }: MesaModalProps) {
   const [form, setForm] = useState({
     numero: mesa?.numero ?? '',
     nombre: mesa?.nombre ?? '',
-    capacidad: mesa?.capacidad ?? 4,
+    capacidad: String(mesa?.capacidad ?? 4),
     zona: mesa?.zona ?? ('' as number | ''),
   });
   const [saving, setSaving] = useState(false);
@@ -54,7 +54,7 @@ function MesaModal({ zonas, onClose, onSaved, mesa }: MesaModalProps) {
       const payload = {
         numero: form.numero.trim(),
         nombre: form.nombre.trim(),
-        capacidad: Number(form.capacidad),
+        capacidad: Number(form.capacidad) || 1,
         zona: form.zona !== '' ? Number(form.zona) : null,
       };
       if (mesa) {
@@ -107,7 +107,7 @@ function MesaModal({ zonas, onClose, onSaved, mesa }: MesaModalProps) {
                 type="number" min={1} max={50}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 value={form.capacidad}
-                onChange={e => setForm(p => ({ ...p, capacidad: Number(e.target.value) }))}
+                onChange={e => setForm(p => ({ ...p, capacidad: e.target.value }))}
               />
             </div>
             <div>
@@ -149,7 +149,7 @@ interface NuevoPedidoModalProps {
 function NuevoPedidoModal({ onClose, onCreated, mesa }: NuevoPedidoModalProps) {
   const [form, setForm] = useState({
     tipo: mesa ? 'MESA' : 'MOSTRADOR' as Pedido['tipo'],
-    personas: 1,
+    personas: '',
     observaciones: '',
   });
   const [saving, setSaving] = useState(false);
@@ -161,7 +161,7 @@ function NuevoPedidoModal({ onClose, onCreated, mesa }: NuevoPedidoModalProps) {
     try {
       const payload: Partial<Pedido> = {
         tipo: form.tipo,
-        personas: form.personas,
+        personas: Number(form.personas) || 1,
         observaciones: form.observaciones,
       };
       if (mesa) payload.mesa = mesa.id;
@@ -204,7 +204,7 @@ function NuevoPedidoModal({ onClose, onCreated, mesa }: NuevoPedidoModalProps) {
               type="number" min={1} max={100}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               value={form.personas}
-              onChange={e => setForm(p => ({ ...p, personas: Number(e.target.value) }))}
+              onChange={e => setForm(p => ({ ...p, personas: e.target.value }))}
             />
           </div>
           <div>

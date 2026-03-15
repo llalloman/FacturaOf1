@@ -84,6 +84,9 @@ class Producto(models.Model):
     
     # Estado
     activo = models.BooleanField(_('activo'), default=True)
+
+    # Imagen
+    imagen = models.ImageField(_('imagen'), upload_to='productos/', null=True, blank=True)
     
     # Metadata
     fecha_creacion = models.DateTimeField(_('fecha de creación'), auto_now_add=True)

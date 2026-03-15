@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { productosService } from '../../services/productosService';
+import apiClient from '../../services/apiClient';
 import type { Producto } from '../../types';
-import { X, Save } from 'lucide-react';
+import { X, Save, Upload } from 'lucide-react';
 
 interface Props {
   producto: Producto | null;
@@ -10,25 +10,25 @@ interface Props {
   onSuccess: () => void;
 }
 
-const toNum = (v: string) => (v === '' ? 0 : parseFloat(v) || 0);
-
 const makeEmpty = () => ({
   codigo_principal: '',
   codigo_auxiliar: '',
   tipo: 'BIEN' as 'BIEN' | 'SERVICIO',
   nombre: '',
   descripcion: '',
-  precio: 0,
-  costo: 0,
+  precio: '',
+  costo: '',
   aplica_iva: true,
   porcentaje_iva: '2', // 12%
   maneja_inventario: true,
-  stock_actual: 0,
-  stock_minimo: 0,
+  stock_actual: '',
+  stock_minimo: '',
   activo: true,
 });
 
 export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(producto?.imagen ?? null);
   const [formData, setFormData] = useState(() =>
     producto
       ? {
@@ -37,13 +37,13 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           tipo: (producto.tipo ?? 'BIEN') as 'BIEN' | 'SERVICIO',
           nombre: producto.nombre ?? '',
           descripcion: producto.descripcion ?? '',
-          precio: Number(producto.precio) || 0,
-          costo: Number(producto.costo) || 0,
+          precio: String(Number(producto.precio) || 0),
+          costo: String(Number(producto.costo) || 0),
           aplica_iva: producto.aplica_iva ?? true,
           porcentaje_iva: producto.porcentaje_iva ?? '2',
           maneja_inventario: producto.maneja_inventario ?? true,
-          stock_actual: Number(producto.stock_actual) || 0,
-          stock_minimo: Number(producto.stock_minimo) || 0,
+          stock_actual: String(Number(producto.stock_actual) || 0),
+          stock_minimo: String(Number(producto.stock_minimo) || 0),
           activo: producto.activo ?? true,
         }
       : makeEmpty()
@@ -51,8 +51,17 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: (data: ReturnType<typeof makeEmpty>) =>
-      producto ? productosService.update(producto.id, data) : productosService.create(data),
+    mutationFn: async (payload: FormData | Record<string, unknown>) => {
+      const isForm = payload instanceof FormData;
+      const cfg = isForm ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+      const url = producto
+        ? `/productos/productos/${producto.id}/`
+        : '/productos/productos/';
+      const { data } = producto
+        ? await apiClient.patch(url, payload, cfg)
+        : await apiClient.post(url, payload, cfg);
+      return data;
+    },
     onSuccess,
     onError: (e: unknown) => {
       const err = e as { response?: { data?: Record<string, unknown> } };
@@ -70,7 +79,21 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    mutation.mutate(formData);
+    const parsed = {
+      ...formData,
+      precio: parseFloat(formData.precio) || 0,
+      costo: parseFloat(formData.costo) || 0,
+      stock_actual: parseFloat(formData.stock_actual) || 0,
+      stock_minimo: parseFloat(formData.stock_minimo) || 0,
+    };
+    if (imageFile) {
+      const fd = new FormData();
+      Object.entries(parsed).forEach(([k, v]) => fd.append(k, String(v)));
+      fd.append('imagen', imageFile);
+      mutation.mutate(fd);
+    } else {
+      mutation.mutate(parsed);
+    }
   };
 
   const set = (field: string, value: unknown) =>
@@ -96,6 +119,46 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
               {error}
             </div>
           )}
+
+          {/* Imagen */}
+          <div>
+            <label className="block text-sm font-semibold text-blue-900 mb-2">Imagen del producto</label>
+            <div className="flex items-center gap-4">
+              <div className="w-24 h-24 rounded-xl border-2 border-blue-200 bg-blue-50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                {imagePreview
+                  ? <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+                  : <Upload size={28} className="text-blue-300" />}
+              </div>
+              <div className="flex-1">
+                <label className="cursor-pointer flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-blue-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors text-sm text-blue-600 font-medium">
+                  <Upload size={16} />
+                  {imageFile ? imageFile.name : 'Seleccionar imagen'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) {
+                        setImageFile(f);
+                        setImagePreview(URL.createObjectURL(f));
+                      }
+                    }}
+                  />
+                </label>
+                {imagePreview && (
+                  <button
+                    type="button"
+                    onClick={() => { setImageFile(null); setImagePreview(null); }}
+                    className="mt-1.5 text-xs text-red-500 hover:underline"
+                  >
+                    Quitar imagen
+                  </button>
+                )}
+                <p className="text-xs text-gray-400 mt-1">JPG, PNG o WebP · Máx 2 MB</p>
+              </div>
+            </div>
+          </div>
 
           {/* Tipo */}
           <div>
@@ -156,18 +219,19 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
               <label className="block text-sm font-semibold text-blue-900 mb-2">Precio de Venta *</label>
               <input type="number" step="0.01" min="0"
                 value={formData.precio}
-                onChange={(e) => set('precio', toNum(e.target.value))}
+                onChange={(e) => set('precio', e.target.value)}
                 className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required />
               {(() => {
                 const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
                 const rate = formData.aplica_iva ? (IVA_PCT[formData.porcentaje_iva] ?? 0) : 0;
-                const conIva = formData.precio * (1 + rate / 100);
-                if (formData.precio <= 0) return null;
+                const precioNum = parseFloat(formData.precio) || 0;
+                const conIva = precioNum * (1 + rate / 100);
+                if (precioNum <= 0) return null;
                 return (
                   <p className="mt-1.5 text-xs text-blue-600 font-semibold">
                     {rate > 0
-                      ? <>Precio con IVA ({rate}%): <span className="text-blue-800">${conIva.toFixed(2)}</span></>
+                      ? <>Precio con IVA ({rate}%): <span className="text-blue-800">${conIva.toFixed(4)}</span></>
                       : <span className="text-gray-400">Sin IVA aplicado</span>}
                   </p>
                 );
@@ -177,7 +241,7 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
               <label className="block text-sm font-semibold text-blue-900 mb-2">Costo</label>
               <input type="number" step="0.01" min="0"
                 value={formData.costo}
-                onChange={(e) => set('costo', toNum(e.target.value))}
+                onChange={(e) => set('costo', e.target.value)}
                 className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
           </div>
@@ -226,14 +290,14 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
                     <label className="block text-sm font-semibold text-blue-900 mb-2">Stock Inicial</label>
                     <input type="number" step="0.01" min="0"
                       value={formData.stock_actual}
-                      onChange={(e) => set('stock_actual', toNum(e.target.value))}
+                      onChange={(e) => set('stock_actual', e.target.value)}
                       className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-blue-900 mb-2">Stock Mínimo (alerta)</label>
                     <input type="number" step="0.01" min="0"
                       value={formData.stock_minimo}
-                      onChange={(e) => set('stock_minimo', toNum(e.target.value))}
+                      onChange={(e) => set('stock_minimo', e.target.value)}
                       className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                   </div>
                 </div>

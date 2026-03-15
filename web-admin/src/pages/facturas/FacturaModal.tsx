@@ -17,12 +17,12 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
   const [formData, setFormData] = useState({
     cliente: factura?.cliente || 0,
     fecha_emision: factura?.fecha_emision || new Date().toISOString().split('T')[0],
-    total_descuento: 0,
+    total_descuento: '',
   });
 
   const [detalles, setDetalles] = useState<DetalleFactura[]>([]);
   const [productoSeleccionado, setProductoSeleccionado] = useState(0);
-  const [cantidad, setCantidad] = useState(1);
+  const [cantidad, setCantidad] = useState('');
 
   const { data: clientes } = useQuery({
     queryKey: ['clientes'],
@@ -62,10 +62,11 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
 
   const agregarDetalle = () => {
     const producto = productosArray.find(p => p.id === productoSeleccionado);
-    if (!producto || cantidad <= 0) return;
+    const cantidadNum = parseFloat(cantidad) || 0;
+    if (!producto || cantidadNum <= 0) return;
 
     const precio_unitario = producto.precio;
-    const subtotal = precio_unitario * cantidad;
+    const subtotal = precio_unitario * cantidadNum;
     // porcentaje_iva es el código SRI ('0'=0%, '2'=12%, '4'=15%) – no es el % real
     const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
     const ivaRate = producto.aplica_iva ? (IVA_PCT[producto.porcentaje_iva] ?? 15) : 0;
@@ -75,7 +76,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
     const nuevoDetalle: DetalleFactura = {
       producto: producto.id,
       producto_nombre: producto.nombre,
-      cantidad,
+      cantidad: cantidadNum,
       precio_unitario,
       descuento: 0,
       subtotal,
@@ -85,7 +86,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
 
     setDetalles([...detalles, nuevoDetalle]);
     setProductoSeleccionado(0);
-    setCantidad(1);
+    setCantidad('');
   };
 
   const eliminarDetalle = (index: number) => {
@@ -95,7 +96,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
   const calcularTotales = () => {
     const subtotal = detalles.reduce((sum, d) => sum + d.subtotal, 0);
     const impuestos = detalles.reduce((sum, d) => sum + d.impuestos, 0);
-    const total = subtotal + impuestos - formData.total_descuento;
+    const total = subtotal + impuestos - (parseFloat(formData.total_descuento) || 0);
     return { subtotal, impuestos, total };
   };
 
@@ -105,7 +106,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
     mutation.mutate({
       cliente: formData.cliente,
       fecha_emision_input: formData.fecha_emision,
-      total_descuento: formData.total_descuento,
+      total_descuento: parseFloat(formData.total_descuento) || 0,
       detalles_input: detalles,
     });
   };
@@ -190,7 +191,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
                   <input
                     type="number"
                     value={cantidad}
-                    onChange={(e) => setCantidad(Number(e.target.value))}
+                    onChange={(e) => setCantidad(e.target.value)}
                     min="1"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
@@ -264,7 +265,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
                   <input
                     type="number"
                     value={formData.total_descuento}
-                    onChange={(e) => setFormData({ ...formData, total_descuento: Number(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, total_descuento: e.target.value })}
                     min="0"
                     step="0.01"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

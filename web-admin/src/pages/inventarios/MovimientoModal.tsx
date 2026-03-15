@@ -16,7 +16,7 @@ const MovimientoModal: React.FC<MovimientoModalProps> = ({ onClose }) => {
     bodega: 0,
     producto: 0,
     tipo_movimiento: 'ENTRADA' as 'ENTRADA' | 'SALIDA' | 'AJUSTE' | 'TRANSFERENCIA',
-    cantidad: 1,
+    cantidad: '',
     fecha: new Date().toISOString().split('T')[0],
     observaciones: '',
   });
@@ -47,7 +47,7 @@ const MovimientoModal: React.FC<MovimientoModalProps> = ({ onClose }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutation.mutate(formData);
+    mutation.mutate({ ...formData, cantidad: parseFloat(formData.cantidad) || 0 });
   };
 
   return (
@@ -141,7 +141,7 @@ const MovimientoModal: React.FC<MovimientoModalProps> = ({ onClose }) => {
             <input
               type="number"
               value={formData.cantidad}
-              onChange={(e) => setFormData({ ...formData, cantidad: Number(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, cantidad: e.target.value })}
               min="1"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
