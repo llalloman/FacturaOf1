@@ -197,6 +197,8 @@ export default function EmpresasPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Empresa | null>(null);
   const [form, setForm] = useState<Partial<Empresa>>(EMPTY_FORM);
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedEmpresa, setExpandedEmpresa] = useState<number | null>(null);
@@ -207,7 +209,8 @@ export default function EmpresasPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: empresasService.create,
+    mutationFn: (payload: Partial<Empresa> & { certificado_digital?: File; logo?: File }) =>
+      empresasService.create(payload),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['empresas'] }); closeModal(); },
     onError: (e: unknown) => setError((e as {response?: {data?: unknown}}).response?.data ? JSON.stringify((e as {response?: {data?: unknown}}).response?.data) : 'Error al crear empresa'),
   });
@@ -233,6 +236,8 @@ export default function EmpresasPage() {
   const openCreate = () => {
     setEditing(null);
     setForm(EMPTY_FORM);
+    setCertFile(null);
+    setLogoFile(null);
     setError(null);
     setModalOpen(true);
   };
@@ -240,6 +245,8 @@ export default function EmpresasPage() {
   const openEdit = (emp: Empresa) => {
     setEditing(emp);
     setForm({ ...emp });
+    setCertFile(null);
+    setLogoFile(null);
     setError(null);
     setModalOpen(true);
   };
@@ -248,15 +255,18 @@ export default function EmpresasPage() {
     setModalOpen(false);
     setEditing(null);
     setForm(EMPTY_FORM);
+    setCertFile(null);
+    setLogoFile(null);
     setError(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const payload = { ...form, ...(certFile ? { certificado_digital: certFile } : {}), ...(logoFile ? { logo: logoFile } : {}) };
     if (editing) {
-      updateMutation.mutate({ id: editing.id, data: form });
+      updateMutation.mutate({ id: editing.id, data: payload });
     } else {
-      createMutation.mutate(form);
+      createMutation.mutate(payload);
     }
   };
 
@@ -552,6 +562,56 @@ export default function EmpresasPage() {
                     />
                     Empresa activa
                   </label>
+                </div>
+
+                {/* Certificado digital */}
+                <div className="col-span-2 border-t border-gray-100 pt-4">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">🔐 Firma Digital (Certificado .p12)</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Archivo .p12 / .pfx</label>
+                      <input
+                        type="file"
+                        accept=".p12,.pfx"
+                        onChange={(e) => setCertFile(e.target.files?.[0] ?? null)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      />
+                      {editing?.certificado_digital && !certFile && (
+                        <p className="text-xs text-green-600 mt-1">✓ Cargado: {String(editing.certificado_digital).split('/').pop()}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña del certificado</label>
+                      <input
+                        type="password"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={form.password_certificado ?? ''}
+                        onChange={(e) => setForm({ ...form, password_certificado: e.target.value })}
+                        placeholder="Contraseña del .p12"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Vencimiento certificado</label>
+                      <input
+                        type="date"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={form.fecha_vencimiento_certificado ?? ''}
+                        onChange={(e) => setForm({ ...form, fecha_vencimiento_certificado: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Logo (imagen)</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      />
+                      {editing?.logo && !logoFile && (
+                        <p className="text-xs text-green-600 mt-1">✓ Logo cargado</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 

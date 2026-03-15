@@ -16,8 +16,20 @@ export const empresasService = {
     return response.data;
   },
 
-  create: async (payload: Partial<Empresa>) => {
-    const response = await apiClient.post<Empresa>('/empresas/empresas/', payload);
+  create: async (payload: Partial<Empresa> & { certificado_digital?: File; logo?: File }) => {
+    const fd = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+      if (key === 'certificado_digital' || key === 'logo') {
+        if (value instanceof File) fd.append(key, value);
+        return;
+      }
+      if (value !== undefined && value !== null && value !== '') {
+        fd.append(key, value as any);
+      }
+    });
+    const response = await apiClient.post<Empresa>('/empresas/empresas/', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return response.data;
   },
 
