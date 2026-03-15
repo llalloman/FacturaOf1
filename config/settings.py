@@ -227,7 +227,7 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000          # 1 año
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    SECURE_SSL_REDIRECT = True
+    # SECURE_SSL_REDIRECT lo maneja Railway a nivel de proxy, no Django
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
