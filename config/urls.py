@@ -48,8 +48,9 @@ urlpatterns = [
     path('api/bancos/', include('apps.bancos.urls')),
     path('api/nomina/', include('apps.nomina.urls')),
     
-    # Health check para verificar conexión desde POS
+    # Health check
     path('api/health/', lambda request: JsonResponse({'status': 'ok'})),
+    path('api/auth/ping/', lambda request: JsonResponse({'status': 'ok'})),
 ]
 
 from django.http import JsonResponse
