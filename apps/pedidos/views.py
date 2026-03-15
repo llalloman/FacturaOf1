@@ -30,7 +30,7 @@ class ZonaViewSet(viewsets.ModelViewSet):
     search_fields = ['nombre']
 
     def get_queryset(self):
-        qs = Zona.objects.annotate(mesas_count=Count('mesas'))
+        qs = Zona.objects.annotate(mesas_count=Count('mesas')).order_by('orden', 'nombre')
         empresa = _empresa(self.request.user)
         return qs.filter(empresa=empresa) if empresa else qs
 

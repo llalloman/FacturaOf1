@@ -34,14 +34,14 @@ def actualizar_inventario_venta(sender, instance, created, **kwargs):
                         stock, created_stock = StockProducto.objects.select_for_update().get_or_create(
                             producto=detalle.producto,
                             bodega=bodega,
-                            defaults={'cantidad_actual': 0, 'stock_minimo': 0}
+                            defaults={'cantidad': 0}
                         )
                         
                         # Validar stock suficiente
-                        if stock.cantidad_actual < detalle.cantidad:
+                        if stock.cantidad < detalle.cantidad:
                             logger.warning(
                                 f'Stock insuficiente para venta {instance.numero_venta}: '
-                                f'{detalle.producto.nombre} - Disponible: {stock.cantidad_actual}, '
+                                f'{detalle.producto.nombre} - Disponible: {stock.cantidad}, '
                                 f'Requerido: {detalle.cantidad}'
                             )
                             # Permitir venta en negativo pero registrar
@@ -76,17 +76,17 @@ def actualizar_stock_movimiento(sender, instance, created, **kwargs):
                 stock, created_stock = StockProducto.objects.select_for_update().get_or_create(
                     bodega=instance.bodega,
                     producto=instance.producto,
-                    defaults={'cantidad_actual': 0, 'stock_minimo': 0}
+                    defaults={'cantidad': 0}
                 )
                 
                 # Actualizar cantidad
-                stock.cantidad_actual += instance.cantidad
+                stock.cantidad += instance.cantidad
                 
                 # Advertir si queda negativo
-                if stock.cantidad_actual < 0:
+                if stock.cantidad < 0:
                     logger.warning(
                         f'Stock negativo: {instance.producto.nombre} '
-                        f'en {instance.bodega.nombre} = {stock.cantidad_actual}'
+                        f'en {instance.bodega.nombre} = {stock.cantidad}'
                     )
                 
                 stock.save()
