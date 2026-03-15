@@ -12,20 +12,44 @@ def _is_super_admin(user):
     return user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN'
 
 
-class PlanSuscripcionViewSet(viewsets.ReadOnlyModelViewSet):
-    """Lista pública de planes activos (solo lectura)."""
+class PlanSuscripcionViewSet(viewsets.ModelViewSet):
+    """Planes de suscripción. Lectura pública; escritura solo SUPER_ADMIN."""
     serializer_class = PlanSuscripcionSerializer
-    permission_classes = [AllowAny]
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
-        return PlanSuscripcion.objects.filter(activo=True).order_by('precio')
+        # Escritura ve todos; lectura pública solo los activos
+        if self.action in ('list', 'retrieve') and not (
+            self.request.user.is_authenticated and _is_super_admin(self.request.user)
+        ):
+            return PlanSuscripcion.objects.filter(activo=True).order_by('precio')
+        return PlanSuscripcion.objects.all().order_by('precio')
+
+    def create(self, request, *args, **kwargs):
+        if not _is_super_admin(request.user):
+            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        if not _is_super_admin(request.user):
+            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not _is_super_admin(request.user):
+            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
 
 
-class SuscripcionViewSet(viewsets.ReadOnlyModelViewSet):
+class SuscripcionViewSet(viewsets.ModelViewSet):
     """
     Suscripciones.
     - Usuarios normales: ven solo la de su empresa.
-    - SUPER_ADMIN: ve todas + puede crear trials y gestionar estado.
+    - SUPER_ADMIN: ve todas + CRUD completo + acciones de estado.
     """
     serializer_class = SuscripcionSerializer
     permission_classes = [IsAuthenticated]
@@ -42,6 +66,21 @@ class SuscripcionViewSet(viewsets.ReadOnlyModelViewSet):
         if empresa:
             return qs.filter(empresa=empresa)
         return Suscripcion.objects.none()
+
+    def create(self, request, *args, **kwargs):
+        if not _is_super_admin(request.user):
+            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        if not _is_super_admin(request.user):
+            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not _is_super_admin(request.user):
+            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
 
     # ── Endpoint para todos: suscripción vigente de mi empresa ─────────────────
     @action(detail=False, methods=['get'])
