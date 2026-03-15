@@ -245,7 +245,7 @@ function PlanCard({ plan, esPlanActual, anual, onElegir }: {
             <>
               {anual && <p className="text-blue-200/50 text-xs line-through mb-1">Siempre gratis</p>}
               <div><span className="text-5xl font-black">Gratis</span></div>
-              <p className="text-blue-200/60 text-xs mt-1">50 docs / año · 30 días de prueba</p>
+              <p className="text-blue-200/60 text-xs mt-1">{plan.facturas_mensuales} docs / período · 30 días de prueba</p>
             </>
           ) : (
             <>
@@ -307,7 +307,7 @@ function PlanCard({ plan, esPlanActual, anual, onElegir }: {
           {isFree ? (
             <>
               <div><span className="text-5xl font-black text-emerald-600">Gratis</span></div>
-              <p className="text-gray-400 text-xs mt-1">50 docs / año · 30 días de prueba</p>
+              <p className="text-gray-400 text-xs mt-1">{plan.facturas_mensuales} docs / período · 30 días de prueba</p>
             </>
           ) : (
             <>
