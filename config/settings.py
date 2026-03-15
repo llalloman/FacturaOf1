@@ -205,6 +205,7 @@ if EMAIL_USE_TLS and EMAIL_USE_SSL:
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER)
+EMAIL_TIMEOUT = 10  # segundos — evita que send_mail bloquee workers de gunicorn
 
 # SRI Configuration
 SRI_AMBIENTE = config('SRI_AMBIENTE', default='PRUEBAS')  # PRUEBAS o PRODUCCION
