@@ -506,6 +506,10 @@ class SecuencialSerializer(serializers.ModelSerializer):
         read_only_fields = ['configurado']
 
     def validate_secuencial_actual(self, value):
+        # SUPER_ADMIN can set any value (e.g. to correct a mistake)
+        request = self.context.get('request')
+        if request and getattr(request.user, 'rol', None) == 'SUPER_ADMIN':
+            return value
         # On update: never allow reducing the current sequential value
         if self.instance is not None and value < self.instance.secuencial_actual:
             raise serializers.ValidationError(

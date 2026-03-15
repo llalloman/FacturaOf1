@@ -741,7 +741,7 @@ function FacturacionTab() {
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
-                          min={s.secuencial_actual}
+                          min={isSuperAdmin ? 0 : s.secuencial_actual}
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           className="w-32 px-2 py-1 border border-blue-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
