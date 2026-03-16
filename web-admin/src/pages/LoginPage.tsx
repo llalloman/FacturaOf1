@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/authService';
 import { Lock, User, AlertCircle, Loader2, ShieldCheck, Zap, UserPlus, ArrowLeft } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? null;
   const setAuth = useAuthStore((state) => state.setAuth);
   
   const [email, setEmail] = useState('');
@@ -27,15 +29,25 @@ export default function LoginPage() {
       const response = await authService.login({ email, password });
       const user = response.user;
       setAuth(user, response.access, response.refresh);
+
+      // 1. Cambio de contraseña obligatorio (máxima prioridad)
       if (user.debe_cambiar_password) {
         navigate('/cambiar-password');
-      } else if (user.rol === 'SUPER_ADMIN' || (user.email_verificado && user.onboarding_completado)) {
-        navigate('/');
+      // 2. Email no verificado aún
       } else if (!user.email_verificado) {
         navigate('/verificar-email');
+      // 3. SUPER_ADMIN → siempre al dashboard
+      } else if (user.rol === 'SUPER_ADMIN') {
+        navigate('/');
+      // 4. Volver a la página que intentaba acceder
+      } else if (from && from !== '/login' && from !== '/registro') {
+        navigate(from);
+      // 5. Onboarding completado → al dashboard; ProtectedRoute revisa suscripción
+      } else if (user.onboarding_completado) {
+        navigate('/');
+      // 6. Sin onboarding → bienvenida/planes; App.tsx revisa suscripción
       } else {
-        // email verificado pero onboarding pendiente → ir directamente al wizard
-        navigate('/onboarding');
+        navigate('/bienvenida');
       }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status?: number; data?: { detail?: string } } };

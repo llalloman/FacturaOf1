@@ -36,8 +36,23 @@ import RecuperarPasswordPage from './pages/RecuperarPasswordPage';
 import CambiarPasswordPage from './pages/CambiarPasswordPage';
 import MesasPage from './pages/pedidos/MesasPage';
 import PedidoDetallePage from './pages/pedidos/PedidoDetallePage';
+import LandingPage from './pages/landing/LandingPage';
 import ToastContainer from './components/ToastContainer';
 import ConfirmModal from './components/ConfirmModal';
+import { useSubscriptionStatus } from './hooks/useSubscriptionStatus';
+import { Loader2 } from 'lucide-react';
+
+/** Spinner global usado mientras se verifica el estado de suscripción */
+function AppLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        <p className="text-sm text-slate-500">Cargando…</p>
+      </div>
+    </div>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,12 +66,19 @@ const queryClient = new QueryClient({
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
+  const { tieneAcceso, cargando: cargandoSuscripcion, esSuperAdmin } = useSubscriptionStatus();
 
-  // Determine where an authenticated user should be redirected based on onboarding state
-  const authenticatedHome = () => {
-    if (user?.rol === 'SUPER_ADMIN') return '/';
+  /**
+   * Determina la ruta de destino para un usuario autenticado.
+   * Orden: cuenta → email → password → suscripción → onboarding → app
+   */
+  const authenticatedHome = (): string => {
+    if (esSuperAdmin) return '/';
     if (!user?.email_verificado) return '/verificar-email';
     if (user?.debe_cambiar_password) return '/cambiar-password';
+    // Mientras cargamos la suscripción, mandamos a /bienvenida (página segura)
+    if (cargandoSuscripcion) return '/bienvenida';
+    if (!tieneAcceso) return '/bienvenida';
     if (!user?.onboarding_completado) return '/onboarding';
     return '/';
   };
@@ -97,30 +119,49 @@ function App() {
             }
           />
 
-          {/* Bienvenida — requires verified email; SUPER_ADMIN skips */}
+          {/*
+           * Bienvenida / elige plan
+           * Visible para usuarios sin suscripción activa O sin onboarding completado.
+           * Solo redirige a / cuando el usuario ya tiene suscripción activa Y completó el onboarding.
+           * Esto evita loop: bienvenida → onboarding requiere suscripción → vuelve a bienvenida.
+           */}
           <Route
             path="/bienvenida"
             element={
               !isAuthenticated ? (
-                <Navigate to="/login" />
-              ) : user?.rol === 'SUPER_ADMIN' || !user?.email_verificado ? (
-                <Navigate to={authenticatedHome()} />
+                <Navigate to="/login" state={{ from: '/bienvenida' }} replace />
+              ) : !esSuperAdmin && !user?.email_verificado ? (
+                <Navigate to="/verificar-email" replace />
+              ) : user?.debe_cambiar_password ? (
+                <Navigate to="/cambiar-password" replace />
+              ) : cargandoSuscripcion ? (
+                <AppLoader />
+              ) : tieneAcceso && user?.onboarding_completado ? (
+                // Totalmente configurado → ir al dashboard
+                <Navigate to="/" replace />
               ) : (
+                // Sin suscripción O sin onboarding → mostrar planes
                 <BienvenidaPage />
               )
             }
           />
 
-          {/* Onboarding wizard — requires verified email, onboarding not done; SUPER_ADMIN skips */}
+          {/*
+           * Onboarding — configuración inicial de empresa
+           * No requiere suscripción activa (puede estar en prueba o aun sin plan).
+           * Si ya completó onboarding → redirige al dashboard.
+           */}
           <Route
             path="/onboarding"
             element={
               !isAuthenticated ? (
-                <Navigate to="/login" />
-              ) : user?.rol === 'SUPER_ADMIN' || !user?.email_verificado ? (
-                <Navigate to={authenticatedHome()} />
-              ) : user?.onboarding_completado ? (
-                <Navigate to="/" />
+                <Navigate to="/login" replace />
+              ) : !esSuperAdmin && !user?.email_verificado ? (
+                <Navigate to="/verificar-email" replace />
+              ) : user?.debe_cambiar_password ? (
+                <Navigate to="/cambiar-password" replace />
+              ) : esSuperAdmin || user?.onboarding_completado ? (
+                <Navigate to="/" replace />
               ) : (
                 <OnboardingPage />
               )
@@ -140,9 +181,13 @@ function App() {
           <Route
             path="/"
             element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
+              !isAuthenticated ? (
+                <LandingPage />
+              ) : (
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              )
             }
           >
             <Route index element={<DashboardPage />} />
