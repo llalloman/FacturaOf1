@@ -1,15 +1,209 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { suscripcionesService } from '../../services/suscripcionesService';
 import type { PlanSuscripcion, Suscripcion } from '../../types';
 import {
   CreditCard, CheckCircle, XCircle, Clock, AlertTriangle,
   RefreshCw, Star, Sparkles, ToggleLeft, ToggleRight,
+  Zap, Shield, Building2, Gift, TrendingUp,
 } from 'lucide-react';
 import { toast } from '../../store/toastStore';
 import { confirmDialog } from '../../store/confirmStore';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// =============================================================================
+// PLAN_UI_DATA — Fuente de verdad para contenido comercial y precios visuales.
+// Actualiza este objeto para cambiar precios, textos y beneficios sin tocar
+// la logica de la pagina.
+// =============================================================================
+
+export interface PlanFeature {
+  label: string;
+  included: boolean;
+  highlight?: boolean;
+}
+
+/**
+ * Estructura de datos recomendada para planes SaaS.
+ * Desacoplada del backend para control total del contenido comercial.
+ */
+export interface PlanUIData {
+  /** Texto corto debajo del nombre del plan */
+  tagline: string;
+  /** Descripcion breve del valor del plan */
+  shortDescription: string;
+  /** Precio mensual en USD. null = plan gratuito/trial */
+  precioMensual: number | null;
+  /** Precio anual en USD. null = plan gratuito/trial */
+  precioAnual: number | null;
+  moneda: 'USD';
+  /** Si este plan debe destacarse visualmente */
+  featured: boolean;
+  /** Etiqueta del badge visible (ej: "Mas Popular") */
+  badgeLabel?: string;
+  /** Lista de beneficios del plan */
+  features: PlanFeature[];
+  /** Texto del boton CTA */
+  ctaLabel: string;
+  /** Gradiente CSS para la carta destacada */
+  gradient: string;
+  /** Clases Tailwind para el badge de tipo */
+  badgeClass: string;
+  /** Clases Tailwind para el boton CTA */
+  btnClass: string;
+  /** Documentos/facturas por mes (null = sin limite) */
+  limiteDocumentos: number | null;
+  /** Cantidad de usuarios (null = sin limite) */
+  limiteUsuarios: number | null;
+  /** Cantidad de empresas (0 = sin limite) */
+  limiteEmpresas: number;
+  /** True si es un plan de prueba, no de pago */
+  esTrialGratuito: boolean;
+}
+
+export const PLAN_UI_DATA: Record<string, PlanUIData> = {
+  FREE: {
+    tagline: 'Sin tarjeta de credito',
+    shortDescription: 'Prueba todas las funciones principales por 30 dias, sin compromiso.',
+    precioMensual: null,
+    precioAnual: null,
+    moneda: 'USD',
+    featured: false,
+    features: [
+      { label: 'Prueba gratuita por 30 dias', included: true, highlight: true },
+      { label: 'Facturacion electronica SRI', included: true },
+      { label: 'Hasta 10 documentos de prueba', included: true },
+      { label: '1 usuario incluido', included: true },
+      { label: '1 empresa', included: true },
+      { label: 'Soporte por email', included: true },
+      { label: 'Reportes avanzados', included: false },
+      { label: 'Acceso a la API', included: false },
+    ],
+    ctaLabel: 'Comenzar prueba gratis',
+    gradient: 'from-emerald-500 to-teal-600',
+    badgeClass: 'bg-emerald-100 text-emerald-700',
+    btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+    limiteDocumentos: 10,
+    limiteUsuarios: 1,
+    limiteEmpresas: 1,
+    esTrialGratuito: true,
+  },
+  BASICO: {
+    tagline: 'Ideal para emprendedores y autonomos',
+    shortDescription: 'Factura electronicamente y lleva tu inventario sin complicaciones.',
+    precioMensual: 12.99,
+    precioAnual: 129.99,
+    moneda: 'USD',
+    featured: false,
+    features: [
+      { label: '100 documentos por mes', included: true, highlight: true },
+      { label: 'Facturacion electronica SRI', included: true },
+      { label: 'Inventario basico', included: true },
+      { label: '1 usuario', included: true },
+      { label: '1 empresa', included: true },
+      { label: 'Soporte por email', included: true },
+      { label: 'Reportes avanzados', included: false },
+      { label: 'Acceso a la API', included: false },
+    ],
+    ctaLabel: 'Continuar con Plan Basico',
+    gradient: 'from-slate-500 to-slate-700',
+    badgeClass: 'bg-slate-100 text-slate-700',
+    btnClass: 'bg-slate-800 hover:bg-slate-900 text-white',
+    limiteDocumentos: 100,
+    limiteUsuarios: 1,
+    limiteEmpresas: 1,
+    esTrialGratuito: false,
+  },
+  PROFESIONAL: {
+    tagline: 'El favorito de las PyMEs ecuatorianas',
+    shortDescription: 'Facturacion, POS e inventario avanzado para negocios en crecimiento.',
+    precioMensual: 24.99,
+    precioAnual: 249.99,
+    moneda: 'USD',
+    featured: true,
+    badgeLabel: 'Mas Popular',
+    features: [
+      { label: '500 documentos por mes', included: true, highlight: true },
+      { label: 'Facturacion electronica SRI', included: true },
+      { label: 'Punto de venta (POS)', included: true },
+      { label: 'Inventario avanzado', included: true },
+      { label: '3 usuarios incluidos', included: true },
+      { label: '1 empresa', included: true },
+      { label: 'Reportes avanzados', included: true },
+      { label: 'Soporte prioritario', included: true },
+    ],
+    ctaLabel: 'Continuar con Plan Profesional',
+    gradient: 'from-blue-600 to-indigo-700',
+    badgeClass: 'bg-white/20 text-white',
+    btnClass: 'bg-white hover:bg-blue-50 text-blue-700',
+    limiteDocumentos: 500,
+    limiteUsuarios: 3,
+    limiteEmpresas: 1,
+    esTrialGratuito: false,
+  },
+  EMPRESARIAL: {
+    tagline: 'Para empresas con operaciones exigentes',
+    shortDescription: 'Potencia maxima con API, multi-empresa y soporte dedicado.',
+    precioMensual: 49.99,
+    precioAnual: 499.99,
+    moneda: 'USD',
+    featured: false,
+    features: [
+      { label: 'Documentos ilimitados', included: true, highlight: true },
+      { label: 'Facturacion electronica SRI', included: true },
+      { label: 'Punto de venta (POS)', included: true },
+      { label: 'Inventario avanzado', included: true },
+      { label: 'Usuarios ilimitados', included: true },
+      { label: 'Multi-empresa incluida', included: true },
+      { label: 'Acceso a la API completa', included: true },
+      { label: 'Soporte prioritario 24/7', included: true },
+    ],
+    ctaLabel: 'Contactar a ventas',
+    gradient: 'from-indigo-600 to-violet-700',
+    badgeClass: 'bg-indigo-100 text-indigo-700',
+    btnClass: 'bg-indigo-600 hover:bg-indigo-700 text-white',
+    limiteDocumentos: null,
+    limiteUsuarios: null,
+    limiteEmpresas: 0,
+    esTrialGratuito: false,
+  },
+  ILIMITADO: {
+    tagline: 'Sin restricciones de ningun tipo',
+    shortDescription: 'El plan mas completo de la plataforma, con todas las funciones.',
+    precioMensual: 89.99,
+    precioAnual: 899.99,
+    moneda: 'USD',
+    featured: false,
+    features: [
+      { label: 'Todo ilimitado', included: true, highlight: true },
+      { label: 'Todas las funciones habilitadas', included: true },
+      { label: 'Soporte dedicado', included: true },
+      { label: 'API avanzada + Webhooks', included: true },
+      { label: 'Multi-empresa ilimitada', included: true },
+      { label: 'Personalizacion de la plataforma', included: true },
+      { label: 'SLA garantizado', included: true },
+    ],
+    ctaLabel: 'Contactar a ventas',
+    gradient: 'from-amber-500 to-orange-600',
+    badgeClass: 'bg-amber-100 text-amber-700',
+    btnClass: 'bg-amber-500 hover:bg-amber-600 text-white',
+    limiteDocumentos: null,
+    limiteUsuarios: null,
+    limiteEmpresas: 0,
+    esTrialGratuito: false,
+  },
+};
+
+// Iconos por tipo de plan
+const PLAN_ICONS: Record<string, ReactNode> = {
+  FREE:        <Gift size={14} />,
+  BASICO:      <Zap size={14} />,
+  PROFESIONAL: <Star size={14} />,
+  EMPRESARIAL: <Shield size={14} />,
+  ILIMITADO:   <Building2 size={14} />,
+};
+
+// --- Helpers ------------------------------------------------------------------
 const estadoBadge = (estado: Suscripcion['estado']) => {
   const map: Record<string, string> = {
     ACTIVA:     'bg-green-100 text-green-700',
@@ -31,29 +225,18 @@ const estadoIcono = (estado: Suscripcion['estado']) => {
 };
 
 const periodoLabel: Record<string, string> = {
-  MENSUAL: 'mes', TRIMESTRAL: '3 meses', SEMESTRAL: '6 meses', ANUAL: 'año',
+  MENSUAL: 'mes', TRIMESTRAL: '3 meses', SEMESTRAL: '6 meses', ANUAL: 'ano',
 };
 
 const tipoColor: Record<string, string> = {
-  BASICO:       'from-gray-400 to-gray-600',
-  PROFESIONAL:  'from-blue-500 to-blue-600',
-  EMPRESARIAL:  'from-sky-500 to-sky-600',
-  ILIMITADO:    'from-amber-400 to-orange-500',
+  FREE:        'from-emerald-500 to-teal-600',
+  BASICO:      'from-gray-400 to-gray-600',
+  PROFESIONAL: 'from-blue-500 to-indigo-600',
+  EMPRESARIAL: 'from-indigo-600 to-violet-600',
+  ILIMITADO:   'from-amber-400 to-orange-500',
 };
 
-const planConfig: Record<string, {
-  tagline: string;
-  featured: boolean;
-  badgeClass: string;
-  btnClass: string;
-  descuentoAnual: number;
-}> = {  FREE:        { tagline: 'Para comenzar sin costo',            featured: false, badgeClass: 'bg-emerald-100 text-emerald-700', btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',  descuentoAnual: 0 },  BASICO:      { tagline: 'Ideal para emprendedores',          featured: false, badgeClass: 'bg-slate-100 text-slate-600',   btnClass: 'bg-slate-800 hover:bg-slate-900 text-white',    descuentoAnual: 0.17 },
-  PROFESIONAL: { tagline: 'El favorito de las PyMEs',          featured: true,  badgeClass: 'bg-blue-500/20 text-blue-200',  btnClass: 'bg-white hover:bg-blue-50 text-blue-700',       descuentoAnual: 0.20 },
-  EMPRESARIAL: { tagline: 'Poder ilimitado, sin restricciones', featured: false, badgeClass: 'bg-indigo-100 text-indigo-700', btnClass: 'bg-indigo-600 hover:bg-indigo-700 text-white',  descuentoAnual: 0.25 },
-  ILIMITADO:   { tagline: 'Sin restricciones de ningún tipo',  featured: false, badgeClass: 'bg-amber-100 text-amber-700',   btnClass: 'bg-amber-500 hover:bg-amber-600 text-white',    descuentoAnual: 0.25 },
-};
-
-// ─── Tarjeta de estado actual ─────────────────────────────────────────────────
+// --- Tarjeta de estado actual -------------------------------------------------
 function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
   const queryClient = useQueryClient();
   const { plan_detalle: plan } = suscripcion;
@@ -61,13 +244,13 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
   const renovarMutation = useMutation({
     mutationFn: () => suscripcionesService.renovar(suscripcion.id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suscripcion-activa'] }),
-    onError: () => toast.error('Error al renovar la suscripción'),
+    onError: () => toast.error('Error al renovar la suscripcion'),
   });
 
   const toggleAutoRenovarMutation = useMutation({
     mutationFn: () => suscripcionesService.toggleAutoRenovar(),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suscripcion-activa'] }),
-    onError: () => toast.error('Error al cambiar la configuración'),
+    onError: () => toast.error('Error al cambiar la configuracion'),
   });
 
   const diasTotales = plan.periodo === 'MENSUAL' ? 30
@@ -86,13 +269,12 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
 
   return (
     <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-      {/* Header degradado */}
       <div className={`bg-gradient-to-r ${tipoColor[plan.tipo] ?? 'from-blue-500 to-blue-600'} p-6 text-white`}>
         <div className="flex justify-between items-start">
           <div>
             <p className="text-white/70 text-sm font-medium uppercase tracking-wider">Plan actual</p>
             <h2 className="text-3xl font-bold mt-1">{plan.nombre}</h2>
-            <p className="text-white/80 text-sm mt-1">{plan.periodo} · ${Number(plan.precio).toFixed(2)} / {periodoLabel[plan.periodo]}</p>
+            <p className="text-white/80 text-sm mt-1">{plan.periodo} &middot; ${Number(plan.precio).toFixed(2)} / {periodoLabel[plan.periodo]}</p>
           </div>
           <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/20 ${estadoBadge(suscripcion.estado).replace('bg-', 'border border-').replace('text-', 'text-white ')}`}>
             {estadoIcono(suscripcion.estado)}
@@ -102,12 +284,11 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
       </div>
 
       <div className="p-6 space-y-5">
-        {/* Días restantes */}
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span className="font-medium text-gray-700">Vigencia</span>
             <span className={`font-semibold ${porVencer ? 'text-red-600' : 'text-gray-800'}`}>
-              {suscripcion.dias_restantes} días restantes
+              {suscripcion.dias_restantes} dias restantes
             </span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2.5">
@@ -122,10 +303,9 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
           </div>
         </div>
 
-        {/* Facturas del período */}
         <div>
           <div className="flex justify-between text-sm mb-2">
-            <span className="font-medium text-gray-700">Facturas del período</span>
+            <span className="font-medium text-gray-700">Documentos del periodo</span>
             <span className="font-semibold text-gray-800">
               {facturasUsadas} / {facturasLimite === 0 ? '∞' : facturasLimite}
             </span>
@@ -140,10 +320,9 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
           )}
         </div>
 
-        {/* Info adicional */}
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div className="bg-gray-50 rounded-xl p-3">
-            <p className="text-gray-500 text-xs">Próximo pago</p>
+            <p className="text-gray-500 text-xs">Proximo pago</p>
             <p className="font-semibold text-gray-800 mt-0.5">
               {suscripcion.fecha_proximo_pago
                 ? new Date(suscripcion.fecha_proximo_pago).toLocaleDateString('es-EC')
@@ -167,12 +346,11 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
           </button>
         </div>
 
-        {/* Alerta por vencer */}
         {porVencer && (
           <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
             <AlertTriangle className="text-red-500 shrink-0" size={20} />
             <div>
-              <p className="text-red-700 font-semibold text-sm">Suscripción por vencer</p>
+              <p className="text-red-700 font-semibold text-sm">Suscripcion por vencer</p>
               <p className="text-red-600 text-xs mt-0.5">Renueva ahora para no interrumpir el servicio.</p>
             </div>
           </div>
@@ -180,12 +358,12 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
 
         {(suscripcion.estado === 'VENCIDA' || porVencer) && (
           <button
-            onClick={async () => { if (await confirmDialog('¿Renovar suscripción por otro periodo?')) renovarMutation.mutate(); }}
+            onClick={async () => { if (await confirmDialog('Renovar suscripcion por otro periodo?')) renovarMutation.mutate(); }}
             disabled={renovarMutation.isPending}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
           >
             <RefreshCw size={16} />
-            {renovarMutation.isPending ? 'Renovando...' : 'Renovar Suscripción'}
+            {renovarMutation.isPending ? 'Renovando...' : 'Renovar Suscripcion'}
           </button>
         )}
       </div>
@@ -193,169 +371,306 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
   );
 }
 
-// ─── Card de plan ─────────────────────────────────────────────────────────────
-function PlanCard({ plan, esPlanActual, precioMensualRef, onElegir }: {
-  plan: PlanSuscripcion;
-  esPlanActual: boolean;
-  precioMensualRef: number;
-  onElegir: (plan: PlanSuscripcion) => void;
+// --- Bloque de precio ---------------------------------------------------------
+function PricingBlock({
+  cfg,
+  anual,
+  dark = false,
+}: {
+  cfg: PlanUIData;
+  anual: boolean;
+  dark?: boolean;
 }) {
-  const cfg = planConfig[plan.tipo] ?? planConfig.BASICO;
-  const precioPrincipal = Number(plan.precio);
-  const periodoStr = periodoLabel[plan.periodo] ?? plan.periodo;
-  // Ahorro real: solo cuando el plan mostrado es ANUAL
-  const isAnualPlan = plan.periodo === 'ANUAL';
-  const precioAnualSinDesc = precioMensualRef * 12;
-  const descPct = isAnualPlan && precioAnualSinDesc > 0
-    ? Math.round((1 - precioPrincipal / precioAnualSinDesc) * 100)
-    : 0;
-
-  const features = [
-    { label: plan.tipo === 'FREE'
-        ? `${plan.facturas_mensuales} documentos / año`
-        : plan.facturas_mensuales === 0 ? 'Facturas ilimitadas' : `${plan.facturas_mensuales} docs / período`, ok: true },
-    { label: plan.usuarios_permitidos === 0 ? 'Usuarios ilimitados' : `${plan.usuarios_permitidos} usuarios`, ok: true },
-    { label: `${plan.empresas_permitidas} empresa${plan.empresas_permitidas > 1 ? 's' : ''}`, ok: true },
-    { label: 'Soporte prioritario', ok: plan.soporte_prioritario },
-    { label: 'Acceso API', ok: plan.api_access },
-    { label: 'Reportes avanzados', ok: plan.reportes_avanzados },
-  ];
-
-  const isFree = plan.tipo === 'FREE';
-
-  if (cfg.featured) {
+  if (cfg.esTrialGratuito) {
     return (
-      <div className="relative bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl shadow-2xl p-8 text-white flex flex-col md:scale-[1.05] md:-my-4 z-10">
-        {/* Badge Más Popular */}
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-          <span className="inline-flex items-center gap-1.5 bg-amber-400 text-amber-900 text-xs font-black px-4 py-1.5 rounded-full shadow-lg">
-            <Star size={11} fill="currentColor" /> Más Popular
-          </span>
+      <div className={`rounded-2xl p-5 border mb-6 ${dark ? 'bg-white/10 border-white/20' : 'bg-emerald-50 border-emerald-100'}`}>
+        <div className="flex items-baseline gap-2 mb-1.5">
+          <span className={`text-4xl font-black ${dark ? 'text-white' : 'text-emerald-600'}`}>30 dias</span>
+          <span className={`font-bold text-lg ${dark ? 'text-emerald-300' : 'text-emerald-500'}`}>gratis</span>
         </div>
-
-        {esPlanActual && (
-          <div className="absolute -top-4 right-4">
-            <span className="inline-flex items-center gap-1 bg-green-400 text-green-900 text-xs font-black px-3 py-1.5 rounded-full shadow-md">✓ Actual</span>
-          </div>
-        )}
-
-        <span className={`self-start text-xs font-black uppercase tracking-widest px-2.5 py-1 rounded-lg mb-3 ${cfg.badgeClass}`}>{plan.tipo}</span>
-        <h3 className="text-2xl font-black mb-1">{plan.nombre}</h3>
-        <p className="text-blue-200/70 text-sm mb-4">{cfg.tagline}</p>
-
-        <div className="mb-6">
-          {isFree ? (
-            <>
-              <div><span className="text-5xl font-black">Gratis</span></div>
-              <p className="text-blue-200/60 text-xs mt-1">{plan.facturas_mensuales} docs / período · 30 días de prueba</p>
-            </>
-          ) : (
-            <>
-              {isAnualPlan && descPct > 0 && (
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-blue-300/60 line-through text-sm">${precioAnualSinDesc.toFixed(2)}/año</span>
-                  <span className="bg-amber-400 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full">-{descPct}%</span>
-                </div>
-              )}
-              <div>
-                <span className="text-5xl font-black">${precioPrincipal.toFixed(2)}</span>
-                <span className="text-blue-200/70 text-sm ml-1">/ {periodoStr}</span>
-              </div>
-              {isAnualPlan && <p className="text-blue-200/60 text-xs mt-1">≈ ${(precioPrincipal / 12).toFixed(2)} / mes</p>}
-              <p className="text-blue-200/50 text-xs mt-0.5">Precio + IVA</p>
-            </>
-          )}
-        </div>
-
-        <ul className="space-y-3.5 flex-1 mb-8">
-          {features.map(({ label, ok }) => (
-            <li key={label} className={`flex items-center gap-3 text-sm ${ok ? 'text-white' : 'text-blue-300/40'}`}>
-              {ok
-                ? <CheckCircle size={16} className="text-green-300 shrink-0" />
-                : <XCircle size={16} className="text-blue-300/30 shrink-0" />}
-              <span className={ok ? '' : 'line-through'}>{label}</span>
-            </li>
-          ))}
-        </ul>
-
-        {esPlanActual
-          ? <div className="w-full text-center py-3.5 rounded-2xl bg-white/20 border border-white/30 font-bold text-sm">✓ Tu plan actual</div>
-          : <button
-              onClick={() => onElegir(plan)}
-              className="w-full py-3.5 rounded-2xl bg-white hover:bg-blue-50 text-blue-700 font-black text-sm transition-all shadow-lg hover:shadow-xl active:scale-[.98]">
-              Elegir {plan.nombre}
-            </button>
-        }
+        <p className={`text-sm font-semibold ${dark ? 'text-white/80' : 'text-emerald-700'}`}>Sin tarjeta de credito</p>
+        <p className={`text-xs mt-1 ${dark ? 'text-white/50' : 'text-gray-500'}`}>Acceso completo durante el periodo de prueba</p>
       </div>
     );
   }
 
+  const precio = anual ? cfg.precioAnual! : cfg.precioMensual!;
+  const precioMensualEquivalente = anual ? cfg.precioAnual! / 12 : cfg.precioMensual!;
+  const precioAnualSinDesc = cfg.precioMensual! * 12;
+  const descPct = cfg.precioAnual != null
+    ? Math.round((1 - cfg.precioAnual / precioAnualSinDesc) * 100)
+    : 0;
+  const ahorro = cfg.precioAnual != null ? precioAnualSinDesc - cfg.precioAnual : 0;
+
   return (
-    <div className={`relative bg-white rounded-3xl border-2 shadow-sm hover:shadow-xl transition-all flex flex-col ${
-      esPlanActual ? 'border-blue-400' : 'border-gray-100 hover:border-gray-200'
-    }`}>
-      {esPlanActual && (
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-          <span className="inline-flex items-center gap-1.5 bg-blue-600 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-md">✓ Plan Actual</span>
+    <div className="mb-6">
+      {anual && descPct > 0 && (
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className={`line-through text-sm ${dark ? 'text-white/40' : 'text-gray-400'}`}>
+            ${precioAnualSinDesc.toFixed(2)}/ano
+          </span>
+          <span className="bg-amber-400 text-amber-900 text-xs font-black px-2.5 py-0.5 rounded-full">
+            -{descPct}%
+          </span>
         </div>
       )}
 
-      <div className="p-8 flex flex-col flex-1">
-        <span className={`self-start text-xs font-black uppercase tracking-widest px-2.5 py-1 rounded-lg mb-3 ${cfg.badgeClass}`}>{plan.tipo}</span>
-        <h3 className="text-2xl font-black text-gray-900 mb-1">{plan.nombre}</h3>
-        <p className="text-gray-500 text-sm mb-4">{cfg.tagline}</p>
+      <div className="flex items-end gap-1.5">
+        <span className={`text-5xl font-black leading-none ${dark ? 'text-white' : 'text-gray-900'}`}>
+          ${precio.toFixed(2)}
+        </span>
+        <span className={`text-sm pb-1 ${dark ? 'text-white/60' : 'text-gray-400'}`}>
+          / {anual ? 'ano' : 'mes'}
+        </span>
+      </div>
 
-        <div className="mb-6">
-          {isFree ? (
-            <>
-              <div><span className="text-5xl font-black text-emerald-600">Gratis</span></div>
-              <p className="text-gray-400 text-xs mt-1">{plan.facturas_mensuales} docs / período · 30 días de prueba</p>
-            </>
-          ) : (
-            <>
-              {isAnualPlan && descPct > 0 && (
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-gray-400 line-through text-sm">${precioAnualSinDesc.toFixed(2)}/año</span>
-                  <span className="bg-amber-400 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full">-{descPct}%</span>
-                </div>
-              )}
-              <div>
-                <span className="text-5xl font-black text-gray-900">${precioPrincipal.toFixed(2)}</span>
-                <span className="text-gray-400 text-sm ml-1">/ {periodoStr}</span>
-              </div>
-              {isAnualPlan && <p className="text-gray-400 text-xs mt-1">≈ ${(precioPrincipal / 12).toFixed(2)} / mes</p>}
-              <p className="text-gray-400 text-xs mt-0.5">Precio + IVA</p>
-            </>
-          )}
+      {anual && (
+        <p className={`text-xs mt-1.5 ${dark ? 'text-white/50' : 'text-gray-400'}`}>
+          ≈ ${precioMensualEquivalente.toFixed(2)} / mes &middot; Precio + IVA
+        </p>
+      )}
+      {!anual && (
+        <p className={`text-xs mt-0.5 ${dark ? 'text-white/40' : 'text-gray-400'}`}>Precio + IVA</p>
+      )}
+
+      {anual && descPct > 0 && (
+        <div className={`flex items-center gap-1.5 mt-3 px-3 py-2 rounded-xl text-xs font-semibold ${
+          dark
+            ? 'bg-white/10 border border-white/20 text-white/80'
+            : 'bg-green-50 border border-green-100 text-green-700'
+        }`}>
+          <TrendingUp size={12} className="shrink-0" />
+          Ahorra ${ahorro.toFixed(2)} al ano &mdash; como 2 meses gratis
         </div>
+      )}
+    </div>
+  );
+}
 
-        <ul className="space-y-3.5 flex-1 mb-8">
-          {features.map(({ label, ok }) => (
-            <li key={label} className={`flex items-center gap-3 text-sm ${ok ? 'text-gray-700' : 'text-gray-300'}`}>
-              {ok
-                ? <CheckCircle size={16} className="text-green-500 shrink-0" />
-                : <XCircle size={16} className="text-gray-300 shrink-0" />}
-              <span className={ok ? '' : 'line-through'}>{label}</span>
-            </li>
-          ))}
-        </ul>
+// --- Lista de beneficios ------------------------------------------------------
+function FeatureList({ features, dark = false }: { features: PlanFeature[]; dark?: boolean }) {
+  return (
+    <ul className="space-y-3 flex-1 mb-8">
+      {features.map(({ label, included, highlight }) => (
+        <li
+          key={label}
+          className={`flex items-center gap-3 text-sm ${
+            included
+              ? highlight
+                ? dark ? 'text-white font-semibold' : 'text-blue-700 font-semibold'
+                : dark ? 'text-white/90' : 'text-gray-700'
+              : dark ? 'text-white/25' : 'text-gray-300'
+          }`}
+        >
+          {included ? (
+            <CheckCircle
+              size={15}
+              className={`shrink-0 ${highlight ? (dark ? 'text-amber-300' : 'text-blue-500') : dark ? 'text-green-300' : 'text-green-500'}`}
+            />
+          ) : (
+            <XCircle size={15} className={`shrink-0 ${dark ? 'text-white/15' : 'text-gray-200'}`} />
+          )}
+          <span className={included ? '' : 'line-through'}>{label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-        {esPlanActual
-          ? <div className="w-full text-center py-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 font-bold text-sm">✓ Tu plan actual</div>
-          : <button
+// --- Card de plan -------------------------------------------------------------
+function PlanCard({
+  plan,
+  esPlanActual,
+  anual,
+  onElegir,
+}: {
+  plan: PlanSuscripcion;
+  esPlanActual: boolean;
+  anual: boolean;
+  onElegir: (plan: PlanSuscripcion) => void;
+}) {
+  const cfg = PLAN_UI_DATA[plan.tipo] ?? PLAN_UI_DATA.BASICO;
+
+  // Plan FREE / Trial
+  if (cfg.esTrialGratuito) {
+    return (
+      <div
+        className={`relative bg-white rounded-3xl border-2 shadow-sm hover:shadow-lg transition-all flex flex-col ${
+          esPlanActual ? 'border-emerald-400' : 'border-gray-100 hover:border-emerald-200'
+        }`}
+      >
+        {esPlanActual && (
+          <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
+            <span className="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-md">
+              ✓ Plan Actual
+            </span>
+          </div>
+        )}
+        <div className="p-7 flex flex-col flex-1">
+          <span className={`self-start flex items-center gap-1.5 text-xs font-black uppercase tracking-widest px-2.5 py-1 rounded-lg mb-3 ${cfg.badgeClass}`}>
+            {PLAN_ICONS[plan.tipo]} {plan.tipo}
+          </span>
+          <h3 className="text-2xl font-black text-gray-900 mb-1">{plan.nombre}</h3>
+          <p className="text-gray-500 text-sm mb-5">{cfg.tagline}</p>
+          <PricingBlock cfg={cfg} anual={anual} />
+          <FeatureList features={cfg.features} />
+          {esPlanActual ? (
+            <div className="w-full text-center py-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 font-bold text-sm">
+              ✓ Tu plan actual
+            </div>
+          ) : (
+            <button
               onClick={() => onElegir(plan)}
-              className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all active:scale-[.98] ${cfg.btnClass}`}>
-              Elegir {plan.nombre}
+              className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all active:scale-[.98] shadow-sm hover:shadow-md ${cfg.btnClass}`}
+            >
+              {cfg.ctaLabel}
             </button>
-        }
+          )}
+          <p className="text-center text-xs text-gray-400 mt-3">Sin compromisos &middot; Cancela en cualquier momento</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Plan destacado (PROFESIONAL)
+  if (cfg.featured) {
+    return (
+      <div
+        className={`relative bg-gradient-to-br ${cfg.gradient} rounded-3xl shadow-2xl p-7 text-white flex flex-col md:scale-[1.05] md:-my-4 z-10`}
+      >
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
+          <span className="inline-flex items-center gap-1.5 bg-amber-400 text-amber-900 text-xs font-black px-4 py-1.5 rounded-full shadow-lg">
+            <Star size={11} fill="currentColor" /> {cfg.badgeLabel ?? 'Mas Popular'}
+          </span>
+        </div>
+        {esPlanActual && (
+          <div className="absolute -top-4 right-4">
+            <span className="inline-flex items-center gap-1 bg-green-400 text-green-900 text-xs font-black px-3 py-1.5 rounded-full shadow-md">
+              ✓ Actual
+            </span>
+          </div>
+        )}
+        <span className={`self-start flex items-center gap-1.5 text-xs font-black uppercase tracking-widest px-2.5 py-1 rounded-lg mb-3 ${cfg.badgeClass}`}>
+          {PLAN_ICONS[plan.tipo]} {plan.tipo}
+        </span>
+        <h3 className="text-2xl font-black mb-1">{plan.nombre}</h3>
+        <p className="text-white/70 text-sm mb-5">{cfg.tagline}</p>
+        <PricingBlock cfg={cfg} anual={anual} dark />
+        <FeatureList features={cfg.features} dark />
+        {esPlanActual ? (
+          <div className="w-full text-center py-3.5 rounded-2xl bg-white/20 border border-white/30 font-bold text-sm">
+            ✓ Tu plan actual
+          </div>
+        ) : (
+          <button
+            onClick={() => onElegir(plan)}
+            className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all shadow-lg hover:shadow-xl active:scale-[.98] ${cfg.btnClass}`}
+          >
+            {cfg.ctaLabel}
+          </button>
+        )}
+        <p className="text-center text-xs text-white/40 mt-3">Sin contratos &middot; Cancela cuando quieras</p>
+      </div>
+    );
+  }
+
+  // Card estandar (BASICO, EMPRESARIAL, ILIMITADO)
+  const isEnterprise = plan.tipo === 'EMPRESARIAL' || plan.tipo === 'ILIMITADO';
+
+  return (
+    <div
+      className={`relative bg-white rounded-3xl border-2 shadow-sm hover:shadow-xl transition-all flex flex-col ${
+        esPlanActual ? 'border-blue-400' : 'border-gray-100 hover:border-gray-200'
+      }`}
+    >
+      {esPlanActual && (
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
+          <span className="inline-flex items-center gap-1.5 bg-blue-600 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-md">
+            ✓ Plan Actual
+          </span>
+        </div>
+      )}
+      <div className="p-7 flex flex-col flex-1">
+        <span className={`self-start flex items-center gap-1.5 text-xs font-black uppercase tracking-widest px-2.5 py-1 rounded-lg mb-3 ${cfg.badgeClass}`}>
+          {PLAN_ICONS[plan.tipo]} {plan.tipo}
+        </span>
+        <h3 className="text-2xl font-black text-gray-900 mb-1">{plan.nombre}</h3>
+        <p className="text-gray-500 text-sm mb-5">{cfg.tagline}</p>
+        <PricingBlock cfg={cfg} anual={anual} />
+        <FeatureList features={cfg.features} />
+        {esPlanActual ? (
+          <div className="w-full text-center py-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 font-bold text-sm">
+            ✓ Tu plan actual
+          </div>
+        ) : (
+          <button
+            onClick={() => onElegir(plan)}
+            className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all active:scale-[.98] shadow-sm hover:shadow-md ${cfg.btnClass}`}
+          >
+            {cfg.ctaLabel}
+          </button>
+        )}
+        {isEnterprise && !esPlanActual && (
+          <p className="text-center text-xs text-gray-400 mt-3">
+            Necesitas algo a medida?{' '}
+            <span className="text-blue-500 underline cursor-pointer">Contactanos</span>
+          </p>
+        )}
+        {!isEnterprise && (
+          <p className="text-center text-xs text-gray-400 mt-3">Sin contratos &middot; Cancela cuando quieras</p>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────────
+// --- Toggle mensual / anual --------------------------------------------------
+function BillingToggle({ anual, onChange }: { anual: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="flex items-center gap-4">
+        <span
+          onClick={() => onChange(false)}
+          className={`text-sm font-semibold cursor-pointer transition-colors ${!anual ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+        >
+          Mensual
+        </span>
+        <button
+          onClick={() => onChange(!anual)}
+          className={`relative w-14 h-7 rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${anual ? 'bg-blue-600' : 'bg-gray-300'}`}
+          aria-label="Cambiar periodo de facturacion"
+        >
+          <span
+            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${anual ? 'translate-x-7' : 'translate-x-0'}`}
+          />
+        </button>
+        <span
+          onClick={() => onChange(true)}
+          className={`text-sm font-semibold cursor-pointer transition-colors flex items-center gap-2 ${anual ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+        >
+          Anual
+          <span
+            className={`text-xs font-black px-2.5 py-1 rounded-full transition-all duration-300 ${
+              anual ? 'bg-green-500 text-white' : 'bg-amber-400 text-amber-900'
+            }`}
+          >
+            {anual ? '✓ Ahorro activo' : 'Ahorra hasta 17%'}
+          </span>
+        </span>
+      </div>
+      {anual && (
+        <p className="text-xs text-green-600 font-semibold">
+          Pagando anual es como recibir 2 meses gratis
+        </p>
+      )}
+    </div>
+  );
+}
+
+// --- Pagina principal ---------------------------------------------------------
 export default function SuscripcionesPage() {
   const queryClient = useQueryClient();
+
   const { data: suscripcion, isLoading: loadingSus, error: errorSus } = useQuery({
     queryKey: ['suscripcion-activa'],
     queryFn: suscripcionesService.getSuscripcionActiva,
@@ -370,8 +685,8 @@ export default function SuscripcionesPage() {
   const planesArray: PlanSuscripcion[] = Array.isArray(planes) ? planes : [];
   const [anual, setAnual] = useState(true);
 
-  // Agrupar planes por tipo y seleccionar el correcto según el toggle
   const TIPOS_ORDEN = ['FREE', 'BASICO', 'PROFESIONAL', 'EMPRESARIAL', 'ILIMITADO'] as const;
+
   const planesPorTipo = new Map<string, { mensual?: PlanSuscripcion; anual?: PlanSuscripcion }>();
   planesArray.forEach((p) => {
     const entry = planesPorTipo.get(p.tipo) ?? {};
@@ -379,15 +694,19 @@ export default function SuscripcionesPage() {
     else if (p.periodo === 'ANUAL') entry.anual = p;
     planesPorTipo.set(p.tipo, entry);
   });
+
   const planesToShow = TIPOS_ORDEN
     .map((tipo) => {
       const entry = planesPorTipo.get(tipo);
       if (!entry) return null;
-      const plan = anual ? (entry.anual ?? entry.mensual) : (entry.mensual ?? entry.anual);
+      const plan = tipo === 'FREE'
+        ? (entry.mensual ?? entry.anual)
+        : anual ? (entry.anual ?? entry.mensual) : (entry.mensual ?? entry.anual);
       if (!plan) return null;
-      return { plan, precioMensualRef: Number(entry.mensual?.precio ?? plan.precio) };
+      return plan;
     })
-    .filter((x): x is { plan: PlanSuscripcion; precioMensualRef: number } => x !== null);
+    .filter((p): p is PlanSuscripcion => p !== null);
+
   const [planAElegir, setPlanAElegir] = useState<PlanSuscripcion | null>(null);
 
   const cambiarPlanMutation = useMutation({
@@ -395,23 +714,45 @@ export default function SuscripcionesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suscripcion-activa'] });
       setPlanAElegir(null);
+      toast.success('Plan actualizado correctamente');
     },
     onError: () => toast.error('Error al cambiar el plan. Intenta nuevamente.'),
   });
 
+  const planAElegirUI = planAElegir ? PLAN_UI_DATA[planAElegir.tipo] : null;
+  const precioConfirmacion = planAElegir
+    ? (anual
+        ? (planAElegirUI?.precioAnual ?? Number(planAElegir.precio))
+        : (planAElegirUI?.precioMensual ?? Number(planAElegir.precio)))
+    : 0;
+
   return (
     <div className="p-6 space-y-8">
-      {/* Confirmation modal — cambiar plan */}
-      {planAElegir && (
+
+      {/* Modal confirmacion cambio de plan */}
+      {planAElegir && planAElegirUI && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-xl font-black text-gray-900 mb-2">¿Cambiar al plan {planAElegir.nombre}?</h3>
+            <h3 className="text-xl font-black text-gray-900 mb-2">
+              Cambiar al {planAElegir.nombre}?
+            </h3>
             <p className="text-gray-500 text-sm mb-1">
-              Tu suscripción actual se cancelará y comenzarás inmediatamente el nuevo plan.
+              Tu suscripcion actual se cancelara y comenzaras inmediatamente el nuevo plan.
             </p>
-            <p className="text-blue-700 font-bold text-sm mb-6">
-              ${Number(planAElegir.precio).toFixed(2)} / {periodoLabel[planAElegir.periodo] ?? planAElegir.periodo} + IVA
-            </p>
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 my-4">
+              <p className="text-blue-900 font-black text-lg">
+                ${precioConfirmacion.toFixed(2)}
+                <span className="text-blue-600 font-semibold text-sm ml-1.5">
+                  / {anual ? 'ano' : 'mes'} + IVA
+                </span>
+              </p>
+              {anual && planAElegirUI.precioMensual && (
+                <p className="text-blue-600 text-xs mt-1">
+                  ≈ ${(precioConfirmacion / 12).toFixed(2)} / mes equivalente
+                </p>
+              )}
+              <p className="text-blue-500 text-xs mt-1">{planAElegirUI.tagline}</p>
+            </div>
             <div className="flex gap-3">
               <button
                 onClick={() => setPlanAElegir(null)}
@@ -421,7 +762,10 @@ export default function SuscripcionesPage() {
                 Cancelar
               </button>
               <button
-                onClick={() => cambiarPlanMutation.mutate(planAElegir.id)}
+                onClick={async () => {
+                  if (await confirmDialog(`Confirmar cambio al ${planAElegir.nombre}?`))
+                    cambiarPlanMutation.mutate(planAElegir.id);
+                }}
                 disabled={cambiarPlanMutation.isPending}
                 className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black transition-colors disabled:opacity-50"
               >
@@ -431,15 +775,16 @@ export default function SuscripcionesPage() {
           </div>
         </div>
       )}
+
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent">
-          Suscripción
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          Suscripcion
         </h1>
         <p className="text-gray-600 mt-1">Gestiona tu plan y visualiza el uso de tu cuenta</p>
       </div>
 
-      {/* Estado actual */}
+      {/* Estado actual + KPIs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
           {loadingSus ? (
@@ -449,23 +794,22 @@ export default function SuscripcionesPage() {
           ) : errorSus || !suscripcion ? (
             <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
               <CreditCard size={40} className="mx-auto text-gray-300 mb-3" />
-              <p className="font-semibold text-gray-700">Sin suscripción activa</p>
-              <p className="text-sm text-gray-500 mt-1">Contacta al administrador para activar un plan.</p>
+              <p className="font-semibold text-gray-700">Sin suscripcion activa</p>
+              <p className="text-sm text-gray-500 mt-1">Elige un plan a continuacion para comenzar.</p>
             </div>
           ) : (
             <TarjetaEstado suscripcion={suscripcion} />
           )}
         </div>
 
-        {/* KPIs rápidos del plan */}
         {suscripcion && (
           <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-4 content-start">
             {[
               { label: 'Plan', value: suscripcion.plan_detalle.nombre, color: 'text-blue-600' },
-              { label: 'Días restantes', value: `${suscripcion.dias_restantes}`, color: suscripcion.dias_restantes <= 7 ? 'text-red-600' : 'text-green-600' },
+              { label: 'Dias restantes', value: `${suscripcion.dias_restantes}`, color: suscripcion.dias_restantes <= 7 ? 'text-red-600' : 'text-green-600' },
               { label: 'Estado', value: suscripcion.estado, color: 'text-gray-800' },
-              { label: 'Facturas del período', value: `${suscripcion.facturas_emitidas_mes_actual}`, color: 'text-blue-600' },
-              { label: 'Límite del período', value: suscripcion.plan_detalle.facturas_mensuales === 0 ? '∞' : `${suscripcion.plan_detalle.facturas_mensuales}`, color: 'text-gray-800' },
+              { label: 'Docs. del periodo', value: `${suscripcion.facturas_emitidas_mes_actual}`, color: 'text-blue-600' },
+              { label: 'Limite del periodo', value: suscripcion.plan_detalle.facturas_mensuales === 0 ? '∞' : `${suscripcion.plan_detalle.facturas_mensuales}`, color: 'text-gray-800' },
               { label: 'Usuarios permitidos', value: suscripcion.plan_detalle.usuarios_permitidos === 0 ? '∞' : `${suscripcion.plan_detalle.usuarios_permitidos}`, color: 'text-gray-800' },
             ].map(({ label, value, color }) => (
               <div key={label} className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
@@ -479,38 +823,24 @@ export default function SuscripcionesPage() {
 
       {/* Planes disponibles */}
       <section className="bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 rounded-3xl p-8 border border-gray-100">
-        {/* Hero header */}
-        <div className="text-center mb-8">
+
+        <div className="text-center mb-10">
           <span className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 text-xs font-black px-4 py-2 rounded-full mb-5">
             <Sparkles size={12} /> Planes y precios
           </span>
           <h2 className="text-4xl font-black text-gray-900 mb-3 leading-tight">
             Elige el plan ideal<br />
-            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">para tu negocio</span>
+            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              para tu negocio
+            </span>
           </h2>
-          <p className="text-gray-500 text-sm max-w-sm mx-auto">
-            Facturación electrónica, inventario y POS en un solo lugar.
+          <p className="text-gray-500 text-sm max-w-xs mx-auto">
+            Facturacion electronica SRI, inventario y POS en un solo lugar. Sin contratos.
           </p>
         </div>
 
-        {/* Toggle mensual / anual */}
-        <div className="flex items-center justify-center gap-4 mb-14">
-          <span className={`text-sm font-semibold ${!anual ? 'text-gray-900' : 'text-gray-400'}`}>Mensual</span>
-          <button
-            onClick={() => setAnual(!anual)}
-            className={`relative w-14 h-7 rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${anual ? 'bg-blue-600' : 'bg-gray-300'}`}
-            aria-label="Cambiar periodo de facturación"
-          >
-            <span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${anual ? 'translate-x-7' : 'translate-x-0'}`} />
-          </button>
-          <span className={`text-sm font-semibold flex items-center gap-2 ${anual ? 'text-gray-900' : 'text-gray-400'}`}>
-            Anual
-            <span className={`text-xs font-black px-2.5 py-1 rounded-full transition-all duration-300 ${
-              anual ? 'bg-green-500 text-white' : 'bg-amber-400 text-amber-900'
-            }`}>
-              {anual ? '✓ Ahorro activo' : 'Ahorra hasta 25%'}
-            </span>
-          </span>
+        <div className="flex justify-center mb-14">
+          <BillingToggle anual={anual} onChange={setAnual} />
         </div>
 
         {loadingPlanes ? (
@@ -524,11 +854,11 @@ export default function SuscripcionesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center max-w-5xl mx-auto py-6">
-            {planesToShow.map(({ plan, precioMensualRef }) => (
+            {planesToShow.map((plan) => (
               <PlanCard
                 key={plan.id}
                 plan={plan}
-                precioMensualRef={precioMensualRef}
+                anual={anual}
                 esPlanActual={suscripcion?.plan === plan.id}
                 onElegir={setPlanAElegir}
               />
@@ -536,9 +866,17 @@ export default function SuscripcionesPage() {
           </div>
         )}
 
-        <p className="text-center text-xs text-gray-400 mt-10">
-          Precios + IVA · Sin contratos · Todos los planes incluyen facturación electrónica SRI · Soporte por email · Actualizaciones gratuitas
-        </p>
+        <div className="mt-10 flex flex-col items-center gap-3">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs text-gray-400">
+            <span>✓ Facturacion electronica SRI</span>
+            <span>✓ Sin contratos de permanencia</span>
+            <span>✓ Cancela cuando quieras</span>
+            <span>✓ Actualizaciones gratuitas</span>
+          </div>
+          <p className="text-xs text-gray-400">
+            Todos los precios en USD &middot; No incluyen IVA (12%) &middot; Pago seguro
+          </p>
+        </div>
       </section>
     </div>
   );
