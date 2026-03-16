@@ -63,7 +63,7 @@ const queryClient = new QueryClient({
   },
 });
 
-function App() {
+function AppRoutes() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
   const { tieneAcceso, cargando: cargandoSuscripcion, esSuperAdmin } = useSubscriptionStatus();
@@ -84,9 +84,8 @@ function App() {
   };
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
+    <BrowserRouter>
+      <Routes>
           <Route
             path="/login"
             element={isAuthenticated ? <Navigate to={authenticatedHome()} /> : <LoginPage />}
@@ -245,7 +244,14 @@ function App() {
             <Route path="pedidos/:id" element={<PedidoDetallePage />} />
           </Route>
         </Routes>
-      </BrowserRouter>
+    </BrowserRouter>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppRoutes />
       <ToastContainer />
       <ConfirmModal />
     </QueryClientProvider>
