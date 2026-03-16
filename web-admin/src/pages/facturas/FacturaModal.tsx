@@ -65,7 +65,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
     const cantidadNum = parseFloat(cantidad) || 0;
     if (!producto || cantidadNum <= 0) return;
 
-    const precio_unitario = producto.precio;
+    const precio_unitario = Number(producto.precio);
     const subtotal = precio_unitario * cantidadNum;
     // porcentaje_iva es el código SRI ('0'=0%, '2'=12%, '4'=15%) – no es el % real
     const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
@@ -225,10 +225,10 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
                       <tr key={index} className="border-b">
                         <td className="p-3">{detalle.producto_nombre}</td>
                         <td className="p-3 text-center">{detalle.cantidad}</td>
-                        <td className="p-3 text-right">${detalle.precio_unitario.toFixed(2)}</td>
-                        <td className="p-3 text-right">${detalle.subtotal.toFixed(2)}</td>
-                        <td className="p-3 text-right">${detalle.impuestos.toFixed(2)}</td>
-                        <td className="p-3 text-right font-semibold">${detalle.total.toFixed(2)}</td>
+                        <td className="p-3 text-right">${Number(detalle.precio_unitario).toFixed(2)}</td>
+                        <td className="p-3 text-right">${Number(detalle.subtotal).toFixed(2)}</td>
+                        <td className="p-3 text-right">${Number(detalle.impuestos).toFixed(2)}</td>
+                        <td className="p-3 text-right font-semibold">${Number(detalle.total).toFixed(2)}</td>
                         <td className="p-3 text-center">
                           <button
                             type="button"

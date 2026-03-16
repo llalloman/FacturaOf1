@@ -32,7 +32,7 @@ const SOCIAL = [
 
 export default function LandingFooter() {
   const scrollTo = (href: string) => {
-    if (href.startsWith('#')) {
+    if (href.startsWith('#') && href.length > 1) {
       const el = document.querySelector(href);
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     }
@@ -60,18 +60,18 @@ export default function LandingFooter() {
             {/* Contact */}
             <div className="space-y-2.5">
               <a
-                href="mailto:soporte@of1.ec"
+                href="mailto:info@of1solutions.com"
                 className="flex items-center gap-2.5 text-slate-400 hover:text-white text-sm transition-colors"
               >
                 <Mail className="w-4 h-4 text-blue-500" />
-                soporte@of1.ec
+                info@of1solutions.com
               </a>
               <a
-                href="tel:+5930000000000"
+                href="tel:+593983904993"
                 className="flex items-center gap-2.5 text-slate-400 hover:text-white text-sm transition-colors"
               >
                 <Phone className="w-4 h-4 text-blue-500" />
-                +593 (0) 000 000 000
+                +593 98 390 4993
               </a>
             </div>
 

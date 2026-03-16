@@ -24,7 +24,7 @@ export default function CtaDemoSection() {
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <a
-            href="mailto:soporte@of1.ec?subject=Solicitud%20de%20Demo%20FacturaOF1"
+            href="mailto:info@of1solutions.com?subject=Solicitud%20de%20Demo%20FacturaOF1"
             className="inline-flex items-center justify-center gap-2.5 px-8 py-4 border-2 border-blue-600 text-blue-700 font-bold text-base rounded-xl hover:bg-blue-50 transition-all"
           >
             <Play className="w-4 h-4" />
