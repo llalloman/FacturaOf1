@@ -13,7 +13,6 @@ import {
 
 const CODE_LENGTH = 6;
 const COOLDOWN_SECONDS = 120;
-const MAX_RESENDS = 3;
 
 export default function VerificacionEmailPage() {
   const navigate = useNavigate();
@@ -26,7 +25,6 @@ export default function VerificacionEmailPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [cooldown, setCooldown] = useState(0);
-  const [reenviosRestantes, setReenviosRestantes] = useState(MAX_RESENDS);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -108,12 +106,11 @@ export default function VerificacionEmailPage() {
   };
 
   const handleResend = async () => {
-    if (cooldown > 0 || reenviosRestantes <= 0) return;
+    if (cooldown > 0) return;
     setError('');
     setResending(true);
     try {
-      const res = await authService.reenviarCodigo();
-      setReenviosRestantes(res.reenvios_restantes);
+      await authService.reenviarCodigo();
       setCooldown(COOLDOWN_SECONDS);
       setSuccess('Código reenviado. Revisa tu bandeja de entrada.');
       setTimeout(() => setSuccess(''), 3000);
@@ -214,14 +211,7 @@ export default function VerificacionEmailPage() {
 
           {/* Resend section */}
           <div className="mt-6 text-center">
-            {reenviosRestantes === 0 ? (
-              <p className="text-sm text-red-600 font-medium">
-                Has alcanzado el máximo de reenvíos.{' '}
-                <a href="/registro" className="font-bold underline">
-                  Regístrate de nuevo
-                </a>
-              </p>
-            ) : cooldown > 0 ? (
+            {cooldown > 0 ? (
               <p className="text-sm text-gray-500 flex items-center justify-center gap-2">
                 <Clock className="w-4 h-4 text-gray-400" />
                 Puedes reenviar en{' '}
@@ -239,7 +229,7 @@ export default function VerificacionEmailPage() {
                 ) : (
                   <RotateCcw className="w-4 h-4" />
                 )}
-                {resending ? 'Reenviando…' : `Reenviar código (${reenviosRestantes} restantes)`}
+                {resending ? 'Reenviando…' : 'Reenviar código'}
               </button>
             )}
           </div>

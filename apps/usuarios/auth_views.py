@@ -247,8 +247,7 @@ def verificar_email(request):
 def reenviar_codigo(request):
     """
     Reenvía el código de verificación.
-    - Cooldown de 2 minutos entre reenvíos.
-    - Máximo 3 intentos (luego debe registrarse de nuevo).
+    Único control: cooldown de 2 minutos entre reenvíos.
     POST /api/auth/reenviar-codigo/
     """
     user = request.user
@@ -256,14 +255,7 @@ def reenviar_codigo(request):
     if user.email_verificado:
         return Response({'detail': 'El email ya está verificado.'})
 
-    MAX_INTENTOS = 3
     COOLDOWN_SEGUNDOS = 120
-
-    if user.intentos_reenvio >= MAX_INTENTOS:
-        return Response(
-            {'error': 'Has alcanzado el máximo de reenvíos. Registra una nueva cuenta.'},
-            status=status.HTTP_429_TOO_MANY_REQUESTS,
-        )
 
     ahora = timezone.now()
     if user.ultimo_reenvio and (ahora - user.ultimo_reenvio).total_seconds() < COOLDOWN_SEGUNDOS:
@@ -285,8 +277,7 @@ def reenviar_codigo(request):
     except Exception as exc:
         return Response({'error': f'No se pudo enviar el email: {exc}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    reenvios_restantes = MAX_INTENTOS - user.intentos_reenvio
-    return Response({'detail': 'Código reenviado correctamente.', 'reenvios_restantes': reenvios_restantes})
+    return Response({'detail': 'Código reenviado correctamente.'})
 
 
 @api_view(['GET'])

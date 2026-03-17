@@ -51,7 +51,7 @@ export const authService = {
     return data;
   },
 
-  reenviarCodigo: async (): Promise<{ detail: string; reenvios_restantes: number }> => {
+  reenviarCodigo: async (): Promise<{ detail: string }> => {
     const { data } = await apiClient.post('/auth/reenviar-codigo/');
     return data;
   },
