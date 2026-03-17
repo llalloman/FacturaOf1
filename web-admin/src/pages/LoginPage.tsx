@@ -82,7 +82,7 @@ export default function LoginPage() {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e40af15_1px,transparent_1px),linear-gradient(to_bottom,#1e40af15_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
 
       {/* Login Card */}
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-lg">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-slate-600 rounded-3xl blur-2xl opacity-20 animate-pulse"></div>
         
         <div className="relative bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-10 border border-white/20">

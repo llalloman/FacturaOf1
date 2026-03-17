@@ -12,6 +12,17 @@ class PlanSuscripcionSerializer(serializers.ModelSerializer):
             'reportes_avanzados', 'activo', 'descripcion',
         ]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Convención BD: 0 = ilimitado. El frontend usa -1 para ilimitado.
+        if data['facturas_mensuales'] == 0:
+            data['facturas_mensuales'] = -1
+        if data['usuarios_permitidos'] == 0:
+            data['usuarios_permitidos'] = -1
+        if data['empresas_permitidas'] == 0:
+            data['empresas_permitidas'] = -1
+        return data
+
 
 class SuscripcionSerializer(serializers.ModelSerializer):
     plan_detalle = PlanSuscripcionSerializer(source='plan', read_only=True)

@@ -37,6 +37,8 @@ import CambiarPasswordPage from './pages/CambiarPasswordPage';
 import MesasPage from './pages/pedidos/MesasPage';
 import PedidoDetallePage from './pages/pedidos/PedidoDetallePage';
 import LandingPage from './pages/landing/LandingPage';
+import TerminosPage from './pages/legal/TerminosPage';
+import PrivacidadPage from './pages/legal/PrivacidadPage';
 import ToastContainer from './components/ToastContainer';
 import ConfirmModal from './components/ConfirmModal';
 import { useSubscriptionStatus } from './hooks/useSubscriptionStatus';
@@ -166,6 +168,10 @@ function AppRoutes() {
               )
             }
           />
+
+          {/* Legal pages — public */}
+          <Route path="/terminos" element={<TerminosPage />} />
+          <Route path="/privacidad" element={<PrivacidadPage />} />
 
           {/* POS - pantalla completa, sin el Layout del admin */}
           <Route

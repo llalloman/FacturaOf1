@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Check, Star, Zap } from 'lucide-react';
+import { suscripcionesService } from '../../../services/suscripcionesService';
+import type { PlanSuscripcion } from '../../../types';
 
 interface PlanFeature {
   text: string;
@@ -107,6 +110,17 @@ const PLANS: Plan[] = [
     ],
   },
 ];
+
+/** Extrae precioMensual/precioAnual por tipo desde los planes del API */
+function extractPrecios(apiPlanes: PlanSuscripcion[]): Record<string, { mensual: number | null; anual: number | null }> {
+  const result: Record<string, { mensual: number | null; anual: number | null }> = {};
+  for (const p of apiPlanes) {
+    if (!result[p.tipo]) result[p.tipo] = { mensual: null, anual: null };
+    if (p.periodo === 'MENSUAL') result[p.tipo].mensual = Number(p.precio);
+    if (p.periodo === 'ANUAL') result[p.tipo].anual = Number(p.precio);
+  }
+  return result;
+}
 
 function PlanCard({ plan, anual }: { plan: Plan; anual: boolean }) {
   const precio = anual ? plan.precioAnual : plan.precioMensual;
@@ -226,6 +240,26 @@ function PlanCard({ plan, anual }: { plan: Plan; anual: boolean }) {
 export default function PricingSection() {
   const [anual, setAnual] = useState(true);
 
+  const { data: apiPlanes = [] } = useQuery<PlanSuscripcion[]>({
+    queryKey: ['planes-publicos'],
+    queryFn: suscripcionesService.getPlanes,
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // Sobrescribe precios con los del API; si el API no responde, usa los hardcodeados
+  const precios = extractPrecios(apiPlanes);
+  const plans = PLANS.map((p) => {
+    const tipo = p.id.toUpperCase();
+    if (!p.esGratis && precios[tipo]) {
+      return {
+        ...p,
+        precioMensual: precios[tipo].mensual ?? p.precioMensual,
+        precioAnual: precios[tipo].anual ?? p.precioAnual,
+      };
+    }
+    return p;
+  });
+
   return (
     <section id="planes" className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -244,32 +278,38 @@ export default function PricingSection() {
         </div>
 
         {/* Toggle */}
-        <div className="flex items-center justify-center gap-3 mb-12">
-          <span className={`text-sm font-semibold ${!anual ? 'text-slate-900' : 'text-slate-400'}`}>Mensual</span>
-          <button
-            onClick={() => setAnual(!anual)}
-            className={`relative w-14 h-7 rounded-full transition-colors duration-300 ${
-              anual ? 'bg-blue-600' : 'bg-slate-300'
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${
-                anual ? 'translate-x-8' : 'translate-x-1'
+        <div className="flex items-center justify-center mb-12">
+          <div className="inline-flex items-center bg-slate-100 rounded-full p-1 gap-1">
+            <button
+              onClick={() => setAnual(false)}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 ${
+                !anual
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
               }`}
-            />
-          </button>
-          <span className={`text-sm font-semibold flex items-center gap-2 ${anual ? 'text-slate-900' : 'text-slate-400'}`}>
-            Anual
-            <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-              <Zap className="w-3 h-3" />
-              Ahorra 2 meses
-            </span>
-          </span>
+            >
+              Mensual
+            </button>
+            <button
+              onClick={() => setAnual(true)}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${
+                anual
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Anual
+              <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Zap className="w-3 h-3" />
+                Ahorra 2 meses
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Cards */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 items-start">
-          {PLANS.map((plan) => (
+          {plans.map((plan) => (
             <PlanCard key={plan.id} plan={plan} anual={anual} />
           ))}
         </div>

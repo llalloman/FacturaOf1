@@ -74,7 +74,7 @@ def generar_ride_pdf(factura) -> bytes:
     if logo_bytes:
         try:
             logo_io = BytesIO(logo_bytes)
-            logo_img = Image(logo_io, width=55 * mm, height=25 * mm, kind='proportional')
+            logo_img = Image(logo_io, width=80 * mm, height=30 * mm, kind='bound')
             logo_img.hAlign = 'CENTER'
             left_data.append([logo_img])
         except Exception:

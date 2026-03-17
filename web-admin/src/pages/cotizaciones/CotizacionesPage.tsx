@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FiSearch, FiPlus, FiChevronDown, FiChevronUp, FiTrash2, FiEdit2 } from 'react-icons/fi';
 import { ClipboardList, Send, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import { cotizacionesService } from '../../services/cotizacionesService';
 import type { Cotizacion, ItemCotizacion, CotizacionCreateData } from '../../services/cotizacionesService';
+import { clientesService } from '../../services/clientesService';
+import type { Cliente } from '../../types';
 import { toast } from '../../store/toastStore';
 
 const fmtCurrency = (v: number) =>
@@ -52,6 +54,40 @@ const FormModal: React.FC<FormModalProps> = ({ editing, onClose, onSuccess }) =>
   );
   const [loading, setLoading] = useState(false);
 
+  // ── Buscador de clientes ────────────────────────────────────────────────
+  const [clienteSearch, setClienteSearch] = useState(editing?.cliente_nombre ?? '');
+  const [clienteDropdown, setClienteDropdown] = useState(false);
+  const clienteRef = useRef<HTMLDivElement>(null);
+
+  const { data: todosClientes = [] } = useQuery<Cliente[]>({
+    queryKey: ['clientes'],
+    queryFn: clientesService.getAll,
+    staleTime: 60_000,
+  });
+
+  const clientesFiltrados = clienteSearch.length >= 1
+    ? todosClientes.filter(c =>
+        c.razon_social.toLowerCase().includes(clienteSearch.toLowerCase()) ||
+        c.identificacion.includes(clienteSearch)
+      ).slice(0, 8)
+    : [];
+
+  const seleccionarCliente = (c: Cliente) => {
+    setForm(f => ({ ...f, cliente: c.id }));
+    setClienteSearch(`${c.identificacion} — ${c.razon_social}`);
+    setClienteDropdown(false);
+  };
+
+  // Cerrar dropdown al hacer clic fuera
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (clienteRef.current && !clienteRef.current.contains(e.target as Node))
+        setClienteDropdown(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   const addItem = () => setItems([...items, emptyItem()]);
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: keyof ItemCotizacion, value: string | number) => {
@@ -70,7 +106,7 @@ const FormModal: React.FC<FormModalProps> = ({ editing, onClose, onSuccess }) =>
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.cliente) { toast.error('Ingrese el ID del cliente'); return; }
+    if (!form.cliente) { toast.error('Seleccione un cliente'); return; }
     if (items.every(it => !it.descripcion)) { toast.error('Ingrese al menos un ítem'); return; }
 
     setLoading(true);
@@ -108,13 +144,39 @@ const FormModal: React.FC<FormModalProps> = ({ editing, onClose, onSuccess }) =>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">ID Cliente *</label>
-              <input type="number" required placeholder="ID del cliente"
-                value={form.cliente || ''}
-                onChange={(e) => setForm({ ...form, cliente: parseInt(e.target.value) || 0 })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <div ref={clienteRef} className="relative">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Cliente *</label>
+              <input
+                type="text"
+                placeholder="Buscar por nombre o cédula..."
+                value={clienteSearch}
+                onChange={(e) => {
+                  setClienteSearch(e.target.value);
+                  setForm(f => ({ ...f, cliente: 0 }));
+                  setClienteDropdown(true);
+                }}
+                onFocus={() => setClienteDropdown(true)}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  form.cliente ? 'border-green-400 bg-green-50' : 'border-gray-200'
+                }`}
               />
+              {clienteDropdown && clientesFiltrados.length > 0 && (
+                <ul className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {clientesFiltrados.map(c => (
+                    <li
+                      key={c.id}
+                      onMouseDown={() => seleccionarCliente(c)}
+                      className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer"
+                    >
+                      <span className="font-medium text-gray-800">{c.razon_social}</span>
+                      <span className="text-gray-400 ml-2">{c.identificacion}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!form.cliente && clienteSearch.length > 0 && clientesFiltrados.length === 0 && (
+                <p className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs text-gray-400">Sin resultados</p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Emisión</label>
@@ -275,7 +337,26 @@ const CotizacionesPage: React.FC = () => {
     },
   };
 
-  const enviarMut   = useMutation({ mutationFn: cotizacionesService.enviar,   ...actionCallbacks, onSuccess: () => { actionCallbacks.onSuccess(); toast.success('Cotización enviada'); } });
+  const enviarMut = useMutation({
+    mutationFn: cotizacionesService.enviar,
+    ...actionCallbacks,
+    onSuccess: (data: { email?: { enviado: boolean; mensaje: string } }) => {
+      actionCallbacks.onSuccess();
+      if (data?.email?.enviado) {
+        toast.success('Cotización enviada', data.email.mensaje);
+      } else {
+        toast.warning('Cotización marcada como enviada', data?.email?.mensaje ?? 'Sin email del cliente');
+      }
+    },
+  });
+  const reenviarEmailMut = useMutation({
+    mutationFn: cotizacionesService.reenviarEmail,
+    onSuccess: (data: { mensaje?: string }) => toast.success('Email enviado', data?.mensaje),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje || 'Error al enviar email';
+      toast.error(msg);
+    },
+  });
   const aceptarMut  = useMutation({ mutationFn: cotizacionesService.aceptar,  ...actionCallbacks, onSuccess: () => { actionCallbacks.onSuccess(); toast.success('Cotización aceptada'); } });
   const rechazarMut = useMutation({ mutationFn: cotizacionesService.rechazar, ...actionCallbacks, onSuccess: () => { actionCallbacks.onSuccess(); toast.success('Cotización rechazada'); } });
   const deleteMut    = useMutation({
@@ -409,11 +490,17 @@ const CotizacionesPage: React.FC = () => {
                               className="text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 px-2 py-1 rounded-lg flex items-center gap-1">
                               <FiEdit2 className="h-3 w-3" /> Editar
                             </button>
-                            <button onClick={() => enviarMut.mutate(c.id)}
-                              className="text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-2 py-1 rounded-lg flex items-center gap-1">
-                              <Send className="h-3 w-3" /> Enviar
+                            <button onClick={() => enviarMut.mutate(c.id)} disabled={enviarMut.isPending}
+                              className="text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-2 py-1 rounded-lg flex items-center gap-1 disabled:opacity-50">
+                              <Send className="h-3 w-3" /> {enviarMut.isPending ? 'Enviando...' : 'Enviar al cliente'}
                             </button>
                           </>
+                        )}
+                        {c.estado === 'ENVIADA' && (
+                          <button onClick={() => reenviarEmailMut.mutate(c.id)} disabled={reenviarEmailMut.isPending}
+                            className="text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-2 py-1 rounded-lg flex items-center gap-1 disabled:opacity-50">
+                            <Send className="h-3 w-3" /> {reenviarEmailMut.isPending ? 'Enviando...' : 'Reenviar email'}
+                          </button>
                         )}
                         {['BORRADOR','ENVIADA'].includes(c.estado) && (
                           <button onClick={() => aceptarMut.mutate(c.id)}

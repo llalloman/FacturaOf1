@@ -84,6 +84,18 @@ export default function RegistroEmpresaPage() {
   const [planes, setPlanes] = useState<PlanSuscripcion[]>([]);
   const [planesLoading, setPlanesLoading] = useState(true);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+  const [anual, setAnual] = useState(true);
+
+  const handleTogglePeriodo = (newAnual: boolean) => {
+    setAnual(newAnual);
+    if (selectedPlanId) {
+      const current = planes.find((p) => p.id === selectedPlanId);
+      if (current && current.tipo !== 'FREE') {
+        const match = planes.find((p) => p.tipo === current.tipo && p.periodo === (newAnual ? 'ANUAL' : 'MENSUAL'));
+        if (match) setSelectedPlanId(match.id);
+      }
+    }
+  };
 
   const [form, setForm] = useState({
     email: searchParams.get('email') || '',
@@ -95,6 +107,7 @@ export default function RegistroEmpresaPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
 
   const setField = (field: keyof typeof form, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
@@ -103,9 +116,10 @@ export default function RegistroEmpresaPage() {
     suscripcionesService.getPlanes()
       .then((data) => {
         setPlanes(data);
-        // Pre-select PROFESIONAL if exists, otherwise first
-        const prof = data.find((p) => p.tipo === 'PROFESIONAL');
-        setSelectedPlanId((prof ?? data[0])?.id ?? null);
+        // Pre-select PROFESIONAL ANUAL (default toggle = anual)
+        const prof = data.find((p) => p.tipo === 'PROFESIONAL' && p.periodo === 'ANUAL');
+        const fallback = data.find((p) => p.periodo === 'ANUAL') ?? data[0];
+        setSelectedPlanId((prof ?? fallback)?.id ?? null);
       })
       .finally(() => setPlanesLoading(false));
   }, []);
@@ -113,6 +127,7 @@ export default function RegistroEmpresaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!aceptaTerminos) { setError('Debes aceptar los términos y condiciones para continuar.'); return; }
     if (form.password !== form.confirm_password) { setError('Las contraseñas no coinciden.'); return; }
     if (form.password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return; }
     setLoading(true);
@@ -186,16 +201,45 @@ export default function RegistroEmpresaPage() {
                     <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {planes.map((plan) => (
-                      <PlanCard
-                        key={plan.id}
-                        plan={plan}
-                        selected={selectedPlanId === plan.id}
-                        onSelect={() => setSelectedPlanId(plan.id)}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    {/* Toggle mensual / anual */}
+                    <div className="flex items-center justify-center mb-5">
+                      <div className="inline-flex items-center bg-slate-100 rounded-full p-1 gap-1">
+                        <button
+                          onClick={() => handleTogglePeriodo(false)}
+                          className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 ${
+                            !anual ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          Mensual
+                        </button>
+                        <button
+                          onClick={() => handleTogglePeriodo(true)}
+                          className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${
+                            anual ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          Anual
+                          <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Zap className="w-3 h-3" />
+                            Ahorra 2 meses
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {planes
+                        .filter((p) => p.tipo === 'FREE' || p.periodo === (anual ? 'ANUAL' : 'MENSUAL'))
+                        .map((plan) => (
+                          <PlanCard
+                            key={plan.id}
+                            plan={plan}
+                            selected={selectedPlanId === plan.id}
+                            onSelect={() => setSelectedPlanId(plan.id)}
+                          />
+                        ))}
+                    </div>
+                  </>
                 )}
                 <button
                   type="button"
@@ -304,7 +348,29 @@ export default function RegistroEmpresaPage() {
                       </div>
                     </div>
                   </div>
-                  <button type="submit" disabled={loading}
+
+                  {/* Aceptar términos */}
+                  <label className="flex items-start gap-3 cursor-pointer select-none group">
+                    <div className="mt-0.5 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={aceptaTerminos}
+                        onChange={(e) => setAceptaTerminos(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </div>
+                    <span className="text-xs text-gray-600 leading-relaxed">
+                      He leído y acepto los{' '}
+                      <Link to="/terminos" target="_blank" className="text-blue-700 font-semibold hover:underline">
+                        Términos y Condiciones
+                      </Link>{' '}y la{' '}
+                      <Link to="/privacidad" target="_blank" className="text-blue-700 font-semibold hover:underline">
+                        Política de Privacidad
+                      </Link>{' '}de OF1 Solutions.
+                    </span>
+                  </label>
+
+                  <button type="submit" disabled={loading || !aceptaTerminos}
                     className="w-full mt-2 py-3.5 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none">
                     {loading
                       ? <><Loader2 className="w-5 h-5 animate-spin" />Creando cuenta&hellip;</>
@@ -315,7 +381,6 @@ export default function RegistroEmpresaPage() {
               </div>
             )}
 
-            <p className="mt-5 text-center text-xs text-gray-500">Al registrarte aceptas nuestros <span className="text-blue-700 font-semibold cursor-pointer">términos y condiciones</span></p>
             <p className="mt-3 text-center text-sm text-gray-500">¿Ya tienes cuenta? <Link to="/login" className="font-bold text-blue-700 hover:text-blue-800 underline-offset-2 hover:underline transition-colors">Iniciar sesión</Link></p>
             <p className="mt-2 text-center text-xs text-gray-400">© 2026 OF1 Solutions S.A.S.</p>
           </div>

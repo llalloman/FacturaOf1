@@ -85,6 +85,11 @@ export const cotizacionesService = {
     return res.data;
   },
 
+  reenviarEmail: async (id: number) => {
+    const res = await apiClient.post(`${BASE}/${id}/reenviar_email/`);
+    return res.data;
+  },
+
   aceptar: async (id: number) => {
     const res = await apiClient.post(`${BASE}/${id}/aceptar/`);
     return res.data;

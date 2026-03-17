@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
 import { suscripcionesService } from '../services/suscripcionesService';
-import type { PlanSuscripcion } from '../types';
-import { PLAN_UI_DATA } from './suscripciones/SuscripcionesPage';
+import type { Suscripcion, PlanSuscripcion } from '../types';
 import {
   CheckCircle2,
   FileText,
@@ -12,11 +11,6 @@ import {
   Rocket,
   Shield,
   Clock,
-  CheckCircle,
-  Star,
-  TrendingUp,
-  CheckCheck,
-  XCircle,
   ShoppingCart,
   Package,
   Users,
@@ -29,227 +23,217 @@ import {
   Zap,
   MessageCircle,
   RefreshCw,
+  Star,
+  Check,
+  Loader2,
+  X,
 } from 'lucide-react';
 
-const PLAN_STORAGE_KEY = 'of1_plan_elegido';
+// ─── Estilos por tipo de plan (fondo oscuro) ─────────────────────────────────
+const PLAN_STYLE: Record<string, { border: string; badge: string; ring: string; featured: boolean }> = {
+  FREE:        { border: 'border-emerald-400/40', badge: 'bg-emerald-400/15 text-emerald-300', ring: 'ring-emerald-400', featured: false },
+  BASICO:      { border: 'border-slate-400/40',   badge: 'bg-slate-400/15 text-slate-300',   ring: 'ring-slate-300',   featured: false },
+  PROFESIONAL: { border: 'border-blue-400/60',    badge: 'bg-blue-400/20 text-blue-200',     ring: 'ring-blue-400',    featured: true  },
+  EMPRESARIAL: { border: 'border-violet-400/40',  badge: 'bg-violet-400/15 text-violet-300', ring: 'ring-violet-400',  featured: false },
+  ILIMITADO:   { border: 'border-amber-400/40',   badge: 'bg-amber-400/15 text-amber-300',   ring: 'ring-amber-400',   featured: false },
+};
 
-// ─── Card de plan (bienvenida) ────────────────────────────────────────────────
-function PlanCard({
-  plan,
-  seleccionado,
-  anual,
-  onElegir,
-}: {
-  plan: PlanSuscripcion;
-  seleccionado: boolean;
-  anual: boolean;
-  onElegir: (plan: PlanSuscripcion) => void;
-}) {
-  const cfg = PLAN_UI_DATA[plan.tipo] ?? PLAN_UI_DATA.BASICO;
-  const isPopular = cfg.featured;
+// ─── Tarjeta suscripción activa ──────────────────────────────────────────────
+function SuscripcionCard({ suscripcion }: { suscripcion: Suscripcion }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [seleccionado, setSeleccionado] = useState<number | null>(null);
+  const [anual, setAnual] = useState(true);
 
-  // ── Bloque de precio ────────────────────────────────────────────────────────
-  const PriceBlock = () => {
-    if (cfg.esTrialGratuito) {
-      return (
-        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-4">
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-emerald-600">30 días</span>
-            <span className="text-emerald-500 font-bold">gratis</span>
-          </div>
-          <p className="text-emerald-700 text-xs font-semibold mt-1">Sin tarjeta de crédito</p>
-          <p className="text-gray-500 text-xs mt-0.5">Acceso completo durante la prueba</p>
-        </div>
-      );
+  const handleTogglePeriodo = (newAnual: boolean) => {
+    setAnual(newAnual);
+    if (seleccionado) {
+      const current = planes.find((p) => p.id === seleccionado);
+      if (current && current.tipo !== 'FREE') {
+        const match = planes.find((p) => p.tipo === current.tipo && p.periodo === (newAnual ? 'ANUAL' : 'MENSUAL'));
+        if (match) setSeleccionado(match.id);
+      }
     }
-
-    const precio = anual ? cfg.precioAnual! : cfg.precioMensual!;
-    const precioAnualSinDesc = cfg.precioMensual! * 12;
-    const descPct = cfg.precioAnual != null ? Math.round((1 - cfg.precioAnual / precioAnualSinDesc) * 100) : 0;
-    const ahorro = cfg.precioAnual != null ? precioAnualSinDesc - cfg.precioAnual : 0;
-
-    return (
-      <div className="mb-4">
-        {anual && descPct > 0 && (
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-gray-400 line-through text-xs">${precioAnualSinDesc.toFixed(2)}/año</span>
-            <span className="bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">-{descPct}%</span>
-          </div>
-        )}
-        <div className="flex items-end gap-1">
-          <span className={`text-4xl font-black ${isPopular ? 'text-white' : 'text-gray-900'}`}>
-            ${precio.toFixed(2)}
-          </span>
-          <span className={`text-xs pb-1.5 ${isPopular ? 'text-white/60' : 'text-gray-400'}`}>
-            / {anual ? 'año' : 'mes'}
-          </span>
-        </div>
-        {anual && (
-          <p className={`text-xs mt-1 ${isPopular ? 'text-white/50' : 'text-gray-400'}`}>
-            ≈ ${(precio / 12).toFixed(2)} / mes · + IVA
-          </p>
-        )}
-        {!anual && (
-          <p className={`text-xs mt-0.5 ${isPopular ? 'text-white/40' : 'text-gray-400'}`}>Precio + IVA</p>
-        )}
-        {anual && descPct > 0 && (
-          <div className={`flex items-center gap-1 mt-2 text-xs font-semibold px-2.5 py-1.5 rounded-xl ${
-            isPopular
-              ? 'bg-white/10 border border-white/20 text-white/80'
-              : 'bg-green-50 border border-green-100 text-green-700'
-          }`}>
-            <TrendingUp size={11} className="shrink-0" />
-            Ahorra ${ahorro.toFixed(2)} pagando anual
-          </div>
-        )}
-      </div>
-    );
   };
 
-  // ── Card destacada (PROFESIONAL) ────────────────────────────────────────────
-  if (isPopular) {
-    return (
-      <div className={`relative flex flex-col bg-gradient-to-br ${cfg.gradient} rounded-2xl border-2 transition-all shadow-2xl ${
-        seleccionado ? 'border-green-400 ring-2 ring-green-400 ring-offset-2' : 'border-blue-400'
-      }`}>
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap z-10">
-          {seleccionado ? (
-            <span className="inline-flex items-center gap-1.5 bg-green-500 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg">
-              <CheckCircle size={11} fill="currentColor" /> Plan elegido
-            </span>
+  const plan = suscripcion.plan_detalle;
+  const isPrueba = suscripcion.estado === 'PRUEBA';
+
+  const { data: planes = [], isLoading: loadingPlanes } = useQuery<PlanSuscripcion[]>({
+    queryKey: ['planes-publicos'],
+    queryFn: suscripcionesService.getPlanes,
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { mutate: cambiar, isPending, error: errorCambio } = useMutation({
+    mutationFn: (plan_id: number) => suscripcionesService.cambiarPlan(plan_id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suscripcion-activa'] });
+      setOpen(false);
+      setSeleccionado(null);
+    },
+  });
+
+  return (
+    <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-2xl p-6 mb-8">
+      {/* Fila principal */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+        <div className="flex-1">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-500/30 rounded-xl flex items-center justify-center">
+              <Star size={18} className="text-amber-300" />
+            </div>
+            <div>
+              <p className="text-white/60 text-xs font-semibold uppercase tracking-widest">Plan seleccionado</p>
+              <h3 className="text-white font-black text-lg leading-tight">
+                {plan.nombre}
+                {isPrueba && (
+                  <span className="ml-2 text-xs font-semibold bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full align-middle">
+                    Prueba gratuita
+                  </span>
+                )}
+              </h3>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {[
+              plan.facturas_mensuales === -1 ? 'Documentos ilimitados' : `${plan.facturas_mensuales} docs/mes`,
+              plan.usuarios_permitidos === -1 ? 'Usuarios ilimitados' : `${plan.usuarios_permitidos} usuario${plan.usuarios_permitidos !== 1 ? 's' : ''}`,
+              plan.soporte_prioritario && 'Soporte prioritario',
+              plan.reportes_avanzados && 'Reportes avanzados',
+              plan.api_access && 'API access',
+            ].filter(Boolean).map((f) => (
+              <span key={f as string} className="inline-flex items-center gap-1 text-xs bg-white/10 text-white/80 px-2.5 py-1 rounded-full">
+                <CheckCircle2 size={10} className="text-emerald-400" /> {f}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="shrink-0">
+          <button
+            onClick={() => { setOpen((v) => !v); setSeleccionado(null); }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white text-sm font-semibold rounded-xl transition-colors"
+          >
+            {open ? <X size={14} /> : <ArrowRight size={14} />}
+            {open ? 'Cancelar' : 'Cambiar plan'}
+          </button>
+        </div>
+      </div>
+
+      {/* Grilla de planes desplegable */}
+      {open && (
+        <div className="mt-6 pt-5 border-t border-white/10">
+          {loadingPlanes ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 size={24} className="text-white/50 animate-spin" />
+            </div>
           ) : (
-            <span className="inline-flex items-center gap-1.5 bg-amber-400 text-amber-900 text-xs font-black px-4 py-1.5 rounded-full shadow-lg">
-              <Star size={10} fill="currentColor" /> Más Popular
-            </span>
+            <>
+              {/* Toggle mensual / anual */}
+              <div className="flex items-center justify-center mb-4">
+                <div className="inline-flex items-center bg-white/10 rounded-full p-1 gap-1">
+                  <button
+                    onClick={() => handleTogglePeriodo(false)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 ${
+                      !anual ? 'bg-white text-slate-900 shadow-sm' : 'text-white/60 hover:text-white'
+                    }`}
+                  >
+                    Mensual
+                  </button>
+                  <button
+                    onClick={() => handleTogglePeriodo(true)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${
+                      anual ? 'bg-white text-slate-900 shadow-sm' : 'text-white/60 hover:text-white'
+                    }`}
+                  >
+                    Anual
+                    <span className="bg-emerald-400/20 text-emerald-300 text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      Ahorra 2 meses
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {planes.filter((p) => p.tipo === 'FREE' || p.periodo === (anual ? 'ANUAL' : 'MENSUAL')).map((p) => {
+                  const s = PLAN_STYLE[p.tipo] ?? PLAN_STYLE.BASICO;
+                  const esActual = p.id === plan.id;
+                  const sel = seleccionado === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      disabled={esActual}
+                      onClick={() => setSeleccionado(sel ? null : p.id)}
+                      className={`relative text-left rounded-xl border-2 p-4 transition-all ${
+                        esActual
+                          ? `${s.border} bg-white/5 opacity-60 cursor-not-allowed`
+                          : sel
+                          ? `${s.border} bg-white/15 ring-2 ${s.ring} ring-offset-1 ring-offset-transparent`
+                          : `${s.border} bg-white/8 hover:bg-white/15`
+                      }`}
+                    >
+                      {esActual && (
+                        <span className="absolute -top-2.5 left-3 text-[10px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full">
+                          Plan actual
+                        </span>
+                      )}
+                      {s.featured && !esActual && (
+                        <span className="absolute -top-2.5 left-3 text-[10px] font-black bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full">
+                          Popular
+                        </span>
+                      )}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div>
+                          <span className={`inline-block text-[10px] font-black px-2 py-0.5 rounded-full mb-1 ${s.badge}`}>{p.tipo}</span>
+                          <p className="text-white font-bold text-sm leading-tight">{p.nombre}</p>
+                        </div>
+                        {sel && <Check size={16} className="text-emerald-300 shrink-0 mt-0.5" />}
+                      </div>
+                      <p className="text-white font-black text-xl">
+                        ${Number(p.precio).toFixed(2)}
+                        <span className="text-white/40 text-xs font-normal">/{p.periodo.toLowerCase()}</span>
+                      </p>
+                      <p className="text-white/50 text-xs mt-1.5">
+                        {p.facturas_mensuales === -1 ? 'Docs ilimitados' : `${p.facturas_mensuales} docs/período`}
+                        {' · '}
+                        {p.usuarios_permitidos === -1 ? 'Usuarios ilimitados' : `${p.usuarios_permitidos} usuario${p.usuarios_permitidos !== 1 ? 's' : ''}`}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {errorCambio && (
+                <p className="mt-3 text-red-300 text-xs">
+                  {(errorCambio as any)?.response?.data?.error ?? 'Error al cambiar el plan. Intenta de nuevo.'}
+                </p>
+              )}
+
+              <div className="flex justify-end mt-5 gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setOpen(false); setSeleccionado(null); }}
+                  className="px-4 py-2 text-sm text-white/50 hover:text-white transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={!seleccionado || isPending}
+                  onClick={() => seleccionado && cambiar(seleccionado)}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-colors"
+                >
+                  {isPending
+                    ? <><Loader2 size={14} className="animate-spin" /> Cambiando…</>
+                    : <><Check size={14} /> Confirmar cambio</>}
+                </button>
+              </div>
+            </>
           )}
         </div>
-
-        <div className="p-5 flex flex-col flex-1">
-          <p className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-0.5">{plan.tipo}</p>
-          <h3 className="text-xl font-black text-white mb-1">{plan.nombre}</h3>
-          <p className="text-white/60 text-xs mb-4">{cfg.tagline}</p>
-
-          <PriceBlock />
-
-          <button
-            onClick={() => onElegir(plan)}
-            className={`w-full py-3 rounded-xl font-black text-sm mb-5 transition-all active:scale-[.98] ${
-              seleccionado
-                ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg'
-                : 'bg-white hover:bg-blue-50 text-blue-700 shadow-lg hover:shadow-xl'
-            }`}
-          >
-            {seleccionado ? '✓ Plan seleccionado' : cfg.ctaLabel}
-          </button>
-
-          <div className="border-t border-white/20 mb-4" />
-
-          <ul className="space-y-2.5 flex-1">
-            {cfg.features.map(({ label, included, highlight }) => (
-              <li key={label} className={`flex items-start gap-2.5 text-sm ${
-                included
-                  ? highlight ? 'text-white font-semibold' : 'text-white/85'
-                  : 'text-white/25'
-              }`}>
-                {included
-                  ? <CheckCircle size={14} className={`shrink-0 mt-0.5 ${highlight ? 'text-amber-300' : 'text-green-300'}`} />
-                  : <XCircle size={14} className="text-white/15 shrink-0 mt-0.5" />}
-                <span className={included ? '' : 'line-through'}>{label}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Card estándar ───────────────────────────────────────────────────────────
-  return (
-    <div className={`relative flex flex-col bg-white rounded-2xl border-2 transition-all ${
-      seleccionado
-        ? 'border-green-500 shadow-2xl shadow-green-100 ring-2 ring-green-400 ring-offset-2'
-        : 'border-gray-200 shadow-md hover:shadow-xl hover:border-gray-300'
-    }`}>
-      <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-        {seleccionado ? (
-          <span className="inline-flex items-center gap-1.5 bg-green-500 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg">
-            <CheckCircle size={11} fill="currentColor" /> Plan elegido
-          </span>
-        ) : (
-          <span className={`inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-full ${cfg.badgeClass}`}>
-            {plan.tipo}
-          </span>
-        )}
-      </div>
-
-      <div className="p-5 flex flex-col flex-1">
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">{plan.tipo}</p>
-        <h3 className="text-xl font-black text-gray-900 mb-1">{plan.nombre}</h3>
-        <p className="text-gray-400 text-xs mb-4">{cfg.tagline}</p>
-
-        <PriceBlock />
-
-        <button
-          onClick={() => onElegir(plan)}
-          className={`w-full py-3 rounded-xl font-black text-sm mb-5 transition-all active:scale-[.98] shadow-sm hover:shadow-md ${
-            seleccionado
-              ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-200'
-              : cfg.btnClass
-          }`}
-        >
-          {seleccionado ? '✓ Plan seleccionado' : cfg.ctaLabel}
-        </button>
-
-        <div className="border-t border-gray-100 mb-4" />
-
-        <ul className="space-y-2.5 flex-1">
-          {cfg.features.map(({ label, included, highlight }) => (
-            <li key={label} className={`flex items-start gap-2.5 text-sm ${
-              included
-                ? highlight ? 'text-blue-700 font-semibold' : 'text-gray-700'
-                : 'text-gray-300'
-            }`}>
-              {included
-                ? <CheckCircle size={14} className={`shrink-0 mt-0.5 ${highlight ? 'text-blue-500' : 'text-green-500'}`} />
-                : <XCircle size={14} className="text-gray-200 shrink-0 mt-0.5" />}
-              <span className={included ? '' : 'line-through'}>{label}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-// ─── Toggle mensual / anual ───────────────────────────────────────────────────
-function BillingToggle({ anual, onChange }: { anual: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="flex items-center gap-3 bg-white/10 border border-white/20 backdrop-blur-sm rounded-2xl px-5 py-3">
-        <span
-          onClick={() => onChange(false)}
-          className={`text-sm font-semibold cursor-pointer transition-colors ${!anual ? 'text-white' : 'text-white/40 hover:text-white/70'}`}
-        >
-          Mensual
-        </span>
-        <button
-          onClick={() => onChange(!anual)}
-          className={`relative w-12 h-6 rounded-full transition-colors duration-300 focus:outline-none ${anual ? 'bg-blue-500' : 'bg-white/30'}`}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${anual ? 'translate-x-6' : 'translate-x-0'}`} />
-        </button>
-        <span
-          onClick={() => onChange(true)}
-          className={`text-sm font-semibold cursor-pointer transition-colors flex items-center gap-2 ${anual ? 'text-white' : 'text-white/40 hover:text-white/70'}`}
-        >
-          Anual
-          <span className="bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
-            Ahorra ~17%
-          </span>
-        </span>
-      </div>
-      {anual && (
-        <p className="text-white/60 text-xs">Pagando anual es como recibir 2 meses gratis</p>
       )}
     </div>
   );
@@ -258,47 +242,13 @@ function BillingToggle({ anual, onChange }: { anual: boolean; onChange: (v: bool
 export default function BienvenidaPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const [anual, setAnual] = useState(true);
 
-  const [planSeleccionado, setPlanSeleccionado] = useState<PlanSuscripcion | null>(() => {
-    try {
-      const saved = localStorage.getItem(PLAN_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
+  const { data: suscripcion } = useQuery<Suscripcion>({
+    queryKey: ['suscripcion-activa'],
+    queryFn: suscripcionesService.getSuscripcionActiva,
+    retry: false,
+    staleTime: 2 * 60 * 1000,
   });
-
-  const { data: planes = [] } = useQuery<PlanSuscripcion[]>({
-    queryKey: ['planes'],
-    queryFn: suscripcionesService.getPlanes,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Agrupar por tipo, mostrar el correcto según toggle (FREE siempre mensual)
-  const TIPOS_ORDEN = ['FREE', 'BASICO', 'PROFESIONAL', 'EMPRESARIAL'] as const;
-  const planesPorTipo = new Map<string, { mensual?: PlanSuscripcion; anual?: PlanSuscripcion }>();
-  planes.forEach((p) => {
-    const entry = planesPorTipo.get(p.tipo) ?? {};
-    if (p.periodo === 'MENSUAL') entry.mensual = p;
-    else if (p.periodo === 'ANUAL') entry.anual = p;
-    planesPorTipo.set(p.tipo, entry);
-  });
-  const planesToShow = TIPOS_ORDEN
-    .map((tipo) => {
-      const entry = planesPorTipo.get(tipo);
-      if (!entry) return null;
-      const plan = tipo === 'FREE'
-        ? (entry.mensual ?? entry.anual)
-        : anual ? (entry.anual ?? entry.mensual) : (entry.mensual ?? entry.anual);
-      return plan ?? null;
-    })
-    .filter((p): p is PlanSuscripcion => p !== null);
-
-  const handleElegirPlan = (plan: PlanSuscripcion) => {
-    setPlanSeleccionado(plan);
-    localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(plan));
-  };
-
-  const planSeleccionadoUI = planSeleccionado ? PLAN_UI_DATA[planSeleccionado.tipo] : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-slate-800">
@@ -346,6 +296,10 @@ export default function BienvenidaPage() {
               </div>
             </div>
           </div>
+
+          {/* Tarjeta suscripción activa */}
+          {suscripcion && <SuscripcionCard suscripcion={suscripcion} />}
+
         </div>
 
         {/* ── Módulos del sistema ────────────────────────────────────────── */}
@@ -379,65 +333,6 @@ export default function BienvenidaPage() {
             ))}
           </div>
         </div>
-
-        {/* Plans section */}
-        {planesToShow.length > 0 && (
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-8 mb-8">
-            {/* Header */}
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-black text-white mb-2">
-                Elige tu plan al finalizar la prueba
-              </h2>
-              <p className="text-white/60 text-sm max-w-sm mx-auto">
-                Selecciona ahora y lo activaremos automáticamente al vencer los 30 días.
-                Sin tarjeta de crédito requerida.
-              </p>
-            </div>
-
-            {/* Toggle anual/mensual */}
-            <div className="flex justify-center mb-10">
-              <BillingToggle anual={anual} onChange={setAnual} />
-            </div>
-
-            {/* Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch py-4 max-w-5xl mx-auto">
-              {planesToShow.map((plan) => (
-                <PlanCard
-                  key={plan.id}
-                  plan={plan}
-                  anual={anual}
-                  seleccionado={planSeleccionado?.tipo === plan.tipo}
-                  onElegir={handleElegirPlan}
-                />
-              ))}
-            </div>
-
-            {/* Confirmación de elección */}
-            {planSeleccionado && planSeleccionadoUI ? (
-              <div className="flex items-center justify-center gap-3 mt-6 bg-green-500/20 border border-green-400/30 text-green-300 rounded-2xl py-3 px-5">
-                <CheckCheck size={18} className="shrink-0" />
-                <span className="text-sm font-semibold">
-                  Plan <strong className="text-white">{planSeleccionado.nombre}</strong> seleccionado
-                  {planSeleccionadoUI.precioMensual && (
-                    <> — se activará a ${anual ? planSeleccionadoUI.precioAnual?.toFixed(2) : planSeleccionadoUI.precioMensual?.toFixed(2)} / {anual ? 'año' : 'mes'}</>
-                  )}
-                </span>
-              </div>
-            ) : (
-              <p className="text-center text-xs text-white/40 mt-5">
-                * Si no eliges un plan, al vencer los 30 días continuarás con acceso básico de facturación únicamente.
-              </p>
-            )}
-
-            {/* Trust signals */}
-            <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 mt-5 text-xs text-white/35">
-              <span>✓ Sin contratos</span>
-              <span>✓ Cancela cuando quieras</span>
-              <span>✓ Precios + IVA</span>
-              <span>✓ Facturación SRI incluida</span>
-            </div>
-          </div>
-        )}
 
         {/* ── Empieza en 3 pasos ─────────────────────────────────────────── */}
         <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-8 mb-8">

@@ -593,8 +593,17 @@ export default function OnboardingPage() {
           )}
 
           {/* Navigation */}
-          <div className={`flex mt-8 gap-3 ${step > 0 ? 'justify-between' : 'justify-end'}`}>
-            {step > 0 && (
+          <div className={`flex mt-8 gap-3 ${step > 0 ? 'justify-between' : 'justify-between'}`}>
+            {step === 0 ? (
+              <button
+                type="button"
+                onClick={() => navigate('/bienvenida')}
+                className="flex items-center gap-2 px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-xl font-semibold text-sm transition-all"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Volver
+              </button>
+            ) : (
               <button
                 type="button"
                 onClick={() => { setError(''); setStep((s) => s - 1); }}
