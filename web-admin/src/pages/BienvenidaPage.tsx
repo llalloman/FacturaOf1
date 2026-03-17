@@ -17,6 +17,18 @@ import {
   TrendingUp,
   CheckCheck,
   XCircle,
+  ShoppingCart,
+  Package,
+  Users,
+  FileSpreadsheet,
+  Wallet,
+  Banknote,
+  BarChart3,
+  Calculator,
+  Building2,
+  Zap,
+  MessageCircle,
+  RefreshCw,
 } from 'lucide-react';
 
 const PLAN_STORAGE_KEY = 'of1_plan_elegido';
@@ -336,6 +348,38 @@ export default function BienvenidaPage() {
           </div>
         </div>
 
+        {/* ── Módulos del sistema ────────────────────────────────────────── */}
+        <div className="mb-8">
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-black text-white mb-1">Todo lo que necesita tu negocio</h2>
+            <p className="text-white/50 text-sm">Todos los módulos activos durante tu prueba gratuita</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {[
+              { icon: FileText,       color: 'bg-blue-500',    label: 'Facturación Electrónica',  desc: 'Facturas, N/C, N/D y retenciones firmadas al SRI' },
+              { icon: ShoppingCart,   color: 'bg-emerald-500', label: 'Punto de Venta (POS)',      desc: 'Ventas rápidas, gestión de mesas y cobros' },
+              { icon: Package,        color: 'bg-amber-500',   label: 'Inventario y Productos',   desc: 'Stock, alertas de mínimos y movimientos' },
+              { icon: FileSpreadsheet,color: 'bg-violet-500',  label: 'Cotizaciones',              desc: 'Proformas que se convierten en facturas' },
+              { icon: Users,          color: 'bg-sky-500',     label: 'Clientes y Proveedores',   desc: 'Validación de RUC/cédula y trazabilidad' },
+              { icon: Wallet,         color: 'bg-rose-500',    label: 'Nómina',                    desc: 'Roles de pago y beneficios de ley' },
+              { icon: Banknote,       color: 'bg-teal-500',    label: 'Bancos y Cartera',          desc: 'Cuentas por cobrar y conciliación' },
+              { icon: BarChart3,      color: 'bg-indigo-500',  label: 'Declaraciones SRI',         desc: 'Formularios, retenciones y anexos' },
+              { icon: Calculator,     color: 'bg-orange-500',  label: 'Contabilidad',              desc: 'Plan de cuentas y asientos automáticos' },
+              { icon: RefreshCw,      color: 'bg-cyan-500',    label: 'Guías de Remisión',         desc: 'Documentos de traslado autorizados por el SRI' },
+              { icon: Shield,         color: 'bg-green-600',   label: 'Firma Digital',             desc: 'Certificado .p12 integrado para firma automática' },
+              { icon: BarChart3,      color: 'bg-blue-700',    label: 'Reportes y Dashboard',      desc: 'KPIs, ventas, proyecciones y exportación Excel' },
+            ].map(({ icon: Icon, color, label, desc }) => (
+              <div key={label} className="bg-white/8 backdrop-blur-sm border border-white/10 rounded-2xl p-4 hover:bg-white/15 hover:border-white/25 transition-all group">
+                <div className={`w-10 h-10 ${color} rounded-xl flex items-center justify-center mb-3 shadow-lg group-hover:scale-110 transition-transform`}>
+                  <Icon size={18} className="text-white" />
+                </div>
+                <p className="text-white text-sm font-bold leading-tight mb-1">{label}</p>
+                <p className="text-white/45 text-xs leading-snug">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Plans section */}
         {planesToShow.length > 0 && (
           <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-8 mb-8">
@@ -395,6 +439,63 @@ export default function BienvenidaPage() {
           </div>
         )}
 
+        {/* ── Empieza en 3 pasos ─────────────────────────────────────────── */}
+        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-8 mb-8">
+          <div className="text-center mb-7">
+            <h2 className="text-xl font-black text-white mb-1">Empieza a facturar en 3 pasos</h2>
+            <p className="text-white/50 text-sm">Solo toma unos minutos. Sin conocimientos técnicos.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl mx-auto">
+            {[
+              {
+                step: '1',
+                icon: Building2,
+                color: 'from-blue-500 to-blue-700',
+                label: 'Configura tu empresa',
+                desc: 'Ingresa tu RUC, razón social, logo y sube tu certificado digital .p12 para firma automática.',
+                action: 'Ir a Configuración',
+                path: '/configuracion',
+              },
+              {
+                step: '2',
+                icon: Package,
+                color: 'from-amber-500 to-orange-600',
+                label: 'Agrega tus productos',
+                desc: 'Crea tu catálogo con código, precio e IVA. Activa el inventario para llevar el stock automáticamente.',
+                action: 'Ir a Productos',
+                path: '/productos',
+              },
+              {
+                step: '3',
+                icon: Zap,
+                color: 'from-emerald-500 to-teal-600',
+                label: 'Emite tu primera factura',
+                desc: 'Selecciona el cliente, agrega los productos y emite. La factura se firma y envía al SRI en segundos.',
+                action: 'Ir a Facturación',
+                path: '/facturacion',
+              },
+            ].map(({ step, icon: Icon, color, label, desc, action, path }) => (
+              <div key={step} className="relative flex flex-col items-center text-center">
+                <div className={`w-14 h-14 bg-gradient-to-br ${color} rounded-2xl flex items-center justify-center shadow-xl mb-4 shrink-0`}>
+                  <Icon size={24} className="text-white" />
+                </div>
+                <div className="absolute -top-2 -right-2 sm:static sm:hidden w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-white text-xs font-black">{step}</div>
+                <p className="text-white font-black text-base mb-2">
+                  <span className="inline-block bg-white/15 text-white/70 text-xs font-black px-2 py-0.5 rounded-full mr-2">Paso {step}</span>
+                  {label}
+                </p>
+                <p className="text-white/55 text-xs leading-relaxed mb-4">{desc}</p>
+                <button
+                  onClick={() => navigate(path)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-300 hover:text-white transition-colors"
+                >
+                  {action} <ArrowRight size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* CTA */}
         <div className="text-center">
           <button
@@ -410,7 +511,23 @@ export default function BienvenidaPage() {
           </p>
         </div>
 
-        <p className="text-center text-blue-300/50 text-xs mt-8">© 2026 OF1 Solutions S.A.S.</p>
+        {/* ── Soporte ───────────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8 bg-white/5 border border-white/10 rounded-2xl px-6 py-5">
+          <MessageCircle size={22} className="text-sky-400 shrink-0" />
+          <p className="text-white/70 text-sm text-center sm:text-left">
+            ¿Tienes dudas? Nuestro equipo está disponible para ayudarte a configurar la plataforma.
+          </p>
+          <a
+            href="https://wa.me/593999999999?text=Hola%2C%20necesito%20ayuda%20con%20OF1%20Solutions"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl transition-colors shadow-lg"
+          >
+            💬 Contactar soporte
+          </a>
+        </div>
+
+        <p className="text-center text-blue-300/50 text-xs mt-6">© 2026 OF1 Solutions S.A.S.</p>
       </div>
     </div>
   );
