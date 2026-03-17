@@ -7,14 +7,16 @@ from rest_framework.throttling import AnonRateThrottle
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta, timezone as dt_timezone
+import logging
 import random
 import string
 import requests as http_requests
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -23,19 +25,39 @@ def _generate_code():
     return ''.join(random.choices(string.digits, k=6))
 
 
-def _send_verification_email(email: str, code: str):
-    send_mail(
-        subject='Código de verificación - OF1 Solutions',
-        message=(
-            f'Tu código de verificación es: {code}\n\n'
+def _send_verification_email(email: str, code: str, nombre: str = ''):
+    """Envía el código de verificación vía Resend API (evita bloqueo SMTP de Railway)."""
+    resend_key = getattr(settings, 'RESEND_API_KEY', None)
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
+    saludo = f'Hola {nombre},' if nombre else 'Hola,'
+    payload = {
+        'from': f'OF1 Solutions <{from_email}>',
+        'to': [email],
+        'subject': 'Código de verificación - OF1 Solutions',
+        'text': (
+            f'{saludo}\n\n'
+            f'Tu código de verificación es:\n\n'
+            f'    {code}\n\n'
             f'Este código es válido por 30 minutos.\n\n'
             f'Si no solicitaste este código, ignora este mensaje.\n\n'
-            f'OF1 Solutions S.A.S.'
+            f'— OF1 Solutions S.A.S.'
         ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[email],
-        fail_silently=False,
+    }
+    if not resend_key:
+        logger.warning('_send_verification_email: RESEND_API_KEY no configurado, email no enviado a %s', email)
+        raise Exception('RESEND_API_KEY no configurado en las variables de entorno.')
+    resp = http_requests.post(
+        'https://api.resend.com/emails',
+        json=payload,
+        headers={
+            'Authorization': f'Bearer {resend_key}',
+            'Content-Type': 'application/json',
+        },
+        timeout=15,
     )
+    if resp.status_code not in (200, 201):
+        logger.error('_send_verification_email Resend error for %s: %s %s', email, resp.status_code, resp.text)
+        raise Exception(f'Resend API {resp.status_code}: {resp.text}')
 
 
 def _user_dict(user, empresa=None):
@@ -172,7 +194,7 @@ def registro_empresa(request):
 
     # 4. Enviar email de verificación
     try:
-        _send_verification_email(email_admin, codigo)
+        _send_verification_email(email_admin, codigo, nombre=data.get('nombre', '').strip())
     except Exception:
         pass  # No bloquear el registro si el email falla — el usuario puede reenviar
 
@@ -259,7 +281,7 @@ def reenviar_codigo(request):
     user.save(update_fields=['codigo_verificacion', 'codigo_verificacion_expira', 'ultimo_reenvio', 'intentos_reenvio'])
 
     try:
-        _send_verification_email(user.email, codigo)
+        _send_verification_email(user.email, codigo, nombre=user.first_name or '')
     except Exception as exc:
         return Response({'error': f'No se pudo enviar el email: {exc}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -497,9 +519,7 @@ def recuperar_password(request):
     temp_pass = _generate_temp_password()
 
     # Intentar enviar el correo ANTES de persistir el cambio de contraseña.
-    # Usamos la API HTTP de ZeptoMail (puerto 443) para evitar bloqueos de SMTP en Railway.
-    import logging
-    logger = logging.getLogger(__name__)
+    # Usamos la API HTTP de Resend (puerto 443) para evitar bloqueos de SMTP en Railway.
     email_enviado = False
     try:
         resend_key = getattr(settings, 'RESEND_API_KEY', None)
