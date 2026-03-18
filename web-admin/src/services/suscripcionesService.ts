@@ -94,4 +94,25 @@ export const suscripcionesService = {
     const { data } = await apiClient.post('/suscripciones/suscripciones/toggle-auto-renovar/', body);
     return data;
   },
+
+  // ── Módulos / Matriz de permisos ─────────────────────────────────────────
+  getMisModulos: async (): Promise<string[]> => {
+    const { data } = await apiClient.get('/suscripciones/mis-modulos/');
+    return data.modulos ?? [];
+  },
+
+  getCatalogModulos: async (): Promise<{ codigo: string; label: string }[]> => {
+    const { data } = await apiClient.get('/suscripciones/modulos-catalogo/');
+    return data;
+  },
+
+  getModulosPlan: async (planId: number): Promise<string[]> => {
+    const { data } = await apiClient.get(`/suscripciones/planes/${planId}/modulos/`);
+    return data.modulos ?? [];
+  },
+
+  setModulosPlan: async (planId: number, modulos: string[]): Promise<string[]> => {
+    const { data } = await apiClient.put(`/suscripciones/planes/${planId}/modulos/`, { modulos });
+    return data.modulos ?? [];
+  },
 };

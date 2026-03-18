@@ -62,6 +62,32 @@ def _send_verification_email(email: str, code: str, nombre: str = ''):
 
 def _user_dict(user, empresa=None):
     emp = empresa or user.empresa
+
+    # ── Módulos activos según plan de suscripción ──────────────────────────────
+    from apps.suscripciones.models import Suscripcion, ModuloPermiso, TODOS_LOS_MODULOS
+    if getattr(user, 'rol', None) == 'SUPER_ADMIN' or user.is_superuser:
+        modulos_activos = TODOS_LOS_MODULOS
+    elif emp:
+        try:
+            suscripcion_activa = (
+                Suscripcion.objects
+                .filter(empresa=emp, estado__in=['ACTIVA', 'PRUEBA'])
+                .select_related('plan')
+                .order_by('-fecha_inicio')
+                .first()
+            )
+            if suscripcion_activa:
+                modulos_activos = list(
+                    ModuloPermiso.objects.filter(plan=suscripcion_activa.plan)
+                    .values_list('modulo', flat=True)
+                )
+            else:
+                modulos_activos = []
+        except Exception:
+            modulos_activos = []
+    else:
+        modulos_activos = []
+
     return {
         'id': user.id,
         'username': user.email,
@@ -73,6 +99,7 @@ def _user_dict(user, empresa=None):
         'email_verificado': user.email_verificado,
         'onboarding_completado': emp.onboarding_completado if emp else False,
         'debe_cambiar_password': user.debe_cambiar_password,
+        'modulos_activos': modulos_activos,
     }
 
 

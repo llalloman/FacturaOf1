@@ -11,6 +11,8 @@ export interface User {
   email_verificado: boolean;
   onboarding_completado: boolean;
   debe_cambiar_password?: boolean;
+  /** Códigos de módulos accesibles según el plan de suscripción activo */
+  modulos_activos?: string[];
 }
 
 interface AuthState {

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PlanSuscripcion, Suscripcion, Pago
+from .models import PlanSuscripcion, Suscripcion, Pago, ModuloPermiso, MODULOS_DISPONIBLES
 
 
 class PlanSuscripcionSerializer(serializers.ModelSerializer):
@@ -64,3 +64,17 @@ class PagoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pago
         fields = ['id', 'suscripcion', 'monto', 'tipo', 'estado', 'metodo', 'referencia', 'notas', 'fecha_creacion']
+
+
+class ModuloCatalogSerializer(serializers.Serializer):
+    """Catálogo de todos los módulos disponibles (solo lectura)."""
+    codigo = serializers.CharField()
+    label = serializers.CharField()
+
+
+class ModuloPermisoSerializer(serializers.Serializer):
+    """Actualización de permisos de un plan (lista de códigos de módulo)."""
+    modulos = serializers.ListField(
+        child=serializers.ChoiceField(choices=[c for c, _ in MODULOS_DISPONIBLES]),
+        allow_empty=True,
+    )

@@ -7,6 +7,34 @@ from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
 
+# ── Catálogo de módulos del sistema ─────────────────────────────────────────
+MODULOS_DISPONIBLES = [
+    ('dashboard',      'Dashboard'),
+    ('facturacion',    'Facturación'),
+    ('retenciones',    'Retenciones'),
+    ('guias_remision', 'Guías de Remisión'),
+    ('notas_debito',   'Notas de Débito'),
+    ('notas_credito',  'Notas de Crédito'),
+    ('cartera',        'Cartera por Cobrar'),
+    ('declaraciones',  'Declaraciones SRI'),
+    ('cotizaciones',   'Cotizaciones'),
+    ('contabilidad',   'Contabilidad'),
+    ('bancos',         'Bancos'),
+    ('nomina',         'Nómina'),
+    ('ventas',         'Ventas'),
+    ('pedidos',        'Mesas / Pedidos'),
+    ('clientes',       'Clientes'),
+    ('productos',      'Productos'),
+    ('proveedores',    'Proveedores'),
+    ('inventarios',    'Inventarios'),
+    ('reportes',       'Reportes'),
+    ('configuracion',  'Configuración'),
+    ('usuarios',       'Usuarios'),
+    ('pos',            'Punto de Venta'),
+]
+
+TODOS_LOS_MODULOS = [codigo for codigo, _ in MODULOS_DISPONIBLES]
+
 
 class PlanSuscripcion(models.Model):
     """
@@ -308,3 +336,30 @@ class Pago(models.Model):
         if self.suscripcion.estado != Suscripcion.EstadoChoices.ACTIVA:
             self.suscripcion.estado = Suscripcion.EstadoChoices.ACTIVA
             self.suscripcion.save()
+
+
+class ModuloPermiso(models.Model):
+    """
+    Matriz de permisos: qué módulos del sistema tiene habilitados cada plan.
+    El superadmin puede configurar esta matriz desde la interfaz de administración.
+    """
+    plan = models.ForeignKey(
+        PlanSuscripcion,
+        on_delete=models.CASCADE,
+        related_name='modulos_permitidos',
+        verbose_name=_('plan'),
+    )
+    modulo = models.CharField(
+        _('módulo'),
+        max_length=50,
+        choices=MODULOS_DISPONIBLES,
+    )
+
+    class Meta:
+        verbose_name = _('permiso de módulo')
+        verbose_name_plural = _('permisos de módulos')
+        unique_together = [['plan', 'modulo']]
+        ordering = ['plan', 'modulo']
+
+    def __str__(self):
+        return f"{self.plan.nombre} → {self.modulo}"

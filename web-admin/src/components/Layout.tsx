@@ -1,5 +1,7 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useModulosAcceso } from '../hooks/useModulosAcceso';
+import { RUTA_A_MODULO } from '../constants/modulos';
 import {
   LayoutDashboard,
   FileText,
@@ -30,6 +32,8 @@ import {
   Banknote,
   UsersRound,
   ChevronDown,
+  Lock,
+  Shield,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -101,10 +105,11 @@ const ROL_PATHS: Record<string, string[]> = {
 
 // Menú exclusivo del Super Admin (no está atado a ninguna empresa)
 const menuItemsSuperAdmin: MenuItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard',      path: '/' },
-  { icon: Building2,       label: 'Empresas',        path: '/empresas' },
-  { icon: CreditCard,      label: 'Suscripciones', path: '/suscripciones-admin' },
-  { icon: Users,           label: 'Usuarios',        path: '/usuarios' },
+  { icon: LayoutDashboard, label: 'Dashboard',       path: '/' },
+  { icon: Building2,       label: 'Empresas',         path: '/empresas' },
+  { icon: CreditCard,      label: 'Suscripciones',   path: '/suscripciones-admin' },
+  { icon: Shield,          label: 'Matriz de Acceso', path: '/matriz-permisos' },
+  { icon: Users,           label: 'Usuarios',         path: '/usuarios' },
 ];
 
 export default function Layout() {
@@ -127,6 +132,8 @@ export default function Layout() {
   // Menú filtrado por rol del usuario
   const rol = user?.rol ?? '';
   const allowedPaths = ROL_PATHS[rol] ?? ROL_PATHS['ADMIN_EMPRESA'];
+  const { tieneAccesoModulo } = useModulosAcceso();
+
   const menuGroups = MENU_GROUPS
     .map((g) => ({ ...g, items: g.items.filter((i) => allowedPaths.includes(i.path)) }))
     .filter((g) => g.items.length > 0);
@@ -245,24 +252,36 @@ export default function Layout() {
                         !sidebarOpen || isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                       }`}
                     >
-                      {group.items.map((item) => (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
-                            isActive(item.path)
-                              ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
-                              : 'hover:bg-gray-800 hover:translate-x-1'
-                          }`}
-                        >
-                          <item.icon size={20} className={isActive(item.path) ? 'text-white' : 'text-gray-400'} />
-                          {sidebarOpen && (
-                            <span className={`text-sm font-medium ${isActive(item.path) ? 'text-white' : 'text-gray-300'}`}>
-                              {item.label}
-                            </span>
-                          )}
-                        </Link>
-                      ))}
+                      {group.items.map((item) => {
+                        const codigoModulo = RUTA_A_MODULO[item.path];
+                        const bloqueado = codigoModulo ? !tieneAccesoModulo(codigoModulo) : false;
+                        return (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            title={bloqueado ? 'Módulo no incluido en tu plan. Haz clic para ver detalles.' : undefined}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
+                              isActive(item.path)
+                                ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
+                                : bloqueado
+                                ? 'opacity-50 hover:bg-gray-800/50 cursor-pointer'
+                                : 'hover:bg-gray-800 hover:translate-x-1'
+                            }`}
+                          >
+                            <item.icon size={20} className={isActive(item.path) ? 'text-white' : 'text-gray-400'} />
+                            {sidebarOpen && (
+                              <span className={`flex-1 text-sm font-medium ${
+                                isActive(item.path) ? 'text-white' : 'text-gray-300'
+                              }`}>
+                                {item.label}
+                              </span>
+                            )}
+                            {sidebarOpen && bloqueado && (
+                              <Lock size={12} className="text-gray-500 flex-shrink-0" />
+                            )}
+                          </Link>
+                        );
+                      })}
                     </div>
                   </div>
                 );

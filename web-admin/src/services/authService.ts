@@ -16,6 +16,7 @@ export interface UserInfo {
   email_verificado: boolean;
   onboarding_completado: boolean;
   debe_cambiar_password?: boolean;
+  modulos_activos?: string[];
 }
 
 interface AuthResponse {

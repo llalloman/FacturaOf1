@@ -1,11 +1,11 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils import timezone
 from datetime import timedelta
-from .models import PlanSuscripcion, Suscripcion
-from .serializers import PlanSuscripcionSerializer, SuscripcionSerializer
+from .models import PlanSuscripcion, Suscripcion, ModuloPermiso, MODULOS_DISPONIBLES, TODOS_LOS_MODULOS
+from .serializers import PlanSuscripcionSerializer, SuscripcionSerializer, ModuloPermisoSerializer
 
 
 def _is_super_admin(user):
@@ -300,4 +300,72 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
         suscripcion.save(update_fields=['auto_renovar'])
 
         return Response(SuscripcionSerializer(suscripcion).data)
+
+    # ── Permisos de módulos del plan ──────────────────────────────────────────
+    @action(detail=True, methods=['get', 'put'], url_path='modulos')
+    def modulos(self, request, pk=None):
+        """
+        GET  → Lista de códigos de módulo habilitados para este plan.
+        PUT  → Reemplaza la lista completa. Body: { "modulos": ["facturacion", "ventas", ...] }
+        Solo SUPER_ADMIN.
+        """
+        if not _is_super_admin(request.user):
+            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        plan = self.get_object()
+        if request.method == 'GET':
+            codigos = list(
+                ModuloPermiso.objects.filter(plan=plan).values_list('modulo', flat=True)
+            )
+            return Response({'plan_id': plan.id, 'modulos': codigos})
+        # PUT — bulk replace
+        ser = ModuloPermisoSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        nuevos = set(ser.validated_data['modulos'])
+        ModuloPermiso.objects.filter(plan=plan).delete()
+        ModuloPermiso.objects.bulk_create([
+            ModuloPermiso(plan=plan, modulo=m) for m in nuevos
+        ])
+        return Response({'plan_id': plan.id, 'modulos': sorted(nuevos)})
+
+
+# ── Endpoints funcionales (no ViewSet) ────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def catalogo_modulos(request):
+    """Devuelve el catálogo completo de módulos disponibles en el sistema."""
+    return Response([{'codigo': c, 'label': l} for c, l in MODULOS_DISPONIBLES])
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def mis_modulos(request):
+    """
+    Devuelve la lista de módulos a los que el usuario actual tiene acceso,
+    basado en el plan de suscripción activo de su empresa.
+    - SUPER_ADMIN: acceso a todos los módulos.
+    - Empresa sin suscripción activa: lista vacía.
+    """
+    user = request.user
+    if getattr(user, 'rol', None) == 'SUPER_ADMIN' or user.is_superuser:
+        return Response({'modulos': TODOS_LOS_MODULOS})
+
+    empresa = getattr(user, 'empresa', None)
+    if not empresa:
+        return Response({'modulos': []})
+
+    suscripcion = (
+        Suscripcion.objects
+        .filter(empresa=empresa, estado__in=['ACTIVA', 'PRUEBA'])
+        .select_related('plan')
+        .order_by('-fecha_inicio')
+        .first()
+    )
+    if not suscripcion:
+        return Response({'modulos': []})
+
+    codigos = list(
+        ModuloPermiso.objects.filter(plan=suscripcion.plan).values_list('modulo', flat=True)
+    )
+    return Response({'modulos': codigos})
 
