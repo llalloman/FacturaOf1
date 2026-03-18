@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { suscripcionesService } from '../../services/suscripcionesService';
 import { MODULOS } from '../../constants/modulos';
-import { Shield, Save, CheckCircle2, Loader2 } from 'lucide-react';
+import { Shield, Save, CheckCircle2, Loader2, Lock } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
 
 // Group modules for display
@@ -49,7 +49,8 @@ export default function MatrizPermisosPage() {
     }
   }
 
-  const toggle = (planId: number, codigo: string) => {
+  const toggle = (planId: number, codigo: string, activo: boolean) => {
+    if (!activo) return;
     setLocalMatrix((prev) => {
       const current = new Set(prev[planId] ?? modulosQueries.data?.[planId] ?? []);
       if (current.has(codigo)) {
@@ -61,7 +62,8 @@ export default function MatrizPermisosPage() {
     });
   };
 
-  const toggleAll = (planId: number, checked: boolean) => {
+  const toggleAll = (planId: number, checked: boolean, activo: boolean) => {
+    if (!activo) return;
     setLocalMatrix((prev) => ({
       ...prev,
       [planId]: checked ? new Set(MODULOS.map((m) => m.codigo)) : new Set(),
@@ -123,23 +125,30 @@ export default function MatrizPermisosPage() {
                 Módulo
               </th>
               {planesArr.map((plan) => (
-                <th key={plan.id} className="px-4 py-4 text-center min-w-[140px]">
+                <th key={plan.id} className={`px-4 py-4 text-center min-w-[140px] transition-colors ${!plan.activo ? 'bg-gray-50' : ''}`}>
                   <div className="flex flex-col items-center gap-1">
-                    <span className="text-sm font-bold text-gray-800">{plan.nombre}</span>
+                    <div className="flex items-center gap-1.5">
+                      {!plan.activo && <Lock size={13} className="text-gray-400" />}
+                      <span className={`text-sm font-bold ${plan.activo ? 'text-gray-800' : 'text-gray-400'}`}>{plan.nombre}</span>
+                    </div>
                     <span className="text-xs text-gray-400">{plan.tipo}</span>
-                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer mt-1">
-                      <input
-                        type="checkbox"
-                        className="rounded accent-blue-600"
-                        checked={
-                          matrix[plan.id]
-                            ? MODULOS.every((m) => matrix[plan.id]?.has(m.codigo))
-                            : false
-                        }
-                        onChange={(e) => toggleAll(plan.id, e.target.checked)}
-                      />
-                      Todos
-                    </label>
+                    {!plan.activo ? (
+                      <span className="mt-1 px-2 py-0.5 rounded-full bg-gray-200 text-gray-500 text-xs font-medium">Inactivo</span>
+                    ) : (
+                      <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer mt-1">
+                        <input
+                          type="checkbox"
+                          className="rounded accent-blue-600"
+                          checked={
+                            matrix[plan.id]
+                              ? MODULOS.every((m) => matrix[plan.id]?.has(m.codigo))
+                              : false
+                          }
+                          onChange={(e) => toggleAll(plan.id, e.target.checked, plan.activo)}
+                        />
+                        Todos
+                      </label>
+                    )}
                   </div>
                 </th>
               ))}
@@ -171,18 +180,24 @@ export default function MatrizPermisosPage() {
                       {planesArr.map((plan) => {
                         const checked = matrix[plan.id]?.has(mod.codigo) ?? false;
                         return (
-                          <td key={plan.id} className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => toggle(plan.id, mod.codigo)}
-                              className={`w-7 h-7 rounded-lg flex items-center justify-center mx-auto transition-all ${
-                                checked
-                                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-                                  : 'bg-gray-100 text-gray-300 hover:bg-gray-200'
-                              }`}
-                              title={`${checked ? 'Quitar' : 'Dar'} acceso a ${mod.label} en plan ${plan.nombre}`}
-                            >
-                              <CheckCircle2 size={16} />
-                            </button>
+                          <td key={plan.id} className={`px-4 py-3 text-center ${!plan.activo ? 'bg-gray-50' : ''}`}>
+                            {plan.activo ? (
+                              <button
+                                onClick={() => toggle(plan.id, mod.codigo, plan.activo)}
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center mx-auto transition-all ${
+                                  checked
+                                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                                    : 'bg-gray-100 text-gray-300 hover:bg-gray-200'
+                                }`}
+                                title={`${checked ? 'Quitar' : 'Dar'} acceso a ${mod.label} en plan ${plan.nombre}`}
+                              >
+                                <CheckCircle2 size={16} />
+                              </button>
+                            ) : (
+                              <div className="w-7 h-7 rounded-lg flex items-center justify-center mx-auto bg-gray-100">
+                                <Lock size={13} className="text-gray-300" />
+                              </div>
+                            )}
                           </td>
                         );
                       })}
@@ -197,7 +212,7 @@ export default function MatrizPermisosPage() {
 
       {/* Save buttons per plan */}
       <div className="flex flex-wrap gap-3">
-        {planesArr.map((plan) => {
+        {planesArr.filter((p) => p.activo).map((plan) => {
           const hasChanges =
             localMatrix[plan.id] !== undefined;
           return (
