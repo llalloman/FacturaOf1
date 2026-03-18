@@ -34,8 +34,14 @@ import {
   ChevronDown,
   Lock,
   Shield,
+  AlertCircle,
+  CheckCircle2,
+  Info,
+  AlertTriangle,
+  CheckCheck,
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNotificaciones } from '../hooks/useNotificaciones';
 
 type MenuItem = { icon: React.ElementType; label: string; path: string };
 type MenuGroup = { label: string; items: MenuItem[] };
@@ -133,6 +139,29 @@ export default function Layout() {
   const rol = user?.rol ?? '';
   const allowedPaths = ROL_PATHS[rol] ?? ROL_PATHS['ADMIN_EMPRESA'];
   const { tieneAccesoModulo } = useModulosAcceso();
+  const { notificaciones, noLeidas, marcarLeida, marcarTodasLeidas } = useNotificaciones();
+  const [bellOpen, setBellOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar dropdown al hacer clic fuera
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setBellOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const iconoTipo = (tipo: string) => {
+    switch (tipo) {
+      case 'ERROR':       return <AlertCircle size={16} className="text-red-500 flex-shrink-0" />;
+      case 'ADVERTENCIA': return <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />;
+      case 'EXITO':       return <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />;
+      default:            return <Info size={16} className="text-blue-500 flex-shrink-0" />;
+    }
+  };
 
   const menuGroups = MENU_GROUPS
     .map((g) => ({ ...g, items: g.items.filter((i) => allowedPaths.includes(i.path)) }))
@@ -373,10 +402,89 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-4 ml-6">
-            <button className="relative p-3 hover:bg-gray-100 rounded-xl transition-colors">
-              <Bell size={22} className="text-gray-600" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
+            {/* Campanita de notificaciones */}
+            <div className="relative" ref={bellRef}>
+              <button
+                onClick={() => setBellOpen((v) => !v)}
+                className="relative p-3 hover:bg-gray-100 rounded-xl transition-colors"
+                aria-label="Notificaciones"
+              >
+                <Bell size={22} className="text-gray-600" />
+                {noLeidas > 0 && (
+                  <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                    {noLeidas > 9 ? '9+' : noLeidas}
+                  </span>
+                )}
+              </button>
+
+              {bellOpen && (
+                <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <Bell size={16} className="text-gray-500" />
+                      <span className="font-semibold text-gray-800 text-sm">Notificaciones</span>
+                      {noLeidas > 0 && (
+                        <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                          {noLeidas} nueva{noLeidas !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                    {noLeidas > 0 && (
+                      <button
+                        onClick={() => marcarTodasLeidas()}
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                      >
+                        <CheckCheck size={13} />
+                        Marcar todas
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Lista */}
+                  <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+                    {notificaciones.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                        <Bell size={32} className="mb-2 opacity-30" />
+                        <p className="text-sm">Sin notificaciones</p>
+                      </div>
+                    ) : (
+                      notificaciones.map((n) => (
+                        <div
+                          key={n.id}
+                          className={`flex gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                            n.leida ? 'bg-white hover:bg-gray-50' : 'bg-blue-50/60 hover:bg-blue-50'
+                          }`}
+                          onClick={() => {
+                            if (!n.leida) marcarLeida(n.id);
+                            if (n.url) {
+                              setBellOpen(false);
+                              navigate(n.url);
+                            }
+                          }}
+                        >
+                          <div className="pt-0.5">{iconoTipo(n.tipo)}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-semibold truncate ${n.leida ? 'text-gray-600' : 'text-gray-900'}`}>
+                              {n.titulo}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.mensaje}</p>
+                            <p className="text-[11px] text-gray-400 mt-1">
+                              {new Date(n.fecha_creacion).toLocaleString('es-EC', {
+                                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                              })}
+                            </p>
+                          </div>
+                          {!n.leida && (
+                            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-1.5" />
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

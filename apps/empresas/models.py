@@ -291,3 +291,39 @@ class PuntoEmision(models.Model):
     
     def __str__(self):
         return f"{self.codigo} - {self.nombre}"
+
+
+class Notificacion(models.Model):
+    """
+    Notificaciones en-app por empresa. Alimentada por tareas automáticas
+    (facturas rechazadas, autorizaciones pendientes, etc.) y visible en la
+    campanita del panel de administración.
+    """
+
+    class TipoChoices(models.TextChoices):
+        ERROR       = 'ERROR',       _('Error')
+        ADVERTENCIA = 'ADVERTENCIA', _('Advertencia')
+        EXITO       = 'EXITO',       _('Éxito')
+        INFO        = 'INFO',        _('Información')
+
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        related_name='notificaciones',
+        verbose_name=_('empresa'),
+    )
+    tipo    = models.CharField(_('tipo'), max_length=20, choices=TipoChoices.choices, default=TipoChoices.INFO)
+    titulo  = models.CharField(_('título'), max_length=200)
+    mensaje = models.TextField(_('mensaje'))
+    # Ruta del frontend a la que navegar al hacer clic (ej. "/facturacion")
+    url     = models.CharField(_('url'), max_length=300, blank=True)
+    leida   = models.BooleanField(_('leída'), default=False)
+    fecha_creacion = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+
+    class Meta:
+        verbose_name        = _('notificación')
+        verbose_name_plural = _('notificaciones')
+        ordering            = ['-fecha_creacion']
+
+    def __str__(self):
+        return f"[{self.tipo}] {self.titulo} ({self.empresa.razon_social})"

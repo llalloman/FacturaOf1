@@ -6,8 +6,24 @@ envío al SRI (generar XML → firmar → enviar → consultar autorización).
 import logging
 from decimal import Decimal
 from django.db import transaction
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def _crear_notificacion(empresa, tipo, titulo, mensaje, url=''):
+    """Crea una notificación en-app para la empresa (falla silenciosa)."""
+    try:
+        from apps.empresas.models import Notificacion
+        Notificacion.objects.create(
+            empresa=empresa,
+            tipo=tipo,
+            titulo=titulo,
+            mensaje=mensaje,
+            url=url,
+        )
+    except Exception as e:
+        logger.warning("No se pudo crear notificación para empresa %s: %s", empresa.id, e)
 
 # Mapeo FormaPago POS → código SRI
 FORMA_PAGO_MAP = {
@@ -157,6 +173,25 @@ def procesar_factura_sri(factura):
         result['mensaje'] = f"Ya autorizada: {comprobante.numero_autorizacion}"
         return result
 
+    # ── Regla SRI: la fecha del comprobante debe ser la del día de envío ──────
+    # Si la fecha de emisión es de un día anterior, actualizarla a hoy antes
+    # de regenerar el XML, porque el SRI rechaza comprobantes con fecha pasada.
+    today = timezone.localdate()
+    fecha_emision_local = timezone.localtime(comprobante.fecha_emision).date()
+    if fecha_emision_local < today:
+        from datetime import datetime, time as dt_time
+        tz = timezone.get_current_timezone()
+        nueva_fecha = timezone.make_aware(
+            datetime.combine(today, dt_time(0, 0, 0)), tz
+        )
+        comprobante.fecha_emision = nueva_fecha
+        comprobante.clave_acceso  = ''  # forzar regeneración con nueva fecha
+        comprobante.save(update_fields=['fecha_emision', 'clave_acceso'])
+        logger.info(
+            "Comprobante %s: fecha_emision actualizada a %s por regla SRI",
+            comprobante.numero_comprobante, today,
+        )
+
     try:
         # 1. Generar XML
         sri.generar_xml_factura(factura)
@@ -218,6 +253,13 @@ def procesar_factura_sri(factura):
                 mensajes = _extraer_mensajes_autorizacion(aut_obj) if aut_obj else []
                 comprobante.mensajes_sri = '\n'.join(mensajes)
                 result['mensaje'] = ' | '.join(mensajes) or 'No autorizado por el SRI'
+                _crear_notificacion(
+                    empresa,
+                    tipo='ERROR',
+                    titulo=f'Factura no autorizada: {comprobante.numero_comprobante}',
+                    mensaje=result['mensaje'],
+                    url='/facturacion',
+                )
 
             comprobante.save()
 
@@ -266,6 +308,13 @@ def procesar_factura_sri(factura):
                 comprobante.mensajes_sri = mensaje_str
                 comprobante.save(update_fields=['estado', 'mensajes_sri'])
                 result['mensaje'] = mensaje_str or 'Rechazado por el SRI en recepción'
+                _crear_notificacion(
+                    empresa,
+                    tipo='ERROR',
+                    titulo=f'Factura rechazada: {comprobante.numero_comprobante}',
+                    mensaje=result['mensaje'],
+                    url='/facturacion',
+                )
 
         result['estado'] = comprobante.estado
 
