@@ -1,35 +1,22 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { suscripcionesService } from '../../services/suscripcionesService';
 import { MODULOS } from '../../constants/modulos';
 import { Shield, Save, CheckCircle2, Loader2 } from 'lucide-react';
-import { showToast } from '../../components/ToastContainer';
+import { useToast } from '../../hooks/useToast';
 
 // Group modules for display
 const GRUPOS = [...new Set(MODULOS.map((m) => m.grupo))];
 
-interface PlanConModulos {
-  id: number;
-  nombre: string;
-  tipo: string;
-  modulos: string[];
-  changed: boolean;
-}
-
 export default function MatrizPermisosPage() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [saving, setSaving] = useState<number | null>(null);
 
   // Fetch all plans
   const { data: planes = [], isLoading: loadingPlanes } = useQuery({
     queryKey: ['planes-suscripcion'],
     queryFn: () => suscripcionesService.getTodosPlanes(),
-  });
-
-  // Fetch catalog of modules
-  const { data: catalogo = [] } = useQuery({
-    queryKey: ['modulos-catalogo'],
-    queryFn: () => suscripcionesService.getCatalogModulos(),
   });
 
   // Fetch modulos per plan (one query per plan)
@@ -40,8 +27,8 @@ export default function MatrizPermisosPage() {
       const results: Record<number, string[]> = {};
       await Promise.all(
         planes.map(async (plan: any) => {
-          const data = await suscripcionesService.getModulosPlan(plan.id);
-          results[plan.id] = data.modulos ?? [];
+          const modulos = await suscripcionesService.getModulosPlan(plan.id);
+          results[plan.id] = modulos ?? [];
         })
       );
       return results;
