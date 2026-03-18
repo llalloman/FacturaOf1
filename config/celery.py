@@ -29,6 +29,10 @@ app.conf.beat_schedule = {
     },
     'verificar-autorizaciones-pendientes': {
         'task': 'apps.facturacion.tasks.verificar_autorizaciones_pendientes',
+        'schedule': crontab(minute='*/2'),  # Cada 2 minutos
+    },
+    'reintentar-comprobantes-fallidos': {
+        'task': 'apps.facturacion.tasks.reintentar_comprobantes_fallidos',
         'schedule': crontab(minute='*/10'),  # Cada 10 minutos
     },
 }
