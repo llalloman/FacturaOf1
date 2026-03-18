@@ -7,6 +7,8 @@ interface ModuloGuardProps {
   /** Código del módulo requerido (e.g. 'reportes', 'nomina') */
   modulo: string;
   children: React.ReactNode;
+  /** Si true, la pantalla de bloqueo ocupa toda la ventana (para rutas sin Layout como POS) */
+  fullscreen?: boolean;
 }
 
 /**
@@ -19,7 +21,7 @@ interface ModuloGuardProps {
  * Esto es diferente a ProtectedRoute (que verifica autenticación/suscripción
  * general); ModuloGuard verifica acceso granular por módulo.
  */
-export default function ModuloGuard({ modulo, children }: ModuloGuardProps) {
+export default function ModuloGuard({ modulo, children, fullscreen = false }: ModuloGuardProps) {
   const { tieneAccesoModulo } = useModulosAcceso();
 
   if (tieneAccesoModulo(modulo)) {
@@ -29,8 +31,12 @@ export default function ModuloGuard({ modulo, children }: ModuloGuardProps) {
   const info = MODULO_POR_CODIGO[modulo];
   const label = info?.label ?? modulo;
 
+  const wrapperClass = fullscreen
+    ? 'min-h-screen bg-slate-50 flex items-center justify-center px-6'
+    : 'flex-1 flex items-center justify-center min-h-[60vh] px-6';
+
   return (
-    <div className="flex-1 flex items-center justify-center min-h-[60vh] px-6">
+    <div className={wrapperClass}>
       <div className="text-center max-w-md">
         {/* Ícono candado */}
         <div className="mx-auto mb-6 w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center">

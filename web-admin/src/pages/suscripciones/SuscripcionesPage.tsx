@@ -536,7 +536,7 @@ function PlanCard({
   if (cfg.featured) {
     return (
       <div
-        className={`relative bg-gradient-to-br ${cfg.gradient} rounded-3xl shadow-2xl p-7 text-white flex flex-col md:scale-[1.05] md:-my-4 z-10`}
+        className={`relative bg-gradient-to-br ${cfg.gradient} rounded-3xl shadow-2xl p-7 text-white flex flex-col`}
       >
         <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
           <span className="inline-flex items-center gap-1.5 bg-amber-400 text-amber-900 text-xs font-black px-4 py-1.5 rounded-full shadow-lg">
@@ -687,6 +687,10 @@ export default function SuscripcionesPage() {
 
   const TIPOS_ORDEN = ['FREE', 'BASICO', 'PROFESIONAL', 'EMPRESARIAL', 'ILIMITADO'] as const;
 
+  // Índice del plan actual para determinar qué es upgrade vs downgrade
+  const planActualTipo = suscripcion?.plan_detalle?.tipo as string | undefined;
+  const planActualIdx = planActualTipo ? TIPOS_ORDEN.indexOf(planActualTipo as any) : -1;
+
   const planesPorTipo = new Map<string, { mensual?: PlanSuscripcion; anual?: PlanSuscripcion }>();
   planesArray.forEach((p) => {
     const entry = planesPorTipo.get(p.tipo) ?? {};
@@ -699,6 +703,9 @@ export default function SuscripcionesPage() {
     .map((tipo) => {
       const entry = planesPorTipo.get(tipo);
       if (!entry) return null;
+      // Ocultar planes de nivel inferior al plan actual (excepto el plan actual mismo)
+      const tipoIdx = TIPOS_ORDEN.indexOf(tipo);
+      if (planActualIdx >= 0 && tipoIdx < planActualIdx) return null;
       const plan = tipo === 'FREE'
         ? (entry.mensual ?? entry.anual)
         : anual ? (entry.anual ?? entry.mensual) : (entry.mensual ?? entry.anual);
@@ -809,8 +816,8 @@ export default function SuscripcionesPage() {
               { label: 'Dias restantes', value: `${suscripcion.dias_restantes}`, color: suscripcion.dias_restantes <= 7 ? 'text-red-600' : 'text-green-600' },
               { label: 'Estado', value: suscripcion.estado, color: 'text-gray-800' },
               { label: 'Docs. del periodo', value: `${suscripcion.facturas_emitidas_mes_actual}`, color: 'text-blue-600' },
-              { label: 'Limite del periodo', value: suscripcion.plan_detalle.facturas_mensuales === 0 ? '∞' : `${suscripcion.plan_detalle.facturas_mensuales}`, color: 'text-gray-800' },
-              { label: 'Usuarios permitidos', value: suscripcion.plan_detalle.usuarios_permitidos === 0 ? '∞' : `${suscripcion.plan_detalle.usuarios_permitidos}`, color: 'text-gray-800' },
+              { label: 'Limite del periodo', value: suscripcion.plan_detalle.facturas_mensuales <= 0 ? '∞' : `${suscripcion.plan_detalle.facturas_mensuales}`, color: 'text-gray-800' },
+              { label: 'Usuarios permitidos', value: suscripcion.plan_detalle.usuarios_permitidos <= 0 ? '∞' : `${suscripcion.plan_detalle.usuarios_permitidos}`, color: 'text-gray-800' },
             ].map(({ label, value, color }) => (
               <div key={label} className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
                 <p className="text-xs text-gray-500 uppercase tracking-wider">{label}</p>
@@ -853,7 +860,7 @@ export default function SuscripcionesPage() {
             <p>No hay planes disponibles en este momento</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center max-w-5xl mx-auto py-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch max-w-6xl mx-auto">
             {planesToShow.map((plan) => (
               <PlanCard
                 key={plan.id}

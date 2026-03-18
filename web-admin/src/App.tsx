@@ -180,7 +180,9 @@ function AppRoutes() {
             path="/pos"
             element={
               <ProtectedRoute>
-                <POSPage />
+                <ModuloGuard modulo="pos" fullscreen>
+                  <POSPage />
+                </ModuloGuard>
               </ProtectedRoute>
             }
           />
