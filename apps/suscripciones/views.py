@@ -44,6 +44,32 @@ class PlanSuscripcionViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
+    # ── Permisos de módulos del plan ──────────────────────────────────────────
+    @action(detail=True, methods=['get', 'put'], url_path='modulos')
+    def modulos(self, request, pk=None):
+        """
+        GET  → Lista de códigos de módulo habilitados para este plan.
+        PUT  → Reemplaza la lista completa. Body: { "modulos": ["facturacion", ...] }
+        Solo SUPER_ADMIN.
+        """
+        if not _is_super_admin(request.user):
+            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        plan = self.get_object()
+        if request.method == 'GET':
+            codigos = list(
+                ModuloPermiso.objects.filter(plan=plan).values_list('modulo', flat=True)
+            )
+            return Response({'plan_id': plan.id, 'modulos': codigos})
+        # PUT — bulk replace
+        ser = ModuloPermisoSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        nuevos = set(ser.validated_data['modulos'])
+        ModuloPermiso.objects.filter(plan=plan).delete()
+        ModuloPermiso.objects.bulk_create([
+            ModuloPermiso(plan=plan, modulo=m) for m in nuevos
+        ])
+        return Response({'plan_id': plan.id, 'modulos': sorted(nuevos)})
+
 
 class SuscripcionViewSet(viewsets.ModelViewSet):
     """
@@ -274,10 +300,6 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
     # ── Toggle auto-renovar ───────────────────────────────────────────────────
     @action(detail=False, methods=['post'], url_path='toggle-auto-renovar')
     def toggle_auto_renovar(self, request):
-        """
-        Activa o desactiva el auto-renovar en la suscripción activa del usuario.
-        Body opcional: { enabled: true/false }. Si no se pasa, invierte el valor actual.
-        """
         empresa = getattr(request.user, 'empresa', None)
         if not empresa:
             return Response({'detail': 'No tienes empresa asignada.'}, status=status.HTTP_404_NOT_FOUND)
@@ -300,32 +322,6 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
         suscripcion.save(update_fields=['auto_renovar'])
 
         return Response(SuscripcionSerializer(suscripcion).data)
-
-    # ── Permisos de módulos del plan ──────────────────────────────────────────
-    @action(detail=True, methods=['get', 'put'], url_path='modulos')
-    def modulos(self, request, pk=None):
-        """
-        GET  → Lista de códigos de módulo habilitados para este plan.
-        PUT  → Reemplaza la lista completa. Body: { "modulos": ["facturacion", "ventas", ...] }
-        Solo SUPER_ADMIN.
-        """
-        if not _is_super_admin(request.user):
-            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
-        plan = self.get_object()
-        if request.method == 'GET':
-            codigos = list(
-                ModuloPermiso.objects.filter(plan=plan).values_list('modulo', flat=True)
-            )
-            return Response({'plan_id': plan.id, 'modulos': codigos})
-        # PUT — bulk replace
-        ser = ModuloPermisoSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        nuevos = set(ser.validated_data['modulos'])
-        ModuloPermiso.objects.filter(plan=plan).delete()
-        ModuloPermiso.objects.bulk_create([
-            ModuloPermiso(plan=plan, modulo=m) for m in nuevos
-        ])
-        return Response({'plan_id': plan.id, 'modulos': sorted(nuevos)})
 
 
 # ── Endpoints funcionales (no ViewSet) ────────────────────────────────────────
