@@ -77,10 +77,14 @@ def _user_dict(user, empresa=None):
                 .first()
             )
             if suscripcion_activa:
-                modulos_activos = list(
-                    ModuloPermiso.objects.filter(plan=suscripcion_activa.plan)
-                    .values_list('modulo', flat=True)
-                )
+                if suscripcion_activa.estado == 'PRUEBA':
+                    # Durante el período de prueba el usuario accede a todo
+                    modulos_activos = TODOS_LOS_MODULOS
+                else:
+                    modulos_activos = list(
+                        ModuloPermiso.objects.filter(plan=suscripcion_activa.plan)
+                        .values_list('modulo', flat=True)
+                    )
             else:
                 modulos_activos = []
         except Exception:

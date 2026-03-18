@@ -360,6 +360,10 @@ def mis_modulos(request):
     if not suscripcion:
         return Response({'modulos': []})
 
+    # Durante el período de prueba el usuario accede a todo
+    if suscripcion.estado == 'PRUEBA':
+        return Response({'modulos': TODOS_LOS_MODULOS})
+
     codigos = list(
         ModuloPermiso.objects.filter(plan=suscripcion.plan).values_list('modulo', flat=True)
     )
