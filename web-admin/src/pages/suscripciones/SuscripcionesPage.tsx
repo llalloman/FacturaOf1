@@ -261,7 +261,8 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
 
   const facturasUsadas = suscripcion.facturas_emitidas_mes_actual;
   const facturasLimite = plan.facturas_mensuales;
-  const facturasPct = facturasLimite > 0
+  const esIlimitado = facturasLimite <= 0;
+  const facturasPct = !esIlimitado
     ? Math.min(100, (facturasUsadas / facturasLimite) * 100)
     : 0;
 
@@ -307,10 +308,10 @@ function TarjetaEstado({ suscripcion }: { suscripcion: Suscripcion }) {
           <div className="flex justify-between text-sm mb-2">
             <span className="font-medium text-gray-700">Documentos del periodo</span>
             <span className="font-semibold text-gray-800">
-              {facturasUsadas} / {facturasLimite === 0 ? '∞' : facturasLimite}
+              {facturasUsadas} / {esIlimitado ? '∞' : facturasLimite}
             </span>
           </div>
-          {facturasLimite > 0 && (
+          {!esIlimitado && (
             <div className="w-full bg-gray-100 rounded-full h-2.5">
               <div
                 className={`h-2.5 rounded-full transition-all ${facturasPct >= 90 ? 'bg-red-500' : facturasPct >= 70 ? 'bg-yellow-500' : 'bg-blue-500'}`}
