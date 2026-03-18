@@ -578,17 +578,17 @@ def recuperar_password(request):
         logger.error('recuperar_password ZeptoMail API failed for %s: %s', email, exc)
 
     if not email_enviado:
+        # SEGURIDAD: NO logueamos la contraseña temporal en texto plano.
+        # Solo registramos que el envío falló para que soporte investigue.
         logger.warning(
-            'TEMP_PASSWORD_FALLBACK | email=%s | temp_pass=%s | valid_until=%s',
+            'TEMP_PASSWORD_FALLBACK | email=%s | email_send_failed | valid_until=%s',
             email,
-            temp_pass,
             (timezone.now() + timedelta(hours=2)).isoformat(),
         )
 
-    # Guardamos los cambios (ya sea que el email llegó o no, para que el
-    # admin pueda ver la contraseña en los logs de Railway y notificar al usuario)
+    # Guardamos usando hash — NUNCA texto plano en password_temporal
     user.set_password(temp_pass)
-    user.password_temporal = temp_pass
+    user.password_temporal = ''  # No almacenar en texto plano
     user.password_temporal_expira = timezone.now() + timedelta(hours=2)
     user.debe_cambiar_password = True
     user.save(update_fields=['password', 'password_temporal', 'password_temporal_expira', 'debe_cambiar_password'])

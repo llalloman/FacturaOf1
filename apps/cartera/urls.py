@@ -158,6 +158,8 @@ class PagoClienteViewSet(viewsets.ModelViewSet):
     serializer_class = PagoClienteSerializer
     permission_classes = [IsAuthenticated, IsTenantUser]
     filterset_fields = ['cuenta', 'forma_pago', 'fecha_pago']
+    search_fields = ['cuenta__numero_cuenta', 'cuenta__cliente__razon_social', 'numero_documento']
+    ordering_fields = ['fecha_pago', 'monto']
     ordering = ['-fecha_pago']
 
     def get_queryset(self):

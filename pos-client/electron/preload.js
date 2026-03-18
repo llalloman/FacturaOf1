@@ -28,6 +28,12 @@ contextBridge.exposeInMainWorld('electron', {
     actualizarCacheClientes: (clientes) => ipcRenderer.invoke('sync:actualizar-cache-clientes', { clientes }),
   },
 
+  // Impresión
+  print: {
+    receipt: (data) => ipcRenderer.invoke('print:receipt', data),
+    preview: (data) => ipcRenderer.invoke('print:receipt-preview', data),
+  },
+
   // Configuración
   config: {
     get: (key) => ipcRenderer.invoke('config:get', { key }),

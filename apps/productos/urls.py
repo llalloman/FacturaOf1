@@ -5,9 +5,10 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Producto
 from .serializers import ProductoSerializer
+from apps.core.export_mixin import ExportMixin
 
 
-class ProductoViewSet(viewsets.ModelViewSet):
+class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
     serializer_class = ProductoSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -15,7 +16,18 @@ class ProductoViewSet(viewsets.ModelViewSet):
     search_fields = ['codigo_principal', 'codigo_auxiliar', 'nombre', 'descripcion']
     ordering_fields = ['nombre', 'precio', 'codigo_principal']
     ordering = ['nombre']
-    pagination_class = None  # Devuelve todos los productos sin paginar
+    # Usa paginación estándar del proyecto (PAGE_SIZE=20 en settings)
+    export_filename = 'productos'
+    export_fields = [
+        ('codigo_principal', 'Código'),
+        ('nombre', 'Nombre'),
+        ('tipo', 'Tipo'),
+        ('precio', 'Precio'),
+        ('aplica_iva', 'Aplica IVA'),
+        ('porcentaje_iva', 'Tarifa IVA %'),
+        ('maneja_inventario', 'Maneja Inventario'),
+        ('activo', 'Activo'),
+    ]
 
     def get_queryset(self):
         user = self.request.user

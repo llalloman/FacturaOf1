@@ -1,7 +1,8 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from datetime import timedelta
 from .models import PlanSuscripcion, Suscripcion, ModuloPermiso, MODULOS_DISPONIBLES, TODOS_LOS_MODULOS
@@ -15,6 +16,11 @@ def _is_super_admin(user):
 class PlanSuscripcionViewSet(viewsets.ModelViewSet):
     """Planes de suscripción. Lectura pública; escritura solo SUPER_ADMIN."""
     serializer_class = PlanSuscripcionSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['activo']
+    search_fields = ['nombre']
+    ordering_fields = ['precio', 'nombre']
+    ordering = ['precio']
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
@@ -26,8 +32,8 @@ class PlanSuscripcionViewSet(viewsets.ModelViewSet):
         if self.action in ('list', 'retrieve') and not (
             self.request.user.is_authenticated and _is_super_admin(self.request.user)
         ):
-            return PlanSuscripcion.objects.filter(activo=True).order_by('precio')
-        return PlanSuscripcion.objects.all().order_by('precio')
+            return PlanSuscripcion.objects.filter(activo=True)
+        return PlanSuscripcion.objects.all()
 
     def create(self, request, *args, **kwargs):
         if not _is_super_admin(request.user):
@@ -79,10 +85,15 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
     """
     serializer_class = SuscripcionSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['estado', 'plan', 'empresa']
+    search_fields = ['empresa__razon_social', 'plan__nombre']
+    ordering_fields = ['fecha_inicio', 'fecha_fin']
+    ordering = ['-fecha_inicio']
 
     def get_queryset(self):
         user = self.request.user
-        qs = Suscripcion.objects.select_related('plan', 'empresa').order_by('-fecha_inicio')
+        qs = Suscripcion.objects.select_related('plan', 'empresa')
         if _is_super_admin(user):
             empresa_id = self.request.query_params.get('empresa')
             if empresa_id:

@@ -48,10 +48,19 @@ class Secuencial(models.Model):
         return f"{self.empresa.razon_social} - {self.get_tipo_comprobante_display()} - {self.establecimiento}-{self.punto_emision}"
     
     def get_siguiente(self):
-        """Obtiene y actualiza el siguiente secuencial"""
-        self.secuencial_actual += 1
-        self.save(update_fields=['secuencial_actual'])
-        return str(self.secuencial_actual).zfill(9)
+        """Obtiene y actualiza el siguiente secuencial con lock para evitar duplicados."""
+        from django.db import models as db_models
+        # select_for_update() garantiza que solo un proceso incremente a la vez
+        locked = (
+            Secuencial.objects
+            .select_for_update()
+            .get(pk=self.pk)
+        )
+        locked.secuencial_actual = db_models.F('secuencial_actual') + 1
+        locked.save(update_fields=['secuencial_actual'])
+        locked.refresh_from_db()
+        self.secuencial_actual = locked.secuencial_actual
+        return str(locked.secuencial_actual).zfill(9)
     
     def get_formato_completo(self, secuencial):
         """Retorna el número de comprobante en formato completo"""

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { facturasService } from '../../services/facturasService';
 import type { Factura } from '../../types';
 import { FiPlus, FiSearch, FiFileText, FiCheckCircle, FiXCircle, FiDownload, FiSend, FiRefreshCw, FiMail } from 'react-icons/fi';
-import { exportToExcel } from '../../utils/exportUtils';
+import ExportButtons from '../../components/ui/ExportButtons';
 import FacturaModal from './FacturaModal';
 import { toast } from '../../store/toastStore';
 import { confirmDialog, promptDialog } from '../../store/confirmStore';
@@ -192,25 +192,6 @@ const FacturasPage: React.FC = () => {
   const totalBorradores = facturasArray.filter(f => f.estado === 'BORRADOR').length;
   const totalAnuladas = facturasArray.filter(f => f.estado === 'ANULADO').length;
 
-  const exportarExcel = () => {
-    const data = filteredFacturas.map((f) => ({
-      'N° Factura': f.numero_factura ?? '',
-      'Cliente': f.cliente_nombre ?? '',
-      'Fecha Emisión': (f.fecha_emision ?? '').split('T')[0].split(' ')[0],
-      'Estado': f.estado ?? '',
-      'Subtotal sin IVA': Number(f.subtotal_sin_impuestos || 0).toFixed(2),
-      'Total ($)': Number(f.total).toFixed(2),
-      'Forma de Pago': f.forma_pago ?? '',
-      'N° Autorización': f.numero_autorizacion ?? '',
-      'Clave Acceso': f.clave_acceso ?? '',
-    }));
-    exportToExcel(
-      data as Record<string, unknown>[],
-      'Facturas',
-      `facturas_${new Date().toISOString().split('T')[0]}`,
-    );
-  };
-
   const getEstadoColor = (estado: string) => {
     switch (estado) {
       case 'AUTORIZADO': return 'text-green-600 bg-green-50';
@@ -330,14 +311,16 @@ const FacturasPage: React.FC = () => {
               Limpiar filtros
             </button>
           )}
-          <button
-            onClick={exportarExcel}
-            disabled={filteredFacturas.length === 0}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Exportar a Excel"
-          >
-            <FiDownload className="h-4 w-4" /> Excel ({filteredFacturas.length})
-          </button>
+          <ExportButtons
+            basePath="/facturacion/facturas"
+            filename="facturas"
+            queryString={[
+              filtroEstado && `comprobante__estado=${filtroEstado}`,
+              filtroFechaDesde && `comprobante__fecha_emision__gte=${filtroFechaDesde}`,
+              filtroFechaHasta && `comprobante__fecha_emision__lte=${filtroFechaHasta}`,
+              searchTerm && `search=${encodeURIComponent(searchTerm)}`,
+            ].filter(Boolean).join('&')}
+          />
         </div>
 
         {isLoading ? (

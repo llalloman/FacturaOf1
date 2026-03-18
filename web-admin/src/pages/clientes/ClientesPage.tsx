@@ -16,6 +16,7 @@ import {
   Download,
 } from 'lucide-react';
 import ClienteModal from './ClienteModal';
+import ExportButtons from '../../components/ui/ExportButtons';
 
 export default function ClientesPage() {
   const queryClient = useQueryClient();
@@ -67,13 +68,16 @@ export default function ClientesPage() {
             <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 bg-clip-text text-transparent mb-2">Clientes</h1>
             <p className="text-gray-600">Gestión de clientes y contactos</p>
           </div>
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-blue-700 hover:to-sky-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
-          >
-            <Plus size={20} />
-            <span className="font-semibold">Nuevo Cliente</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <ExportButtons basePath="/clientes" filename="clientes" />
+            <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-blue-700 hover:to-sky-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
+            >
+              <Plus size={20} />
+              <span className="font-semibold">Nuevo Cliente</span>
+            </button>
+          </div>
         </div>
 
         {/* Filters */}

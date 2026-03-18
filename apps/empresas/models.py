@@ -1,10 +1,39 @@
 """
 Modelos de Empresas - Multi-tenant
 """
+import base64
+import os
+
+from cryptography.fernet import Fernet
+from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
+
+
+def _get_fernet() -> Fernet:
+    """Devuelve instancia Fernet derivada de SECRET_KEY (primeros 32 bytes base64)."""
+    key_bytes = settings.SECRET_KEY.encode()[:32].ljust(32, b'\0')
+    return Fernet(base64.urlsafe_b64encode(key_bytes))
+
+
+def encrypt_value(plain: str) -> str:
+    """Encripta un string con Fernet. Devuelve texto base64."""
+    if not plain:
+        return ''
+    return _get_fernet().encrypt(plain.encode()).decode()
+
+
+def decrypt_value(token: str) -> str:
+    """Desencripta un token Fernet. Si falla (datos legacy sin encriptar), devuelve el valor original."""
+    if not token:
+        return ''
+    try:
+        return _get_fernet().decrypt(token.encode()).decode()
+    except Exception:
+        # Valor legacy almacenado sin encriptar — lo devolvemos tal cual
+        return token
 
 
 class Empresa(models.Model):
@@ -89,10 +118,18 @@ class Empresa(models.Model):
     )
     password_certificado = models.CharField(
         _('contraseña del certificado'),
-        max_length=255,
+        max_length=500,
         blank=True,
-        help_text=_('Contraseña del certificado digital (se guarda encriptada)')
+        help_text=_('Contraseña del certificado digital (se guarda encriptada con Fernet)')
     )
+
+    def set_password_certificado(self, plain_password: str):
+        """Encripta y almacena la contraseña del certificado."""
+        self.password_certificado = encrypt_value(plain_password)
+
+    def get_password_certificado(self) -> str:
+        """Devuelve la contraseña del certificado desencriptada."""
+        return decrypt_value(self.password_certificado)
     fecha_vencimiento_certificado = models.DateField(
         _('fecha de vencimiento del certificado'),
         null=True,

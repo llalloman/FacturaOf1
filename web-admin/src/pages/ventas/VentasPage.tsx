@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import ExportButtons from '../../components/ui/ExportButtons';
 
 export default function VentasPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,6 +68,7 @@ export default function VentasPage() {
           </h1>
           <p className="text-gray-600 mt-1">Historial y reporte de ventas del POS</p>
         </div>
+        <ExportButtons basePath="/ventas/ventas" filename="ventas" />
       </div>
 
       {/* Stats */}

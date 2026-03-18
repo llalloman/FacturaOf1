@@ -30,6 +30,8 @@ export interface ItemCarrito {
   subtotal: number;
   iva: number;
   total: number;
+  porcentaje_iva: string;
+  aplica_iva: boolean;
 }
 
 export interface PagoPOS {
@@ -91,6 +93,8 @@ export const usePOSStore = create<POSState>((set, get) => ({
             subtotal: sub,
             iva,
             total: sub + iva,
+            porcentaje_iva: p.porcentaje_iva,
+            aplica_iva: p.aplica_iva,
           },
         ],
       });
@@ -103,7 +107,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
       items: get().items.map((i) => {
         if (i.producto_id !== productoId) return i;
         const sub = cantidad * i.precio_unitario;
-        const iva = calcIVA(sub, '2');
+        const iva = i.aplica_iva ? calcIVA(sub, i.porcentaje_iva) : 0;
         return { ...i, cantidad, subtotal: sub, iva, total: sub + iva };
       }),
     });

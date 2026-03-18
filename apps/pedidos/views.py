@@ -25,12 +25,14 @@ def _empresa(user):
 class ZonaViewSet(viewsets.ModelViewSet):
     serializer_class = ZonaSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['activa']
     search_fields = ['nombre']
+    ordering_fields = ['orden', 'nombre']
+    ordering = ['orden', 'nombre']
 
     def get_queryset(self):
-        qs = Zona.objects.annotate(mesas_count=Count('mesas')).order_by('orden', 'nombre')
+        qs = Zona.objects.annotate(mesas_count=Count('mesas'))
         empresa = _empresa(self.request.user)
         return qs.filter(empresa=empresa) if empresa else qs
 
@@ -42,9 +44,11 @@ class ZonaViewSet(viewsets.ModelViewSet):
 class MesaViewSet(viewsets.ModelViewSet):
     serializer_class = MesaSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['zona', 'estado', 'activa']
     search_fields = ['numero', 'nombre']
+    ordering_fields = ['numero', 'nombre', 'zona__nombre']
+    ordering = ['zona__nombre', 'numero']
 
     def get_queryset(self):
         qs = Mesa.objects.select_related('zona').prefetch_related('pedidos')
@@ -287,8 +291,11 @@ class DetallePedidoViewSet(viewsets.ModelViewSet):
     """
     serializer_class = DetallePedidoSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['pedido', 'estado']
+    search_fields = ['producto__nombre', 'producto__codigo_principal']
+    ordering_fields = ['id']
+    ordering = ['id']
 
     def get_queryset(self):
         qs = DetallePedido.objects.select_related('producto', 'pedido', 'usuario')

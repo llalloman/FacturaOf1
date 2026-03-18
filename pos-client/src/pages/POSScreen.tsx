@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePOSStore } from '../store/posStore';
 import { Producto } from '../types';
 import ProductList from '../components/ProductList';
@@ -12,11 +12,100 @@ export default function POSScreen() {
   const items = usePOSStore((state) => state.items);
   const cliente = usePOSStore((state) => state.cliente);
   const agregarItem = usePOSStore((state) => state.agregarItem);
+  const limpiarCarrito = usePOSStore((state) => state.limpiarCarrito);
   
   const [codigoBarras, setCodigoBarras] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showClientSelector, setShowClientSelector] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── Keyboard shortcuts ──
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Don't handle shortcuts when typing in an input/textarea (except F-keys)
+    const target = e.target as HTMLElement;
+    const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
+
+    switch (e.key) {
+      case 'F1':
+        // F1 — Focus barcode/search input
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+        break;
+
+      case 'F2':
+      case 'F12':
+        // F2 / F12 — Open payment modal
+        e.preventDefault();
+        if (items.length > 0 && cliente) {
+          setShowPaymentModal(true);
+        } else if (items.length === 0) {
+          toast.warning('No hay productos en el carrito');
+        } else {
+          toast.warning('Debe seleccionar un cliente');
+          setShowClientSelector(true);
+        }
+        break;
+
+      case 'F4':
+        // F4 — Select/change client
+        e.preventDefault();
+        setShowClientSelector(true);
+        break;
+
+      case 'F5':
+        // F5 — New sale (clear cart)
+        e.preventDefault();
+        if (items.length > 0) {
+          if (window.confirm('¿Desea limpiar la venta actual?')) {
+            limpiarCarrito();
+            toast.info('Venta limpiada');
+          }
+        }
+        break;
+
+      case 'Escape':
+        // Escape — Close modals
+        e.preventDefault();
+        if (showPaymentModal) setShowPaymentModal(false);
+        else if (showClientSelector) setShowClientSelector(false);
+        else inputRef.current?.focus();
+        break;
+
+      case '+':
+      case '=':
+        // + — Increase last item quantity
+        if (!isInput && items.length > 0) {
+          e.preventDefault();
+          const last = items[items.length - 1];
+          usePOSStore.getState().actualizarCantidad(last.producto_id, last.cantidad + 1);
+        }
+        break;
+
+      case '-':
+        // − — Decrease last item quantity
+        if (!isInput && items.length > 0) {
+          e.preventDefault();
+          const last = items[items.length - 1];
+          usePOSStore.getState().actualizarCantidad(last.producto_id, last.cantidad - 1);
+        }
+        break;
+
+      case 'Delete':
+        // Delete — Remove last item
+        if (!isInput && items.length > 0) {
+          e.preventDefault();
+          const last = items[items.length - 1];
+          usePOSStore.getState().eliminarItem(last.producto_id);
+        }
+        break;
+    }
+  }, [items, cliente, showPaymentModal, showClientSelector, limpiarCarrito]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   useEffect(() => {
     // Enfocar el input al cargar
@@ -64,7 +153,7 @@ export default function POSScreen() {
   };
 
   return (
-    <div className="h-[calc(100vh-48px)] flex">
+    <div className="h-[calc(100vh-48px)] flex relative pb-6">
       {/* Panel izquierdo - Búsqueda y productos */}
       <div className="flex-1 flex flex-col p-4 space-y-4">
         {/* Búsqueda por código de barras */}
@@ -129,9 +218,20 @@ export default function POSScreen() {
             disabled={items.length === 0}
             className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            Cobrar F12
+            💳 Cobrar (F2)
           </button>
         </div>
+      </div>
+
+      {/* Barra de atajos de teclado */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gray-800 text-gray-300 text-xs px-4 py-1 flex gap-4">
+        <span><kbd className="bg-gray-700 px-1 rounded">F1</kbd> Buscar</span>
+        <span><kbd className="bg-gray-700 px-1 rounded">F2</kbd> Cobrar</span>
+        <span><kbd className="bg-gray-700 px-1 rounded">F4</kbd> Cliente</span>
+        <span><kbd className="bg-gray-700 px-1 rounded">F5</kbd> Nueva venta</span>
+        <span><kbd className="bg-gray-700 px-1 rounded">+/-</kbd> Cantidad</span>
+        <span><kbd className="bg-gray-700 px-1 rounded">Del</kbd> Eliminar</span>
+        <span><kbd className="bg-gray-700 px-1 rounded">Esc</kbd> Cerrar</span>
       </div>
 
       {/* Modales */}

@@ -1,9 +1,10 @@
 from decimal import Decimal
 from django.db.models import Sum
-from rest_framework import viewsets, status
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import Empleado, RolPago
 from .serializers import EmpleadoSerializer, RolPagoSerializer, RolPagoCreateSerializer
 
@@ -11,14 +12,14 @@ from .serializers import EmpleadoSerializer, RolPagoSerializer, RolPagoCreateSer
 class EmpleadoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = EmpleadoSerializer
-    pagination_class = None
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['estado']
+    search_fields = ['cedula', 'nombres', 'apellidos', 'email']
+    ordering_fields = ['apellidos', 'fecha_ingreso', 'sueldo_base']
+    ordering = ['apellidos']
 
     def get_queryset(self):
-        qs = Empleado.objects.filter(empresa=self.request.user.empresa)
-        estado = self.request.query_params.get('estado')
-        if estado:
-            qs = qs.filter(estado=estado)
-        return qs
+        return Empleado.objects.filter(empresa=self.request.user.empresa)
 
     def perform_create(self, serializer):
         serializer.save(empresa=self.request.user.empresa)
@@ -64,21 +65,16 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
 class RolPagoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-    pagination_class = None
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['anio', 'mes', 'empleado', 'estado']
+    search_fields = ['empleado__nombres', 'empleado__apellidos', 'empleado__cedula']
+    ordering_fields = ['anio', 'mes', 'total_ingresos', 'liquido_a_pagar']
+    ordering = ['-anio', '-mes']
 
     def get_queryset(self):
-        qs = RolPago.objects.filter(
+        return RolPago.objects.filter(
             empresa=self.request.user.empresa
         ).select_related('empleado')
-        anio     = self.request.query_params.get('anio')
-        mes      = self.request.query_params.get('mes')
-        empleado = self.request.query_params.get('empleado')
-        estado   = self.request.query_params.get('estado')
-        if anio:     qs = qs.filter(anio=anio)
-        if mes:      qs = qs.filter(mes=mes)
-        if empleado: qs = qs.filter(empleado_id=empleado)
-        if estado:   qs = qs.filter(estado=estado)
-        return qs
 
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):

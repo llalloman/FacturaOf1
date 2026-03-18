@@ -2,6 +2,8 @@
 Django settings for SRI Facturación Electrónica Multi-Tenant
 """
 
+import os
+import sys
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
@@ -9,10 +11,25 @@ from datetime import timedelta
 # Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Security settings
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-this-in-production')
-DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
+# ── Security settings ──────────────────────────────────────────────────────────
+# SECRET_KEY MUST come from environment. No insecure defaults.
+_secret = config('SECRET_KEY', default='')
+if not _secret:
+    if 'test' in sys.argv or 'collectstatic' in sys.argv:
+        _secret = 'test-only-insecure-key-never-use-in-prod'
+    else:
+        raise RuntimeError(
+            'FATAL: SECRET_KEY environment variable is not set. '
+            'Set it before running the server.'
+        )
+SECRET_KEY = _secret
+
+# DEBUG defaults to False — must be explicitly enabled
+DEBUG = config('DEBUG', default=False, cast=bool)
+
+# ALLOWED_HOSTS must be configured in production
+_hosts = config('ALLOWED_HOSTS', default='').strip()
+ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',') if h.strip()] if _hosts else (['*'] if DEBUG else ['localhost', '127.0.0.1'])
 
 # Application definition
 INSTALLED_APPS = [

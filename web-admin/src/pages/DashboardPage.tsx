@@ -14,16 +14,13 @@ import {
   ShieldCheck,
   Activity,
   FlaskConical,
+  CalendarClock,
 } from 'lucide-react';
 import { LineChart, Line, ComposedChart, Bar, ReferenceLine, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { ProyeccionesData } from '../services/ventasService';
-import { facturasService } from '../services/facturasService';
-import { productosService } from '../services/productosService';
-import { clientesService } from '../services/clientesService';
 import { ventasService } from '../services/ventasService';
-import { empresasService } from '../services/empresasService';
-import { usuariosService } from '../services/usuariosService';
-import type { Producto, Cliente } from '../types';
+import { dashboardService } from '../services/dashboardService';
+import type { DashboardSuperAdmin, DashboardTenant } from '../services/dashboardService';
 
 const PIE_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'];
 
@@ -31,49 +28,11 @@ export default function DashboardPage() {
   const { user } = useAuthStore();
   const isSuperAdmin = user?.rol === 'SUPER_ADMIN';
 
-  // ── Datos SUPER_ADMIN: todo el sistema ───────────────────────────────────────
-  const { data: empresas = [] } = useQuery({
-    queryKey: ['empresas'],
-    queryFn: empresasService.getAll,
-    enabled: isSuperAdmin,
-  });
-
-  const { data: todosUsuarios = [] } = useQuery({
-    queryKey: ['usuarios'],
-    queryFn: usuariosService.getAll,
-    enabled: isSuperAdmin,
-  });
-
-  // ── Datos tenant: empresa propia ─────────────────────────────────────────────
-  const { data: facturas = [] } = useQuery({
-    queryKey: ['facturas'],
-    queryFn: facturasService.getAll,
-    enabled: !isSuperAdmin,
-  });
-
-  const { data: productos = [] } = useQuery({
-    queryKey: ['productos'],
-    queryFn: productosService.getAll,
-    enabled: !isSuperAdmin,
-  });
-
-  const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: clientesService.getAll,
-    enabled: !isSuperAdmin,
-  });
-
-  const now = new Date();
-  const { data: ventasMes } = useQuery({
-    queryKey: ['ventas', 'mensual', now.getMonth() + 1, now.getFullYear()],
-    queryFn: () => ventasService.getReporteMensual(now.getMonth() + 1, now.getFullYear()),
-    enabled: !isSuperAdmin,
-  });
-
-  const { data: ultimos6Meses = [] } = useQuery({
-    queryKey: ['ventas', 'ultimos-6-meses'],
-    queryFn: () => ventasService.getReporteUltimosMeses(6),
-    enabled: !isSuperAdmin,
+  // ── Single dashboard API call ────────────────────────────────────────────────
+  const { data: dashData, isLoading } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: dashboardService.get,
+    staleTime: 60_000,
   });
 
   const { data: proyeccionesData } = useQuery<ProyeccionesData>({
@@ -83,18 +42,23 @@ export default function DashboardPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  if (isLoading || !dashData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
   // ── Dashboard SUPER_ADMIN ────────────────────────────────────────────────────
-  if (isSuperAdmin) {
-    const empresasArray = Array.isArray(empresas) ? empresas : [];
-    const usuariosArray = Array.isArray(todosUsuarios) ? todosUsuarios : [];
-    const empresasActivas = empresasArray.filter((e) => e.activa).length;
-    const adminsEmpresa = usuariosArray.filter((u) => u.rol === 'ADMIN_EMPRESA').length;
+  if (dashData.tipo === 'super_admin') {
+    const d = dashData as DashboardSuperAdmin;
 
     const statsSA = [
-      { label: 'Empresas Registradas', value: String(empresasArray.length), icon: Building2, bgColor: 'bg-blue-50', iconColor: 'text-blue-600' },
-      { label: 'Empresas Activas', value: String(empresasActivas), icon: ShieldCheck, bgColor: 'bg-green-50', iconColor: 'text-green-600' },
-      { label: 'Usuarios Totales', value: String(usuariosArray.length), icon: Users, bgColor: 'bg-sky-50', iconColor: 'text-sky-600' },
-      { label: 'Administradores', value: String(adminsEmpresa), icon: ShieldCheck, bgColor: 'bg-orange-50', iconColor: 'text-orange-600' },
+      { label: 'Empresas Registradas', value: String(d.empresas_total), icon: Building2, bgColor: 'bg-blue-50', iconColor: 'text-blue-600' },
+      { label: 'Empresas Activas', value: String(d.empresas_activas), icon: ShieldCheck, bgColor: 'bg-green-50', iconColor: 'text-green-600' },
+      { label: 'Usuarios Totales', value: String(d.usuarios_total), icon: Users, bgColor: 'bg-sky-50', iconColor: 'text-sky-600' },
+      { label: 'Administradores', value: String(d.admins_empresa), icon: ShieldCheck, bgColor: 'bg-orange-50', iconColor: 'text-orange-600' },
     ];
 
     return (
@@ -127,11 +91,11 @@ export default function DashboardPage() {
             <Building2 className="w-5 h-5 text-blue-600" />
             Empresas Suscritas
           </h3>
-          {empresasArray.length === 0 ? (
+          {d.empresas.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-8">Sin empresas registradas. Ve a <strong>Empresas</strong> para agregar la primera.</p>
           ) : (
             <div className="space-y-3">
-              {empresasArray.map((emp) => (
+              {d.empresas.map((emp) => (
                 <div key={emp.id} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:bg-gray-50">
                   <div>
                     <p className="font-semibold text-gray-900">{emp.razon_social}</p>
@@ -150,37 +114,29 @@ export default function DashboardPage() {
   }
 
   // ── Dashboard Tenant (empresa propia) ────────────────────────────────────────
-  const facturasArray = Array.isArray(facturas) ? facturas : [];
-  const productosArray = Array.isArray(productos) ? productos : [];
-  const clientesArray = Array.isArray(clientes) ? clientes : [];
+  const d = dashData as DashboardTenant;
 
-  const ventasMesTotal: number = ((ventasMes as Record<string, unknown>)?.total_ventas as number) ?? 0;
-  const facturasEmitidas = facturasArray.filter(f => ['AUTORIZADO', 'ENVIADO'].includes(f.estado)).length;
-  const facturasEnviadas = facturasArray.filter(f => f.estado === 'ENVIADO').length;
-  const productosActivos = (productosArray as Producto[]).filter((p) => p.activo !== false).length;
-  const clientesActivos = (clientesArray as Cliente[]).filter((c) => c.activo !== false).length;
-  const productosStockBajo = (productosArray as Producto[]).filter((p) => p.maneja_inventario && p.stock_actual <= p.stock_minimo);
+  const ventasMesTotal = d.ventas_mes;
+  const facturasEmitidas = d.facturas_emitidas;
+  const facturasEnviadas = d.facturas_enviadas;
+  const productosActivos = d.productos_activos;
+  const clientesActivos = d.clientes_activos;
 
   // ── Ventas por mes (últimos 6 meses desde la API) ──────────────────────────
-  const MESES_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const salesData = (ultimos6Meses as { mes: number; anio: number; total_ventas: number }[]).map(m => ({
-    mes: `${MESES_LABELS[m.mes - 1]} ${m.anio !== now.getFullYear() ? m.anio : ''}`.trim(),
+  const salesData = d.ultimos_meses.map(m => ({
+    mes: m.label,
     ventas: m.total_ventas,
   }));
 
-  // ── Top Productos (por precio, mayor a menor) ──────────────────────────────
-  const topProductos = [...(productosArray as Producto[])]
-    .filter((p) => p.activo !== false)
-    .sort((a, b) => Number(b.precio) - Number(a.precio))
-    .slice(0, 4)
-    .map((p) => ({
-      nombre: p.nombre,
-      precio: p.precio,
-      stock: p.stock_actual ?? '—',
-    }));
+  // ── Top Productos ──────────────────────────────────────────────────────────
+  const topProductos = d.top_productos.map(p => ({
+    nombre: p.nombre,
+    precio: p.precio,
+    stock: p.stock_actual ?? '—',
+  }));
 
   // ── Facturas recientes ────────────────────────────────────────────────────────
-  const facturasRecientes = facturasArray.slice(0, 5).map(f => ({
+  const facturasRecientes = d.facturas_recientes.map(f => ({
     desc: `Factura ${f.numero_factura ?? '—'} - ${f.cliente_nombre ?? 'Cliente'}`,
     estado: f.estado,
     total: f.total,
@@ -287,18 +243,15 @@ export default function DashboardPage() {
             Estado de Facturas
           </h3>
           <p className="text-xs text-gray-400 mb-4">Distribución por estado de los comprobantes</p>
-          {facturasArray.length === 0 ? (
+          {Object.keys(d.facturas_por_estado).length === 0 ? (
             <div className="flex items-center justify-center h-[250px] text-gray-400 text-sm">Sin facturas aún</div>
           ) : (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
-                  data={[
-                    { name: 'Borrador', value: facturasArray.filter(f => f.estado === 'BORRADOR').length },
-                    { name: 'Autorizado', value: facturasArray.filter(f => f.estado === 'AUTORIZADO').length },
-                    { name: 'Anulado', value: facturasArray.filter(f => f.estado === 'ANULADO').length },
-                    { name: 'Enviado', value: facturasArray.filter(f => f.estado === 'ENVIADO').length },
-                  ].filter(d => d.value > 0)}
+                  data={Object.entries(d.facturas_por_estado)
+                    .map(([name, value]) => ({ name: name.charAt(0) + name.slice(1).toLowerCase(), value }))
+                    .filter(d => d.value > 0)}
                   cx="50%" cy="50%"
                   labelLine={false}
                   label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
@@ -449,21 +402,46 @@ export default function DashboardPage() {
       )}
 
       {/* Alert stock bajo */}
-      {productosStockBajo.length > 0 && (
+      {d.stock_bajo.length > 0 && (
         <div className="mt-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-yellow-500 rounded-xl p-6">
           <div className="flex items-start gap-4">
             <AlertCircle className="w-6 h-6 text-yellow-600" />
             <div className="flex-1">
               <h4 className="font-bold text-yellow-900 mb-1">Stock Bajo</h4>
               <p className="text-yellow-800 text-sm mb-3">
-                {productosStockBajo.length} producto(s) con stock igual o menor al mínimo. Se recomienda orden de compra.
+                {d.stock_bajo.length} producto(s) con stock igual o menor al mínimo. Se recomienda orden de compra.
               </p>
               <ul className="text-sm text-yellow-700 space-y-1">
-                {productosStockBajo.slice(0, 3).map((p) => (
+                {d.stock_bajo.slice(0, 3).map((p) => (
                   <li key={p.id}>• {p.nombre}: {p.stock_actual} uds. (mín. {p.stock_minimo})</li>
                 ))}
-                {productosStockBajo.length > 3 && <li>• y {productosStockBajo.length - 3} más...</li>}
+                {d.stock_bajo.length > 3 && <li>• y {d.stock_bajo.length - 3} más...</li>}
               </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Próximas declaraciones */}
+      {d.proximas_declaraciones.length > 0 && (
+        <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-xl p-6">
+          <div className="flex items-start gap-4">
+            <CalendarClock className="w-6 h-6 text-blue-600" />
+            <div className="flex-1">
+              <h4 className="font-bold text-blue-900 mb-1">Próximas Obligaciones Tributarias</h4>
+              <div className="space-y-2 mt-2">
+                {d.proximas_declaraciones.map((dec, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <span className="text-blue-800">{dec.tipo} — {dec.periodo}</span>
+                    <span className={`font-semibold ${dec.dias_restantes <= 5 ? 'text-red-600' : dec.dias_restantes <= 10 ? 'text-yellow-600' : 'text-blue-600'}`}>
+                      {dec.dias_restantes} días — {dec.fecha_limite}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Link to="/declaraciones" className="text-xs font-semibold text-blue-700 underline hover:text-blue-900 mt-2 inline-block">
+                Ir a Declaraciones →
+              </Link>
             </div>
           </div>
         </div>

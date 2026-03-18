@@ -1,50 +1,53 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
-import LoginPage from './pages/LoginPage';
-import RegistroEmpresaPage from './pages/RegistroEmpresaPage';
-import VerificacionEmailPage from './pages/VerificacionEmailPage';
-import BienvenidaPage from './pages/BienvenidaPage';
-import OnboardingPage from './pages/OnboardingPage';
-import DashboardPage from './pages/DashboardPage';
-import ProductosPage from './pages/productos/ProductosPage';
-import ClientesPage from './pages/clientes/ClientesPage';
-import FacturasPage from './pages/facturas/FacturasPage';
-import InventariosPage from './pages/inventarios/InventariosPage';
-import ProveedoresPage from './pages/proveedores/ProveedoresPage';
-import VentasPage from './pages/ventas/VentasPage';
-import ConfiguracionPage from './pages/configuracion/ConfiguracionPage';
-import ReportesPage from './pages/reportes/ReportesPage';
-import EmpresasPage from './pages/empresas/EmpresasPage';
-import UsuariosPage from './pages/usuarios/UsuariosPage';
-import POSPage from './pages/pos/POSPage';
-import RetencionesPage from './pages/retenciones/RetencionesPage';
-import GuiasRemisionPage from './pages/guias/GuiasRemisionPage';
-import NotasDebitoPage from './pages/notas-debito/NotasDebitoPage';
-import NotasCreditoPage from './pages/notas-credito/NotasCreditoPage';
-import CarteraPage from './pages/cartera/CarteraPage';
-import DeclaracionesPage from './pages/declaraciones/DeclaracionesPage';
-import CotizacionesPage from './pages/cotizaciones/CotizacionesPage';
-import ContabilidadPage from './pages/contabilidad/ContabilidadPage';
-import BancosPage from './pages/bancos/BancosPage';
-import NominaPage from './pages/nomina/NominaPage';
-import SuscripcionesPage from './pages/suscripciones/SuscripcionesPage';
-import SuscripcionesAdminPage from './pages/empresas/SuscripcionesAdminPage';
-import RecuperarPasswordPage from './pages/RecuperarPasswordPage';
-import CambiarPasswordPage from './pages/CambiarPasswordPage';
-import MesasPage from './pages/pedidos/MesasPage';
-import PedidoDetallePage from './pages/pedidos/PedidoDetallePage';
-import LandingPage from './pages/landing/LandingPage';
-import TerminosPage from './pages/legal/TerminosPage';
-import PrivacidadPage from './pages/legal/PrivacidadPage';
 import ToastContainer from './components/ToastContainer';
 import ConfirmModal from './components/ConfirmModal';
 import ModuloGuard from './components/ModuloGuard';
-import MatrizPermisosPage from './pages/empresas/MatrizPermisosPage';
 import { useSubscriptionStatus } from './hooks/useSubscriptionStatus';
 import { Loader2 } from 'lucide-react';
+
+// ─── Lazy-loaded pages ──────────────────────────────────────────────────────
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegistroEmpresaPage = lazy(() => import('./pages/RegistroEmpresaPage'));
+const VerificacionEmailPage = lazy(() => import('./pages/VerificacionEmailPage'));
+const BienvenidaPage = lazy(() => import('./pages/BienvenidaPage'));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const ProductosPage = lazy(() => import('./pages/productos/ProductosPage'));
+const ClientesPage = lazy(() => import('./pages/clientes/ClientesPage'));
+const FacturasPage = lazy(() => import('./pages/facturas/FacturasPage'));
+const InventariosPage = lazy(() => import('./pages/inventarios/InventariosPage'));
+const ProveedoresPage = lazy(() => import('./pages/proveedores/ProveedoresPage'));
+const VentasPage = lazy(() => import('./pages/ventas/VentasPage'));
+const ConfiguracionPage = lazy(() => import('./pages/configuracion/ConfiguracionPage'));
+const ReportesPage = lazy(() => import('./pages/reportes/ReportesPage'));
+const EmpresasPage = lazy(() => import('./pages/empresas/EmpresasPage'));
+const UsuariosPage = lazy(() => import('./pages/usuarios/UsuariosPage'));
+const POSPage = lazy(() => import('./pages/pos/POSPage'));
+const RetencionesPage = lazy(() => import('./pages/retenciones/RetencionesPage'));
+const GuiasRemisionPage = lazy(() => import('./pages/guias/GuiasRemisionPage'));
+const NotasDebitoPage = lazy(() => import('./pages/notas-debito/NotasDebitoPage'));
+const NotasCreditoPage = lazy(() => import('./pages/notas-credito/NotasCreditoPage'));
+const CarteraPage = lazy(() => import('./pages/cartera/CarteraPage'));
+const DeclaracionesPage = lazy(() => import('./pages/declaraciones/DeclaracionesPage'));
+const CotizacionesPage = lazy(() => import('./pages/cotizaciones/CotizacionesPage'));
+const ContabilidadPage = lazy(() => import('./pages/contabilidad/ContabilidadPage'));
+const BancosPage = lazy(() => import('./pages/bancos/BancosPage'));
+const NominaPage = lazy(() => import('./pages/nomina/NominaPage'));
+const SuscripcionesPage = lazy(() => import('./pages/suscripciones/SuscripcionesPage'));
+const SuscripcionesAdminPage = lazy(() => import('./pages/empresas/SuscripcionesAdminPage'));
+const RecuperarPasswordPage = lazy(() => import('./pages/RecuperarPasswordPage'));
+const CambiarPasswordPage = lazy(() => import('./pages/CambiarPasswordPage'));
+const MesasPage = lazy(() => import('./pages/pedidos/MesasPage'));
+const PedidoDetallePage = lazy(() => import('./pages/pedidos/PedidoDetallePage'));
+const LandingPage = lazy(() => import('./pages/landing/LandingPage'));
+const TerminosPage = lazy(() => import('./pages/legal/TerminosPage'));
+const PrivacidadPage = lazy(() => import('./pages/legal/PrivacidadPage'));
+const MatrizPermisosPage = lazy(() => import('./pages/empresas/MatrizPermisosPage'));
 
 /** Spinner global usado mientras se verifica el estado de suscripción */
 function AppLoader() {
@@ -89,6 +92,7 @@ function AppRoutes() {
 
   return (
     <BrowserRouter>
+      <Suspense fallback={<AppLoader />}>
       <Routes>
           <Route
             path="/login"
@@ -293,6 +297,7 @@ function AppRoutes() {
             } />
           </Route>
         </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

@@ -11,6 +11,7 @@ from apps.usuarios.auth_views import (
     verificar_email, reenviar_codigo, consultar_ruc, validar_certificado, completar_onboarding,
     recuperar_password, cambiar_password,
 )
+from apps.core.views import dashboard as dashboard_view
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
@@ -47,6 +48,9 @@ urlpatterns = [
     path('api/contabilidad/', include('apps.contabilidad.urls')),
     path('api/bancos/', include('apps.bancos.urls')),
     path('api/nomina/', include('apps.nomina.urls')),
+    
+    # Dashboard
+    path('api/dashboard/', dashboard_view, name='dashboard'),
     
     # Health check
     path('api/health/', lambda request: JsonResponse({'status': 'ok'})),

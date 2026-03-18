@@ -1,9 +1,10 @@
 from decimal import Decimal
 from django.db.models import Sum, Q
-from rest_framework import viewsets, status
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import CuentaBancaria, MovimientoBancario
 from .serializers import CuentaBancariaSerializer, MovimientoBancarioSerializer
 
@@ -11,7 +12,11 @@ from .serializers import CuentaBancariaSerializer, MovimientoBancarioSerializer
 class CuentaBancariaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = CuentaBancariaSerializer
-    pagination_class = None
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['activa', 'tipo_cuenta']
+    search_fields = ['nombre', 'numero_cuenta', 'banco']
+    ordering_fields = ['nombre', 'saldo_actual']
+    ordering = ['nombre']
 
     def get_queryset(self):
         return CuentaBancaria.objects.filter(empresa=self.request.user.empresa)
@@ -35,28 +40,16 @@ class CuentaBancariaViewSet(viewsets.ModelViewSet):
 class MovimientoBancarioViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = MovimientoBancarioSerializer
-    pagination_class = None
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = {'cuenta': ['exact'], 'tipo': ['exact'], 'conciliado': ['exact'], 'fecha': ['exact', 'gte', 'lte', 'year', 'month']}
+    search_fields = ['descripcion', 'referencia', 'beneficiario']
+    ordering_fields = ['fecha', 'monto']
+    ordering = ['-fecha']
 
     def get_queryset(self):
-        qs = MovimientoBancario.objects.filter(
+        return MovimientoBancario.objects.filter(
             cuenta__empresa=self.request.user.empresa
         ).select_related('cuenta')
-        cuenta_id = self.request.query_params.get('cuenta')
-        anio      = self.request.query_params.get('anio')
-        mes       = self.request.query_params.get('mes')
-        tipo      = self.request.query_params.get('tipo')
-        conciliado = self.request.query_params.get('conciliado')
-        if cuenta_id:
-            qs = qs.filter(cuenta_id=cuenta_id)
-        if anio:
-            qs = qs.filter(fecha__year=anio)
-        if mes:
-            qs = qs.filter(fecha__month=mes)
-        if tipo:
-            qs = qs.filter(tipo=tipo)
-        if conciliado is not None:
-            qs = qs.filter(conciliado=conciliado.lower() == 'true')
-        return qs
 
     @action(detail=True, methods=['post'])
     def conciliar(self, request, pk=None):

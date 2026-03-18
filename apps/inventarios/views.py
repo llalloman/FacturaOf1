@@ -117,8 +117,9 @@ class MovimientoInventarioViewSet(viewsets.ModelViewSet):
 class TransferenciaInventarioViewSet(viewsets.ModelViewSet):
     serializer_class = TransferenciaInventarioSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['bodega_origen', 'bodega_destino', 'estado']
+    search_fields = ['observaciones', 'bodega_origen__nombre', 'bodega_destino__nombre']
     ordering_fields = ['fecha_transferencia']
     ordering = ['-fecha_transferencia']
     

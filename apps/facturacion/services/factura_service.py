@@ -45,6 +45,47 @@ IVA_MAP = {
 }
 
 
+def _consultar_autorizacion_inmediata(sri, comprobante, result):
+    """
+    Intenta una consulta de autorización inmediata (sin sleep).
+    Si el SRI responde, actualiza el comprobante.
+    Si no, deja el estado ENVIADO para que Celery lo resuelva.
+    Retorna el result dict actualizado.
+    """
+    from apps.facturacion.models import ComprobanteElectronico
+    aut_obj = None
+    try:
+        auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
+        if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
+            aut_obj = auth.autorizaciones.autorizacion[0]
+            if aut_obj.estado not in ('AUTORIZADO', 'NO_AUTORIZADO'):
+                aut_obj = None
+    except Exception as exc:
+        logger.warning("Consulta autorización inmediata falló para %s: %s", comprobante.clave_acceso, exc)
+
+    if not aut_obj:
+        result['success'] = True
+        result['mensaje'] = 'Enviado al SRI. Autorización pendiente (se actualizará automáticamente en segundos).'
+        result['estado'] = comprobante.estado
+        return result
+
+    if aut_obj.estado == 'AUTORIZADO':
+        comprobante.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
+        comprobante.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
+        comprobante.fecha_autorizacion = getattr(aut_obj, 'fechaAutorizacion', None)
+        comprobante.mensajes_sri = ''
+        result['success'] = True
+        result['mensaje'] = f"Autorizada: {comprobante.numero_autorizacion}"
+    else:
+        comprobante.estado = ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO
+        mensajes = _extraer_mensajes_autorizacion(aut_obj) if aut_obj else []
+        comprobante.mensajes_sri = '\n'.join(mensajes)
+        result['mensaje'] = ' | '.join(mensajes) or 'No autorizado por el SRI'
+
+    comprobante.save()
+    return result
+
+
 @transaction.atomic
 def crear_factura_desde_venta(venta):
     """
@@ -221,23 +262,19 @@ def procesar_factura_sri(factura):
             comprobante.respuesta_sri = {'estado': response.estado}
             comprobante.save(update_fields=['estado', 'respuesta_sri'])
 
-            # 4. Consultar autorización con reintentos (SRI puede tardar varios segundos)
-            _MAX_RETRIES = 6
-            _RETRY_DELAY = 5  # segundos entre intentos
+            # 4. Primer intento rápido de autorización (sin sleep)
             aut_obj = None
-            for attempt in range(_MAX_RETRIES):
-                if attempt > 0:
-                    time.sleep(_RETRY_DELAY)
-                auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
-                if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
-                    aut_obj = auth.autorizaciones.autorizacion[0]
-                    if aut_obj.estado in ('AUTORIZADO', 'NO_AUTORIZADO'):
-                        break
-                    aut_obj = None  # estado transitorio, reintentar
-            else:
-                # Agotados todos los intentos sin resolución → tarea periódica lo recogerá
+            auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
+            if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
+                aut_obj = auth.autorizaciones.autorizacion[0]
+                if aut_obj.estado not in ('AUTORIZADO', 'NO_AUTORIZADO'):
+                    aut_obj = None  # estado transitorio
+
+            if not aut_obj:
+                # SRI aún no resolvió → delegar al poller periódico de Celery.
+                # NO bloqueamos el worker con time.sleep().
                 result['success'] = True
-                result['mensaje'] = 'Enviado al SRI. Autorización pendiente (se actualizará automáticamente).'
+                result['mensaje'] = 'Enviado al SRI. Autorización pendiente (se actualizará automáticamente en segundos).'
                 result['estado'] = comprobante.estado
                 return result
 
@@ -504,7 +541,6 @@ def procesar_retencion_sri(retencion):
     Genera XML, firma y envía la retención al SRI.
     Misma lógica que procesar_factura_sri.
     """
-    import time
     from apps.facturacion.models import ComprobanteElectronico
     from apps.facturacion.services.sri_service import SRIService
 
@@ -547,36 +583,7 @@ def procesar_retencion_sri(retencion):
             comprobante.respuesta_sri = {'estado': response.estado}
             comprobante.save(update_fields=['estado', 'respuesta_sri'])
 
-            aut_obj = None
-            for attempt in range(6):
-                if attempt > 0:
-                    time.sleep(5)
-                auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
-                if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
-                    aut_obj = auth.autorizaciones.autorizacion[0]
-                    if aut_obj.estado in ('AUTORIZADO', 'NO_AUTORIZADO'):
-                        break
-                    aut_obj = None
-            else:
-                result['success'] = True
-                result['mensaje'] = 'Enviado al SRI. Autorización pendiente.'
-                result['estado'] = comprobante.estado
-                return result
-
-            if aut_obj and aut_obj.estado == 'AUTORIZADO':
-                comprobante.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
-                comprobante.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
-                comprobante.fecha_autorizacion  = getattr(aut_obj, 'fechaAutorizacion', None)
-                comprobante.mensajes_sri = ''
-                result['success'] = True
-                result['mensaje'] = f"Autorizada: {comprobante.numero_autorizacion}"
-            else:
-                comprobante.estado = ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO
-                mensajes = _extraer_mensajes_autorizacion(aut_obj) if aut_obj else []
-                comprobante.mensajes_sri = '\n'.join(mensajes)
-                result['mensaje'] = ' | '.join(mensajes) or 'No autorizado por el SRI'
-
-            comprobante.save()
+            result = _consultar_autorizacion_inmediata(sri, comprobante, result)
         else:
             mensajes = _extraer_mensajes_recepcion(response)
             mensaje_str = ' | '.join(mensajes)
@@ -690,7 +697,6 @@ def procesar_guia_remision_sri(guia):
     """
     Genera XML, firma y envía la guía de remisión al SRI.
     """
-    import time
     from apps.facturacion.models import ComprobanteElectronico
     from apps.facturacion.services.sri_service import SRIService
 
@@ -733,36 +739,7 @@ def procesar_guia_remision_sri(guia):
             comprobante.respuesta_sri = {'estado': response.estado}
             comprobante.save(update_fields=['estado', 'respuesta_sri'])
 
-            aut_obj = None
-            for attempt in range(6):
-                if attempt > 0:
-                    time.sleep(5)
-                auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
-                if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
-                    aut_obj = auth.autorizaciones.autorizacion[0]
-                    if aut_obj.estado in ('AUTORIZADO', 'NO_AUTORIZADO'):
-                        break
-                    aut_obj = None
-            else:
-                result['success'] = True
-                result['mensaje'] = 'Enviado al SRI. Autorización pendiente.'
-                result['estado'] = comprobante.estado
-                return result
-
-            if aut_obj and aut_obj.estado == 'AUTORIZADO':
-                comprobante.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
-                comprobante.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
-                comprobante.fecha_autorizacion  = getattr(aut_obj, 'fechaAutorizacion', None)
-                comprobante.mensajes_sri = ''
-                result['success'] = True
-                result['mensaje'] = f"Autorizada: {comprobante.numero_autorizacion}"
-            else:
-                comprobante.estado = ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO
-                mensajes = _extraer_mensajes_autorizacion(aut_obj) if aut_obj else []
-                comprobante.mensajes_sri = '\n'.join(mensajes)
-                result['mensaje'] = ' | '.join(mensajes) or 'No autorizado por el SRI'
-
-            comprobante.save()
+            return _consultar_autorizacion_inmediata(sri, comprobante, result)
         else:
             mensajes = _extraer_mensajes_recepcion(response)
             mensaje_str = ' | '.join(mensajes)
@@ -888,7 +865,6 @@ def procesar_nota_debito_sri(nota):
     """
     Genera XML, firma y envía la nota de débito al SRI.
     """
-    import time
     from apps.facturacion.models import ComprobanteElectronico
     from apps.facturacion.services.sri_service import SRIService
 
@@ -931,36 +907,7 @@ def procesar_nota_debito_sri(nota):
             comprobante.respuesta_sri = {'estado': response.estado}
             comprobante.save(update_fields=['estado', 'respuesta_sri'])
 
-            aut_obj = None
-            for attempt in range(6):
-                if attempt > 0:
-                    time.sleep(5)
-                auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
-                if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
-                    aut_obj = auth.autorizaciones.autorizacion[0]
-                    if aut_obj.estado in ('AUTORIZADO', 'NO_AUTORIZADO'):
-                        break
-                    aut_obj = None
-            else:
-                result['success'] = True
-                result['mensaje'] = 'Enviado al SRI. Autorización pendiente.'
-                result['estado'] = comprobante.estado
-                return result
-
-            if aut_obj and aut_obj.estado == 'AUTORIZADO':
-                comprobante.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
-                comprobante.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
-                comprobante.fecha_autorizacion  = getattr(aut_obj, 'fechaAutorizacion', None)
-                comprobante.mensajes_sri = ''
-                result['success'] = True
-                result['mensaje'] = f"Autorizada: {comprobante.numero_autorizacion}"
-            else:
-                comprobante.estado = ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO
-                mensajes = _extraer_mensajes_autorizacion(aut_obj) if aut_obj else []
-                comprobante.mensajes_sri = '\n'.join(mensajes)
-                result['mensaje'] = ' | '.join(mensajes) or 'No autorizado por el SRI'
-
-            comprobante.save()
+            return _consultar_autorizacion_inmediata(sri, comprobante, result)
         else:
             mensajes = _extraer_mensajes_recepcion(response)
             mensaje_str = ' | '.join(mensajes)

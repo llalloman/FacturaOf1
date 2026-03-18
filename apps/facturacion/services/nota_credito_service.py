@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.facturacion.services.factura_service import (
     _extraer_mensajes_autorizacion,
     _extraer_mensajes_recepcion,
+    _consultar_autorizacion_inmediata,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,6 @@ def procesar_nota_credito_sri(nota_credito):
     Genera XML → firma → envía → consulta autorización (con reintentos).
     Retorna dict: { success, estado, mensaje, numero_comprobante }
     """
-    import time
     from apps.facturacion.models import ComprobanteElectronico
     from apps.facturacion.services.sri_service import SRIService
 
@@ -125,38 +125,8 @@ def procesar_nota_credito_sri(nota_credito):
             comprobante.respuesta_sri = {'estado': response.estado}
             comprobante.save(update_fields=['estado', 'respuesta_sri'])
 
-            # 4. Consultar autorización con reintentos
-            _MAX_RETRIES = 6
-            _RETRY_DELAY = 5
-            aut_obj = None
-            for attempt in range(_MAX_RETRIES):
-                if attempt > 0:
-                    time.sleep(_RETRY_DELAY)
-                auth = sri.autorizar_comprobante_sri(comprobante.clave_acceso)
-                if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
-                    aut_obj = auth.autorizaciones.autorizacion[0]
-                    if aut_obj.estado in ('AUTORIZADO', 'NO_AUTORIZADO'):
-                        break
-                    aut_obj = None
-            else:
-                result['success'] = True
-                result['mensaje'] = 'NC enviada al SRI. Autorización pendiente.'
-                result['estado']  = comprobante.estado
-                return result
-
-            if aut_obj and aut_obj.estado == 'AUTORIZADO':
-                comprobante.estado             = ComprobanteElectronico.EstadoChoices.AUTORIZADO
-                comprobante.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
-                comprobante.fecha_autorizacion  = getattr(aut_obj, 'fechaAutorizacion', None)
-                result['success'] = True
-                result['mensaje'] = f"NC Autorizada: {comprobante.numero_autorizacion}"
-            else:
-                comprobante.estado = ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO
-                mensajes = _extraer_mensajes_autorizacion(aut_obj) if aut_obj else []
-                comprobante.mensajes_sri = '\n'.join(mensajes)
-                result['mensaje'] = ' | '.join(mensajes) or 'NC No autorizada por el SRI'
-
-            comprobante.save()
+            # 4. Consulta inmediata de autorización (sin bloqueo)
+            return _consultar_autorizacion_inmediata(sri, comprobante, result)
 
         else:
             comprobante.estado = ComprobanteElectronico.EstadoChoices.RECHAZADO

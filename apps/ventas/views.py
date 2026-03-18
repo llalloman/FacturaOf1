@@ -11,14 +11,17 @@ from .serializers import (
     CajaSerializer, AperturaCajaSerializer, VentaSerializer,
     VentaSyncSerializer, MovimientoCajaSerializer
 )
+from apps.core.export_mixin import ExportMixin
 
 
 class CajaViewSet(viewsets.ModelViewSet):
     serializer_class = CajaSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['empresa', 'activa']
     search_fields = ['nombre', 'codigo']
+    ordering_fields = ['nombre', 'codigo']
+    ordering = ['nombre']
     
     def _get_empresa(self):
         user = self.request.user
@@ -68,8 +71,9 @@ class CajaViewSet(viewsets.ModelViewSet):
 class AperturaCajaViewSet(viewsets.ModelViewSet):
     serializer_class = AperturaCajaSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['caja', 'estado']
+    search_fields = ['caja__nombre', 'caja__codigo', 'usuario__username']
     ordering_fields = ['fecha_apertura']
     ordering = ['-fecha_apertura']
     
@@ -154,7 +158,7 @@ class AperturaCajaViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class VentaViewSet(viewsets.ModelViewSet):
+class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
     serializer_class = VentaSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -162,6 +166,22 @@ class VentaViewSet(viewsets.ModelViewSet):
     search_fields = ['numero_venta', 'cliente__razon_social']
     ordering_fields = ['fecha_venta', 'total']
     ordering = ['-fecha_venta']
+    export_filename = 'ventas'
+    export_fields = [
+        ('numero_venta', 'Nro. Venta'),
+        ('fecha_venta', 'Fecha'),
+        ('cliente__razon_social', 'Cliente'),
+        ('cliente__identificacion', 'Identificación'),
+        ('tipo_venta', 'Tipo'),
+        ('estado', 'Estado'),
+        ('subtotal', 'Subtotal'),
+        ('descuento', 'Descuento'),
+        ('iva', 'IVA'),
+        ('total', 'Total'),
+        ('genera_factura', 'Facturado'),
+        ('caja__nombre', 'Caja'),
+        ('usuario__username', 'Usuario'),
+    ]
     
     def get_queryset(self):
         user = self.request.user
@@ -444,9 +464,10 @@ class VentaViewSet(viewsets.ModelViewSet):
 class MovimientoCajaViewSet(viewsets.ModelViewSet):
     serializer_class = MovimientoCajaSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['apertura_caja', 'tipo']
-    ordering_fields = ['fecha_movimiento']
+    search_fields = ['descripcion', 'referencia']
+    ordering_fields = ['fecha_movimiento', 'monto']
     ordering = ['-fecha_movimiento']
     
     def get_queryset(self):

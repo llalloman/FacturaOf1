@@ -92,6 +92,10 @@ declare global {
         actualizarCacheProductos: (productos: any) => Promise<any>;
         actualizarCacheClientes: (clientes: any) => Promise<any>;
       };
+      print: {
+        receipt: (data: any) => Promise<{ success: boolean; error?: string }>;
+        preview: (data: any) => Promise<{ success: boolean; error?: string }>;
+      };
       config: {
         get: (key: string) => Promise<any>;
         set: (key: string, value: any) => Promise<any>;

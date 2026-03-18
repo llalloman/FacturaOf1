@@ -15,6 +15,7 @@ import {
   Upload,
 } from 'lucide-react';
 import ProductoModal from './ProductoModal';
+import ExportButtons from '../../components/ui/ExportButtons';
 
 export default function ProductosPage() {
   const queryClient = useQueryClient();
@@ -69,13 +70,16 @@ export default function ProductosPage() {
             <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 bg-clip-text text-transparent mb-2">Productos</h1>
             <p className="text-gray-600">Gestión de inventario y catálogo</p>
           </div>
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-blue-700 hover:to-sky-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
-          >
-            <Plus size={20} />
-            <span className="font-semibold">Nuevo Producto</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <ExportButtons basePath="/productos/productos" filename="productos" />
+            <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-blue-700 hover:to-sky-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
+            >
+              <Plus size={20} />
+              <span className="font-semibold">Nuevo Producto</span>
+            </button>
+          </div>
         </div>
 
         {/* Alerts */}

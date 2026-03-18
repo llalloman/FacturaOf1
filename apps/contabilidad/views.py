@@ -1,9 +1,10 @@
 from decimal import Decimal
 from django.db.models import Sum, Q
-from rest_framework import viewsets, status
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import CuentaContable, AsientoContable
 from .serializers import (
     CuentaContableSerializer,
@@ -16,7 +17,12 @@ from .serializers import (
 class CuentaContableViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = CuentaContableSerializer
-    pagination_class = None
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['tipo', 'naturaleza', 'nivel', 'activa', 'es_hoja']
+    search_fields = ['codigo', 'nombre']
+    ordering_fields = ['codigo', 'nombre', 'nivel']
+    ordering = ['codigo']
+    pagination_class = None  # Plan de cuentas needs full tree
 
     def get_queryset(self):
         return CuentaContable.objects.filter(
@@ -120,22 +126,16 @@ class CuentaContableViewSet(viewsets.ModelViewSet):
 
 class AsientoContableViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-    pagination_class = None
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = {'tipo': ['exact'], 'bloqueado': ['exact'], 'fecha': ['exact', 'gte', 'lte', 'year', 'month']}
+    search_fields = ['numero', 'descripcion']
+    ordering_fields = ['fecha', 'numero', 'created_at']
+    ordering = ['-fecha']
 
     def get_queryset(self):
-        qs = AsientoContable.objects.filter(
+        return AsientoContable.objects.filter(
             empresa=self.request.user.empresa
         ).prefetch_related('lineas__cuenta')
-        anio = self.request.query_params.get('anio')
-        mes  = self.request.query_params.get('mes')
-        tipo = self.request.query_params.get('tipo')
-        if anio:
-            qs = qs.filter(fecha__year=anio)
-        if mes:
-            qs = qs.filter(fecha__month=mes)
-        if tipo:
-            qs = qs.filter(tipo=tipo)
-        return qs
 
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):

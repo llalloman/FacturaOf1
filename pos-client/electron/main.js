@@ -9,6 +9,67 @@ const store = new Store();
 let mainWindow;
 let db;
 
+// Utility: generate receipt HTML for thermal printer (80mm)
+function buildReceiptHTML(data) {
+  const items = (data.detalles || [])
+    .map(
+      (d) =>
+        `<tr>
+          <td style="text-align:left">${d.nombre}<br><small>${d.codigo}</small></td>
+          <td style="text-align:center">${d.cantidad}</td>
+          <td style="text-align:right">$${d.precio_unitario.toFixed(2)}</td>
+          <td style="text-align:right">$${d.total.toFixed(2)}</td>
+        </tr>`
+    )
+    .join('');
+
+  const pagos = (data.pagos || [])
+    .map((p) => `<div>${p.metodo_pago}: <strong>$${p.monto.toFixed(2)}</strong></div>`)
+    .join('');
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  @page { margin: 0; size: 80mm auto; }
+  body { font-family: 'Courier New', monospace; font-size: 12px; width: 72mm; margin: 4mm; }
+  h2 { text-align: center; margin: 0 0 4px; font-size: 14px; }
+  .center { text-align: center; }
+  .line { border-top: 1px dashed #000; margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 2px 0; font-size: 11px; }
+  th { border-bottom: 1px solid #000; }
+  .total-row { font-size: 14px; font-weight: bold; }
+</style></head><body>
+  <h2>${data.empresa_nombre || 'FACTURA'}</h2>
+  <div class="center">${data.empresa_ruc || ''}</div>
+  <div class="center">${data.empresa_direccion || ''}</div>
+  <div class="line"></div>
+  <div><strong>Venta:</strong> ${data.numero_venta || ''}</div>
+  <div><strong>Fecha:</strong> ${new Date(data.fecha_venta || Date.now()).toLocaleString('es-EC')}</div>
+  <div><strong>Cliente:</strong> ${data.cliente_nombre || 'Consumidor Final'}</div>
+  <div><strong>CI/RUC:</strong> ${data.cliente_identificacion || '9999999999999'}</div>
+  <div class="line"></div>
+  <table>
+    <thead><tr><th style="text-align:left">Producto</th><th>Cant</th><th style="text-align:right">P.U.</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody>${items}</tbody>
+  </table>
+  <div class="line"></div>
+  <table>
+    <tr><td>Subtotal</td><td style="text-align:right">$${(data.subtotal || 0).toFixed(2)}</td></tr>
+    ${data.descuento > 0 ? `<tr><td>Descuento</td><td style="text-align:right">-$${data.descuento.toFixed(2)}</td></tr>` : ''}
+    <tr><td>IVA</td><td style="text-align:right">$${(data.iva || 0).toFixed(2)}</td></tr>
+    <tr class="total-row"><td>TOTAL</td><td style="text-align:right">$${(data.total || 0).toFixed(2)}</td></tr>
+  </table>
+  <div class="line"></div>
+  ${pagos}
+  ${data.cambio > 0 ? `<div style="font-size:14px;font-weight:bold;margin-top:4px">CAMBIO: $${data.cambio.toFixed(2)}</div>` : ''}
+  <div class="line"></div>
+  <div class="center" style="font-size:10px;margin-top:4px">¡Gracias por su compra!</div>
+  ${data.factura_numero ? `<div class="center" style="font-size:10px">Factura: ${data.factura_numero}</div>` : ''}
+  ${data.autorizacion ? `<div class="center" style="font-size:9px;word-break:break-all">Aut: ${data.autorizacion}</div>` : ''}
+</body></html>`;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -130,63 +191,72 @@ ipcMain.handle('ventas:crear', async (event, ventaData) => {
   try {
     const { v4: uuidv4 } = require('uuid');
     const uuid = uuidv4();
-    
-    const result = db.prepare(`
-      INSERT INTO ventas (uuid, numero_venta, empresa_id, caja_id, usuario_id, 
-                         cliente_id, fecha_venta, subtotal, descuento, iva, total, data_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      uuid,
-      ventaData.numero_venta,
-      ventaData.empresa_id,
-      ventaData.caja_id,
-      ventaData.usuario_id,
-      ventaData.cliente_id,
-      new Date().toISOString(),
-      ventaData.subtotal,
-      ventaData.descuento,
-      ventaData.iva,
-      ventaData.total,
-      JSON.stringify(ventaData)
-    );
 
-    const ventaId = result.lastInsertRowid;
-
-    // Insertar detalles
-    const insertDetalle = db.prepare(`
-      INSERT INTO detalles_venta (venta_id, producto_id, codigo, nombre, cantidad, 
-                                  precio_unitario, descuento, subtotal, iva, total, costo_unitario)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    for (const detalle of ventaData.detalles) {
-      insertDetalle.run(
-        ventaId,
-        detalle.producto_id,
-        detalle.codigo,
-        detalle.nombre,
-        detalle.cantidad,
-        detalle.precio_unitario,
-        detalle.descuento || 0,
-        detalle.subtotal,
-        detalle.iva || 0,
-        detalle.total,
-        detalle.costo_unitario || 0
+    // Wrap entire sale in a transaction — atomic: all or nothing
+    const crearVentaTx = db.transaction((data) => {
+      const result = db.prepare(`
+        INSERT INTO ventas (uuid, numero_venta, empresa_id, caja_id, usuario_id, 
+                           cliente_id, fecha_venta, subtotal, descuento, iva, total, data_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        uuid,
+        data.numero_venta,
+        data.empresa_id,
+        data.caja_id,
+        data.usuario_id,
+        data.cliente_id,
+        new Date().toISOString(),
+        data.subtotal,
+        data.descuento,
+        data.iva,
+        data.total,
+        JSON.stringify(data)
       );
 
-      // Actualizar stock local
-      db.prepare(`
+      const ventaId = result.lastInsertRowid;
+
+      // Insertar detalles
+      const insertDetalle = db.prepare(`
+        INSERT INTO detalles_venta (venta_id, producto_id, codigo, nombre, cantidad, 
+                                    precio_unitario, descuento, subtotal, iva, total, costo_unitario)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const updateStock = db.prepare(`
         UPDATE productos_cache 
         SET stock_actual = stock_actual - ? 
         WHERE id = ?
-      `).run(detalle.cantidad, detalle.producto_id);
-    }
+      `);
 
-    // Agregar a cola de sincronización
-    db.prepare(`
-      INSERT INTO sync_queue (entity_type, entity_id, operation, data)
-      VALUES ('venta', ?, 'CREATE', ?)
-    `).run(uuid, JSON.stringify(ventaData));
+      for (const detalle of data.detalles) {
+        insertDetalle.run(
+          ventaId,
+          detalle.producto_id,
+          detalle.codigo,
+          detalle.nombre,
+          detalle.cantidad,
+          detalle.precio_unitario,
+          detalle.descuento || 0,
+          detalle.subtotal,
+          detalle.iva || 0,
+          detalle.total,
+          detalle.costo_unitario || 0
+        );
+
+        // Actualizar stock local
+        updateStock.run(detalle.cantidad, detalle.producto_id);
+      }
+
+      // Agregar a cola de sincronización
+      db.prepare(`
+        INSERT INTO sync_queue (entity_type, entity_id, operation, data)
+        VALUES ('venta', ?, 'CREATE', ?)
+      `).run(uuid, JSON.stringify(data));
+
+      return ventaId;
+    });
+
+    const ventaId = crearVentaTx(ventaData);
 
     return { success: true, ventaId, uuid };
   } catch (error) {
@@ -339,6 +409,60 @@ ipcMain.handle('sync:actualizar-cache-clientes', async (event, { clientes }) => 
 
     insertMany(clientes);
     return { success: true, count: clientes.length };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// IPC Handlers - Impresión de recibos
+ipcMain.handle('print:receipt', async (event, receiptData) => {
+  try {
+    const html = buildReceiptHTML(receiptData);
+
+    // Create a hidden window for printing
+    const printWin = new BrowserWindow({
+      show: false,
+      width: 302, // ~80mm at 96dpi
+      height: 800,
+      webPreferences: { nodeIntegration: false, contextIsolation: true },
+    });
+
+    await printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+    return new Promise((resolve) => {
+      printWin.webContents.print(
+        { silent: true, printBackground: true, margins: { marginType: 'none' } },
+        (success, failureReason) => {
+          printWin.close();
+          if (success) {
+            resolve({ success: true });
+          } else {
+            resolve({ success: false, error: failureReason || 'Error al imprimir' });
+          }
+        }
+      );
+    });
+  } catch (error) {
+    console.error('Error imprimiendo recibo:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('print:receipt-preview', async (event, receiptData) => {
+  try {
+    const html = buildReceiptHTML(receiptData);
+
+    const previewWin = new BrowserWindow({
+      width: 400,
+      height: 700,
+      title: 'Vista previa del recibo',
+      parent: mainWindow,
+      modal: true,
+      webPreferences: { nodeIntegration: false, contextIsolation: true },
+    });
+
+    await previewWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
   }

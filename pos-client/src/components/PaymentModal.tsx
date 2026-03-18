@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { usePOSStore } from '../store/posStore';
 import { apiService } from '../services/apiService';
 import { PagoVenta, Venta } from '../types';
@@ -14,6 +14,8 @@ interface SRIResultado {
     numero_autorizacion?: string;
   };
   facturaError?: string;
+  // Receipt data for printing
+  receiptData?: Record<string, any>;
 }
 
 interface PaymentModalProps {
@@ -40,6 +42,7 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
   const [etapa, setEtapa] = useState<'pago' | 'procesando' | 'resultado'>('pago');
   const [mensajeProceso, setMensajeProceso] = useState('');
   const [resultadoSRI, setResultadoSRI] = useState<SRIResultado | null>(null);
+  const [imprimiendo, setImprimiendo] = useState(false);
 
   const totalPagado = pagos.reduce((sum, p) => sum + p.monto, 0);
   const pendiente = total - totalPagado;
@@ -141,7 +144,25 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
       }
 
       limpiarCarrito();
-      setResultadoSRI({ ventaNumero: numeroVenta, cambio, factura: facturaInfo, facturaError });
+      
+      // Build receipt data for printing
+      const receiptData = {
+        numero_venta: numeroVenta,
+        fecha_venta: now.toISOString(),
+        cliente_nombre: cliente.razon_social,
+        cliente_identificacion: cliente.identificacion,
+        subtotal: getSubtotal(),
+        descuento: getDescuentoTotal(),
+        iva: getIVATotal(),
+        total: getTotal(),
+        detalles: items,
+        pagos: pagos,
+        cambio,
+        factura_numero: facturaInfo?.numero_comprobante,
+        autorizacion: facturaInfo?.numero_autorizacion,
+      };
+      
+      setResultadoSRI({ ventaNumero: numeroVenta, cambio, factura: facturaInfo, facturaError, receiptData });
       setEtapa('resultado');
     } catch (error: any) {
       console.error('Error procesando venta:', error);
@@ -228,6 +249,45 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
             >
               Cerrar
             </button>
+
+            {/* Print buttons */}
+            <div className="flex gap-2 mt-2">
+              {window.electron?.print && (
+                <button
+                  onClick={async () => {
+                    if (!resultadoSRI?.receiptData) return;
+                    setImprimiendo(true);
+                    try {
+                      const res = await window.electron!.print.receipt(resultadoSRI.receiptData);
+                      if (res.success) {
+                        toast.info('Recibo enviado a la impresora');
+                      } else {
+                        toast.error('Error al imprimir', res.error);
+                      }
+                    } catch (err: any) {
+                      toast.error('Error al imprimir', err.message);
+                    } finally {
+                      setImprimiendo(false);
+                    }
+                  }}
+                  disabled={imprimiendo}
+                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg font-semibold hover:bg-gray-800 disabled:opacity-50 text-sm"
+                >
+                  {imprimiendo ? '⏳ Imprimiendo...' : '🖨️ Imprimir Recibo'}
+                </button>
+              )}
+              {!window.electron?.print && (
+                <button
+                  onClick={() => {
+                    // Fallback: browser print
+                    window.print();
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg font-semibold hover:bg-gray-800 text-sm"
+                >
+                  🖨️ Imprimir
+                </button>
+              )}
+            </div>
           </div>
         )}
 

@@ -183,6 +183,14 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Skip to main content link — visible only on focus (keyboard nav) */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-blue-700 focus:text-white focus:rounded-lg focus:text-sm focus:font-semibold"
+      >
+        Ir al contenido principal
+      </a>
+
       {/* Backdrop para móvil */}
       {sidebarOpen && (
         <div
@@ -227,7 +235,7 @@ export default function Layout() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        <nav aria-label="Menú principal" className="flex-1 p-4 space-y-1 overflow-y-auto">
           {/* SUPER_ADMIN: menú de administración de plataforma */}
           {user?.rol === 'SUPER_ADMIN' ? (
             <>
@@ -388,6 +396,7 @@ export default function Layout() {
           <button
             className="md:hidden p-2 rounded-lg hover:bg-gray-100 mr-2 flex-shrink-0"
             onClick={() => setSidebarOpen(true)}
+            aria-label="Abrir menú"
           >
             <Menu size={22} className="text-gray-600" />
           </button>
@@ -398,6 +407,7 @@ export default function Layout() {
                 type="text"
                 placeholder="Buscar productos, clientes, facturas..."
                 className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Buscar productos, clientes, facturas"
               />
             </div>
           </div>
@@ -489,7 +499,7 @@ export default function Layout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto">
+        <main id="main-content" className="flex-1 overflow-auto" tabIndex={-1}>
           <Outlet />
         </main>
       </div>
