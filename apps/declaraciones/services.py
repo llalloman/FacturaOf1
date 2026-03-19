@@ -85,7 +85,7 @@ def calcular_form104(empresa, anio: int, mes: int) -> dict:
     )
     nc_agg = NotaCredito.objects.filter(nc_filter).aggregate(
         total_nc=Sum('total'),
-        iva_nc=Sum('iva'),
+        iva_nc=Sum(F('total') - F('subtotal_sin_impuestos')),
         num_nc=Count('id'),
     )
 
