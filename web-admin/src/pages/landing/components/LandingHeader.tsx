@@ -45,7 +45,9 @@ export default function LandingHeader() {
             <img
               src="/logo-of1-1.png"
               alt="FacturaOF1 ERP"
-              className="h-10 w-auto object-contain drop-shadow-md group-hover:scale-105 transition-transform"
+              className={`h-10 w-auto object-contain drop-shadow-md group-hover:scale-105 transition-all duration-300 ${
+                scrolled ? '' : 'brightness-0 invert'
+              }`}
             />
           </button>
 
