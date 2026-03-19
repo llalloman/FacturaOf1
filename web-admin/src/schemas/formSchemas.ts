@@ -19,20 +19,15 @@ import { z } from 'zod';
 export const clienteSchema = z
   .object({
     tipo_identificacion: z.enum(['04', '05', '06'], {
-      required_error: 'Seleccione un tipo de identificación',
+      message: 'Seleccione un tipo de identificación',
     }),
     identificacion: z.string().min(1, 'La identificación es obligatoria'),
     razon_social: z.string().min(2, 'Mínimo 2 caracteres'),
-    nombre_comercial: z.string().optional().default(''),
-    email: z
-      .string()
-      .email('Email inválido')
-      .or(z.literal(''))
-      .optional()
-      .default(''),
-    telefono: z.string().max(15, 'Máximo 15 caracteres').optional().default(''),
-    direccion: z.string().optional().default(''),
-    activo: z.boolean().default(true),
+    nombre_comercial: z.string(),
+    email: z.string().email('Email inválido').or(z.literal('')),
+    telefono: z.string().max(15, 'Máximo 15 caracteres'),
+    direccion: z.string(),
+    activo: z.boolean(),
   })
   .superRefine((data, ctx) => {
     if (data.tipo_identificacion === '05' && data.identificacion.length !== 10) {
@@ -99,7 +94,7 @@ export const productoSchema = z.object({
   nombre: z.string().min(2, 'Mínimo 2 caracteres'),
   descripcion: z.string().optional().default(''),
   tipo: z.enum(['BIEN', 'SERVICIO'], {
-    required_error: 'Seleccione un tipo',
+    message: 'Seleccione un tipo',
   }),
   precio: z
     .string()
