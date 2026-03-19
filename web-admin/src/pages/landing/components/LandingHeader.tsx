@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, Zap } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 const NAV_LINKS = [
   { label: 'Inicio', href: '#inicio' },
@@ -40,14 +40,13 @@ export default function LandingHeader() {
           {/* Logo */}
           <button
             onClick={() => scrollTo('#inicio')}
-            className="flex items-center gap-2.5 group"
+            className="flex items-center gap-2 group"
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center shadow-md group-hover:shadow-blue-400/30 transition-shadow">
-              <Zap className="w-4.5 h-4.5 text-white" fill="currentColor" />
-            </div>
-            <span className={`font-black text-xl tracking-tight transition-colors ${scrolled ? 'text-slate-900' : 'text-white'}`}>
-              FacturaOF1
-            </span>
+            <img
+              src="/logo-of1-1.png"
+              alt="FacturaOF1 ERP"
+              className="h-10 w-auto object-contain drop-shadow-md group-hover:scale-105 transition-transform"
+            />
           </button>
 
           {/* Nav desktop */}
