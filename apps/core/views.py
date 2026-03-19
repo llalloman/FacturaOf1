@@ -67,7 +67,7 @@ def _dashboard_super_admin(request):
 
     # Empresas list (lightweight)
     empresas_list = list(
-        empresas_qs.order_by('-created_at')[:20]
+        empresas_qs.order_by('-fecha_creacion')[:20]
         .values('id', 'razon_social', 'ruc', 'email', 'activa')
     )
 
