@@ -47,6 +47,7 @@ function ToastItem({ item }: { item: ToastItem }) {
   return (
     <div
       className={`relative flex items-start gap-3 w-80 ${s.bg} border ${s.border} rounded-xl shadow-lg p-4 overflow-hidden animate-slideIn`}
+      role="alert"
     >
       {/* color bar */}
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${s.bar} rounded-l-xl`} />
@@ -73,7 +74,7 @@ export default function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none" aria-live="polite" aria-atomic="false">
       {toasts.map((t) => (
         <div key={t.id} className="pointer-events-auto">
           <ToastItem item={t} />

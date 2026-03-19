@@ -173,6 +173,55 @@ function ClienteSelectorModal({ onClose, onSelect }: { onClose: () => void; onSe
 }
 
 // ─── Modal de Cobro ────────────────────────────────────────────────────────
+
+/** Genera e imprime un recibo térmico 80mm */
+function imprimirRecibo({
+  numero, items, subtotal, iva, total, cambio, cliente, fecha,
+}: {
+  numero: string;
+  items: { nombre: string; cantidad: number; precio_unitario: number; total: number }[];
+  subtotal: number; iva: number; total: number; cambio: number;
+  cliente: string; fecha: string;
+}) {
+  const win = window.open('', '_blank', 'width=320,height=600');
+  if (!win) return;
+  const lineas = items.map(
+    (i) => `<tr><td>${i.nombre}</td><td class="r">${i.cantidad}</td><td class="r">${i.precio_unitario.toFixed(2)}</td><td class="r">${i.total.toFixed(2)}</td></tr>`
+  ).join('');
+  win.document.write(`<!DOCTYPE html><html><head><title>Recibo</title>
+<style>
+  @page { size: 80mm auto; margin: 2mm; }
+  body { font-family: 'Courier New', monospace; font-size: 12px; width: 76mm; margin: 0 auto; }
+  h2 { text-align: center; margin: 4px 0; font-size: 14px; }
+  .center { text-align: center; }
+  .line { border-top: 1px dashed #000; margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 1px 0; font-size: 11px; }
+  .r { text-align: right; }
+  .total { font-size: 14px; font-weight: bold; }
+  @media print { body { width: 100%; } }
+</style></head><body>
+<h2>RECIBO DE VENTA</h2>
+<p class="center" style="font-size:10px">${fecha}</p>
+<p class="center" style="font-size:11px">Nro: <b>${numero}</b></p>
+<p style="font-size:11px">Cliente: ${cliente}</p>
+<div class="line"></div>
+<table><thead><tr><td><b>Prod.</b></td><td class="r"><b>Cant</b></td><td class="r"><b>P.U.</b></td><td class="r"><b>Total</b></td></tr></thead>
+<tbody>${lineas}</tbody></table>
+<div class="line"></div>
+<table>
+<tr><td>Subtotal</td><td class="r">$${subtotal.toFixed(2)}</td></tr>
+<tr><td>IVA</td><td class="r">$${iva.toFixed(2)}</td></tr>
+<tr class="total"><td>TOTAL</td><td class="r">$${total.toFixed(2)}</td></tr>
+${cambio > 0 ? `<tr><td>Cambio</td><td class="r">$${cambio.toFixed(2)}</td></tr>` : ''}
+</table>
+<div class="line"></div>
+<p class="center" style="font-size:10px">¡Gracias por su compra!</p>
+</body></html>`);
+  win.document.close();
+  setTimeout(() => { win.print(); win.close(); }, 400);
+}
+
 function CobroModal({
   onClose, cajaId,
 }: { onClose: () => void; cajaId: number | null }) {
@@ -230,8 +279,20 @@ function CobroModal({
             </p>
           )}
           <button
+            onClick={() => imprimirRecibo({
+              numero: exito,
+              items: items.map((i) => ({ nombre: i.nombre, cantidad: i.cantidad, precio_unitario: i.precio_unitario, total: i.total })),
+              subtotal: getSubtotal(), iva: getIVA(), total: getTotal(), cambio,
+              cliente: cliente?.razon_social ?? 'Consumidor Final',
+              fecha: new Date().toLocaleString('es-EC'),
+            })}
+            className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-lg transition-colors"
+          >
+            🖨 Imprimir Recibo
+          </button>
+          <button
             onClick={() => { limpiarCarrito(); onClose(); }}
-            className="mt-6 w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold text-lg transition-colors"
+            className="mt-2 w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold text-lg transition-colors"
           >
             Nueva Venta
           </button>
@@ -400,17 +461,44 @@ export default function POSPage() {
     }
   }, [productos, search, agregarItem, refetch]);
 
-  // Atajo F12 para cobrar
+  // Atajos de teclado POS: F2=Cobrar, F4=Nueva venta, Escape=Cancelar/cerrar, F1=Buscar
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'F12') {
-        e.preventDefault();
-        if (items.length > 0 && cliente) setShowCobro(true);
+      // No capturar atajos si hay un modal abierto (cobro/cliente)
+      if (showCobro || showCliente) {
+        if (e.key === 'Escape') { setShowCobro(false); setShowCliente(false); }
+        return;
+      }
+      switch (e.key) {
+        case 'F2':
+          e.preventDefault();
+          if (items.length > 0 && cliente) setShowCobro(true);
+          else if (!cliente) setShowCliente(true);
+          break;
+        case 'F4':
+          e.preventDefault();
+          if (items.length > 0) {
+            confirmDialog('Nueva venta', '¿Descartar la venta actual y empezar una nueva?', 'warning')
+              .then((ok) => { if (ok) limpiarCarrito(); });
+          }
+          break;
+        case 'F1':
+          e.preventDefault();
+          searchRef.current?.focus();
+          break;
+        case 'F12':
+          e.preventDefault();
+          if (items.length > 0 && cliente) setShowCobro(true);
+          break;
+        case 'Escape':
+          e.preventDefault();
+          navigate('/');
+          break;
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [items.length, cliente]);
+  }, [items.length, cliente, showCobro, showCliente, limpiarCarrito, navigate]);
 
   return (
     <div className="fixed inset-0 bg-gray-100 flex flex-col" style={{ zIndex: 10 }}>
@@ -588,7 +676,7 @@ export default function POSPage() {
             >
               {items.length === 0 ? 'Carrito vacío' : `COBRAR ${fmt(getTotal())}`}
             </button>
-            <p className="text-center text-xs text-gray-400">{items.length} producto{items.length !== 1 ? 's' : ''} · F12 para cobrar</p>
+            <p className="text-center text-xs text-gray-400">{items.length} producto{items.length !== 1 ? 's' : ''} · F2 Cobrar · F4 Nueva · F1 Buscar · Esc Salir</p>
           </div>
         </div>
       </div>

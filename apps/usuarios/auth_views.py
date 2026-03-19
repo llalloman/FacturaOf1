@@ -12,7 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta, timezone as dt_timezone
 import logging
-import random
+import secrets
 import string
 import requests as http_requests
 
@@ -22,7 +22,7 @@ User = get_user_model()
 
 
 def _generate_code():
-    return ''.join(random.choices(string.digits, k=6))
+    return ''.join(secrets.choice(string.digits) for _ in range(6))
 
 
 def _send_verification_email(email: str, code: str, nombre: str = ''):
@@ -515,9 +515,9 @@ def completar_onboarding(request):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _generate_temp_password(length=10):
-    """Genera una contraseña temporal legible (sin caracteres ambiguos)."""
+    """Genera una contraseña temporal criptográficamente segura (sin caracteres ambiguos)."""
     chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'
-    return ''.join(random.choices(chars, k=length))
+    return ''.join(secrets.choice(chars) for _ in range(length))
 
 
 @api_view(['POST'])

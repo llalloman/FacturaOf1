@@ -42,13 +42,16 @@ export default function ConfirmModal() {
     <div
       className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) cancel(); }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-title"
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden animate-slideIn">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden animate-slideIn" aria-live="assertive">
         <div className="p-6">
           <div className="flex items-start gap-3">
             <span className={`text-2xl flex-shrink-0 mt-0.5 ${cfg.iconClass}`}>{cfg.icon}</span>
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-semibold text-gray-900 leading-snug">{title}</h3>
+              <h3 id="confirm-title" className="text-base font-semibold text-gray-900 leading-snug">{title}</h3>
               {options.message && (
                 <p className="mt-1.5 text-sm text-gray-500 whitespace-pre-line leading-relaxed">
                   {options.message}
