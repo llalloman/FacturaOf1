@@ -4,6 +4,7 @@ Declaraciones SRI — Form 104 (IVA), Form 103 (Retenciones), ATS XML.
 Endpoints de solo lectura computan datos en tiempo real.
 Endpoints de gestión permiten crear/guardar/marcar como presentada una declaración.
 """
+import logging
 from decimal import Decimal
 import xml.etree.ElementTree as ET
 from xml.dom.minidom import parseString
@@ -65,7 +66,14 @@ def form104(request):
     if not empresa:
         return Response({'error': 'Sin empresa asociada'}, status=status.HTTP_403_FORBIDDEN)
 
-    datos = calcular_form104(empresa, anio, mes)
+    try:
+        datos = calcular_form104(empresa, anio, mes)
+    except Exception as e:
+        logging.getLogger(__name__).exception('Error en calcular_form104')
+        return Response(
+            {'error': f'{type(e).__name__}: {e}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
     MESES = DeclaracionMensual.MESES
     datos['periodo']['mes_nombre'] = MESES[mes]
