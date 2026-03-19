@@ -5,6 +5,8 @@ Centraliza toda la lógica de agregación de facturas, retenciones y compras
 para los formularios 104, 103 y ATS.
 """
 from datetime import date, timedelta
+
+from django.utils import timezone as tz
 from decimal import Decimal
 from django.db.models import Sum, Count, Q, F
 
@@ -301,7 +303,7 @@ def calcular_calendario(empresa, anio: int) -> list[dict]:
     y estado (pendiente/presentada/vencida).
     """
     from .models import DeclaracionMensual
-    hoy = date.today()
+    hoy = tz.localdate()
     resultado = []
 
     declaraciones = {

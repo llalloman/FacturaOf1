@@ -34,7 +34,7 @@ export default function VentasPage() {
 
   const totalHoy = ventasArray
     .filter((v: Venta) => {
-      const hoy = new Date().toISOString().split('T')[0];
+      const hoy = new Date().toLocaleDateString('sv-SE');
       return v.fecha_venta?.startsWith(hoy);
     })
     .reduce((sum: number, v: Venta) => sum + Number(v.total || 0), 0);

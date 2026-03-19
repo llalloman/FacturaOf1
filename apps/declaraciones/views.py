@@ -4,7 +4,6 @@ Declaraciones SRI — Form 104 (IVA), Form 103 (Retenciones), ATS XML.
 Endpoints de solo lectura computan datos en tiempo real.
 Endpoints de gestión permiten crear/guardar/marcar como presentada una declaración.
 """
-from datetime import date
 from decimal import Decimal
 import xml.etree.ElementTree as ET
 from xml.dom.minidom import parseString
@@ -111,7 +110,7 @@ def calendario(request):
     GET /api/declaraciones/calendario/?anio=2025
     """
     try:
-        anio = int(request.query_params.get('anio', date.today().year))
+        anio = int(request.query_params.get('anio', timezone.localdate().year))
     except (TypeError, ValueError):
         return Response({'error': 'Parámetro anio inválido'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -140,7 +139,7 @@ def proximas_obligaciones(request):
     if not empresa:
         return Response({'error': 'Sin empresa asociada'}, status=status.HTTP_403_FORBIDDEN)
 
-    hoy = date.today()
+    hoy = timezone.localdate()
     anio = hoy.year
     obligaciones = calcular_calendario(empresa, anio)
 

@@ -60,7 +60,7 @@ const RetencionesPage: React.FC = () => {
   const queryClient = useQueryClient();
 
   // ── Form state ───────────────────────────────────────────────────────────────
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('sv-SE');
   const mesActual = (() => {
     const d = new Date();
     return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
@@ -265,7 +265,7 @@ const RetencionesPage: React.FC = () => {
                     <td className="p-4 font-medium text-gray-900">{ret.numero_retencion}</td>
                     <td className="p-4 text-gray-700">{ret.proveedor_nombre}</td>
                     <td className="p-4 text-gray-700">{ret.periodo_fiscal}</td>
-                    <td className="p-4 text-gray-700">{new Date(ret.fecha_emision).toLocaleDateString()}</td>
+                    <td className="p-4 text-gray-700">{new Date(ret.fecha_emision).toLocaleDateString('es-EC')}</td>
                     <td className="p-4 text-right font-semibold text-gray-900">${Number(ret.total_retenido).toFixed(2)}</td>
                     <td className="p-4 text-center">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${estadoColor(ret.estado)}`}>

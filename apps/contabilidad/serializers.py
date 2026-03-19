@@ -107,8 +107,7 @@ class AsientoContableCreateSerializer(serializers.ModelSerializer):
 
         # Auto-number: contabilidad-YYYYMMDD-seq
         from django.utils import timezone
-        import datetime
-        fecha = validated_data.get('fecha', datetime.date.today())
+        fecha = validated_data.get('fecha', timezone.localdate())
         prefix = fecha.strftime('%Y%m%d')
         count = AsientoContable.objects.filter(empresa=empresa, numero__startswith=f'AJ-{prefix}').count()
         numero = validated_data.get('numero') or f'AJ-{prefix}-{count+1:04d}'
