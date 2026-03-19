@@ -11,12 +11,12 @@ from apps.core.export_mixin import ExportMixin
 class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
     serializer_class = ProductoSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Devolver todos los productos sin paginar
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['tipo', 'aplica_iva', 'activo', 'maneja_inventario']
     search_fields = ['codigo_principal', 'codigo_auxiliar', 'nombre', 'descripcion']
     ordering_fields = ['nombre', 'precio', 'codigo_principal']
     ordering = ['nombre']
-    # Usa paginación estándar del proyecto (PAGE_SIZE=20 en settings)
     export_filename = 'productos'
     export_fields = [
         ('codigo_principal', 'Código'),
@@ -32,7 +32,7 @@ class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if hasattr(user, 'empresa') and user.empresa:
-            return Producto.objects.filter(empresa=user.empresa, activo=True)
+            return Producto.objects.filter(empresa=user.empresa)
         return Producto.objects.none()
 
     def perform_create(self, serializer):
