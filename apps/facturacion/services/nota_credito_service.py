@@ -129,11 +129,20 @@ def procesar_nota_credito_sri(nota_credito):
             return _consultar_autorizacion_inmediata(sri, comprobante, result)
 
         else:
-            comprobante.estado = ComprobanteElectronico.EstadoChoices.RECHAZADO
             mensajes = _extraer_mensajes_recepcion(response)
-            comprobante.mensajes_sri = '\n'.join(mensajes)
-            comprobante.save(update_fields=['estado', 'mensajes_sri'])
-            result['mensaje'] = ' | '.join(mensajes) or 'NC Rechazada en recepción SRI'
+            mensaje_str = ' | '.join(mensajes)
+            ya_registrada = '43' in mensaje_str or '70' in mensaje_str
+
+            if ya_registrada:
+                comprobante.estado = ComprobanteElectronico.EstadoChoices.ENVIADO
+                comprobante.save(update_fields=['estado'])
+                result['success'] = True
+                result['mensaje'] = 'Clave ya registrada en SRI. Autorización pendiente.'
+            else:
+                comprobante.estado = ComprobanteElectronico.EstadoChoices.RECHAZADO
+                comprobante.mensajes_sri = '\n'.join(mensajes)
+                comprobante.save(update_fields=['estado', 'mensajes_sri'])
+                result['mensaje'] = mensaje_str or 'NC Rechazada en recepción SRI'
 
         result['estado'] = comprobante.estado
 

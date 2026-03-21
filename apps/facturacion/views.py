@@ -591,27 +591,35 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
         """Consulta al SRI si ya autorizó la Nota de Crédito."""
         from apps.facturacion.services.sri_service import SRIService
         from apps.facturacion.models import ComprobanteElectronico
+
         nc = self.get_object()
         comp = nc.comprobante
+
         if comp.estado not in ('ENVIADO', 'RECHAZADO', 'NO_AUTORIZADO'):
             return Response(
                 {'error': f'Solo se reprocesa en estado ENVIADO/RECHAZADO. Estado actual: {comp.estado}'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
         if comp.estado in ('RECHAZADO', 'NO_AUTORIZADO'):
             from apps.facturacion.services.nota_credito_service import procesar_nota_credito_sri
             result = procesar_nota_credito_sri(nc)
             http_status = status.HTTP_200_OK if result.get('success') else status.HTTP_422_UNPROCESSABLE_ENTITY
             return Response(result, status=http_status)
+
         sri = SRIService(comp.empresa)
+
         try:
+            aut_obj = None
             auth = sri.autorizar_comprobante_sri(comp.clave_acceso)
             if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
-                aut = auth.autorizaciones.autorizacion[0]
-                if aut.estado == 'AUTORIZADO':
+                aut_obj = auth.autorizaciones.autorizacion[0]
+
+            if aut_obj:
+                if aut_obj.estado == 'AUTORIZADO':
                     comp.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
-                    comp.numero_autorizacion = getattr(aut, 'numeroAutorizacion', '')
-                    comp.fecha_autorizacion = getattr(aut, 'fechaAutorizacion', None)
+                    comp.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
+                    comp.fecha_autorizacion = getattr(aut_obj, 'fechaAutorizacion', None)
                     comp.mensajes_sri = ''
                     comp.save()
                     return Response({
@@ -619,7 +627,78 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
                         'numero_autorizacion': comp.numero_autorizacion,
                         'mensaje': f'Autorizada: {comp.numero_autorizacion}',
                     })
-            return Response({'estado': comp.estado, 'mensaje': 'Sin autorizaciones aún. Reintente en unos segundos.'})
+
+                mensajes_list = []
+                if hasattr(aut_obj, 'mensajes') and aut_obj.mensajes:
+                    for m in getattr(aut_obj.mensajes, 'mensaje', []):
+                        mensajes_list.append(
+                            f"[{getattr(m, 'identificador', '')}] "
+                            f"{getattr(m, 'mensaje', '')} - "
+                            f"{getattr(m, 'informacionAdicional', '')}"
+                        )
+
+                comp.estado = ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO
+                comp.mensajes_sri = '\n'.join(mensajes_list)
+                comp.save()
+                return Response(
+                    {'estado': comp.estado, 'mensaje': comp.mensajes_sri or 'No autorizado por el SRI'},
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                )
+
+            if not comp.xml_firmado:
+                return Response({
+                    'estado': comp.estado,
+                    'mensaje': 'Sin respuesta del SRI y sin XML firmado. Re-envie desde BORRADOR.',
+                })
+
+            response = sri.enviar_comprobante_sri(comp)
+            mensajes_recep = []
+            ya_registrada = False
+
+            if hasattr(response, 'estado') and response.estado == 'RECIBIDA':
+                ya_registrada = True
+            else:
+                raw_msgs = getattr(response, 'comprobantes', None)
+                raw_list = getattr(raw_msgs, 'comprobante', []) if raw_msgs else []
+                for comp_item in raw_list:
+                    for m in getattr(getattr(comp_item, 'mensajes', None), 'mensaje', []):
+                        ident = str(getattr(m, 'identificador', ''))
+                        mensajes_recep.append(ident)
+                        if ident in ('43', '70'):
+                            ya_registrada = True
+
+                if not ya_registrada and mensajes_recep:
+                    msg_str = ' | '.join(mensajes_recep)
+                    ya_registrada = '43' in msg_str or '70' in msg_str
+
+            if not ya_registrada and mensajes_recep:
+                comp.estado = ComprobanteElectronico.EstadoChoices.RECHAZADO
+                comp.mensajes_sri = ' | '.join(mensajes_recep)
+                comp.save(update_fields=['estado', 'mensajes_sri'])
+                return Response(
+                    {'estado': comp.estado, 'mensaje': comp.mensajes_sri},
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                )
+
+            auth = sri.autorizar_comprobante_sri(comp.clave_acceso)
+            if hasattr(auth, 'autorizaciones') and auth.autorizaciones:
+                aut_obj = auth.autorizaciones.autorizacion[0]
+                if aut_obj.estado == 'AUTORIZADO':
+                    comp.estado = ComprobanteElectronico.EstadoChoices.AUTORIZADO
+                    comp.numero_autorizacion = getattr(aut_obj, 'numeroAutorizacion', '')
+                    comp.fecha_autorizacion = getattr(aut_obj, 'fechaAutorizacion', None)
+                    comp.mensajes_sri = ''
+                    comp.save()
+                    return Response({
+                        'estado': comp.estado,
+                        'numero_autorizacion': comp.numero_autorizacion,
+                        'mensaje': f'Autorizada: {comp.numero_autorizacion}',
+                    })
+
+            return Response({
+                'estado': comp.estado,
+                'mensaje': 'Re-enviado al SRI. Autorizacion aun pendiente; intente reprocesar nuevamente en unos segundos.',
+            })
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
