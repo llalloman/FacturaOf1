@@ -166,6 +166,11 @@ class FacturaSerializer(serializers.ModelSerializer):
         # ── Detalles ──────────────────────────────────────────────────────────────
         subtotal_total = Decimal('0.00')
         iva_total = Decimal('0.00')
+        subtotal_0 = Decimal('0.00')
+        subtotal_12 = Decimal('0.00')
+        subtotal_15 = Decimal('0.00')
+        iva_12 = Decimal('0.00')
+        iva_15 = Decimal('0.00')
 
         for item in detalles_data:
             producto_id = item.get('producto')
@@ -216,12 +221,33 @@ class FacturaSerializer(serializers.ModelSerializer):
             )
             subtotal_total += detalle.precio_total_sin_impuesto
             iva_total += detalle.valor_impuesto
+            if codigo_porcentaje in ('0', '6', '7'):
+                subtotal_0 += detalle.precio_total_sin_impuesto
+            elif codigo_porcentaje == '2':
+                subtotal_12 += detalle.precio_total_sin_impuesto
+                iva_12 += detalle.valor_impuesto
+            elif codigo_porcentaje == '4':
+                subtotal_15 += detalle.precio_total_sin_impuesto
+                iva_15 += detalle.valor_impuesto
 
         # ── Actualizar totales ────────────────────────────────────────────────────
         descuento_gral = Decimal(str(factura.total_descuento or '0.00'))
         factura.subtotal_sin_impuestos = subtotal_total
+        factura.subtotal_0 = subtotal_0
+        factura.subtotal_12 = subtotal_12
+        factura.subtotal_15 = subtotal_15
+        factura.iva_12 = iva_12
+        factura.iva_15 = iva_15
         factura.total = subtotal_total + iva_total - descuento_gral
-        factura.save(update_fields=['subtotal_sin_impuestos', 'total'])
+        factura.save(update_fields=[
+            'subtotal_sin_impuestos',
+            'subtotal_0',
+            'subtotal_12',
+            'subtotal_15',
+            'iva_12',
+            'iva_15',
+            'total',
+        ])
 
         return factura
 
