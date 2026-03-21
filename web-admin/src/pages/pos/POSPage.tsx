@@ -19,6 +19,13 @@ const METODOS = [
   { value: 'TARJETA_DEBITO', label: 'T. Débito', icon: CreditCard },
   { value: 'TRANSFERENCIA', label: 'Transferencia', icon: CreditCard },
 ] as const;
+const esConsumidorFinal = (cliente: ClientePOS | null) =>
+  !!cliente && (
+    cliente.identificacion === '9999999999999'
+    || cliente.razon_social.trim().toUpperCase() === 'CONSUMIDOR FINAL'
+  );
+const excedeLimiteConsumidorFinal = (cliente: ClientePOS | null, total: number) =>
+  esConsumidorFinal(cliente) && total > 50;
 
 // ─── Modal Selector de Cliente ─────────────────────────────────────────────
 const TIPOS_ID = [
@@ -263,6 +270,7 @@ function CobroModal({
       cliente: cliente.id,
       detalles: items,
       pagos: pagosEfectivos,
+      genera_factura: !excedeLimiteConsumidorFinal(cliente, total),
     });
   };
 
@@ -304,7 +312,7 @@ function CobroModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between p-5 border-b">
+          <div className="flex items-center justify-between p-5 border-b">
           <div>
             <h3 className="text-xl font-bold">Procesar Cobro</h3>
             {cliente && (
@@ -315,9 +323,14 @@ function CobroModal({
             )}
           </div>
           <button onClick={onClose} disabled={mutation.isPending} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
-        </div>
+          </div>
+          {excedeLimiteConsumidorFinal(cliente, total) && (
+            <div className="mx-5 mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Consumidor final no puede emitir factura SRI por montos mayores a $50. Esta venta se registrara solo como venta/recibo.
+            </div>
+          )}
 
-        {/* Totales */}
+          {/* Totales */}
         <div className="p-5 bg-gray-50 space-y-2 text-sm">
           <div className="flex justify-between"><span className="text-gray-500">Subtotal:</span><span>{fmt(getSubtotal())}</span></div>
           {getDescuento() > 0 && <div className="flex justify-between text-red-600"><span>Descuento:</span><span>-{fmt(getDescuento())}</span></div>}

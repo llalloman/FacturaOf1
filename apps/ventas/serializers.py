@@ -67,6 +67,24 @@ class VentaSerializer(serializers.ModelSerializer):
             'subtotal_15', 'iva', 'total', 'descuento',
         ]
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        cliente = attrs.get('cliente') or getattr(self.instance, 'cliente', None)
+        genera_factura = attrs.get('genera_factura')
+        if genera_factura and cliente:
+            detalles = attrs.get('detalles', [])
+            total_estimado = sum(
+                Decimal(str(item.get('total', 0) or 0))
+                for item in detalles
+            )
+            from apps.facturacion.services.factura_service import (
+                MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE,
+                cliente_consumidor_final_supera_limite,
+            )
+            if cliente_consumidor_final_supera_limite(cliente, total_estimado):
+                raise serializers.ValidationError({'cliente': MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE})
+        return attrs
+
     def create(self, validated_data):
         import uuid as uuid_lib
         detalles_data = validated_data.pop('detalles')

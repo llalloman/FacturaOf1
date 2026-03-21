@@ -178,10 +178,27 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
   const [error, setError] = useState('');
 
   const vuelto = Number(montoEfectivo) - Number(pedido.total);
+  const clienteSeleccionado = clientes.find(c => c.id === clienteId) ?? null;
+  const esConsumidorFinal = !!clienteSeleccionado && (
+    clienteSeleccionado.tipo_identificacion === '07'
+    || clienteSeleccionado.identificacion === '9999999999999'
+    || clienteSeleccionado.razon_social.trim().toUpperCase() === 'CONSUMIDOR FINAL'
+  );
+  const bloqueaFactura = esConsumidorFinal && Number(pedido.total) > 50;
+
+  useEffect(() => {
+    if (bloqueaFactura && generaFactura) {
+      setGeneraFactura(false);
+    }
+  }, [bloqueaFactura, generaFactura]);
 
   const handleCobrar = async () => {
     if (!cajaId) { setError('Selecciona una caja.'); return; }
     if (!clienteId) { setError('Selecciona un cliente.'); return; }
+    if (generaFactura && bloqueaFactura) {
+      setError('Consumidor final no puede emitir factura SRI por montos mayores a $50. Cobra el pedido sin factura o selecciona un cliente identificado.');
+      return;
+    }
     setSaving(true);
     try {
       await pedidosService.cobrar(pedido.id, {
@@ -307,9 +324,15 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
               className="w-4 h-4 rounded accent-indigo-600"
               checked={generaFactura}
               onChange={e => setGeneraFactura(e.target.checked)}
+              disabled={bloqueaFactura}
             />
             <span className="text-sm text-gray-700">Generar factura electrónica SRI</span>
           </label>
+          {bloqueaFactura && (
+            <p className="text-sm text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
+              Para consumidor final no puedes generar factura SRI cuando el total supera $50. Cobra sin factura o selecciona un cliente identificado.
+            </p>
+          )}
 
           <button
             onClick={handleCobrar}

@@ -271,6 +271,12 @@ class PedidoViewSet(viewsets.ModelViewSet):
 
         # Auto-factura electrónica
         if genera_factura:
+            from apps.facturacion.services.factura_service import (
+                MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE,
+                cliente_consumidor_final_supera_limite,
+            )
+            if cliente_consumidor_final_supera_limite(cliente, pedido.total):
+                return Response({'error': MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE}, status=status.HTTP_400_BAD_REQUEST)
             try:
                 from apps.facturacion.services.factura_service import (
                     crear_factura_desde_venta, procesar_factura_sri,

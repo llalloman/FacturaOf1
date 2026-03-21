@@ -276,11 +276,20 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
         """Crea la Factura electrónica para esta venta y la envía al SRI."""
         from apps.facturacion.services.factura_service import crear_factura_desde_venta, procesar_factura_sri
         from apps.facturacion.serializers import FacturaSerializer
+        from apps.facturacion.services.factura_service import (
+            MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE,
+            cliente_consumidor_final_supera_limite,
+        )
 
         venta = self.get_object()
         if venta.factura_id:
             return Response(
                 {'error': 'Esta venta ya tiene una factura electrónica vinculada.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if cliente_consumidor_final_supera_limite(venta.cliente, venta.total):
+            return Response(
+                {'error': MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:

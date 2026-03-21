@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 from .models import ComprobanteElectronico, Factura, DetalleFactura, Retencion, ImpuestoRetencion, GuiaRemision, DestinatarioGuia, DetalleGuiaRemision, NotaDebito, DetalleNotaDebito, NotaCredito, DetalleNotaCredito, Secuencial
@@ -80,7 +81,26 @@ class FacturaSerializer(serializers.ModelSerializer):
     def get_cliente_nombre(self, obj):
         return obj.cliente.razon_social
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        cliente = attrs.get('cliente') or getattr(self.instance, 'cliente', None)
+        detalles_input = attrs.get('detalles_input', [])
+        total_descuento = Decimal(str(attrs.get('total_descuento', getattr(self.instance, 'total_descuento', 0)) or 0))
+        total_estimado = sum(
+            Decimal(str(item.get('total', 0) or 0))
+            for item in detalles_input
+        ) - total_descuento
+        if cliente:
+            from apps.facturacion.services.factura_service import (
+                MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE,
+                cliente_consumidor_final_supera_limite,
+            )
+            if cliente_consumidor_final_supera_limite(cliente, total_estimado):
+                raise serializers.ValidationError({'cliente': MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE})
+        return attrs
+
     # ── Creación ─────────────────────────────────────────────────────────────────
+    @transaction.atomic
     def create(self, validated_data):
         from apps.productos.models import Producto
         from apps.facturacion.models import Secuencial

@@ -127,6 +127,17 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
             from apps.facturacion.services.nota_credito_service import (
                 crear_nota_credito_desde_factura, procesar_nota_credito_sri,
             )
+            from apps.facturacion.services.factura_service import cliente_es_consumidor_final
+            if cliente_es_consumidor_final(factura.cliente):
+                return Response(
+                    {
+                        'error': (
+                            'No se puede emitir una nota de credito electronica para CONSUMIDOR FINAL. '
+                            'Para este caso debe gestionar la devolucion o ajuste fuera del flujo SRI.'
+                        )
+                    },
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                )
             try:
                 nota_credito = crear_nota_credito_desde_factura(factura, motivo=motivo)
                 nc_result = procesar_nota_credito_sri(nota_credito)

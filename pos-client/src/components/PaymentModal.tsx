@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { usePOSStore } from '../store/posStore';
 import { apiService } from '../services/apiService';
 import { PagoVenta, Venta } from '../types';
@@ -33,6 +33,12 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
   const limpiarCarrito = usePOSStore((state) => state.limpiarCarrito);
 
   const total = getTotal();
+  const esConsumidorFinal = !!cliente && (
+    cliente.tipo_identificacion === '07'
+    || cliente.identificacion === '9999999999999'
+    || cliente.razon_social.trim().toUpperCase() === 'CONSUMIDOR FINAL'
+  );
+  const bloqueaFactura = esConsumidorFinal && total > 50;
   
   const [pagos, setPagos] = useState<PagoVenta[]>([]);
   const [metodoPago, setMetodoPago] = useState<PagoVenta['metodo_pago']>('EFECTIVO');
@@ -47,6 +53,12 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
   const totalPagado = pagos.reduce((sum, p) => sum + p.monto, 0);
   const pendiente = total - totalPagado;
   const cambio = totalPagado > total ? totalPagado - total : 0;
+
+  useEffect(() => {
+    if (bloqueaFactura && generaFactura) {
+      setGeneraFactura(false);
+    }
+  }, [bloqueaFactura, generaFactura]);
 
   const agregarPago = () => {
     const montoNum = parseFloat(monto);
@@ -71,6 +83,13 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
 
     if (!cliente || !config) {
       toast.error('Datos incompletos');
+      return;
+    }
+
+    if (generaFactura && bloqueaFactura) {
+      toast.warning(
+        'Consumidor final no puede emitir factura SRI por montos mayores a $50. Registra la venta sin factura o selecciona un cliente identificado.'
+      );
       return;
     }
 
@@ -406,12 +425,20 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
                 id="genera_factura"
                 checked={generaFactura}
                 onChange={(e) => setGeneraFactura(e.target.checked)}
+                disabled={bloqueaFactura}
                 className="w-4 h-4 text-blue-600"
               />
               <label htmlFor="genera_factura" className="text-sm font-medium text-gray-700 cursor-pointer">
                 Generar Factura Electrónica (SRI)
               </label>
             </div>
+            {bloqueaFactura && (
+              <div className="px-6 py-3 border-b border-gray-200 text-sm text-amber-800 bg-amber-50">
+                Para consumidor final no puedes emitir factura SRI cuando el total supera $50. Puedes registrar la venta y emitir recibo.
+                Si necesitas factura SRI,
+                selecciona un cliente con cédula, RUC, pasaporte o identificación del exterior.
+              </div>
+            )}
 
             {/* Botones */}
             <div className="p-6 flex gap-3">
@@ -436,4 +463,3 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
     </div>
   );
 }
-

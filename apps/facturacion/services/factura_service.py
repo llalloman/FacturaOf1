@@ -10,6 +10,30 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+LIMITE_CONSUMIDOR_FINAL = Decimal('50.00')
+
+MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE = (
+    'No se puede emitir factura electronica SRI a CONSUMIDOR FINAL por montos mayores a 50. '
+    'Registre la venta sin factura o seleccione un cliente identificado con cedula, RUC, '
+    'pasaporte o identificacion del exterior.'
+)
+
+
+def cliente_es_consumidor_final(cliente):
+    if not cliente:
+        return False
+    return (
+        getattr(cliente, 'tipo_identificacion', '') == '07'
+        or str(getattr(cliente, 'identificacion', '')).strip() == '9999999999999'
+        or str(getattr(cliente, 'razon_social', '')).strip().upper() == 'CONSUMIDOR FINAL'
+    )
+
+
+def cliente_consumidor_final_supera_limite(cliente, total):
+    if not cliente_es_consumidor_final(cliente):
+        return False
+    return Decimal(str(total or '0')) > LIMITE_CONSUMIDOR_FINAL
+
 
 def _crear_notificacion(empresa, tipo, titulo, mensaje, url=''):
     """Crea una notificación en-app para la empresa (falla silenciosa)."""
@@ -207,6 +231,10 @@ def procesar_factura_sri(factura):
         'mensaje': '',
         'numero_comprobante': comprobante.numero_comprobante,
     }
+
+    if cliente_consumidor_final_supera_limite(factura.cliente, factura.total):
+        result['mensaje'] = MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE
+        return result
 
     # Si ya está autorizada no hay nada que hacer
     if comprobante.estado == ComprobanteElectronico.EstadoChoices.AUTORIZADO:
