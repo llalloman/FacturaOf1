@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Zap, Mail, Phone, Twitter, Linkedin, Instagram } from 'lucide-react';
+import { Mail, Phone, Twitter, Linkedin, Instagram } from 'lucide-react';
 
 const FOOTER_LINKS = {
   Producto: [
@@ -46,11 +46,12 @@ export default function LandingFooter() {
 
           {/* Brand column */}
           <div className="lg:col-span-2">
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center shadow">
-                <Zap className="w-4 h-4 text-white" fill="currentColor" />
-              </div>
-              <span className="font-black text-xl text-white tracking-tight">FacturaOF1</span>
+            <div className="mb-4">
+              <img
+                src="/logo-of1-1.png"
+                alt="FacturaOF1 ERP"
+                className="h-10 w-auto object-contain brightness-0 invert"
+              />
             </div>
             <p className="text-slate-400 text-sm leading-relaxed mb-6 max-w-xs">
               Sistema SaaS de facturación electrónica, inventario y punto de venta
