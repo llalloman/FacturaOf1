@@ -47,12 +47,6 @@ const metodoPagoLabel: Record<string, string> = {
 const money = (value: number) =>
   new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(value || 0);
 
-const tooltipMoney = (value: number | string | undefined) => money(Number(value || 0));
-const tooltipSeries = (value: number | string | undefined, name: string | undefined) => [
-  name === 'ventas' ? tooltipMoney(value) : Number(value || 0),
-  name === 'ventas' ? 'Ventas' : 'Tickets',
-];
-
 function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="mb-4">
@@ -300,7 +294,7 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
               <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={tooltipSeries} />
+              <Tooltip />
               <Line type="monotone" dataKey="ventas" stroke="#0f766e" strokeWidth={3} dot={{ r: 4 }} />
               <Line type="monotone" dataKey="tickets" stroke="#2563eb" strokeWidth={2} dot={false} />
             </LineChart>
@@ -349,7 +343,7 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
                   <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
                   <XAxis type="number" tick={{ fontSize: 11 }} />
                   <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={tooltipMoney} />
+                  <Tooltip />
                   <Bar dataKey="value" fill="#2563eb" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>

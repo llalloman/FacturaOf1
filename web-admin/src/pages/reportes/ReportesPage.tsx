@@ -42,11 +42,6 @@ type TabKey = typeof TABS[number]['key'];
 
 const money = (value: number) =>
   new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(value || 0);
-const tooltipMoney = (value: number | string | undefined) => money(Number(value || 0));
-const tooltipSeries = (value: number | string | undefined, name: string | undefined) => [
-  name === 'total' ? tooltipMoney(value) : Number(value || 0),
-  name === 'total' ? 'Ventas' : 'Tickets',
-];
 
 const metodoPagoLabel: Record<string, string> = {
   EFECTIVO: 'Efectivo',
@@ -305,7 +300,7 @@ export default function ReportesPage() {
                       <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
                       <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={tooltipSeries} />
+                      <Tooltip />
                       <Line type="monotone" dataKey="total" stroke="#0f766e" strokeWidth={3} dot={{ r: 4 }} />
                       <Line type="monotone" dataKey="cantidad" stroke="#2563eb" strokeWidth={2} dot={false} />
                     </LineChart>
@@ -328,7 +323,7 @@ export default function ReportesPage() {
                               <Cell key={index} fill={COLORS[index % COLORS.length]} />
                             ))}
                           </Pie>
-                          <Tooltip formatter={tooltipMoney} />
+                          <Tooltip />
                         </PieChart>
                       </ResponsiveContainer>
                       <div className="space-y-2">
@@ -422,7 +417,7 @@ export default function ReportesPage() {
                       <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
                       <XAxis type="number" tick={{ fontSize: 11 }} />
                       <YAxis type="category" dataKey="cliente" width={130} tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={tooltipMoney} />
+                      <Tooltip />
                       <Bar dataKey="total" fill="#2563eb" radius={[0, 6, 6, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -488,7 +483,7 @@ export default function ReportesPage() {
                         <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
                         <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={tooltipMoney} />
+                        <Tooltip />
                         <Bar dataKey="total" fill="#d97706" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
