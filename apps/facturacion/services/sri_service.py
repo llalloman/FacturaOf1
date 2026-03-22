@@ -208,7 +208,8 @@ class SRIService:
             
             etree.SubElement(detalle_elem, 'descripcion').text = detalle.descripcion
             etree.SubElement(detalle_elem, 'cantidad').text = f"{detalle.cantidad:.6f}"
-            etree.SubElement(detalle_elem, 'precioUnitario').text = f"{detalle.precio_unitario:.6f}"
+            # SRI XSD limita precioUnitario a fractionDigits=2
+            etree.SubElement(detalle_elem, 'precioUnitario').text = f"{detalle.precio_unitario:.2f}"
             etree.SubElement(detalle_elem, 'descuento').text = f"{detalle.descuento:.2f}"
             etree.SubElement(detalle_elem, 'precioTotalSinImpuesto').text = f"{detalle.precio_total_sin_impuesto:.2f}"
             
@@ -335,7 +336,8 @@ class SRIService:
             etree.SubElement(det_el, 'codigoInterno').text            = det.codigo_principal
             etree.SubElement(det_el, 'descripcion').text              = det.descripcion
             etree.SubElement(det_el, 'cantidad').text                 = f"{det.cantidad:.6f}"
-            etree.SubElement(det_el, 'precioUnitario').text           = f"{det.precio_unitario:.6f}"
+            # SRI XSD limita precioUnitario a fractionDigits=2
+            etree.SubElement(det_el, 'precioUnitario').text           = f"{det.precio_unitario:.2f}"
             etree.SubElement(det_el, 'descuento').text                = f"{det.descuento:.2f}"
             etree.SubElement(det_el, 'precioTotalSinImpuesto').text   = f"{det.precio_total_sin_impuesto:.2f}"
             imp_el = etree.SubElement(etree.SubElement(det_el, 'impuestos'), 'impuesto')
