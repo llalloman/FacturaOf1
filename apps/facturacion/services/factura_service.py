@@ -152,18 +152,21 @@ def crear_factura_desde_venta(venta):
     forma_pago_sri = FORMA_PAGO_MAP.get(pago.forma_pago, '20') if pago else '20'
 
     # Subtotales por tarifa
+    sub_0 = Decimal(str(venta.subtotal_0)).quantize(Decimal('0.01'))
     sub_12 = Decimal(str(venta.subtotal_12)).quantize(Decimal('0.01'))
     sub_15 = Decimal(str(venta.subtotal_15)).quantize(Decimal('0.01'))
+    iva_12 = Decimal('0.00')
+    iva_15 = Decimal('0.00')
 
     factura = Factura.objects.create(
         comprobante=comprobante,
         cliente=venta.cliente,
         subtotal_sin_impuestos=Decimal(str(venta.subtotal)).quantize(Decimal('0.01')),
-        subtotal_0=Decimal(str(venta.subtotal_0)).quantize(Decimal('0.01')),
+        subtotal_0=sub_0,
         subtotal_12=sub_12,
         subtotal_15=sub_15,
-        iva_12=(sub_12 * Decimal('0.12')).quantize(Decimal('0.01')),
-        iva_15=(sub_15 * Decimal('0.15')).quantize(Decimal('0.01')),
+        iva_12=Decimal('0.00'),
+        iva_15=Decimal('0.00'),
         total_descuento=Decimal(str(venta.descuento)).quantize(Decimal('0.01')),
         total=Decimal(str(venta.total)).quantize(Decimal('0.01')),
         forma_pago=forma_pago_sri,
@@ -177,6 +180,10 @@ def crear_factura_desde_venta(venta):
         tarifa, codigo_porcentaje = IVA_MAP.get(str(pct), (Decimal('15.00'), '4'))
         base    = Decimal(str(dv.subtotal)).quantize(Decimal('0.01'))
         iva_val = (base * tarifa / 100).quantize(Decimal('0.01'))
+        if codigo_porcentaje == '2':
+            iva_12 += iva_val
+        elif codigo_porcentaje == '4':
+            iva_15 += iva_val
 
         DetalleFactura.objects.create(
             factura=factura,
@@ -191,6 +198,10 @@ def crear_factura_desde_venta(venta):
             codigo_porcentaje=codigo_porcentaje,
             valor_impuesto=iva_val,
         )
+
+    factura.iva_12 = iva_12.quantize(Decimal('0.01'))
+    factura.iva_15 = iva_15.quantize(Decimal('0.01'))
+    factura.save(update_fields=['iva_12', 'iva_15'])
 
     # Vincular venta → factura
     venta.factura = factura
@@ -241,6 +252,26 @@ def procesar_factura_sri(factura):
         result['success'] = True
         result['mensaje'] = f"Ya autorizada: {comprobante.numero_autorizacion}"
         return result
+
+    # Si el comprobante fue rechazado o no autorizado, se reinicia el artefacto
+    # XML/firma para forzar una regeneración completa en el reproceso.
+    if comprobante.estado in (
+        ComprobanteElectronico.EstadoChoices.RECHAZADO,
+        ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO,
+    ):
+        comprobante.xml_generado = ''
+        comprobante.xml_firmado = ''
+        comprobante.mensajes_sri = ''
+        comprobante.respuesta_sri = None
+        comprobante.estado = ComprobanteElectronico.EstadoChoices.BORRADOR
+        comprobante.save(update_fields=[
+            'xml_generado',
+            'xml_firmado',
+            'mensajes_sri',
+            'respuesta_sri',
+            'estado',
+        ])
+        result['estado'] = comprobante.estado
 
     # ── Regla SRI: la fecha del comprobante debe ser la del día de envío ──────
     # Si la fecha de emisión es de un día anterior, actualizarla a hoy antes
