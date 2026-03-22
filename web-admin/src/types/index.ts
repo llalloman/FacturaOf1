@@ -158,6 +158,18 @@ export interface Venta {
   descuento: number;
   total: number;
   estado: string;
+  detalles?: Array<{
+    producto: number;
+    cantidad: number;
+    precio_unitario: number;
+    subtotal: number;
+    iva: number;
+    total: number;
+    producto_detalle?: {
+      nombre: string;
+      codigo_principal: string;
+    };
+  }>;
   pagos?: Array<{ forma_pago: string; monto: number }>;
   created_at?: string;
 }

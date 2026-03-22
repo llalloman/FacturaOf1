@@ -258,6 +258,26 @@ export default function VentasPage() {
                 </div>
               </div>
               <div className="border-t pt-4 space-y-2">
+                <div>
+                  <p className="text-gray-500 text-sm mb-2">Productos vendidos</p>
+                  <div className="space-y-2">
+                    {(selectedVenta.detalles ?? []).length === 0 ? (
+                      <p className="text-sm text-gray-400">Sin detalle disponible</p>
+                    ) : (
+                      selectedVenta.detalles?.map((detalle, index) => (
+                        <div key={`${detalle.producto}-${index}`} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm">
+                          <div>
+                            <p className="font-medium text-gray-800">{detalle.producto_detalle?.nombre || 'Producto'}</p>
+                            <p className="text-xs text-gray-500">
+                              {detalle.cantidad} x ${Number(detalle.precio_unitario).toFixed(2)}
+                            </p>
+                          </div>
+                          <span className="font-semibold text-gray-800">${Number(detalle.total).toFixed(2)}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Subtotal</span>
                   <span>${Number(selectedVenta.subtotal || 0).toFixed(2)}</span>

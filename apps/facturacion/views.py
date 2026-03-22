@@ -62,8 +62,8 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = FacturaFilter
     search_fields = ['comprobante__numero_comprobante', 'cliente__razon_social']
-    ordering_fields = ['comprobante__fecha_emision', 'total']
-    ordering = ['-comprobante__fecha_emision']
+    ordering_fields = ['comprobante__fecha_emision', 'comprobante__secuencial', 'total']
+    ordering = ['-comprobante__secuencial']
     export_filename = 'facturas'
     export_fields = [
         ('comprobante__numero_comprobante', 'Nro. Comprobante'),

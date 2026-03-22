@@ -110,16 +110,18 @@ const FacturasPage: React.FC = () => {
 
   const facturasArray = Array.isArray(facturas) ? facturas : [];
 
-  const filteredFacturas = facturasArray.filter((factura) => {
-    const matchText =
-      (factura.numero_factura ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (factura.cliente_nombre ?? '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchEstado = !filtroEstado || factura.estado === filtroEstado;
-    const fechaDoc = (factura.fecha_emision ?? '').split('T')[0].split(' ')[0];
-    const matchDesde = !filtroFechaDesde || fechaDoc >= filtroFechaDesde;
-    const matchHasta = !filtroFechaHasta || fechaDoc <= filtroFechaHasta;
-    return matchText && matchEstado && matchDesde && matchHasta;
-  });
+  const filteredFacturas = facturasArray
+    .filter((factura) => {
+      const matchText =
+        (factura.numero_factura ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (factura.cliente_nombre ?? '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchEstado = !filtroEstado || factura.estado === filtroEstado;
+      const fechaDoc = (factura.fecha_emision ?? '').split('T')[0].split(' ')[0];
+      const matchDesde = !filtroFechaDesde || fechaDoc >= filtroFechaDesde;
+      const matchHasta = !filtroFechaHasta || fechaDoc <= filtroFechaHasta;
+      return matchText && matchEstado && matchDesde && matchHasta;
+    })
+    .sort((a, b) => (b.numero_factura ?? '').localeCompare(a.numero_factura ?? '', undefined, { numeric: true }));
 
   const handleEdit = (factura: Factura) => {
     setSelectedFactura(factura);

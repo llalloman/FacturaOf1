@@ -166,6 +166,7 @@ class PedidoViewSet(viewsets.ModelViewSet):
         más los campos de caja requeridos.
         """
         from apps.ventas.models import Caja, AperturaCaja, Venta, DetalleVenta, PagoVenta
+        from apps.clientes.models import Cliente
         import uuid as uuid_lib
 
         pedido = self.get_object()
@@ -190,6 +191,18 @@ class PedidoViewSet(viewsets.ModelViewSet):
             caja = Caja.objects.get(id=caja_id)
         except Caja.DoesNotExist:
             return Response({'error': 'Caja no encontrada.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            cliente = Cliente.objects.get(id=cliente_id)
+        except Cliente.DoesNotExist:
+            return Response({'error': 'Cliente no encontrado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if genera_factura:
+            from apps.facturacion.services.factura_service import (
+                MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE,
+                cliente_consumidor_final_supera_limite,
+            )
+            if cliente_consumidor_final_supera_limite(cliente, pedido.total):
+                return Response({'error': MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE}, status=status.HTTP_400_BAD_REQUEST)
 
         # Obtener o crear apertura de caja
         apertura = AperturaCaja.objects.filter(caja=caja, estado='ABIERTA').first()
@@ -271,12 +284,6 @@ class PedidoViewSet(viewsets.ModelViewSet):
 
         # Auto-factura electrónica
         if genera_factura:
-            from apps.facturacion.services.factura_service import (
-                MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE,
-                cliente_consumidor_final_supera_limite,
-            )
-            if cliente_consumidor_final_supera_limite(cliente, pedido.total):
-                return Response({'error': MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE}, status=status.HTTP_400_BAD_REQUEST)
             try:
                 from apps.facturacion.services.factura_service import (
                     crear_factura_desde_venta, procesar_factura_sri,
