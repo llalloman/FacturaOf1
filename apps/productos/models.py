@@ -64,7 +64,7 @@ class Producto(models.Model):
             ('6', 'No Objeto de Impuesto'),
             ('7', 'Exento de IVA'),
         ],
-        default='2'
+        default='4'
     )
     
     # Inventario

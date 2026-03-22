@@ -55,7 +55,7 @@ class ProductoSerializer(serializers.ModelSerializer):
         precio_con_iva_input = attrs.pop('precio_con_iva_input', None)
 
         aplica_iva = attrs.get('aplica_iva', getattr(self.instance, 'aplica_iva', True))
-        porcentaje_iva = attrs.get('porcentaje_iva', getattr(self.instance, 'porcentaje_iva', '2'))
+        porcentaje_iva = attrs.get('porcentaje_iva', getattr(self.instance, 'porcentaje_iva', '4'))
 
         if modo_precio == 'CON_IVA':
             if precio_con_iva_input is None:

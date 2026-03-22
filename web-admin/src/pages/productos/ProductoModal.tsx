@@ -21,7 +21,7 @@ const makeEmpty = () => ({
   precio_con_iva_input: '',
   costo: '',
   aplica_iva: true,
-  porcentaje_iva: '2', // 12%
+  porcentaje_iva: '4', // 15%
   maneja_inventario: true,
   stock_actual: '',
   stock_minimo: '',
@@ -45,7 +45,7 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           precio_con_iva_input: String(Number(precioConIvaInicial) || 0),
           costo: String(Number(producto.costo) || 0),
           aplica_iva: producto.aplica_iva ?? true,
-          porcentaje_iva: producto.porcentaje_iva ?? '2',
+          porcentaje_iva: producto.porcentaje_iva ?? '4',
           maneja_inventario: producto.maneja_inventario ?? true,
           stock_actual: String(Number(producto.stock_actual) || 0),
           stock_minimo: String(Number(producto.stock_minimo) || 0),
