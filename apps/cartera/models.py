@@ -15,6 +15,7 @@ class CuentaPorCobrar(models.Model):
         PAGADO      = 'PAGADO',      _('Pagado')
         VENCIDA     = 'VENCIDA',     _('Vencida')
         INCOBRABLE  = 'INCOBRABLE',  _('Incobrable')
+        ANULADA     = 'ANULADA',     _('Anulada')
 
     empresa = models.ForeignKey(
         'empresas.Empresa',
@@ -91,6 +92,36 @@ class CuentaPorCobrar(models.Model):
             self.estado = self.EstadoChoices.PENDIENTE
         self.save(update_fields=['estado', 'saldo'])
 
+    def recalcular_saldo(self):
+        total_pagado = self.pagos.aggregate(
+            total=models.Sum('monto')
+        )['total'] or Decimal('0.00')
+        total_creditos = self.movimientos.filter(
+            tipo_movimiento=MovimientoCuentaPorCobrar.TipoMovimientoChoices.CREDITO
+        ).aggregate(total=models.Sum('monto'))['total'] or Decimal('0.00')
+        total_debitos = self.movimientos.filter(
+            tipo_movimiento=MovimientoCuentaPorCobrar.TipoMovimientoChoices.DEBITO
+        ).aggregate(total=models.Sum('monto'))['total'] or Decimal('0.00')
+
+        self.saldo = max(Decimal('0.00'), self.monto_total + total_debitos - total_creditos - total_pagado)
+
+        if self.saldo <= Decimal('0.00'):
+            if self.movimientos.filter(motivo=MovimientoCuentaPorCobrar.MotivoChoices.ANULACION_FACTURA).exists():
+                self.estado = self.EstadoChoices.ANULADA
+            else:
+                self.estado = self.EstadoChoices.PAGADO
+        elif self.saldo < self.monto_total:
+            self.estado = self.EstadoChoices.PARCIAL
+        else:
+            from django.utils import timezone
+            self.estado = (
+                self.EstadoChoices.VENCIDA
+                if self.fecha_vencimiento < timezone.now().date()
+                else self.EstadoChoices.PENDIENTE
+            )
+
+        self.save(update_fields=['saldo', 'estado'])
+
 
 class PagoCliente(models.Model):
     """Un pago registrado contra una CuentaPorCobrar."""
@@ -127,10 +158,63 @@ class PagoCliente(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        # Recalcular saldo de la cuenta
+        self.cuenta.recalcular_saldo()
+
+    def delete(self, *args, **kwargs):
         cuenta = self.cuenta
-        total_pagado = cuenta.pagos.aggregate(
-            total=models.Sum('monto')
-        )['total'] or Decimal('0.00')
-        cuenta.saldo = max(Decimal('0.00'), cuenta.monto_total - total_pagado)
-        cuenta.actualizar_estado()
+        super().delete(*args, **kwargs)
+        cuenta.recalcular_saldo()
+
+
+class MovimientoCuentaPorCobrar(models.Model):
+    """Ajustes de cartera para preservar trazabilidad sin simular pagos."""
+
+    class TipoMovimientoChoices(models.TextChoices):
+        DEBITO = 'DEBITO', _('Débito')
+        CREDITO = 'CREDITO', _('Crédito')
+
+    class MotivoChoices(models.TextChoices):
+        ANULACION_FACTURA = 'ANULACION_FACTURA', _('Anulación de factura')
+        AJUSTE_MANUAL = 'AJUSTE_MANUAL', _('Ajuste manual')
+        REVERSION = 'REVERSION', _('Reversión')
+
+    cuenta = models.ForeignKey(
+        CuentaPorCobrar,
+        on_delete=models.CASCADE,
+        related_name='movimientos',
+        verbose_name=_('cuenta por cobrar'),
+    )
+    fecha_movimiento = models.DateField(_('fecha de movimiento'))
+    tipo_movimiento = models.CharField(
+        _('tipo de movimiento'),
+        max_length=20,
+        choices=TipoMovimientoChoices.choices,
+    )
+    motivo = models.CharField(
+        _('motivo'),
+        max_length=30,
+        choices=MotivoChoices.choices,
+        default=MotivoChoices.AJUSTE_MANUAL,
+    )
+    monto = models.DecimalField(_('monto'), max_digits=12, decimal_places=2)
+    concepto = models.CharField(_('concepto'), max_length=200)
+    referencia = models.CharField(_('referencia'), max_length=100, blank=True)
+    notas = models.TextField(_('notas'), blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('movimiento de cuenta por cobrar')
+        verbose_name_plural = _('movimientos de cuentas por cobrar')
+        ordering = ['-fecha_movimiento', '-created_at']
+
+    def __str__(self):
+        return f"{self.get_tipo_movimiento_display()} ${self.monto} - {self.cuenta}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.cuenta.recalcular_saldo()
+
+    def delete(self, *args, **kwargs):
+        cuenta = self.cuenta
+        super().delete(*args, **kwargs)
+        cuenta.recalcular_saldo()

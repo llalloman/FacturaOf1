@@ -7,11 +7,12 @@ from rest_framework.response import Response
 from rest_framework.routers import DefaultRouter
 
 from apps.core.permissions import IsAuthenticated, IsTenantUser
-from .models import CuentaPorCobrar, PagoCliente
+from .models import CuentaPorCobrar, PagoCliente, MovimientoCuentaPorCobrar
 from .serializers import (
     CuentaPorCobrarSerializer,
     CuentaPorCobrarCreateSerializer,
     PagoClienteSerializer,
+    MovimientoCuentaPorCobrarSerializer,
 )
 
 
@@ -40,7 +41,7 @@ class CuentaPorCobrarViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return CuentaPorCobrar.objects.filter(
             empresa=self.request.user.empresa
-        ).select_related('cliente', 'factura').prefetch_related('pagos')
+        ).select_related('cliente', 'factura').prefetch_related('pagos', 'movimientos')
 
     @action(detail=False, methods=['get'])
     def aging(self, request):
@@ -168,8 +169,23 @@ class PagoClienteViewSet(viewsets.ModelViewSet):
         ).select_related('cuenta__cliente')
 
 
+class MovimientoCuentaPorCobrarViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = MovimientoCuentaPorCobrarSerializer
+    permission_classes = [IsAuthenticated, IsTenantUser]
+    filterset_fields = ['cuenta', 'tipo_movimiento', 'motivo', 'fecha_movimiento']
+    search_fields = ['cuenta__numero_cuenta', 'cuenta__cliente__razon_social', 'referencia', 'concepto']
+    ordering_fields = ['fecha_movimiento', 'monto', 'created_at']
+    ordering = ['-fecha_movimiento', '-created_at']
+
+    def get_queryset(self):
+        return MovimientoCuentaPorCobrar.objects.filter(
+            cuenta__empresa=self.request.user.empresa
+        ).select_related('cuenta__cliente', 'cuenta__factura')
+
+
 router = DefaultRouter()
 router.register(r'cuentas', CuentaPorCobrarViewSet, basename='cuenta-cobrar')
 router.register(r'pagos',   PagoClienteViewSet,      basename='pago-cliente')
+router.register(r'movimientos', MovimientoCuentaPorCobrarViewSet, basename='movimiento-cuenta-cobrar')
 
 urlpatterns = router.urls

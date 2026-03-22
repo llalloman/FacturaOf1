@@ -87,16 +87,19 @@ def _dashboard_super_admin(request):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _dashboard_tenant(request):
-    from apps.facturacion.models import Factura, ComprobanteElectronico
+    from apps.facturacion.models import Factura, ComprobanteElectronico, NotaCredito
     from apps.productos.models import Producto
     from apps.clientes.models import Cliente
-    from apps.ventas.models import Venta
+    from apps.ventas.models import Venta, PagoVenta, AperturaCaja, DetalleVenta
+    from apps.cartera.models import CuentaPorCobrar
+    from apps.inventarios.models import MovimientoInventario
 
     empresa = getattr(request.user, 'empresa', None)
     if not empresa:
         return Response({'error': 'Sin empresa asignada.'}, status=400)
 
     ahora = timezone.now()
+    hoy = ahora.date()
     mes, anio = ahora.month, ahora.year
 
     # ── Ventas del mes ────────────────────────────────────────────────────────
@@ -108,6 +111,22 @@ def _dashboard_tenant(request):
     ventas_mes_agg = ventas_mes_qs.aggregate(
         total=Sum('total'), cantidad=Count('id'),
     )
+    ventas_hoy_qs = Venta.objects.filter(
+        empresa=empresa, estado='COMPLETADA',
+        fecha_venta__date=hoy,
+    )
+    ventas_hoy_agg = ventas_hoy_qs.aggregate(
+        total=Sum('total'), cantidad=Count('id'),
+    )
+    cobrado_hoy = PagoVenta.objects.filter(
+        venta__empresa=empresa,
+        venta__estado='COMPLETADA',
+        fecha_pago__date=hoy,
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+    ticket_promedio_mes = (
+        (ventas_mes_agg['total'] or Decimal('0.00')) / (ventas_mes_agg['cantidad'] or 1)
+        if (ventas_mes_agg['cantidad'] or 0) > 0 else Decimal('0.00')
+    )
 
     # ── Facturas ──────────────────────────────────────────────────────────────
     facturas_qs = Factura.objects.filter(comprobante__empresa=empresa)
@@ -118,6 +137,10 @@ def _dashboard_tenant(request):
     )
     facturas_emitidas = facturas_por_estado.get('AUTORIZADO', 0) + facturas_por_estado.get('ENVIADO', 0)
     facturas_enviadas = facturas_por_estado.get('ENVIADO', 0)
+    facturas_rechazadas = facturas_por_estado.get('RECHAZADO', 0) + facturas_por_estado.get('NO_AUTORIZADO', 0)
+    notas_credito_qs = NotaCredito.objects.filter(comprobante__empresa=empresa)
+    notas_credito_pendientes = notas_credito_qs.filter(comprobante__estado='ENVIADO').count()
+    notas_credito_hoy = notas_credito_qs.filter(comprobante__fecha_emision__date=hoy).count()
 
     # Facturas recientes
     facturas_recientes = list(
@@ -155,20 +178,133 @@ def _dashboard_tenant(request):
         ).order_by('stock_actual')[:5]
         .values('id', 'nombre', 'stock_actual', 'stock_minimo')
     )
+    stock_bajo_count = productos_qs.filter(
+        activo=True, maneja_inventario=True,
+        stock_actual__lte=F('stock_minimo'),
+    ).count()
 
-    # Top productos por precio (activos)
+    # Top productos por ventas
     top_productos = list(
-        productos_qs.filter(activo=True)
-        .order_by('-precio')[:4]
-        .values('id', 'nombre', 'precio', 'stock_actual')
+        DetalleVenta.objects.filter(
+            venta__empresa=empresa,
+            venta__estado='COMPLETADA',
+            venta__fecha_venta__gte=inicio_mes,
+            venta__fecha_venta__lte=fin_mes,
+        )
+        .values('producto__id', 'producto__nombre')
+        .annotate(
+            cantidad_vendida=Sum('cantidad'),
+            ingreso=Sum('total'),
+        )
+        .order_by('-ingreso')[:5]
     )
     top_productos = [
-        {**p, 'precio': float(p['precio'] or 0), 'stock_actual': float(p['stock_actual'] or 0)}
+        {
+            'id': p['producto__id'],
+            'nombre': p['producto__nombre'],
+            'cantidad_vendida': float(p['cantidad_vendida'] or 0),
+            'ingreso': float(p['ingreso'] or 0),
+        }
         for p in top_productos
     ]
 
     # ── Clientes ──────────────────────────────────────────────────────────────
     clientes_activos = Cliente.objects.filter(empresa=empresa, activo=True).count()
+    top_clientes = list(
+        Venta.objects.filter(
+            empresa=empresa,
+            estado='COMPLETADA',
+            fecha_venta__gte=inicio_mes,
+            fecha_venta__lte=fin_mes,
+        )
+        .values('cliente__id', 'cliente__razon_social')
+        .annotate(
+            total=Sum('total'),
+            cantidad=Count('id'),
+        )
+        .order_by('-total')[:5]
+    )
+    top_clientes = [
+        {
+            'id': c['cliente__id'],
+            'nombre': c['cliente__razon_social'] or 'Cliente',
+            'total': float(c['total'] or 0),
+            'cantidad': c['cantidad'] or 0,
+        }
+        for c in top_clientes
+    ]
+
+    ventas_por_metodo = list(
+        PagoVenta.objects.filter(
+            venta__empresa=empresa,
+            venta__estado='COMPLETADA',
+            venta__fecha_venta__gte=inicio_mes,
+            venta__fecha_venta__lte=fin_mes,
+        ).values('forma_pago').annotate(total=Sum('monto')).order_by('-total')
+    )
+    ventas_por_metodo = [
+        {'forma_pago': p['forma_pago'], 'total': float(p['total'] or 0)}
+        for p in ventas_por_metodo
+    ]
+
+    cartera_qs = CuentaPorCobrar.objects.filter(empresa=empresa)
+    cuentas_pendientes = cartera_qs.filter(
+        estado__in=['PENDIENTE', 'PARCIAL', 'VENCIDA']
+    )
+    total_por_cobrar = cuentas_pendientes.aggregate(total=Sum('saldo'))['total'] or Decimal('0.00')
+    cuentas_vencidas_qs = cartera_qs.filter(
+        estado__in=['PENDIENTE', 'PARCIAL', 'VENCIDA'],
+        fecha_vencimiento__lt=hoy,
+    )
+    total_vencido = cuentas_vencidas_qs.aggregate(total=Sum('saldo'))['total'] or Decimal('0.00')
+
+    cajas_abiertas = AperturaCaja.objects.filter(
+        caja__empresa=empresa,
+        estado='ABIERTA',
+    ).count()
+
+    pedidos_abiertos = 0
+    try:
+        from apps.pedidos.models import Pedido
+        pedidos_abiertos = Pedido.objects.filter(
+            empresa=empresa,
+            estado__in=['ABIERTO', 'EN_PREPARACION', 'LISTO'],
+        ).count()
+    except Exception:
+        pass
+
+    alertas_operativas = [
+        {
+            'key': 'facturas_enviadas',
+            'label': 'Facturas pendientes SRI',
+            'valor': facturas_enviadas,
+            'ruta': '/facturacion',
+        },
+        {
+            'key': 'facturas_rechazadas',
+            'label': 'Comprobantes con error SRI',
+            'valor': facturas_rechazadas,
+            'ruta': '/facturacion',
+        },
+        {
+            'key': 'notas_credito_pendientes',
+            'label': 'Notas de crédito pendientes',
+            'valor': notas_credito_pendientes,
+            'ruta': '/notas-credito',
+        },
+        {
+            'key': 'cuentas_vencidas',
+            'label': 'Cuentas por cobrar vencidas',
+            'valor': cuentas_vencidas_qs.count(),
+            'ruta': '/cartera',
+        },
+        {
+            'key': 'stock_bajo',
+            'label': 'Productos con stock bajo',
+            'valor': stock_bajo_count,
+            'ruta': '/inventarios',
+        },
+    ]
 
     # ── Últimos 6 meses ──────────────────────────────────────────────────────
     from dateutil.relativedelta import relativedelta
@@ -214,14 +350,30 @@ def _dashboard_tenant(request):
         # KPIs
         'ventas_mes': float(ventas_mes_agg['total'] or 0),
         'ventas_mes_cantidad': ventas_mes_agg['cantidad'] or 0,
+        'ventas_hoy': float(ventas_hoy_agg['total'] or 0),
+        'ventas_hoy_cantidad': ventas_hoy_agg['cantidad'] or 0,
+        'cobrado_hoy': float(cobrado_hoy),
+        'ticket_promedio_mes': float(ticket_promedio_mes),
         'facturas_emitidas': facturas_emitidas,
         'facturas_enviadas': facturas_enviadas,
+        'facturas_rechazadas': facturas_rechazadas,
         'facturas_por_estado': facturas_por_estado,
+        'notas_credito_pendientes': notas_credito_pendientes,
+        'notas_credito_hoy': notas_credito_hoy,
         'productos_activos': productos_activos,
         'clientes_activos': clientes_activos,
+        'stock_bajo_count': stock_bajo_count,
+        'cajas_abiertas': cajas_abiertas,
+        'pedidos_abiertos': pedidos_abiertos,
+        'total_por_cobrar': float(total_por_cobrar),
+        'total_vencido': float(total_vencido),
+        'cuentas_vencidas': cuentas_vencidas_qs.count(),
         # Lists
+        'alertas_operativas': alertas_operativas,
         'facturas_recientes': facturas_recientes,
         'top_productos': top_productos,
+        'top_clientes': top_clientes,
+        'ventas_por_metodo': ventas_por_metodo,
         'stock_bajo': stock_bajo,
         'ultimos_meses': ultimos_meses,
         'proximas_declaraciones': proximas_declaraciones,

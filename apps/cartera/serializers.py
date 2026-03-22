@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CuentaPorCobrar, PagoCliente
+from .models import CuentaPorCobrar, PagoCliente, MovimientoCuentaPorCobrar
 
 
 class PagoClienteSerializer(serializers.ModelSerializer):
@@ -26,8 +26,19 @@ class PagoClienteSerializer(serializers.ModelSerializer):
         return data
 
 
+class MovimientoCuentaPorCobrarSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MovimientoCuentaPorCobrar
+        fields = [
+            'id', 'cuenta', 'fecha_movimiento', 'tipo_movimiento',
+            'motivo', 'monto', 'concepto', 'referencia', 'notas', 'created_at',
+        ]
+        read_only_fields = ['created_at']
+
+
 class CuentaPorCobrarSerializer(serializers.ModelSerializer):
     pagos = PagoClienteSerializer(many=True, read_only=True)
+    movimientos = MovimientoCuentaPorCobrarSerializer(many=True, read_only=True)
     cliente_nombre = serializers.SerializerMethodField()
     factura_numero = serializers.SerializerMethodField()
     dias_vencimiento = serializers.SerializerMethodField()
@@ -42,7 +53,7 @@ class CuentaPorCobrarSerializer(serializers.ModelSerializer):
             'numero_cuenta', 'fecha_emision', 'fecha_vencimiento',
             'monto_total', 'saldo', 'total_pagado', 'estado',
             'dias_vencimiento', 'bucket_aging',
-            'notas', 'created_at', 'pagos',
+            'notas', 'created_at', 'pagos', 'movimientos',
         ]
         read_only_fields = ['empresa', 'saldo', 'estado', 'created_at']
 

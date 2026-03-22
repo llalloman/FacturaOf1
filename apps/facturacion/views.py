@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import django_filters
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
@@ -114,6 +115,7 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
         return HttpResponse(xml, content_type='application/xml')
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def anular(self, request, pk=None):
         factura = self.get_object()
         comp = factura.comprobante
@@ -155,13 +157,19 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
                 'mensaje': nc_result['mensaje'],
             }
 
-            if nc_estado in ('AUTORIZADO', 'ENVIADO'):
-                comp.estado = 'ANULADO'
-                comp.save(update_fields=['estado'])
-                _desvincular_venta(factura)
+            if nc_estado == 'AUTORIZADO':
+                from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
+                reversal = aplicar_anulacion_factura_autorizada(factura, nota_credito, usuario=request.user)
                 return Response({
-                    'mensaje': 'Factura anulada. Nota de Crédito generada y enviada al SRI.',
+                    'mensaje': 'Factura anulada. Nota de Crédito autorizada por el SRI.',
                     'estado': 'ANULADO',
+                    'nota_credito': nc_info,
+                    'reversion_financiera': reversal,
+                })
+            if nc_estado == 'ENVIADO':
+                return Response({
+                    'mensaje': 'Nota de Crédito enviada al SRI. La factura se anulará cuando la NC quede autorizada.',
+                    'estado': comp.estado,
                     'nota_credito': nc_info,
                 })
             else:
@@ -615,6 +623,11 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
         if comp.estado in ('RECHAZADO', 'NO_AUTORIZADO'):
             from apps.facturacion.services.nota_credito_service import procesar_nota_credito_sri
             result = procesar_nota_credito_sri(nc)
+            if result.get('estado') == 'AUTORIZADO':
+                from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
+                result['reversion_financiera'] = aplicar_anulacion_factura_autorizada(
+                    nc.factura_origen, nc, usuario=request.user
+                )
             http_status = status.HTTP_200_OK if result.get('success') else status.HTTP_422_UNPROCESSABLE_ENTITY
             return Response(result, status=http_status)
 
@@ -633,10 +646,13 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
                     comp.fecha_autorizacion = getattr(aut_obj, 'fechaAutorizacion', None)
                     comp.mensajes_sri = ''
                     comp.save()
+                    from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
+                    reversal = aplicar_anulacion_factura_autorizada(nc.factura_origen, nc, usuario=request.user)
                     return Response({
                         'estado': comp.estado,
                         'numero_autorizacion': comp.numero_autorizacion,
                         'mensaje': f'Autorizada: {comp.numero_autorizacion}',
+                        'reversion_financiera': reversal,
                     })
 
                 mensajes_list = []
@@ -700,10 +716,13 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
                     comp.fecha_autorizacion = getattr(aut_obj, 'fechaAutorizacion', None)
                     comp.mensajes_sri = ''
                     comp.save()
+                    from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
+                    reversal = aplicar_anulacion_factura_autorizada(nc.factura_origen, nc, usuario=request.user)
                     return Response({
                         'estado': comp.estado,
                         'numero_autorizacion': comp.numero_autorizacion,
                         'mensaje': f'Autorizada: {comp.numero_autorizacion}',
+                        'reversion_financiera': reversal,
                     })
 
             return Response({

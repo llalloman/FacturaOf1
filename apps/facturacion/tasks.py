@@ -70,6 +70,17 @@ def verificar_autorizaciones_pendientes():
                     'fechaAutorizacion': str(autorizacion.fechaAutorizacion) if hasattr(autorizacion, 'fechaAutorizacion') else None,
                 }
                 comprobante.save()
+
+                if (
+                    autorizacion.estado == 'AUTORIZADO'
+                    and comprobante.tipo_comprobante == '04'
+                    and hasattr(comprobante, 'nota_credito')
+                ):
+                    from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
+                    aplicar_anulacion_factura_autorizada(
+                        comprobante.nota_credito.factura_origen,
+                        comprobante.nota_credito,
+                    )
                 
         except Exception as e:
             logger.error("Error al verificar autorización de %s: %s", comprobante.clave_acceso, e)

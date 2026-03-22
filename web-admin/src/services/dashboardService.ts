@@ -20,11 +20,30 @@ export interface DashboardTenant {
   tipo: 'tenant';
   ventas_mes: number;
   ventas_mes_cantidad: number;
+  ventas_hoy: number;
+  ventas_hoy_cantidad: number;
+  cobrado_hoy: number;
+  ticket_promedio_mes: number;
   facturas_emitidas: number;
   facturas_enviadas: number;
+  facturas_rechazadas: number;
   facturas_por_estado: Record<string, number>;
+  notas_credito_pendientes: number;
+  notas_credito_hoy: number;
   productos_activos: number;
   clientes_activos: number;
+  stock_bajo_count: number;
+  cajas_abiertas: number;
+  pedidos_abiertos: number;
+  total_por_cobrar: number;
+  total_vencido: number;
+  cuentas_vencidas: number;
+  alertas_operativas: {
+    key: string;
+    label: string;
+    valor: number;
+    ruta: string;
+  }[];
   facturas_recientes: {
     id: number;
     numero_factura: string;
@@ -35,8 +54,18 @@ export interface DashboardTenant {
   top_productos: {
     id: number;
     nombre: string;
-    precio: number;
-    stock_actual: number;
+    cantidad_vendida: number;
+    ingreso: number;
+  }[];
+  top_clientes: {
+    id: number;
+    nombre: string;
+    total: number;
+    cantidad: number;
+  }[];
+  ventas_por_metodo: {
+    forma_pago: string;
+    total: number;
   }[];
   stock_bajo: {
     id: number;

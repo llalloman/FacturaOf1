@@ -1,451 +1,508 @@
-import { useAuthStore } from '../store/authStore';
-import { useQuery } from '@tanstack/react-query';
+import type { ComponentType } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
-  TrendingUp,
-  ShoppingCart,
-  Package,
-  Users,
-  AlertCircle,
-  DollarSign,
-  FileText,
-  Clock,
+  AlertTriangle,
+  ArrowRight,
+  BadgeDollarSign,
+  Banknote,
   Building2,
+  CheckCircle2,
+  CreditCard,
+  ReceiptText,
   ShieldCheck,
-  Activity,
-  FlaskConical,
-  CalendarClock,
+  ShoppingBag,
+  Users,
+  Wallet,
 } from 'lucide-react';
-import { LineChart, Line, ComposedChart, Bar, ReferenceLine, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import type { ProyeccionesData } from '../services/ventasService';
-import { ventasService } from '../services/ventasService';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+
+import { useAuthStore } from '../store/authStore';
 import { dashboardService } from '../services/dashboardService';
 import type { DashboardSuperAdmin, DashboardTenant } from '../services/dashboardService';
 
-const PIE_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'];
+const COLORS = ['#0f766e', '#2563eb', '#d97706', '#dc2626', '#7c3aed', '#059669'];
+const metodoPagoLabel: Record<string, string> = {
+  EFECTIVO: 'Efectivo',
+  TARJETA_CREDITO: 'T. Crédito',
+  TARJETA_DEBITO: 'T. Débito',
+  TRANSFERENCIA: 'Transferencia',
+  CHEQUE: 'Cheque',
+  CREDITO: 'Crédito',
+};
 
-export default function DashboardPage() {
-  const { user } = useAuthStore();
-  const isSuperAdmin = user?.rol === 'SUPER_ADMIN';
+const money = (value: number) =>
+  new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(value || 0);
 
-  // ── Single dashboard API call ────────────────────────────────────────────────
-  const { data: dashData, isLoading } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: dashboardService.get,
-    staleTime: 60_000,
-  });
+const tooltipMoney = (value: number | string | undefined) => money(Number(value || 0));
+const tooltipSeries = (value: number | string | undefined, name: string | undefined) => [
+  name === 'ventas' ? tooltipMoney(value) : Number(value || 0),
+  name === 'ventas' ? 'Ventas' : 'Tickets',
+];
 
-  const { data: proyeccionesData } = useQuery<ProyeccionesData>({
-    queryKey: ['ventas', 'proyecciones'],
-    queryFn: () => ventasService.getProyecciones(30, 14, 7),
-    enabled: !isSuperAdmin,
-    staleTime: 5 * 60 * 1000,
-  });
+function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-4">
+      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+      {subtitle ? <p className="text-sm text-slate-500 mt-1">{subtitle}</p> : null}
+    </div>
+  );
+}
 
-  if (isLoading || !dashData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-      </div>
-    );
-  }
+function KpiCard({
+  label,
+  value,
+  helper,
+  icon: Icon,
+  tone = 'slate',
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+  icon: ComponentType<{ className?: string }>;
+  tone?: 'emerald' | 'blue' | 'amber' | 'rose' | 'slate';
+}) {
+  const toneMap = {
+    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    blue: 'bg-blue-50 text-blue-700 border-blue-100',
+    amber: 'bg-amber-50 text-amber-700 border-amber-100',
+    rose: 'bg-rose-50 text-rose-700 border-rose-100',
+    slate: 'bg-slate-50 text-slate-700 border-slate-100',
+  } as const;
 
-  // ── Dashboard SUPER_ADMIN ────────────────────────────────────────────────────
-  if (dashData.tipo === 'super_admin') {
-    const d = dashData as DashboardSuperAdmin;
-
-    const statsSA = [
-      { label: 'Empresas Registradas', value: String(d.empresas_total), icon: Building2, bgColor: 'bg-blue-50', iconColor: 'text-blue-600' },
-      { label: 'Empresas Activas', value: String(d.empresas_activas), icon: ShieldCheck, bgColor: 'bg-green-50', iconColor: 'text-green-600' },
-      { label: 'Usuarios Totales', value: String(d.usuarios_total), icon: Users, bgColor: 'bg-sky-50', iconColor: 'text-sky-600' },
-      { label: 'Administradores', value: String(d.admins_empresa), icon: ShieldCheck, bgColor: 'bg-orange-50', iconColor: 'text-orange-600' },
-    ];
-
-    return (
-      <div className="p-8 bg-gray-50 min-h-screen">
-        <div className="mb-8">
-          <h1 className="text-4xl font-extrabold text-gray-900 mb-2">Panel de Administración</h1>
-          <p className="text-gray-500 text-sm flex items-center gap-2">
-            <ShieldCheck size={16} className="text-sky-500" />
-            Super Admin — Vista general del sistema. No estás vinculado a ninguna empresa.
-          </p>
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-slate-500">{label}</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+          {helper ? <p className="mt-2 text-xs text-slate-500">{helper}</p> : null}
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {statsSA.map((stat) => (
-            <div key={stat.label} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 border border-gray-100 transform hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`${stat.bgColor} p-3 rounded-xl`}>
-                  <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
-                </div>
-              </div>
-              <h3 className="text-gray-500 text-sm font-medium mb-1">{stat.label}</h3>
-              <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Lista de empresas */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-blue-600" />
-            Empresas Suscritas
-          </h3>
-          {d.empresas.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">Sin empresas registradas. Ve a <strong>Empresas</strong> para agregar la primera.</p>
-          ) : (
-            <div className="space-y-3">
-              {d.empresas.map((emp) => (
-                <div key={emp.id} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:bg-gray-50">
-                  <div>
-                    <p className="font-semibold text-gray-900">{emp.razon_social}</p>
-                    <p className="text-xs text-gray-400">{emp.ruc} · {emp.email ?? '—'}</p>
-                  </div>
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${emp.activa ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {emp.activa ? 'Activa' : 'Inactiva'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className={`rounded-xl border p-3 ${toneMap[tone]}`}>
+          <Icon className="h-5 w-5" />
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // ── Dashboard Tenant (empresa propia) ────────────────────────────────────────
-  const d = dashData as DashboardTenant;
-
-  const ventasMesTotal = d.ventas_mes;
-  const facturasEmitidas = d.facturas_emitidas;
-  const facturasEnviadas = d.facturas_enviadas;
-  const productosActivos = d.productos_activos;
-  const clientesActivos = d.clientes_activos;
-
-  // ── Ventas por mes (últimos 6 meses desde la API) ──────────────────────────
-  const salesData = d.ultimos_meses.map(m => ({
-    mes: m.label,
-    ventas: m.total_ventas,
-  }));
-
-  // ── Top Productos ──────────────────────────────────────────────────────────
-  const topProductos = d.top_productos.map(p => ({
-    nombre: p.nombre,
-    precio: p.precio,
-    stock: p.stock_actual ?? '—',
-  }));
-
-  // ── Facturas recientes ────────────────────────────────────────────────────────
-  const facturasRecientes = d.facturas_recientes.map(f => ({
-    desc: `Factura ${f.numero_factura ?? '—'} - ${f.cliente_nombre ?? 'Cliente'}`,
-    estado: f.estado,
-    total: f.total,
-  }));
-
+function DashboardSuperAdminView({ data }: { data: DashboardSuperAdmin }) {
   const stats = [
+    { label: 'Empresas', value: String(data.empresas_total), icon: Building2, tone: 'blue' as const },
+    { label: 'Empresas activas', value: String(data.empresas_activas), icon: ShieldCheck, tone: 'emerald' as const },
+    { label: 'Usuarios', value: String(data.usuarios_total), icon: Users, tone: 'slate' as const },
+    { label: 'Suscripciones activas', value: String(data.suscripciones_activas), icon: ReceiptText, tone: 'amber' as const },
+  ];
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-slate-950">Control del sistema</h1>
+        <p className="mt-2 text-sm text-slate-500">Vista global de empresas, usuarios y actividad administrativa.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {stats.map((item) => (
+          <KpiCard key={item.label} label={item.label} value={item.value} icon={item.icon} tone={item.tone} />
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle
+            title="Empresas recientes"
+            subtitle="Últimas empresas registradas en la plataforma."
+          />
+          <div className="space-y-3">
+            {data.empresas.map((empresa) => (
+              <div key={empresa.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <div>
+                  <p className="font-medium text-slate-900">{empresa.razon_social}</p>
+                  <p className="text-xs text-slate-500">{empresa.ruc} · {empresa.email || 'Sin email'}</p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${empresa.activa ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                  {empresa.activa ? 'Activa' : 'Inactiva'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle
+            title="Lectura rápida"
+            subtitle="Qué mirar primero al abrir el panel."
+          />
+          <div className="space-y-4 text-sm text-slate-600">
+            <div className="rounded-xl bg-blue-50 px-4 py-3">
+              <p className="font-medium text-blue-900">Empresas activas</p>
+              <p className="mt-1">Controla cuántas empresas están operando realmente frente al total registrado.</p>
+            </div>
+            <div className="rounded-xl bg-amber-50 px-4 py-3">
+              <p className="font-medium text-amber-900">Suscripciones activas</p>
+              <p className="mt-1">Úsalo como termómetro comercial y de continuidad del servicio.</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 px-4 py-3">
+              <p className="font-medium text-slate-900">Usuarios administradores</p>
+              <p className="mt-1">Ayuda a detectar cuentas listas para operar sin entrar todavía al detalle de cada empresa.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardTenantView({ data }: { data: DashboardTenant }) {
+  const estadoFacturas = Object.entries(data.facturas_por_estado)
+    .map(([name, value]) => ({ name, value }))
+    .filter((item) => item.value > 0);
+
+  const ventasMetodo = data.ventas_por_metodo.map((item) => ({
+    name: metodoPagoLabel[item.forma_pago] || item.forma_pago,
+    value: item.total,
+  }));
+
+  const tendenciaVentas = data.ultimos_meses.map((item) => ({
+    label: item.label,
+    ventas: item.total_ventas,
+    tickets: item.cantidad_ventas,
+  }));
+
+  const kpis = [
     {
-      label: 'Ventas del Mes',
-      value: `$${ventasMesTotal.toLocaleString('es-EC', { minimumFractionDigits: 2 })}`,
-      icon: DollarSign,
-      bgColor: 'bg-green-50',
-      iconColor: 'text-green-600',
+      label: 'Ventas hoy',
+      value: money(data.ventas_hoy),
+      helper: `${data.ventas_hoy_cantidad} ventas registradas`,
+      icon: Banknote,
+      tone: 'emerald' as const,
     },
     {
-      label: 'Facturas Emitidas',
-      value: String(facturasEmitidas),
-      icon: FileText,
-      bgColor: 'bg-blue-50',
-      iconColor: 'text-blue-600',
+      label: 'Cobrado hoy',
+      value: money(data.cobrado_hoy),
+      helper: 'Entradas efectivas del día',
+      icon: Wallet,
+      tone: 'blue' as const,
     },
     {
-      label: 'Productos Activos',
-      value: String(productosActivos),
-      icon: Package,
-      bgColor: 'bg-sky-50',
-      iconColor: 'text-sky-600',
+      label: 'Ticket promedio mes',
+      value: money(data.ticket_promedio_mes),
+      helper: `${data.ventas_mes_cantidad} ventas en el mes`,
+      icon: BadgeDollarSign,
+      tone: 'amber' as const,
     },
     {
-      label: 'Clientes Activos',
-      value: String(clientesActivos),
-      icon: Users,
-      bgColor: 'bg-orange-50',
-      iconColor: 'text-orange-600',
+      label: 'Por cobrar',
+      value: money(data.total_por_cobrar),
+      helper: `${data.cuentas_vencidas} cuentas vencidas por ${money(data.total_vencido)}`,
+      icon: CreditCard,
+      tone: 'rose' as const,
+    },
+    {
+      label: 'Facturas pendientes SRI',
+      value: String(data.facturas_enviadas),
+      helper: `${data.facturas_rechazadas} con error o no autorizadas`,
+      icon: ReceiptText,
+      tone: 'slate' as const,
+    },
+    {
+      label: 'Operación activa',
+      value: `${data.cajas_abiertas} caja(s)`,
+      helper: `${data.pedidos_abiertos} pedido(s) abiertos`,
+      icon: ShoppingBag,
+      tone: 'blue' as const,
     },
   ];
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-gray-600 flex items-center gap-2">
-          <span>Bienvenido,</span>
-          <span className="font-semibold text-blue-600">{user?.email}</span>
-        </p>
+    <div className="space-y-8">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-950">Panel operativo</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Vista diaria de ventas, facturación SRI, cartera, stock y actividad comercial.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+          <span className="font-medium text-slate-900">{data.clientes_activos}</span> clientes activos ·{' '}
+          <span className="font-medium text-slate-900">{data.productos_activos}</span> productos activos
+        </div>
       </div>
 
-      {/* Alerta: facturas pendientes de autorización SRI */}
-      {facturasEnviadas > 0 && (
-        <div className="mb-6 flex items-center gap-3 bg-yellow-50 border border-yellow-300 rounded-xl px-5 py-4 shadow-sm">
-          <Clock className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-yellow-800 font-semibold text-sm">
-              {facturasEnviadas} factura{facturasEnviadas > 1 ? 's' : ''} pendiente{facturasEnviadas > 1 ? 's' : ''} de autorización SRI
-            </p>
-            <p className="text-yellow-700 text-xs mt-0.5">
-              Están en estado ENVIADO — usa el botón 🔄 en Facturación para consultar al SRI.
-            </p>
-          </div>
-          <Link to="/facturacion" className="text-xs font-semibold text-yellow-700 underline hover:text-yellow-900">
-            Ver facturas →
-          </Link>
-        </div>
-      )}
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat) => (
-          <div key={stat.label} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 border border-gray-100 transform hover:-translate-y-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`${stat.bgColor} p-3 rounded-xl`}>
-                <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
-              </div>
-            </div>
-            <h3 className="text-gray-500 text-sm font-medium mb-1">{stat.label}</h3>
-            <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-          </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {kpis.map((item) => (
+          <KpiCard
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            helper={item.helper}
+            icon={item.icon}
+            tone={item.tone}
+          />
         ))}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-          <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-600" />
-            Tendencia de Ventas
-          </h3>
-          <p className="text-xs text-gray-400 mb-4">Total vendido por mes (últimos 6 meses)</p>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={salesData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="mes" stroke="#9ca3af" />
-              <YAxis stroke="#9ca3af" />
-              <Tooltip formatter={((v: number | string) => [`$${Number(v ?? 0).toLocaleString()}`, 'Ventas']) as any} />
-              <Legend />
-              <Line type="monotone" dataKey="ventas" stroke="#3b82f6" strokeWidth={3} name="Ventas ($)" dot={{ r: 4 }} />
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle
+            title="Alertas y pendientes"
+            subtitle="Todo lo que requiere seguimiento operativo inmediato."
+          />
+          <div className="space-y-3">
+            {data.alertas_operativas.map((alerta) => (
+              <Link
+                key={alerta.key}
+                to={alerta.ruta}
+                className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 transition hover:bg-slate-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`rounded-xl p-2 ${alerta.valor > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {alerta.valor > 0 ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">{alerta.label}</p>
+                    <p className="text-xs text-slate-500">
+                      {alerta.valor > 0 ? 'Requiere revisión' : 'Sin novedad'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${alerta.valor > 0 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                    {alerta.valor}
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-slate-400" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle
+            title="Tendencia comercial"
+            subtitle="Evolución mensual de ventas y número de tickets."
+          />
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={tendenciaVentas}>
+              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip formatter={tooltipSeries} />
+              <Line type="monotone" dataKey="ventas" stroke="#0f766e" strokeWidth={3} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="tickets" stroke="#2563eb" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
+      </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-          <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-sky-600" />
-            Estado de Facturas
-          </h3>
-          <p className="text-xs text-gray-400 mb-4">Distribución por estado de los comprobantes</p>
-          {Object.keys(d.facturas_por_estado).length === 0 ? (
-            <div className="flex items-center justify-center h-[250px] text-gray-400 text-sm">Sin facturas aún</div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle title="Estado SRI" subtitle="Distribución de comprobantes por estado." />
+          {estadoFacturas.length === 0 ? (
+            <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin comprobantes registrados</div>
           ) : (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
-                <Pie
-                  data={Object.entries(d.facturas_por_estado)
-                    .map(([name, value]) => ({ name: name.charAt(0) + name.slice(1).toLowerCase(), value }))
-                    .filter(d => d.value > 0)}
-                  cx="50%" cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  dataKey="value"
-                >
-                  {PIE_COLORS.map((color, i) => <Cell key={i} fill={color} />)}
+                <Pie data={estadoFacturas} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={3}>
+                  {estadoFacturas.map((_, index) => (
+                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                  ))}
                 </Pie>
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
           )}
+          <div className="mt-4 space-y-2">
+            {estadoFacturas.map((item, index) => (
+              <div key={item.name} className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                  <span className="text-slate-600">{item.name}</span>
+                </div>
+                <span className="font-medium text-slate-900">{item.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Bottom */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-blue-600" />
-            Top Productos (por precio)
-          </h3>
-          {topProductos.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">Sin productos con inventario registrados</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle title="Métodos de pago" subtitle="Composición del mes actual." />
+          {ventasMetodo.length === 0 ? (
+            <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin pagos registrados</div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={ventasMetodo} layout="vertical" margin={{ left: 10, right: 10 }}>
+                  <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={tooltipMoney} />
+                  <Bar dataKey="value" fill="#2563eb" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="mt-2 text-xs text-slate-500">
+                Útil para detectar concentración de caja, crédito o transferencias.
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle title="Stock bajo" subtitle="Productos que ya requieren reposición." />
+          {data.stock_bajo.length === 0 ? (
+            <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin alertas de stock</div>
           ) : (
             <div className="space-y-3">
-              {topProductos.map((product, index) => (
-                <div key={index} className="flex items-center justify-between p-4 rounded-xl hover:bg-gray-50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center text-white font-bold">{index + 1}</div>
+              {data.stock_bajo.map((producto) => (
+                <div key={producto.id} className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="font-semibold text-gray-900">{product.nombre}</p>
-                      <p className="text-sm text-gray-500">Stock: {product.stock} uds.</p>
+                      <p className="font-medium text-slate-900">{producto.nombre}</p>
+                      <p className="text-xs text-slate-500">Mínimo esperado: {Number(producto.stock_minimo).toFixed(2)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-amber-800">{Number(producto.stock_actual).toFixed(2)}</p>
+                      <p className="text-xs text-amber-700">stock actual</p>
                     </div>
                   </div>
-                  <span className="font-bold text-green-600">${Number(product.precio).toFixed(2)}</span>
                 </div>
               ))}
+              <Link to="/inventarios" className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900">
+                Ver inventario <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           )}
         </div>
+      </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-orange-600" />
-            Facturas Recientes
-          </h3>
-          {facturasRecientes.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">Sin facturas registradas</p>
-          ) : (
-            <div className="space-y-4">
-              {facturasRecientes.map((f, index) => (
-                <div key={index} className="flex gap-3 pb-4 border-b border-gray-100 last:border-0">
-                  <div className="w-2 h-2 rounded-full bg-blue-600 mt-2 flex-shrink-0"></div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-900 font-medium">{f.desc}</p>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs text-gray-500">{f.estado}</span>
-                      <span className="text-xs font-semibold text-green-600">${Number(f.total).toFixed(2)}</span>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle title="Top productos del mes" subtitle="Ordenados por ingreso generado." />
+          <div className="space-y-3">
+            {data.top_productos.length === 0 ? (
+              <div className="py-12 text-center text-sm text-slate-400">Sin ventas registradas este mes</div>
+            ) : (
+              data.top_productos.map((producto, index) => (
+                <div key={producto.id} className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-900">{producto.nombre}</p>
+                      <p className="text-xs text-slate-500">{producto.cantidad_vendida.toFixed(2)} unidades vendidas</p>
                     </div>
                   </div>
+                  <span className="font-semibold text-emerald-700">{money(producto.ingreso)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle title="Top clientes del mes" subtitle="Clientes con mayor volumen de compra." />
+          <div className="space-y-3">
+            {data.top_clientes.length === 0 ? (
+              <div className="py-12 text-center text-sm text-slate-400">Sin ventas por cliente en el período</div>
+            ) : (
+              data.top_clientes.map((cliente) => (
+                <div key={cliente.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                  <div>
+                    <p className="font-medium text-slate-900">{cliente.nombre}</p>
+                    <p className="text-xs text-slate-500">{cliente.cantidad} documento(s)</p>
+                  </div>
+                  <span className="font-semibold text-slate-900">{money(cliente.total)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1fr]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle title="Actividad reciente SRI" subtitle="Últimas facturas emitidas y su estado actual." />
+          <div className="space-y-3">
+            {data.facturas_recientes.map((factura) => (
+              <div key={factura.id} className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3">
+                <div>
+                  <p className="font-medium text-slate-900">{factura.numero_factura}</p>
+                  <p className="text-xs text-slate-500">{factura.cliente_nombre}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-slate-900">{money(factura.total)}</p>
+                  <p className="text-xs text-slate-500">{factura.estado}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <SectionTitle title="Próximas obligaciones" subtitle="Recordatorio rápido para evitar vencimientos." />
+          {data.proximas_declaraciones.length === 0 ? (
+            <div className="flex h-40 items-center justify-center text-sm text-slate-400">Sin obligaciones próximas registradas</div>
+          ) : (
+            <div className="space-y-3">
+              {data.proximas_declaraciones.map((item) => (
+                <div key={`${item.tipo}-${item.periodo}`} className="rounded-xl bg-blue-50 px-4 py-3">
+                  <p className="font-medium text-blue-950">{item.tipo}</p>
+                  <p className="text-sm text-blue-800">{item.periodo}</p>
+                  <p className="mt-1 text-xs text-blue-700">
+                    Fecha límite: {item.fecha_limite} · faltan {item.dias_restantes} días
+                  </p>
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* ── Proyecciones ───────────────────────────────────────────────────────── */}
-      {proyeccionesData && (
-        <div className="mt-8 space-y-6">
-          <div className="flex items-center gap-2 mb-1">
-            <Activity className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-xl font-bold text-gray-900">Proyecciones</h2>
-            <span className="text-xs text-gray-400 font-normal">Basado en media móvil de 7 días · Historial: {proyeccionesData.dias_historial} días · Promedio diario: ${proyeccionesData.promedio_diario.toFixed(2)}</span>
-          </div>
+export default function DashboardPage() {
+  const { user } = useAuthStore();
+  const { data, isLoading } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: dashboardService.get,
+    staleTime: 60_000,
+  });
 
-          {/* Gráfico ventas históricas + proyección */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h3 className="text-base font-bold text-gray-900 mb-1">Tendencia de Ventas Diarias y Proyección</h3>
-            <p className="text-xs text-gray-400 mb-4">Barras azules = ventas reales · Línea naranja punteada = proyección (14 días)</p>
-            <ResponsiveContainer width="100%" height={280}>
-              <ComposedChart
-                data={[
-                  ...proyeccionesData.historico.map(d => ({ fecha: d.fecha.slice(5), total: d.total, proyectado: undefined })),
-                  ...proyeccionesData.proyeccion.map(d => ({ fecha: d.fecha.slice(5), total: undefined, proyectado: d.proyectado })),
-                ]}
-                margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="fecha" stroke="#9ca3af" tick={{ fontSize: 11 }} />
-                <YAxis stroke="#9ca3af" tickFormatter={(v: number) => `$${v}`} />
-                <Tooltip formatter={((v: number | string, name: string) => [`$${Number(v ?? 0).toFixed(2)}`, name === 'total' ? 'Venta real' : 'Proyectado']) as any} />
-                <Legend formatter={(v: string) => v === 'total' ? 'Venta real' : 'Proyección'} />
-                <ReferenceLine x={new Date().toISOString().slice(5, 10)} stroke="#6366f1" strokeDasharray="4 4" label={{ value: 'Hoy', fill: '#6366f1', fontSize: 11 }} />
-                <Bar dataKey="total" fill="#3b82f6" opacity={0.85} radius={[3,3,0,0]} />
-                <Line dataKey="proyectado" stroke="#f97316" strokeWidth={2.5} strokeDasharray="6 3" dot={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
+  if (isLoading || !data) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-slate-800" />
+      </div>
+    );
+  }
 
-          {/* Tabla proyección de stock */}
-          {proyeccionesData.proyeccion_stock.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-              <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-2">
-                <FlaskConical className="w-4 h-4 text-emerald-600" />
-                Proyección de Agotamiento de Stock
-              </h3>
-              <p className="text-xs text-gray-400 mb-4">Basado en velocidad de ventas de los últimos 30 días</p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
-                      <th className="pb-3 font-semibold">Producto</th>
-                      <th className="pb-3 font-semibold text-right">Stock actual</th>
-                      <th className="pb-3 font-semibold text-right">Vendido/día</th>
-                      <th className="pb-3 font-semibold text-right">Días restantes</th>
-                      <th className="pb-3 font-semibold text-center">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {proyeccionesData.proyeccion_stock.map((p) => {
-                      const dias = p.dias_hasta_agotamiento;
-                      const urgente = dias !== null && dias <= 7;
-                      const advertencia = dias !== null && dias > 7 && dias <= 14;
-                      const statusColor = urgente ? 'bg-red-100 text-red-700' : advertencia ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700';
-                      const statusLabel = urgente ? 'Crítico' : advertencia ? 'Bajo' : 'OK';
-                      return (
-                        <tr key={p.producto_id} className="hover:bg-gray-50">
-                          <td className="py-3 font-medium text-gray-900 max-w-[200px] truncate">{p.nombre}</td>
-                          <td className="py-3 text-right text-gray-700">{p.stock_actual}</td>
-                          <td className="py-3 text-right text-gray-500">{p.tasa_diaria.toFixed(2)}</td>
-                          <td className={`py-3 text-right font-semibold ${urgente ? 'text-red-600' : advertencia ? 'text-yellow-600' : 'text-green-600'}`}>
-                            {dias !== null ? `${dias} días` : '—'}
-                          </td>
-                          <td className="py-3 text-center">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
+  return (
+    <div className="min-h-screen bg-slate-50 p-6 md:p-8">
+      {data.tipo === 'super_admin' ? (
+        <DashboardSuperAdminView data={data as DashboardSuperAdmin} />
+      ) : (
+        <DashboardTenantView data={data as DashboardTenant} />
       )}
-
-      {/* Alert stock bajo */}
-      {d.stock_bajo.length > 0 && (
-        <div className="mt-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-yellow-500 rounded-xl p-6">
-          <div className="flex items-start gap-4">
-            <AlertCircle className="w-6 h-6 text-yellow-600" />
-            <div className="flex-1">
-              <h4 className="font-bold text-yellow-900 mb-1">Stock Bajo</h4>
-              <p className="text-yellow-800 text-sm mb-3">
-                {d.stock_bajo.length} producto(s) con stock igual o menor al mínimo. Se recomienda orden de compra.
-              </p>
-              <ul className="text-sm text-yellow-700 space-y-1">
-                {d.stock_bajo.slice(0, 3).map((p) => (
-                  <li key={p.id}>• {p.nombre}: {p.stock_actual} uds. (mín. {p.stock_minimo})</li>
-                ))}
-                {d.stock_bajo.length > 3 && <li>• y {d.stock_bajo.length - 3} más...</li>}
-              </ul>
-            </div>
-          </div>
+      {user?.rol !== 'SUPER_ADMIN' ? (
+        <div className="mt-8 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 shadow-sm">
+          Recomendación: usa este panel para detectar pendientes y ve a <Link to="/reportes" className="font-medium text-blue-700 hover:text-blue-900">Reportes</Link> cuando necesites análisis más profundo.
         </div>
-      )}
-
-      {/* Próximas declaraciones */}
-      {d.proximas_declaraciones.length > 0 && (
-        <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-xl p-6">
-          <div className="flex items-start gap-4">
-            <CalendarClock className="w-6 h-6 text-blue-600" />
-            <div className="flex-1">
-              <h4 className="font-bold text-blue-900 mb-1">Próximas Obligaciones Tributarias</h4>
-              <div className="space-y-2 mt-2">
-                {d.proximas_declaraciones.map((dec, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm">
-                    <span className="text-blue-800">{dec.tipo} — {dec.periodo}</span>
-                    <span className={`font-semibold ${dec.dias_restantes <= 5 ? 'text-red-600' : dec.dias_restantes <= 10 ? 'text-yellow-600' : 'text-blue-600'}`}>
-                      {dec.dias_restantes} días — {dec.fecha_limite}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <Link to="/declaraciones" className="text-xs font-semibold text-blue-700 underline hover:text-blue-900 mt-2 inline-block">
-                Ir a Declaraciones →
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }
