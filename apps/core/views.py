@@ -94,12 +94,12 @@ def _dashboard_tenant(request):
     from apps.cartera.models import CuentaPorCobrar
     from apps.inventarios.models import MovimientoInventario
 
-    empresa = getattr(request.user, 'empresa', None)
+    empresa = getattr(request, 'tenant', None) or getattr(request.user, 'empresa', None)
     if not empresa:
         return Response({'error': 'Sin empresa asignada.'}, status=400)
 
     ahora = timezone.now()
-    hoy = ahora.date()
+    hoy = timezone.localdate()
     mes, anio = ahora.month, ahora.year
 
     # ── Ventas del mes ────────────────────────────────────────────────────────
@@ -123,6 +123,12 @@ def _dashboard_tenant(request):
         venta__estado='COMPLETADA',
         fecha_pago__date=hoy,
     ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+    cobrado_mes = PagoVenta.objects.filter(
+        venta__empresa=empresa,
+        venta__estado='COMPLETADA',
+        fecha_pago__gte=inicio_mes,
+        fecha_pago__lte=fin_mes,
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
     ticket_promedio_mes = (
         (ventas_mes_agg['total'] or Decimal('0.00')) / (ventas_mes_agg['cantidad'] or 1)
         if (ventas_mes_agg['cantidad'] or 0) > 0 else Decimal('0.00')
@@ -136,6 +142,7 @@ def _dashboard_tenant(request):
         .values_list('comprobante__estado', 'c')
     )
     facturas_emitidas = facturas_por_estado.get('AUTORIZADO', 0) + facturas_por_estado.get('ENVIADO', 0)
+    facturas_autorizadas = facturas_por_estado.get('AUTORIZADO', 0)
     facturas_enviadas = facturas_por_estado.get('ENVIADO', 0)
     facturas_rechazadas = facturas_por_estado.get('RECHAZADO', 0) + facturas_por_estado.get('NO_AUTORIZADO', 0)
     notas_credito_qs = NotaCredito.objects.filter(comprobante__empresa=empresa)
@@ -353,8 +360,10 @@ def _dashboard_tenant(request):
         'ventas_hoy': float(ventas_hoy_agg['total'] or 0),
         'ventas_hoy_cantidad': ventas_hoy_agg['cantidad'] or 0,
         'cobrado_hoy': float(cobrado_hoy),
+        'cobrado_mes': float(cobrado_mes),
         'ticket_promedio_mes': float(ticket_promedio_mes),
         'facturas_emitidas': facturas_emitidas,
+        'facturas_autorizadas': facturas_autorizadas,
         'facturas_enviadas': facturas_enviadas,
         'facturas_rechazadas': facturas_rechazadas,
         'facturas_por_estado': facturas_por_estado,

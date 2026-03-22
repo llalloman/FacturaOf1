@@ -32,7 +32,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
 
   const { data: productos } = useQuery({
     queryKey: ['productos'],
-    queryFn: productosService.getAll,
+    queryFn: () => productosService.getAll({ activo: true }),
   });
 
   const mutation = useMutation({

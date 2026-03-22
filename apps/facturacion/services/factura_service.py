@@ -113,6 +113,21 @@ def recalcular_totales_factura_desde_detalles(factura):
     return factura
 
 
+def normalizar_precios_unitarios_factura(factura):
+    actualizado = False
+    for detalle in factura.detalles.all():
+        cantidad = Decimal(str(detalle.cantidad or 0))
+        if cantidad <= Decimal('0'):
+            continue
+        base = Decimal(str(detalle.precio_total_sin_impuesto or 0)).quantize(Decimal('0.01'))
+        precio_unitario = (base / cantidad).quantize(Decimal('0.000001'))
+        if Decimal(str(detalle.precio_unitario or 0)).quantize(Decimal('0.000001')) != precio_unitario:
+            detalle.precio_unitario = precio_unitario
+            detalle.save(update_fields=['precio_unitario'])
+            actualizado = True
+    return actualizado
+
+
 def _buscar_base_para_total_linea(total_objetivo, tarifa):
     total_objetivo = Decimal(str(total_objetivo)).quantize(Decimal('0.01'))
     tarifa = Decimal(str(tarifa or 0)).quantize(Decimal('0.01'))
@@ -154,6 +169,7 @@ def aplicar_ajuste_centavos_factura(factura, total_objetivo):
     detalle.valor_impuesto = impuesto_nuevo
     detalle.precio_unitario = (base_nueva / cantidad).quantize(Decimal('0.000001'))
     detalle.save(update_fields=['precio_total_sin_impuesto', 'valor_impuesto', 'precio_unitario'])
+    normalizar_precios_unitarios_factura(factura)
     recalcular_totales_factura_desde_detalles(factura)
     return True
 
@@ -292,6 +308,7 @@ def crear_factura_desde_venta(venta):
     factura.iva_15 = iva_15.quantize(Decimal('0.01'))
     factura.save(update_fields=['iva_12', 'iva_15'])
     aplicar_ajuste_centavos_factura(factura, venta.total)
+    normalizar_precios_unitarios_factura(factura)
 
     # Vincular venta → factura
     venta.factura = factura
@@ -347,6 +364,7 @@ def procesar_factura_sri(factura):
     venta_rel = getattr(factura, 'venta', None)
     if venta_rel:
         aplicar_ajuste_centavos_factura(factura, venta_rel.total)
+    normalizar_precios_unitarios_factura(factura)
 
     # Si el comprobante fue rechazado o no autorizado, se reinicia el artefacto
     # XML/firma para forzar una regeneración completa en el reproceso.

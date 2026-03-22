@@ -459,7 +459,7 @@ export default function PedidoDetallePage() {
       try {
         const [pData, prdData, cajData, cliData] = await Promise.all([
           pedidosService.getPedido(Number(id)),
-          productosService.getAll(),
+          productosService.getAll({ activo: true }),
           cajasService.getAll(),
           clientesService.getAll(),
         ]);

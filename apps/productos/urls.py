@@ -33,13 +33,18 @@ class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
     ]
 
     def get_queryset(self):
-        user = self.request.user
-        if hasattr(user, 'empresa') and user.empresa:
-            return Producto.objects.filter(empresa=user.empresa)
+        empresa = getattr(self.request, 'tenant', None) or getattr(self.request.user, 'empresa', None)
+        if empresa:
+            queryset = Producto.objects.filter(empresa=empresa)
+            include_inactive = str(self.request.query_params.get('include_inactive', '')).lower() in ('1', 'true', 'yes')
+            if self.action == 'list' and not include_inactive and 'activo' not in self.request.query_params:
+                queryset = queryset.filter(activo=True)
+            return queryset
         return Producto.objects.none()
 
     def perform_create(self, serializer):
-        serializer.save(empresa=self.request.user.empresa)
+        empresa = getattr(self.request, 'tenant', None) or getattr(self.request.user, 'empresa', None)
+        serializer.save(empresa=empresa)
 
     def destroy(self, request, *args, **kwargs):
         producto = self.get_object()

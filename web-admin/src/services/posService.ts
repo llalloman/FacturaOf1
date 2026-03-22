@@ -3,7 +3,7 @@ import type { ProductoPOS, ClientePOS, ItemCarrito, PagoPOS } from '../store/pos
 
 export const posService = {
   getProductos: async (search = ''): Promise<ProductoPOS[]> => {
-    const params = search ? { search } : {};
+    const params = { activo: true, ...(search ? { search } : {}) };
     const { data } = await apiClient.get('/productos/productos/', { params });
     const list: ProductoPOS[] = (data.results ?? data).map((p: Record<string, unknown>) => ({
       id: p.id as number,

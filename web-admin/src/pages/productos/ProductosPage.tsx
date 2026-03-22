@@ -25,7 +25,7 @@ export default function ProductosPage() {
 
   const { data: productos = [], isLoading } = useQuery({
     queryKey: ['productos'],
-    queryFn: productosService.getAll,
+    queryFn: () => productosService.getAll({ include_inactive: true }),
   });
 
   const deleteMutation = useMutation({

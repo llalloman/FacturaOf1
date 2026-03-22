@@ -185,9 +185,23 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
       tone: 'emerald' as const,
     },
     {
+      label: 'Ventas mes',
+      value: money(data.ventas_mes),
+      helper: `${data.ventas_mes_cantidad} ventas acumuladas`,
+      icon: Banknote,
+      tone: 'emerald' as const,
+    },
+    {
       label: 'Cobrado hoy',
       value: money(data.cobrado_hoy),
       helper: 'Entradas efectivas del día',
+      icon: Wallet,
+      tone: 'blue' as const,
+    },
+    {
+      label: 'Cobrado mes',
+      value: money(data.cobrado_mes),
+      helper: 'Cobros registrados en el mes',
       icon: Wallet,
       tone: 'blue' as const,
     },
@@ -197,6 +211,13 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
       helper: `${data.ventas_mes_cantidad} ventas en el mes`,
       icon: BadgeDollarSign,
       tone: 'amber' as const,
+    },
+    {
+      label: 'Facturas autorizadas',
+      value: String(data.facturas_autorizadas),
+      helper: `${data.facturas_enviadas} pendientes SRI`,
+      icon: ReceiptText,
+      tone: 'slate' as const,
     },
     {
       label: 'Por cobrar',

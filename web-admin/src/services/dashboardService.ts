@@ -23,8 +23,10 @@ export interface DashboardTenant {
   ventas_hoy: number;
   ventas_hoy_cantidad: number;
   cobrado_hoy: number;
+  cobrado_mes: number;
   ticket_promedio_mes: number;
   facturas_emitidas: number;
+  facturas_autorizadas: number;
   facturas_enviadas: number;
   facturas_rechazadas: number;
   facturas_por_estado: Record<string, number>;

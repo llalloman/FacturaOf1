@@ -2,8 +2,8 @@ import apiClient from './apiClient';
 import type { Producto } from '../types';
 
 export const productosService = {
-  getAll: async (): Promise<Producto[]> => {
-    const { data } = await apiClient.get('/productos/productos/');
+  getAll: async (params?: Record<string, unknown>): Promise<Producto[]> => {
+    const { data } = await apiClient.get('/productos/productos/', { params });
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
