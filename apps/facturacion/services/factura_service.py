@@ -69,6 +69,50 @@ IVA_MAP = {
 }
 
 
+def recalcular_totales_factura_desde_detalles(factura):
+    subtotal_sin_impuestos = Decimal('0.00')
+    subtotal_0 = Decimal('0.00')
+    subtotal_12 = Decimal('0.00')
+    subtotal_15 = Decimal('0.00')
+    iva_12 = Decimal('0.00')
+    iva_15 = Decimal('0.00')
+
+    for detalle in factura.detalles.all():
+        base = Decimal(str(detalle.precio_total_sin_impuesto or 0)).quantize(Decimal('0.01'))
+        impuesto = Decimal(str(detalle.valor_impuesto or 0)).quantize(Decimal('0.01'))
+        subtotal_sin_impuestos += base
+
+        if detalle.codigo_porcentaje in ('0', '6', '7'):
+            subtotal_0 += base
+        elif detalle.codigo_porcentaje == '2':
+            subtotal_12 += base
+            iva_12 += impuesto
+        elif detalle.codigo_porcentaje == '4':
+            subtotal_15 += base
+            iva_15 += impuesto
+
+    total_descuento = Decimal(str(factura.total_descuento or 0)).quantize(Decimal('0.01'))
+    factura.subtotal_sin_impuestos = subtotal_sin_impuestos.quantize(Decimal('0.01'))
+    factura.subtotal_0 = subtotal_0.quantize(Decimal('0.01'))
+    factura.subtotal_12 = subtotal_12.quantize(Decimal('0.01'))
+    factura.subtotal_15 = subtotal_15.quantize(Decimal('0.01'))
+    factura.iva_12 = iva_12.quantize(Decimal('0.01'))
+    factura.iva_15 = iva_15.quantize(Decimal('0.01'))
+    factura.total = (
+        factura.subtotal_sin_impuestos + factura.iva_12 + factura.iva_15 - total_descuento
+    ).quantize(Decimal('0.01'))
+    factura.save(update_fields=[
+        'subtotal_sin_impuestos',
+        'subtotal_0',
+        'subtotal_12',
+        'subtotal_15',
+        'iva_12',
+        'iva_15',
+        'total',
+    ])
+    return factura
+
+
 def _consultar_autorizacion_inmediata(sri, comprobante, result):
     """
     Intenta una consulta de autorización inmediata (sin sleep).
@@ -252,6 +296,8 @@ def procesar_factura_sri(factura):
         result['success'] = True
         result['mensaje'] = f"Ya autorizada: {comprobante.numero_autorizacion}"
         return result
+
+    recalcular_totales_factura_desde_detalles(factura)
 
     # Si el comprobante fue rechazado o no autorizado, se reinicia el artefacto
     # XML/firma para forzar una regeneración completa en el reproceso.
