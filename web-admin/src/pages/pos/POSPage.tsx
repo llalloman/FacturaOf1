@@ -289,7 +289,7 @@ function CobroModal({
           <button
             onClick={() => imprimirRecibo({
               numero: exito,
-              items: items.map((i) => ({ nombre: i.nombre, cantidad: i.cantidad, precio_unitario: i.precio_unitario, total: i.total })),
+              items: items.map((i) => ({ nombre: i.nombre, cantidad: i.cantidad, precio_unitario: i.precio_unitario_visual, total: i.total })),
               subtotal: getSubtotal(), iva: getIVA(), total: getTotal(), cambio,
               cliente: cliente?.razon_social ?? 'Consumidor Final',
               fecha: new Date().toLocaleString('es-EC'),
@@ -595,7 +595,7 @@ export default function POSPage() {
                   </div>
                   <p className="text-xs font-semibold text-gray-800 line-clamp-2 leading-tight mb-1">{p.nombre}</p>
                   <p className="text-xs text-gray-400 font-mono">{p.codigo_principal}</p>
-                  <p className="text-base font-bold text-blue-600 mt-1">{fmt(p.precio)}</p>
+                  <p className="text-base font-bold text-blue-600 mt-1">{fmt(p.precio_con_iva ?? p.precio)}</p>
                   <p className="text-xs text-gray-400">Stock: {p.stock_actual}</p>
                 </button>
               ))}
@@ -659,7 +659,7 @@ export default function POSPage() {
                     </button>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-400">{fmt(item.precio_unitario)} c/u</p>
+                    <p className="text-xs text-gray-400">{fmt(item.precio_unitario_visual)} c/u</p>
                     <p className="font-bold text-gray-800">{fmt(item.total)}</p>
                   </div>
                 </div>

@@ -9,7 +9,7 @@ Flujo:
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import uuid
 
 
@@ -235,7 +235,7 @@ class DetallePedido(models.Model):
         verbose_name=_('producto'),
     )
     cantidad = models.DecimalField(_('cantidad'), max_digits=10, decimal_places=2)
-    precio_unitario = models.DecimalField(_('precio unitario'), max_digits=12, decimal_places=2)
+    precio_unitario = models.DecimalField(_('precio unitario'), max_digits=12, decimal_places=6)
     subtotal = models.DecimalField(_('subtotal'), max_digits=12, decimal_places=2)
     iva = models.DecimalField(_('IVA'), max_digits=12, decimal_places=2, default=Decimal('0.00'))
     notas = models.CharField(_('notas / modificaciones'), max_length=200, blank=True,
@@ -262,12 +262,12 @@ class DetallePedido(models.Model):
         return f"{self.producto.nombre} x{self.cantidad}"
 
     def save(self, *args, **kwargs):
-        self.subtotal = self.cantidad * self.precio_unitario
+        self.subtotal = (self.cantidad * self.precio_unitario).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         # IVA simple según tarifa del producto
         if self.producto.aplica_iva:
             tarifas = {'0': Decimal('0'), '2': Decimal('12'), '4': Decimal('15')}
             pct = tarifas.get(self.producto.porcentaje_iva, Decimal('0'))
-            self.iva = (self.subtotal * pct / 100).quantize(Decimal('0.01'))
+            self.iva = (self.subtotal * pct / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         else:
             self.iva = Decimal('0.00')
         super().save(*args, **kwargs)

@@ -5,6 +5,7 @@ export interface ProductoPOS {
   codigo_principal: string;
   nombre: string;
   precio: number;
+  precio_con_iva?: number;
   costo: number;
   aplica_iva: boolean;
   porcentaje_iva: string;
@@ -26,6 +27,7 @@ export interface ItemCarrito {
   nombre: string;
   cantidad: number;
   precio_unitario: number;
+  precio_unitario_visual: number;
   descuento: number;
   subtotal: number;
   iva: number;
@@ -43,8 +45,9 @@ const IVA_RATES: Record<string, number> = {
   '0': 0, '2': 0.12, '4': 0.15, '6': 0, '7': 0,
 };
 
+const round2 = (value: number) => Math.round(value * 100) / 100;
 const calcIVA = (subtotal: number, pct: string) =>
-  subtotal * (IVA_RATES[pct] ?? 0.12);
+  round2(subtotal * (IVA_RATES[pct] ?? 0.12));
 
 interface POSState {
   items: ItemCarrito[];
@@ -73,12 +76,12 @@ export const usePOSStore = create<POSState>((set, get) => ({
       const updated = [...items];
       const item = updated[idx];
       const newQty = item.cantidad + cantidad;
-      const sub = newQty * item.precio_unitario;
+      const sub = round2(newQty * item.precio_unitario);
       const iva = p.aplica_iva ? calcIVA(sub, p.porcentaje_iva) : 0;
-      updated[idx] = { ...item, cantidad: newQty, subtotal: sub, iva, total: sub + iva };
+      updated[idx] = { ...item, cantidad: newQty, subtotal: sub, iva, total: round2(sub + iva) };
       set({ items: updated });
     } else {
-      const sub = cantidad * p.precio;
+      const sub = round2(cantidad * p.precio);
       const iva = p.aplica_iva ? calcIVA(sub, p.porcentaje_iva) : 0;
       set({
         items: [
@@ -89,10 +92,11 @@ export const usePOSStore = create<POSState>((set, get) => ({
             nombre: p.nombre,
             cantidad,
             precio_unitario: p.precio,
+            precio_unitario_visual: p.precio_con_iva ?? round2(p.precio * (1 + (IVA_RATES[p.porcentaje_iva] ?? 0))),
             descuento: 0,
             subtotal: sub,
             iva,
-            total: sub + iva,
+            total: round2(sub + iva),
             porcentaje_iva: p.porcentaje_iva,
             aplica_iva: p.aplica_iva,
           },
@@ -106,9 +110,9 @@ export const usePOSStore = create<POSState>((set, get) => ({
     set({
       items: get().items.map((i) => {
         if (i.producto_id !== productoId) return i;
-        const sub = cantidad * i.precio_unitario;
+        const sub = round2(cantidad * i.precio_unitario);
         const iva = i.aplica_iva ? calcIVA(sub, i.porcentaje_iva) : 0;
-        return { ...i, cantidad, subtotal: sub, iva, total: sub + iva };
+        return { ...i, cantidad, subtotal: sub, iva, total: round2(sub + iva) };
       }),
     });
   },

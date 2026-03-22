@@ -10,6 +10,7 @@ export const posService = {
       codigo_principal: p.codigo_principal as string,
       nombre: p.nombre as string,
       precio: parseFloat(p.precio as string),
+      precio_con_iva: p.precio_con_iva ? parseFloat(p.precio_con_iva as string) : undefined,
       costo: parseFloat((p.costo as string) ?? '0'),
       aplica_iva: p.aplica_iva as boolean,
       porcentaje_iva: p.porcentaje_iva as string,
@@ -46,7 +47,7 @@ export const posService = {
       detalles: payload.detalles.map((d) => ({
         producto: d.producto_id,
         cantidad: d.cantidad,
-        precio_unitario: Math.round(d.precio_unitario * 100) / 100,
+        precio_unitario: Math.round(d.precio_unitario * 1_000_000) / 1_000_000,
         descuento: Math.round(d.descuento * 100) / 100,
         subtotal: Math.round(d.subtotal * 100) / 100,
         iva: Math.round(d.iva * 100) / 100,

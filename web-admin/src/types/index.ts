@@ -6,6 +6,7 @@ export interface Producto {
   nombre: string;
   descripcion?: string;
   precio: number;
+  precio_con_iva?: number;
   precio_minimo?: number;
   costo: number;
   aplica_iva: boolean;

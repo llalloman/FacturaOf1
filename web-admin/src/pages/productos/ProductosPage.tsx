@@ -222,8 +222,13 @@ export default function ProductosPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right font-semibold text-gray-900">
-                      ${Number(producto.precio).toFixed(2)}
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <div className="font-semibold text-gray-900">
+                        ${Number(producto.precio_con_iva ?? producto.precio).toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Neto: ${Number(producto.precio).toFixed(4)}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-gray-600">
                       ${Number(producto.costo).toFixed(2)}

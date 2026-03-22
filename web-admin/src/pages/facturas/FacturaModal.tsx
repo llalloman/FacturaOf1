@@ -12,6 +12,7 @@ interface FacturaModalProps {
 }
 
 const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
+  const round2 = (value: number) => Math.round(value * 100) / 100;
   const queryClient = useQueryClient();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -66,12 +67,12 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
     if (!producto || cantidadNum <= 0) return;
 
     const precio_unitario = Number(producto.precio);
-    const subtotal = precio_unitario * cantidadNum;
+    const subtotal = round2(precio_unitario * cantidadNum);
     // porcentaje_iva es el código SRI ('0'=0%, '2'=12%, '4'=15%) – no es el % real
     const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
     const ivaRate = producto.aplica_iva ? (IVA_PCT[producto.porcentaje_iva] ?? 15) : 0;
-    const impuestos = subtotal * (ivaRate / 100);
-    const total = subtotal + impuestos;
+    const impuestos = round2(subtotal * (ivaRate / 100));
+    const total = round2(subtotal + impuestos);
 
     const nuevoDetalle: DetalleFactura = {
       producto: producto.id,
@@ -94,9 +95,9 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
   };
 
   const calcularTotales = () => {
-    const subtotal = detalles.reduce((sum, d) => sum + d.subtotal, 0);
-    const impuestos = detalles.reduce((sum, d) => sum + d.impuestos, 0);
-    const total = subtotal + impuestos - (parseFloat(formData.total_descuento) || 0);
+    const subtotal = round2(detalles.reduce((sum, d) => sum + d.subtotal, 0));
+    const impuestos = round2(detalles.reduce((sum, d) => sum + d.impuestos, 0));
+    const total = round2(subtotal + impuestos - (parseFloat(formData.total_descuento) || 0));
     return { subtotal, impuestos, total };
   };
 
@@ -178,7 +179,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
                   <option value={0}>Seleccione un producto</option>
                   {productosArray.map((producto) => (
                     <option key={producto.id} value={producto.id}>
-                      {producto.nombre} - ${Number(producto.precio).toFixed(2)}
+                      {producto.nombre} - ${Number(producto.precio_con_iva ?? producto.precio).toFixed(2)}
                     </option>
                   ))}
                 </select>

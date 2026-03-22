@@ -105,7 +105,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                 <div className="text-sm font-medium text-gray-800">{p.nombre}</div>
                 <div className="text-xs text-gray-400">{p.codigo_principal} · {p.tipo}</div>
               </div>
-              <div className="text-sm font-semibold text-indigo-600">${Number(p.precio).toFixed(2)}</div>
+              <div className="text-sm font-semibold text-indigo-600">${Number(p.precio_con_iva ?? p.precio).toFixed(2)}</div>
             </button>
           ))}
         </div>
@@ -128,7 +128,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Subtotal</label>
                 <div className="text-lg font-bold text-indigo-600">
-                  ${(Number(seleccionado.precio) * cantidad).toFixed(2)}
+                  ${(Number(seleccionado.precio_con_iva ?? seleccionado.precio) * cantidad).toFixed(2)}
                 </div>
               </div>
             </div>

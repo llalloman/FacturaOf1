@@ -4,7 +4,7 @@ Modelos de Ventas y Punto de Venta (POS)
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.utils import timezone
 import uuid
 
@@ -258,7 +258,7 @@ class DetalleVenta(models.Model):
     )
     
     cantidad = models.DecimalField(_('cantidad'), max_digits=12, decimal_places=2)
-    precio_unitario = models.DecimalField(_('precio unitario'), max_digits=12, decimal_places=2)
+    precio_unitario = models.DecimalField(_('precio unitario'), max_digits=12, decimal_places=6)
     descuento = models.DecimalField(_('descuento'), max_digits=12, decimal_places=2, default=Decimal('0.00'))
     subtotal = models.DecimalField(_('subtotal'), max_digits=12, decimal_places=2)
     iva = models.DecimalField(_('IVA'), max_digits=12, decimal_places=2, default=Decimal('0.00'))

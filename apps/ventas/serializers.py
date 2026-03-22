@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from .models import Caja, AperturaCaja, Venta, DetalleVenta, PagoVenta, MovimientoCaja
 from apps.clientes.serializers import ClienteSerializer
 from apps.productos.serializers import ProductoSerializer
@@ -118,8 +118,8 @@ class VentaSerializer(serializers.ModelSerializer):
         iva_total = Decimal('0')
 
         for d in detalles_data:
-            sub = Decimal(str(d.get('subtotal', Decimal(str(d['cantidad'])) * Decimal(str(d['precio_unitario'])))))
-            iva_d = Decimal(str(d.get('iva', '0')))
+            sub = Decimal(str(d.get('subtotal', Decimal(str(d['cantidad'])) * Decimal(str(d['precio_unitario']))))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            iva_d = Decimal(str(d.get('iva', '0'))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             subtotal += sub
             iva_total += iva_d
             producto = d.get('producto')
@@ -131,12 +131,12 @@ class VentaSerializer(serializers.ModelSerializer):
             else:
                 subtotal_12 += sub
 
-        validated_data['subtotal'] = subtotal
-        validated_data['subtotal_0'] = subtotal_0
-        validated_data['subtotal_12'] = subtotal_12
-        validated_data['subtotal_15'] = subtotal_15
-        validated_data['iva'] = iva_total
-        validated_data['total'] = subtotal + iva_total
+        validated_data['subtotal'] = subtotal.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        validated_data['subtotal_0'] = subtotal_0.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        validated_data['subtotal_12'] = subtotal_12.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        validated_data['subtotal_15'] = subtotal_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        validated_data['iva'] = iva_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        validated_data['total'] = (subtotal + iva_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         validated_data.setdefault('descuento', Decimal('0.00'))
 
         # ── Crear venta ───────────────────────────────────────────────────

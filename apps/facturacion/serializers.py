@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -205,7 +205,7 @@ class FacturaSerializer(serializers.ModelSerializer):
                     pass
 
             cantidad = Decimal(str(item.get('cantidad', 1)))
-            precio_unitario = Decimal(str(item.get('precio_unitario', 0)))
+            precio_unitario = Decimal(str(item.get('precio_unitario', 0))).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
             descuento = Decimal(str(item.get('descuento', 0)))
 
             detalle = DetalleFactura.objects.create(
@@ -232,13 +232,13 @@ class FacturaSerializer(serializers.ModelSerializer):
 
         # ── Actualizar totales ────────────────────────────────────────────────────
         descuento_gral = Decimal(str(factura.total_descuento or '0.00'))
-        factura.subtotal_sin_impuestos = subtotal_total
-        factura.subtotal_0 = subtotal_0
-        factura.subtotal_12 = subtotal_12
-        factura.subtotal_15 = subtotal_15
-        factura.iva_12 = iva_12
-        factura.iva_15 = iva_15
-        factura.total = subtotal_total + iva_total - descuento_gral
+        factura.subtotal_sin_impuestos = subtotal_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        factura.subtotal_0 = subtotal_0.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        factura.subtotal_12 = subtotal_12.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        factura.subtotal_15 = subtotal_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        factura.iva_12 = iva_12.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        factura.iva_15 = iva_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        factura.total = (subtotal_total + iva_total - descuento_gral).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.save(update_fields=[
             'subtotal_sin_impuestos',
             'subtotal_0',

@@ -4,7 +4,7 @@ Modelos de Productos/Servicios
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 
 class Producto(models.Model):
@@ -34,13 +34,13 @@ class Producto(models.Model):
     precio = models.DecimalField(
         _('precio'),
         max_digits=12,
-        decimal_places=2,
+        decimal_places=4,
         validators=[MinValueValidator(Decimal('0.00'))]
     )
     precio_minimo = models.DecimalField(
         _('precio mínimo'),
         max_digits=12,
-        decimal_places=2,
+        decimal_places=4,
         null=True,
         blank=True,
         help_text=_('Precio mínimo de venta')
@@ -115,13 +115,33 @@ class Producto(models.Model):
             '7': Decimal('0.00'),
         }
         return tarifas.get(self.porcentaje_iva, Decimal('0.00'))
-    
+
+    def get_factor_iva(self):
+        return Decimal('1.00') + (self.get_tarifa_iva() / Decimal('100.00'))
+
     def calcular_precio_con_iva(self):
         """Calcula el precio incluyendo IVA"""
         if self.aplica_iva:
-            tarifa = self.get_tarifa_iva()
-            return self.precio * (1 + tarifa / 100)
-        return self.precio
+            return (self.precio * self.get_factor_iva()).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return self.precio.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    @classmethod
+    def calcular_precio_sin_iva_desde_total(cls, precio_total, aplica_iva, porcentaje_iva):
+        precio_total = Decimal(str(precio_total or 0))
+        if not aplica_iva:
+            return precio_total.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+        tarifas = {
+            '0': Decimal('0.00'),
+            '2': Decimal('12.00'),
+            '4': Decimal('15.00'),
+            '6': Decimal('0.00'),
+            '7': Decimal('0.00'),
+        }
+        tarifa = tarifas.get(porcentaje_iva, Decimal('0.00'))
+        factor = Decimal('1.00') + (tarifa / Decimal('100.00'))
+        if factor == Decimal('0.00'):
+            return precio_total.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+        return (precio_total / factor).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
     
     def tiene_stock_disponible(self, cantidad):
         """Verifica si hay stock disponible"""

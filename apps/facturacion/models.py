@@ -4,7 +4,7 @@ Modelos de Facturación Electrónica
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 
 class Secuencial(models.Model):
@@ -320,10 +320,12 @@ class DetalleFactura(models.Model):
         # Calcular precio total sin impuesto
         self.precio_total_sin_impuesto = (
             self.cantidad * self.precio_unitario - self.descuento
-        )
+        ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
         # Calcular valor del impuesto
-        self.valor_impuesto = self.precio_total_sin_impuesto * (self.tarifa / 100)
+        self.valor_impuesto = (
+            self.precio_total_sin_impuesto * (self.tarifa / 100)
+        ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
         super().save(*args, **kwargs)
 

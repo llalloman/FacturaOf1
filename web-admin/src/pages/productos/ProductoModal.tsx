@@ -16,7 +16,9 @@ const makeEmpty = () => ({
   tipo: 'BIEN' as 'BIEN' | 'SERVICIO',
   nombre: '',
   descripcion: '',
+  modo_precio: 'SIN_IVA' as 'SIN_IVA' | 'CON_IVA',
   precio: '',
+  precio_con_iva_input: '',
   costo: '',
   aplica_iva: true,
   porcentaje_iva: '2', // 12%
@@ -29,6 +31,7 @@ const makeEmpty = () => ({
 export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(producto?.imagen ?? null);
+  const precioConIvaInicial = producto?.precio_con_iva ?? 0;
   const [formData, setFormData] = useState(() =>
     producto
       ? {
@@ -37,7 +40,9 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           tipo: (producto.tipo ?? 'BIEN') as 'BIEN' | 'SERVICIO',
           nombre: producto.nombre ?? '',
           descripcion: producto.descripcion ?? '',
+          modo_precio: 'SIN_IVA' as 'SIN_IVA' | 'CON_IVA',
           precio: String(Number(producto.precio) || 0),
+          precio_con_iva_input: String(Number(precioConIvaInicial) || 0),
           costo: String(Number(producto.costo) || 0),
           aplica_iva: producto.aplica_iva ?? true,
           porcentaje_iva: producto.porcentaje_iva ?? '2',
@@ -82,6 +87,7 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
     const parsed = {
       ...formData,
       precio: parseFloat(formData.precio) || 0,
+      precio_con_iva_input: parseFloat(formData.precio_con_iva_input) || 0,
       costo: parseFloat(formData.costo) || 0,
       stock_actual: parseFloat(formData.stock_actual) || 0,
       stock_minimo: parseFloat(formData.stock_minimo) || 0,
@@ -98,6 +104,13 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
 
   const set = (field: string, value: unknown) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+  const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
+  const ivaRate = formData.aplica_iva ? (IVA_PCT[formData.porcentaje_iva] ?? 0) : 0;
+  const precioNeto = parseFloat(formData.precio) || 0;
+  const precioFinal = parseFloat(formData.precio_con_iva_input) || 0;
+  const previewPrecioConIva = ivaRate > 0 ? precioNeto * (1 + ivaRate / 100) : precioNeto;
+  const previewPrecioNeto = ivaRate > 0 ? precioFinal / (1 + ivaRate / 100) : precioFinal;
 
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-blue-900/50 via-blue-900/50 to-sky-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -216,27 +229,58 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           {/* Precio y Costo */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-blue-900 mb-2">Precio de Venta *</label>
-              <input type="number" step="0.01" min="0"
-                value={formData.precio}
-                onChange={(e) => set('precio', e.target.value)}
-                className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required />
-              {(() => {
-                const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
-                const rate = formData.aplica_iva ? (IVA_PCT[formData.porcentaje_iva] ?? 0) : 0;
-                const precioNum = parseFloat(formData.precio) || 0;
-                const conIva = precioNum * (1 + rate / 100);
-                if (precioNum <= 0) return null;
-                return (
-                  <p className="mt-1.5 text-xs text-blue-600 font-semibold">
-                    {rate > 0
-                      ? <>Precio con IVA ({rate}%): <span className="text-blue-800">${conIva.toFixed(4)}</span></>
-                      : <span className="text-gray-400">Sin IVA aplicado</span>}
-                  </p>
-                );
-              })()}
+              <label className="block text-sm font-semibold text-blue-900 mb-2">Modo de precio *</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['SIN_IVA', 'CON_IVA'] as const).map((modo) => (
+                  <button
+                    key={modo}
+                    type="button"
+                    onClick={() => set('modo_precio', modo)}
+                    className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                      formData.modo_precio === modo
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-blue-200 text-blue-700 hover:bg-blue-50'
+                    }`}
+                  >
+                    {modo === 'SIN_IVA' ? 'Ingresar neto' : 'Ingresar final c/IVA'}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Usa "final c/IVA" si quieres respetar exactamente el valor de cartilla.
+              </p>
             </div>
+            <div>
+              <label className="block text-sm font-semibold text-blue-900 mb-2">
+                {formData.modo_precio === 'CON_IVA' ? 'Precio Final con IVA *' : 'Precio Neto sin IVA *'}
+              </label>
+              {formData.modo_precio === 'CON_IVA' ? (
+                <>
+                  <input type="number" step="0.01" min="0"
+                    value={formData.precio_con_iva_input}
+                    onChange={(e) => set('precio_con_iva_input', e.target.value)}
+                    className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required />
+                  <p className="mt-1.5 text-xs text-blue-600 font-semibold">
+                    Neto calculado: <span className="text-blue-800">${previewPrecioNeto.toFixed(4)}</span>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <input type="number" step="0.0001" min="0"
+                    value={formData.precio}
+                    onChange={(e) => set('precio', e.target.value)}
+                    className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required />
+                  <p className="mt-1.5 text-xs text-blue-600 font-semibold">
+                    Precio final estimado: <span className="text-blue-800">${previewPrecioConIva.toFixed(2)}</span>
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-blue-900 mb-2">Costo</label>
               <input type="number" step="0.01" min="0"
