@@ -37,6 +37,11 @@ export const ventasService = {
     return response.data;
   },
 
+  generarFactura: async (id: number) => {
+    const { data } = await apiClient.post(`/ventas/ventas/${id}/generar_factura/`);
+    return data;
+  },
+
   getReporteDiario: async (fecha: string) => {
     const response = await apiClient.get(`/ventas/ventas/reporte_diario/?fecha=${fecha}`);
     return response.data;

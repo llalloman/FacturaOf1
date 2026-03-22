@@ -104,6 +104,7 @@ class FacturaSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         from apps.productos.models import Producto
         from apps.facturacion.models import Secuencial
+        from apps.facturacion.services.factura_service import aplicar_ajuste_centavos_factura
 
         detalles_data = validated_data.pop('detalles_input', [])
         fecha_raw = validated_data.pop('fecha_emision_input', None)
@@ -248,6 +249,12 @@ class FacturaSerializer(serializers.ModelSerializer):
             'iva_15',
             'total',
         ])
+
+        total_objetivo = sum(
+            Decimal(str(item.get('total', 0) or 0))
+            for item in detalles_data
+        ) - descuento_gral
+        aplicar_ajuste_centavos_factura(factura, total_objetivo)
 
         return factura
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ventasService } from '../../services/ventasService';
 import type { Venta } from '../../types';
 import {
@@ -10,18 +10,43 @@ import {
   Calendar,
   CreditCard,
   Eye,
+  ReceiptText,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ExportButtons from '../../components/ui/ExportButtons';
+import { toast } from '../../store/toastStore';
 
 export default function VentasPage() {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVenta, setSelectedVenta] = useState<Venta | null>(null);
 
   const { data: ventas = [], isLoading } = useQuery({
     queryKey: ['ventas'],
     queryFn: ventasService.getAll,
+  });
+
+  const facturarMutation = useMutation({
+    mutationFn: ventasService.generarFactura,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['ventas'] });
+      queryClient.invalidateQueries({ queryKey: ['facturas'] });
+      const sri = data?.sri;
+      if (sri?.success) {
+        toast.success(sri?.mensaje || 'Factura generada y enviada al SRI');
+        return;
+      }
+      if (sri?.mensaje) {
+        toast.error(sri.mensaje);
+        return;
+      }
+      toast.success('Factura generada');
+    },
+    onError: (error: unknown) => {
+      const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg || 'No se pudo generar la factura');
+    },
   });
 
   const ventasArray = Array.isArray(ventas) ? ventas : [];
@@ -152,6 +177,7 @@ export default function VentasPage() {
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Fecha</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Método de Pago</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Documento</th>
                   <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Subtotal</th>
                   <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">IVA</th>
                   <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
@@ -182,6 +208,20 @@ export default function VentasPage() {
                         </span>
                       ))}
                     </td>
+                    <td className="px-6 py-4 text-sm">
+                      {venta.factura_detalle ? (
+                        <div>
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
+                            Factura SRI
+                          </span>
+                          <p className="mt-1 font-mono text-xs text-gray-500">{venta.factura_detalle.numero_factura}</p>
+                        </div>
+                      ) : (
+                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                          Nota de venta / ticket
+                        </span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right text-sm text-gray-700">
                       ${Number(venta.subtotal || 0).toFixed(2)}
                     </td>
@@ -201,6 +241,16 @@ export default function VentasPage() {
                       >
                         <Eye size={18} />
                       </button>
+                      {!venta.factura_detalle && venta.estado === 'COMPLETADA' && (
+                        <button
+                          onClick={() => facturarMutation.mutate(venta.id)}
+                          disabled={facturarMutation.isPending}
+                          className="p-2 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Generar factura desde esta venta"
+                        >
+                          <ReceiptText size={18} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

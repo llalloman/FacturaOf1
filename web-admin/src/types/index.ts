@@ -158,6 +158,8 @@ export interface Venta {
   descuento: number;
   total: number;
   estado: string;
+  genera_factura?: boolean;
+  factura_detalle?: Factura | null;
   detalles?: Array<{
     producto: number;
     cantidad: number;

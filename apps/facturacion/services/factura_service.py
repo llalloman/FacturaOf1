@@ -113,6 +113,51 @@ def recalcular_totales_factura_desde_detalles(factura):
     return factura
 
 
+def _buscar_base_para_total_linea(total_objetivo, tarifa):
+    total_objetivo = Decimal(str(total_objetivo)).quantize(Decimal('0.01'))
+    tarifa = Decimal(str(tarifa or 0)).quantize(Decimal('0.01'))
+    factor = Decimal('1.00') + (tarifa / Decimal('100.00'))
+    base_ideal = (total_objetivo / factor).quantize(Decimal('0.01'))
+    for offset in range(-5, 6):
+        base = (base_ideal + (Decimal(offset) / Decimal('100'))).quantize(Decimal('0.01'))
+        if base < Decimal('0.00'):
+            continue
+        impuesto = (base * tarifa / Decimal('100.00')).quantize(Decimal('0.01'))
+        if (base + impuesto).quantize(Decimal('0.01')) == total_objetivo:
+            return base, impuesto
+    return None, None
+
+
+def aplicar_ajuste_centavos_factura(factura, total_objetivo):
+    total_objetivo = Decimal(str(total_objetivo or 0)).quantize(Decimal('0.01'))
+    recalcular_totales_factura_desde_detalles(factura)
+    diferencia = (total_objetivo - Decimal(str(factura.total or 0))).quantize(Decimal('0.01'))
+    if diferencia == Decimal('0.00') or abs(diferencia) > Decimal('0.02'):
+        return False
+
+    detalles = list(factura.detalles.order_by('id'))
+    if not detalles:
+        return False
+
+    detalle = detalles[-1]
+    total_actual_linea = (Decimal(str(detalle.precio_total_sin_impuesto)) + Decimal(str(detalle.valor_impuesto))).quantize(Decimal('0.01'))
+    total_objetivo_linea = (total_actual_linea + diferencia).quantize(Decimal('0.01'))
+    base_nueva, impuesto_nuevo = _buscar_base_para_total_linea(total_objetivo_linea, detalle.tarifa)
+    if base_nueva is None:
+        return False
+
+    cantidad = Decimal(str(detalle.cantidad or 1))
+    if cantidad <= Decimal('0'):
+        return False
+
+    detalle.precio_total_sin_impuesto = base_nueva
+    detalle.valor_impuesto = impuesto_nuevo
+    detalle.precio_unitario = (base_nueva / cantidad).quantize(Decimal('0.000001'))
+    detalle.save(update_fields=['precio_total_sin_impuesto', 'valor_impuesto', 'precio_unitario'])
+    recalcular_totales_factura_desde_detalles(factura)
+    return True
+
+
 def _consultar_autorizacion_inmediata(sri, comprobante, result):
     """
     Intenta una consulta de autorización inmediata (sin sleep).
@@ -246,6 +291,7 @@ def crear_factura_desde_venta(venta):
     factura.iva_12 = iva_12.quantize(Decimal('0.01'))
     factura.iva_15 = iva_15.quantize(Decimal('0.01'))
     factura.save(update_fields=['iva_12', 'iva_15'])
+    aplicar_ajuste_centavos_factura(factura, venta.total)
 
     # Vincular venta → factura
     venta.factura = factura
@@ -298,6 +344,9 @@ def procesar_factura_sri(factura):
         return result
 
     recalcular_totales_factura_desde_detalles(factura)
+    venta_rel = getattr(factura, 'venta', None)
+    if venta_rel:
+        aplicar_ajuste_centavos_factura(factura, venta_rel.total)
 
     # Si el comprobante fue rechazado o no autorizado, se reinicia el artefacto
     # XML/firma para forzar una regeneración completa en el reproceso.
