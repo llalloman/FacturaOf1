@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.utils import timezone
 from datetime import timedelta, timezone as dt_timezone
 import logging
@@ -23,6 +23,14 @@ User = get_user_model()
 
 def _generate_code():
     return ''.join(secrets.choice(string.digits) for _ in range(6))
+
+
+def _generate_provisional_ruc() -> str:
+    """
+    Genera un RUC provisional de 13 dígitos para empresas en onboarding.
+    Prefijo 9 para distinguirlo de RUC reales y minimizar colisiones.
+    """
+    return f"9{secrets.randbelow(10**12):012d}"
 
 
 def _send_verification_email(email: str, code: str, nombre: str = ''):
@@ -180,45 +188,59 @@ def registro_empresa(request):
     codigo = _generate_code()
     ahora = timezone.now()
 
+    usuario = None
+    last_integrity_error = None
     try:
-        with transaction.atomic():
-            # 1. Crear empresa provisional (sin RUC/certificado — se completa en onboarding)
-            empresa = Empresa.objects.create(
-                ruc='0000000000001',  # placeholder — se actualiza en onboarding
-                razon_social='Por configurar',
-                email=email_admin,
-                telefono=data.get('telefono', '').strip(),
-                direccion_matriz='Sin dirección',
-                ciudad=data.get('ciudad', '').strip(),
-                activa=True,
-                ambiente='1',
-                onboarding_completado=False,
-            )
+        for _ in range(3):
+            try:
+                with transaction.atomic():
+                    # 1. Crear empresa provisional (sin RUC/certificado — se completa en onboarding)
+                    empresa = Empresa.objects.create(
+                        ruc=_generate_provisional_ruc(),
+                        razon_social='Por configurar',
+                        email=email_admin,
+                        telefono=data.get('telefono', '').strip(),
+                        direccion_matriz='Sin dirección',
+                        ciudad=data.get('ciudad', '').strip(),
+                        activa=True,
+                        ambiente='1',
+                        onboarding_completado=False,
+                    )
 
-            # 2. Crear usuario ADMIN_EMPRESA
-            usuario = User.objects.create_user(
-                email=email_admin,
-                password=password,
-                first_name=data['nombre'].strip(),
-                last_name=data['apellido'].strip(),
-                cedula=data.get('cedula', '').strip() or None,
-                telefono=data.get('telefono', '').strip(),
-                rol='ADMIN_EMPRESA',
-                empresa=empresa,
-                email_verificado=False,
-                codigo_verificacion=codigo,
-                codigo_verificacion_expira=ahora + timedelta(minutes=30),
-                intentos_reenvio=0,
-            )
+                    # 2. Crear usuario ADMIN_EMPRESA
+                    usuario = User.objects.create_user(
+                        email=email_admin,
+                        password=password,
+                        first_name=data['nombre'].strip(),
+                        last_name=data['apellido'].strip(),
+                        cedula=data.get('cedula', '').strip() or None,
+                        telefono=data.get('telefono', '').strip(),
+                        rol='ADMIN_EMPRESA',
+                        empresa=empresa,
+                        email_verificado=False,
+                        codigo_verificacion=codigo,
+                        codigo_verificacion_expira=ahora + timedelta(minutes=30),
+                        intentos_reenvio=0,
+                    )
 
-            # 3. Crear suscripción PRUEBA (30 días)
-            Suscripcion.objects.create(
-                empresa=empresa,
-                plan=plan,
-                estado='PRUEBA',
-                fecha_inicio=ahora,
-                fecha_fin=ahora + timedelta(days=30),
-                auto_renovar=False,
+                    # 3. Crear suscripción PRUEBA (30 días)
+                    Suscripcion.objects.create(
+                        empresa=empresa,
+                        plan=plan,
+                        estado='PRUEBA',
+                        fecha_inicio=ahora,
+                        fecha_fin=ahora + timedelta(days=30),
+                        auto_renovar=False,
+                    )
+                break
+            except IntegrityError as exc:
+                last_integrity_error = exc
+                usuario = None
+
+        if usuario is None and last_integrity_error is not None:
+            return Response(
+                {'error': 'No se pudo completar el registro. Intenta nuevamente.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
     except Exception as exc:
         return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
