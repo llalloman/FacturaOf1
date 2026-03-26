@@ -150,6 +150,11 @@ class VentaSerializer(serializers.ModelSerializer):
 
         # ── Auto-generar factura electrónica si se solicitó ───────────────
         if venta.genera_factura:
+            # Validar readiness fiscal (onboarding)
+            empresa = venta.empresa
+            if not getattr(empresa, 'onboarding_completado', False):
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({'empresa': 'Debes completar la configuración fiscal de tu empresa para emitir facturas electrónicas.'})
             try:
                 from apps.facturacion.services.factura_service import (
                     crear_factura_desde_venta, procesar_factura_sri,

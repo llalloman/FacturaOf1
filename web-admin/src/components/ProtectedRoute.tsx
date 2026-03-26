@@ -12,14 +12,16 @@ interface ProtectedRouteProps {
  * Guard de ruta para el área protegida del sistema.
  *
  * Orden de verificación (no autenticado → verificación email → contraseña →
- * suscripción → onboarding → roles):
+ * suscripción → roles):
  *  1. Sin sesión               → /login
  *  2. Email no verificado      → /verificar-email
  *  3. Cambio de contraseña     → /cambiar-password
  *  4. Cargando suscripción     → spinner (evita flash de redirect)
  *  5. Sin suscripción activa   → /bienvenida
- *  6. Onboarding no completado → /onboarding
- *  7. Rol no permitido         → /
+ *  6. Rol no permitido         → /
+ *
+ * Nota: el onboarding ya NO es un bloqueo global. La configuración fiscal
+ * se valida contextualmente solo al generar documentos electrónicos.
  */
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { isAuthenticated, user } = useAuthStore();
@@ -53,18 +55,13 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   }
 
   // ── 5. Suscripción activa (SUPER_ADMIN exento) ────────────────────────────
-  // Solo bloquea cuando onboarding ya fue completado y la suscripción expiró o fue cancelada.
-  // Usuarios nuevos sin onboarding pueden acceder a /onboarding sin suscripción.
-  if (!esSuperAdmin && user?.onboarding_completado && (!tieneAcceso || estaVencida)) {
+  // Bloquea cuando no hay suscripción activa, independientemente del onboarding.
+  // El onboarding ya no es un requisito global; la validación fiscal es contextual.
+  if (!esSuperAdmin && (!tieneAcceso || estaVencida)) {
     return <Navigate to="/bienvenida" replace />;
   }
 
-  // ── 6. Onboarding completado (SUPER_ADMIN exento) ─────────────────────────
-  if (!esSuperAdmin && !user?.onboarding_completado) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  // ── 7. Roles permitidos ───────────────────────────────────────────────────
+  // ── 6. Roles permitidos ───────────────────────────────────────────────────
   if (allowedRoles && user?.rol && !allowedRoles.includes(user.rol)) {
     return <Navigate to="/" replace />;
   }

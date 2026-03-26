@@ -7,6 +7,7 @@ import type { Cotizacion, ItemCotizacion, CotizacionCreateData } from '../../ser
 import { clientesService } from '../../services/clientesService';
 import type { Cliente } from '../../types';
 import { toast } from '../../store/toastStore';
+import FiscalReadinessBanner from '../../components/FiscalReadinessBanner';
 
 const fmtCurrency = (v: number) =>
   new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(v);
@@ -384,6 +385,7 @@ const CotizacionesPage: React.FC = () => {
 
   return (
     <div className="p-6">
+      <FiscalReadinessBanner />
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">

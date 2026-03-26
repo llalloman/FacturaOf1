@@ -7,6 +7,7 @@ import ExportButtons from '../../components/ui/ExportButtons';
 import FacturaModal from './FacturaModal';
 import { toast } from '../../store/toastStore';
 import { confirmDialog, promptDialog } from '../../store/confirmStore';
+import FiscalReadinessBanner from '../../components/FiscalReadinessBanner';
 
 const FacturasPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -208,6 +209,7 @@ const FacturasPage: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
+      <FiscalReadinessBanner />
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-slate-600 bg-clip-text text-transparent">

@@ -96,12 +96,8 @@ class TenantMiddleware(MiddlewareMixin):
                 'mensaje': 'Debes verificar tu email antes de continuar.',
             }, status=403)
 
-        # ── Validar onboarding completado ─────────────────────────────────────
-        if empresa and not empresa.onboarding_completado:
-            return JsonResponse({
-                'error': 'onboarding_incompleto',
-                'mensaje': 'Debes completar la configuración de tu empresa.',
-            }, status=403)
+        # Validación de onboarding fiscal eliminada del middleware global.
+        # Ahora la validación de readiness fiscal debe hacerse solo en endpoints de facturación.
 
         return None
 

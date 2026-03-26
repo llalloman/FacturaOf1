@@ -204,9 +204,18 @@ class Pedido(models.Model):
     def recalcular_totales(self):
         """Recalcula subtotal, IVA y total a partir de los detalles activos."""
         detalles = self.detalles.exclude(estado='CANCELADO')
-        self.subtotal = sum(d.subtotal for d in detalles)
-        self.iva = sum(d.iva for d in detalles)
-        self.total = self.subtotal + self.iva
+        self.subtotal = sum((d.subtotal for d in detalles), Decimal('0.00')).quantize(
+            Decimal('0.01'),
+            rounding=ROUND_HALF_UP,
+        )
+        self.iva = sum((d.iva for d in detalles), Decimal('0.00')).quantize(
+            Decimal('0.01'),
+            rounding=ROUND_HALF_UP,
+        )
+        self.total = (self.subtotal + self.iva).quantize(
+            Decimal('0.01'),
+            rounding=ROUND_HALF_UP,
+        )
         self.save(update_fields=['subtotal', 'iva', 'total'])
 
 
@@ -262,12 +271,15 @@ class DetallePedido(models.Model):
         return f"{self.producto.nombre} x{self.cantidad}"
 
     def save(self, *args, **kwargs):
-        self.subtotal = (self.cantidad * self.precio_unitario).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        # Mantener base sin redondear para evitar arrastre de +0.01 al calcular IVA.
+        base = self.cantidad * self.precio_unitario
+        self.subtotal = base.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
         # IVA simple según tarifa del producto
         if self.producto.aplica_iva:
             tarifas = {'0': Decimal('0'), '2': Decimal('12'), '4': Decimal('15')}
             pct = tarifas.get(self.producto.porcentaje_iva, Decimal('0'))
-            self.iva = (self.subtotal * pct / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            self.iva = (base * pct / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         else:
             self.iva = Decimal('0.00')
         super().save(*args, **kwargs)

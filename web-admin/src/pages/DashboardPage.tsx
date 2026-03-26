@@ -161,6 +161,7 @@ function DashboardSuperAdminView({ data }: { data: DashboardSuperAdmin }) {
 }
 
 function DashboardTenantView({ data }: { data: DashboardTenant }) {
+  const { user } = useAuthStore();
   const estadoFacturas = Object.entries(data.facturas_por_estado)
     .map(([name, value]) => ({ name, value }))
     .filter((item) => item.value > 0);
@@ -244,6 +245,23 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
 
   return (
     <div className="space-y-8">
+      {/* Aviso de configuración fiscal pendiente */}
+      {!user?.onboarding_completado && (
+        <Link
+          to="/onboarding"
+          className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 shadow-sm hover:bg-amber-100 transition-colors"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-500" />
+          <div>
+            <p className="font-semibold text-amber-900">Configura tu empresa para emitir documentos electrónicos</p>
+            <p className="mt-0.5 text-sm text-amber-700">
+              Ingresa tus datos fiscales, firma electrónica y ambiente SRI. Sin esto, no podrás generar
+              facturas ni retenciones autorizadas. Haz clic para completar la configuración.
+            </p>
+          </div>
+        </Link>
+      )}
+
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-950">Panel operativo</h1>

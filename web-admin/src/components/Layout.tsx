@@ -365,6 +365,24 @@ export default function Layout() {
           )}
         </nav>
 
+        {/* Aviso fiscal — solo cuando onboarding incompleto y no es SUPER_ADMIN */}
+        {user?.rol !== 'SUPER_ADMIN' && !user?.onboarding_completado && (
+          <div className="px-3 pb-2">
+            <Link
+              to="/onboarding"
+              className={`flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-amber-300 hover:bg-amber-500/20 transition-colors ${!sidebarOpen && 'justify-center'}`}
+              title="Completar configuración fiscal"
+            >
+              <AlertTriangle size={16} className="flex-shrink-0" />
+              {sidebarOpen && (
+                <span className="text-xs font-medium leading-tight">
+                  Configuración fiscal pendiente
+                </span>
+              )}
+            </Link>
+          </div>
+        )}
+
         {/* User Section */}
         <div className="p-4 border-t border-gray-700">
           <div className={`flex items-center gap-3 p-4 rounded-xl bg-gray-800 mb-3 ${!sidebarOpen && 'justify-center'}`}>

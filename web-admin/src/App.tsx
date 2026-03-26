@@ -86,7 +86,6 @@ function AppRoutes() {
     // Mientras cargamos la suscripción, mandamos a /bienvenida (página segura)
     if (cargandoSuscripcion) return '/bienvenida';
     if (!tieneAcceso) return '/bienvenida';
-    if (!user?.onboarding_completado) return '/onboarding';
     return '/';
   };
 
@@ -143,8 +142,8 @@ function AppRoutes() {
                 <Navigate to="/cambiar-password" replace />
               ) : cargandoSuscripcion ? (
                 <AppLoader />
-              ) : tieneAcceso && user?.onboarding_completado ? (
-                // Totalmente configurado → ir al dashboard
+              ) : tieneAcceso ? (
+                // Con suscripción activa → ir al dashboard
                 <Navigate to="/" replace />
               ) : (
                 // Sin suscripción O sin onboarding → mostrar planes

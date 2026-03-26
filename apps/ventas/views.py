@@ -282,6 +282,13 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
         )
 
         venta = self.get_object()
+        # Validar readiness fiscal (onboarding)
+        empresa = venta.empresa
+        if not getattr(empresa, 'onboarding_completado', False):
+            return Response(
+                {'error': 'Debes completar la configuración fiscal de tu empresa para emitir facturas electrónicas.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if venta.factura_id:
             return Response(
                 {'error': 'Esta venta ya tiene una factura electrónica vinculada.'},

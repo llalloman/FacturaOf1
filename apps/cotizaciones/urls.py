@@ -84,6 +84,13 @@ class CotizacionViewSet(viewsets.ModelViewSet):
         La creación de la factura real se hace desde el frontend (pre-llenado).
         Retorna los datos de la cotización para pre-llenar el form de facturación.
         """
+        empresa = request.user.empresa
+        if not getattr(empresa, 'onboarding_completado', False):
+            return Response(
+                {'error': 'Debes completar la configuración fiscal de la empresa antes de convertir cotizaciones a facturas.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         cotizacion = self.get_object()
         if cotizacion.estado not in ('ACEPTADA', 'ENVIADA', 'BORRADOR'):
             return Response(

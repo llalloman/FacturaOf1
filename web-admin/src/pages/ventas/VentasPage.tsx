@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ExportButtons from '../../components/ui/ExportButtons';
 import { toast } from '../../store/toastStore';
+import FiscalReadinessBanner from '../../components/FiscalReadinessBanner';
 
 export default function VentasPage() {
   const queryClient = useQueryClient();
@@ -85,6 +86,7 @@ export default function VentasPage() {
 
   return (
     <div className="p-6 space-y-6">
+      <FiscalReadinessBanner />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

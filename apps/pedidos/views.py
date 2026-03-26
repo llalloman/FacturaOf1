@@ -94,6 +94,35 @@ class PedidoViewSet(viewsets.ModelViewSet):
             qs = qs.exclude(estado__in=['PAGADO', 'CANCELADO'])
         return qs
 
+    def _recalcular_pedido_activo(self, pedido):
+        """Normaliza totales de pedidos abiertos para evitar arrastre de centavos."""
+        if pedido.estado in ('PAGADO', 'CANCELADO'):
+            return pedido
+        for detalle in pedido.detalles.exclude(estado='CANCELADO'):
+            detalle.save()
+        pedido.recalcular_totales()
+        pedido.refresh_from_db(fields=['subtotal', 'iva', 'total'])
+        return pedido
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        for pedido in queryset:
+            self._recalcular_pedido_activo(pedido)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        pedido = self.get_object()
+        self._recalcular_pedido_activo(pedido)
+        serializer = self.get_serializer(pedido)
+        return Response(serializer.data)
+
     @transaction.atomic
     def perform_create(self, serializer):
         serializer.save()
@@ -175,6 +204,13 @@ class PedidoViewSet(viewsets.ModelViewSet):
         if pedido.estado == 'CANCELADO':
             return Response({'error': 'El pedido está cancelado.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Recalcular detalles activos con la lógica actual antes de cobrar.
+        # Esto corrige ítems históricos que pudieron quedar con un centavo de arrastre.
+        for detalle in pedido.detalles.exclude(estado='CANCELADO'):
+            detalle.save()
+        pedido.recalcular_totales()
+        pedido.refresh_from_db(fields=['subtotal', 'iva', 'total'])
+
         pagos_data = request.data.get('pagos', [])
         genera_factura = request.data.get('genera_factura', False)
         cliente_id = request.data.get('cliente_id') or (pedido.cliente_id)
@@ -197,6 +233,10 @@ class PedidoViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Cliente no encontrado.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if genera_factura:
+            # Validar readiness fiscal (onboarding)
+            empresa = pedido.empresa
+            if not getattr(empresa, 'onboarding_completado', False):
+                return Response({'error': 'Debes completar la configuración fiscal de tu empresa para emitir facturas electrónicas.'}, status=status.HTTP_400_BAD_REQUEST)
             from apps.facturacion.services.factura_service import (
                 MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE,
                 cliente_consumidor_final_supera_limite,
