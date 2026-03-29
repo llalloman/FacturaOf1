@@ -1,11 +1,35 @@
 import apiClient from './apiClient';
 import type { Factura } from '../types';
 
+const fetchAllFacturasPages = async () => {
+  const all: Factura[] = [];
+  let page = 1;
+
+  while (true) {
+    const response = await apiClient.get('/facturacion/facturas/', {
+      params: { page },
+    });
+    const data = response.data as Factura[] | { results?: Factura[]; next?: string | null };
+
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    all.push(...(data.results ?? []));
+
+    if (!data.next) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return all;
+};
+
 export const facturasService = {
   getAll: async () => {
-    const response = await apiClient.get('/facturacion/facturas/');
-    const data = response.data as Factura[] | { results: Factura[] };
-    return (Array.isArray(data) ? data : (data.results ?? [])) as Factura[];
+    return fetchAllFacturasPages();
   },
 
   getById: async (id: number) => {

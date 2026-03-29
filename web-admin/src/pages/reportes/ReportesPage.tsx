@@ -82,8 +82,8 @@ export default function ReportesPage() {
   const [tab, setTab] = useState<TabKey>('ventas');
 
   const { data: ventas = [], isLoading: loadingVentas } = useQuery({
-    queryKey: ['reportes', 'ventas'],
-    queryFn: ventasService.getAll,
+    queryKey: ['reportes', 'ventas', dateFrom, dateTo],
+    queryFn: () => ventasService.getAll({ fecha_desde: dateFrom, fecha_hasta: dateTo }),
     staleTime: 60_000,
   });
   const { data: facturas = [], isLoading: loadingFacturas } = useQuery({
@@ -102,12 +102,21 @@ export default function ReportesPage() {
     staleTime: 60_000,
   });
 
-  const ventasFiltradas = useMemo(() => {
-    return (ventas as Venta[]).filter((venta) => {
-      const fecha = parseDateOnly(venta.fecha_venta);
-      return fecha >= dateFrom && fecha <= dateTo;
-    });
-  }, [ventas, dateFrom, dateTo]);
+  const ventasCerradas = useMemo(
+    () =>
+      (ventas as Venta[]).filter(
+        (venta) => venta.estado === 'COMPLETADA' && venta.factura_detalle?.estado !== 'ANULADO',
+      ),
+    [ventas],
+  );
+
+  const ventasAnuladas = useMemo(
+    () =>
+      (ventas as Venta[]).filter(
+        (venta) => venta.estado === 'ANULADA' || venta.factura_detalle?.estado === 'ANULADO',
+      ),
+    [ventas],
+  );
 
   const facturasFiltradas = useMemo(() => {
     return (facturas as Factura[]).filter((factura) => {
@@ -118,7 +127,7 @@ export default function ReportesPage() {
 
   const ventasPorDia = useMemo(() => {
     const map = new Map<string, { total: number; cantidad: number }>();
-    for (const venta of ventasFiltradas) {
+    for (const venta of ventasCerradas) {
       const fecha = parseDateOnly(venta.fecha_venta);
       const current = map.get(fecha) || { total: 0, cantidad: 0 };
       current.total += Number(venta.total || 0);
@@ -132,11 +141,11 @@ export default function ReportesPage() {
         total: Number(values.total.toFixed(2)),
         cantidad: values.cantidad,
       }));
-  }, [ventasFiltradas]);
+  }, [ventasCerradas]);
 
   const ventasPorMetodo = useMemo(() => {
     const map = new Map<string, number>();
-    for (const venta of ventasFiltradas) {
+    for (const venta of ventasCerradas) {
       if (venta.pagos && venta.pagos.length > 0) {
         for (const pago of venta.pagos) {
           const metodo = pago.forma_pago || 'OTRO';
@@ -150,11 +159,11 @@ export default function ReportesPage() {
       name: metodoPagoLabel[name] || name,
       value: Number(value.toFixed(2)),
     }));
-  }, [ventasFiltradas]);
+  }, [ventasCerradas]);
 
   const topClientes = useMemo(() => {
     const map = new Map<string, { cliente: string; total: number; cantidad: number }>();
-    for (const venta of ventasFiltradas) {
+    for (const venta of ventasCerradas) {
       const key = venta.cliente_detalle?.identificacion || `cliente-${venta.cliente}`;
       const current = map.get(key) || {
         cliente: venta.cliente_detalle?.razon_social || 'Cliente no identificado',
@@ -166,7 +175,7 @@ export default function ReportesPage() {
       map.set(key, current);
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total).slice(0, 8);
-  }, [ventasFiltradas]);
+  }, [ventasCerradas]);
 
   const sriPorEstado = useMemo(() => {
     const map = new Map<string, number>();
@@ -188,14 +197,15 @@ export default function ReportesPage() {
     return Array.from(map.values()).sort((a, b) => b.total - a.total).slice(0, 8);
   }, [facturasFiltradas]);
 
-  const ventasTotal = ventasFiltradas.reduce((sum, item) => sum + Number(item.total || 0), 0);
-  const promedioVenta = ventasFiltradas.length ? ventasTotal / ventasFiltradas.length : 0;
+  const ventasTotal = ventasCerradas.reduce((sum, item) => sum + Number(item.total || 0), 0);
+  const promedioVenta = ventasCerradas.length ? ventasTotal / ventasCerradas.length : 0;
+  const ventasAnuladasTotal = ventasAnuladas.reduce((sum, item) => sum + Number(item.total || 0), 0);
   const facturasAutorizadas = facturasFiltradas.filter((item) => item.estado === 'AUTORIZADO').length;
   const facturasPendientesSRI = facturasFiltradas.filter((item) => item.estado === 'ENVIADO').length;
   const facturasConError = facturasFiltradas.filter((item) => ['RECHAZADO', 'NO_AUTORIZADO'].includes(item.estado)).length;
 
   const exportarExcel = () => {
-    const ventasSheet = ventasFiltradas.map((venta) => ({
+    const ventasSheet = ventasCerradas.map((venta) => ({
       Fecha: parseDateOnly(venta.fecha_venta),
       Venta: venta.numero_venta,
       Cliente: venta.cliente_detalle?.razon_social || 'Consumidor Final',
@@ -223,7 +233,7 @@ export default function ReportesPage() {
     );
     exportToExcelMultiSheet(
       [
-        { name: 'Ventas', data: ventasSheet as Record<string, unknown>[] },
+        { name: 'Ventas Cerradas', data: ventasSheet as Record<string, unknown>[] },
         { name: 'Facturas SRI', data: facturasSheet as Record<string, unknown>[] },
         { name: 'Cartera', data: carteraSheet as Record<string, unknown>[] },
       ],
@@ -283,8 +293,9 @@ export default function ReportesPage() {
           {tab === 'ventas' && (
             <>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Card label="Ventas del período" value={money(ventasTotal)} helper={`${ventasFiltradas.length} ventas`} />
+                <Card label="Ventas cerradas" value={money(ventasTotal)} helper={`${ventasCerradas.length} ventas`} />
                 <Card label="Promedio por venta" value={money(promedioVenta)} helper="Ticket medio real del rango filtrado" />
+                <Card label="Ventas anuladas" value={money(ventasAnuladasTotal)} helper={`${ventasAnuladas.length} ventas anuladas/canceladas`} />
                 <Card label="Métodos activos" value={String(ventasPorMetodo.length)} helper="Formas de pago registradas" />
                 <Card label="Top cliente" value={topClientes[0]?.cliente || 'Sin datos'} helper={topClientes[0] ? money(topClientes[0].total) : undefined} />
               </div>

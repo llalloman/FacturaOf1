@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import type { Venta } from '../types';
+import type { CoherenciaFacturacionResponse, Venta } from '../types';
 
 export interface ProyeccionDia {
   fecha: string;
@@ -26,10 +26,33 @@ export interface ProyeccionesData {
   dias_historial: number;
 }
 
+type VentaQueryParams = Record<string, string | number | boolean | undefined | null>;
+
+const fetchAllVentasPages = async (url: string, params?: VentaQueryParams): Promise<Venta[]> => {
+  const all: Venta[] = [];
+  let page = 1;
+
+  while (true) {
+    const { data } = await apiClient.get(url, { params: { ...params, page } });
+    if (Array.isArray(data)) {
+      return data as Venta[];
+    }
+
+    const chunk = (data?.results ?? []) as Venta[];
+    all.push(...chunk);
+
+    if (!data?.next) {
+      break;
+    }
+    page += 1;
+  }
+
+  return all;
+};
+
 export const ventasService = {
-  getAll: async () => {
-    const { data } = await apiClient.get('/ventas/ventas/');
-    return Array.isArray(data) ? data : (data.results ?? []) as Venta[];
+  getAll: async (params?: VentaQueryParams) => {
+    return fetchAllVentasPages('/ventas/ventas/', params);
   },
 
   getById: async (id: number) => {
@@ -37,8 +60,33 @@ export const ventasService = {
     return response.data;
   },
 
-  generarFactura: async (id: number) => {
-    const { data } = await apiClient.post(`/ventas/ventas/${id}/generar_factura/`);
+  generarFactura: async ({ id, cliente_id }: { id: number; cliente_id?: number }) => {
+    const body = cliente_id ? { cliente_id } : {};
+    const { data } = await apiClient.post(`/ventas/ventas/${id}/generar_factura/`, body);
+    return data;
+  },
+
+  getNotasVenta: async (params?: VentaQueryParams) => {
+    return fetchAllVentasPages('/ventas/ventas/notas-venta/', params);
+  },
+
+  getNotaVentaById: async (id: number) => {
+    const { data } = await apiClient.get(`/ventas/ventas/${id}/nota-venta/`);
+    return data;
+  },
+
+  getCoherenciaFacturacion: async (params?: { solo_inconsistentes?: boolean; tolerancia?: number }) => {
+    const { data } = await apiClient.get<CoherenciaFacturacionResponse>('/ventas/ventas/coherencia-facturacion/', { params });
+    return data;
+  },
+
+  reconciliarFacturaVenta: async (id: number) => {
+    const { data } = await apiClient.post(`/ventas/ventas/${id}/reconciliar-factura/`);
+    return data;
+  },
+
+  reconciliarInconsistencias: async () => {
+    const { data } = await apiClient.post('/ventas/ventas/reconciliar-inconsistencias/');
     return data;
   },
 

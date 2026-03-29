@@ -3,6 +3,7 @@ Generación del RIDE (Representación Impresa del Documento Electrónico)
 según el formato estándar del SRI Ecuador.
 """
 from io import BytesIO
+from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -54,7 +55,10 @@ def generar_ride_pdf(factura) -> bytes:
 
     num_doc  = comp.numero_comprobante
     num_aut  = comp.numero_autorizacion or '(pendiente)'
-    fecha_aut = comp.fecha_autorizacion.strftime('%d/%m/%Y %H:%M:%S') if comp.fecha_autorizacion else ''
+    fecha_aut = (
+        timezone.localtime(comp.fecha_autorizacion).strftime('%d/%m/%Y %H:%M:%S')
+        if comp.fecha_autorizacion else ''
+    )
     clave_acc = comp.clave_acceso or ''
     ambiente_txt = 'PRODUCCIÓN' if comp.empresa.ambiente == '2' else 'PRUEBAS'
 
@@ -145,7 +149,7 @@ def generar_ride_pdf(factura) -> bytes:
 
     # ── DATOS DEL COMPRADOR ───────────────────────────────────────────────────
     story.append(Spacer(1, 4 * mm))
-    fecha_emision = comp.fecha_emision.strftime('%d/%m/%Y')
+    fecha_emision = timezone.localtime(comp.fecha_emision).strftime('%d/%m/%Y')
     buyer_data = [
         [Paragraph('<b>Razón Social / Nombres:</b>', bold_sm),
          Paragraph(cliente.razon_social, small),

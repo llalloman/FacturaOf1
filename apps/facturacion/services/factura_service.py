@@ -18,6 +18,11 @@ MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE = (
     'pasaporte o identificacion del exterior.'
 )
 
+MENSAJE_FACTURA_PENDIENTE_REDONDEO = (
+    'Factura pendiente: no se pudo construir un comprobante fiscal exacto con el total cobrado. '
+    'Revise precios, descuentos o composición de ítems antes de enviar al SRI.'
+)
+
 
 def cliente_es_consumidor_final(cliente):
     if not cliente:
@@ -48,6 +53,18 @@ def _crear_notificacion(empresa, tipo, titulo, mensaje, url=''):
         )
     except Exception as e:
         logger.warning("No se pudo crear notificación para empresa %s: %s", empresa.id, e)
+
+
+def _marcar_factura_pendiente_redondeo(factura, total_venta, total_factura):
+    comprobante = factura.comprobante
+    mensaje = (
+        f"{MENSAJE_FACTURA_PENDIENTE_REDONDEO} "
+        f"Total cobrado: {total_venta}. Total fiscal calculado: {total_factura}."
+    )
+    comprobante.estado = comprobante.EstadoChoices.BORRADOR
+    comprobante.mensajes_sri = mensaje
+    comprobante.save(update_fields=['estado', 'mensajes_sri'])
+    return mensaje
 
 # Mapeo FormaPago POS → código SRI
 FORMA_PAGO_MAP = {
@@ -143,35 +160,100 @@ def _buscar_base_para_total_linea(total_objetivo, tarifa):
     return None, None
 
 
+def _recalcular_detalle_legal(detalle, base_nueva):
+    base_nueva = Decimal(str(base_nueva)).quantize(Decimal('0.01'))
+    if base_nueva < Decimal('0.00'):
+        return False
+
+    cantidad = Decimal(str(detalle.cantidad or 0))
+    if cantidad <= Decimal('0'):
+        return False
+
+    tarifa = Decimal(str(detalle.tarifa or 0)).quantize(Decimal('0.01'))
+    impuesto_nuevo = (base_nueva * tarifa / Decimal('100.00')).quantize(Decimal('0.01'))
+    precio_unitario_nuevo = (base_nueva / cantidad).quantize(Decimal('0.000001'))
+
+    detalle.precio_total_sin_impuesto = base_nueva
+    detalle.valor_impuesto = impuesto_nuevo
+    detalle.precio_unitario = precio_unitario_nuevo
+    detalle.save(update_fields=['precio_total_sin_impuesto', 'valor_impuesto', 'precio_unitario'])
+    return True
+
+
 def aplicar_ajuste_centavos_factura(factura, total_objetivo):
     total_objetivo = Decimal(str(total_objetivo or 0)).quantize(Decimal('0.01'))
     recalcular_totales_factura_desde_detalles(factura)
-    diferencia = (total_objetivo - Decimal(str(factura.total or 0))).quantize(Decimal('0.01'))
-    if diferencia == Decimal('0.00') or abs(diferencia) > Decimal('0.02'):
-        return False
-
     detalles = list(factura.detalles.order_by('id'))
     if not detalles:
         return False
 
+    diferencia = (total_objetivo - Decimal(str(factura.total or 0))).quantize(Decimal('0.01'))
+    if diferencia == Decimal('0.00'):
+        return True
+
+    # Cada línea puede absorber legalmente entre 0 y 2 centavos al variar la base en 0.01,
+    # según el salto de redondeo del impuesto. Con varias líneas, el margen combinable crece.
+    max_diferencia_ajustable = Decimal('0.02') * Decimal(len(detalles))
+    if abs(diferencia) > max_diferencia_ajustable:
+        return False
+
+    # Intento 1: resolver con una sola línea (rápido y exacto cuando existe solución)
     detalle = detalles[-1]
     total_actual_linea = (Decimal(str(detalle.precio_total_sin_impuesto)) + Decimal(str(detalle.valor_impuesto))).quantize(Decimal('0.01'))
     total_objetivo_linea = (total_actual_linea + diferencia).quantize(Decimal('0.01'))
-    base_nueva, impuesto_nuevo = _buscar_base_para_total_linea(total_objetivo_linea, detalle.tarifa)
-    if base_nueva is None:
-        return False
+    base_nueva, _impuesto_nuevo = _buscar_base_para_total_linea(total_objetivo_linea, detalle.tarifa)
+    if base_nueva is not None and _recalcular_detalle_legal(detalle, base_nueva):
+        normalizar_precios_unitarios_factura(factura)
+        recalcular_totales_factura_desde_detalles(factura)
+        return Decimal(str(factura.total or 0)).quantize(Decimal('0.01')) == total_objetivo
 
-    cantidad = Decimal(str(detalle.cantidad or 1))
-    if cantidad <= Decimal('0'):
-        return False
+    # Intento 2: distribuir centavos entre varias líneas de forma legal.
+    # Cada paso modifica base en +/- 0.01 y recalcula impuesto por fórmula.
+    max_iter = 40
+    for _ in range(max_iter):
+        recalcular_totales_factura_desde_detalles(factura)
+        restante = (total_objetivo - Decimal(str(factura.total or 0))).quantize(Decimal('0.01'))
+        if restante == Decimal('0.00'):
+            normalizar_precios_unitarios_factura(factura)
+            recalcular_totales_factura_desde_detalles(factura)
+            return True
 
-    detalle.precio_total_sin_impuesto = base_nueva
-    detalle.valor_impuesto = impuesto_nuevo
-    detalle.precio_unitario = (base_nueva / cantidad).quantize(Decimal('0.000001'))
-    detalle.save(update_fields=['precio_total_sin_impuesto', 'valor_impuesto', 'precio_unitario'])
-    normalizar_precios_unitarios_factura(factura)
+        paso_base = Decimal('0.01') if restante > 0 else Decimal('-0.01')
+        mejor = None
+
+        # Buscar la línea cuyo movimiento legal acerque más al objetivo.
+        for det in detalles:
+            base_actual = Decimal(str(det.precio_total_sin_impuesto or 0)).quantize(Decimal('0.01'))
+            base_candidata = (base_actual + paso_base).quantize(Decimal('0.01'))
+            if base_candidata < Decimal('0.00'):
+                continue
+
+            impuesto_actual = Decimal(str(det.valor_impuesto or 0)).quantize(Decimal('0.01'))
+            tarifa = Decimal(str(det.tarifa or 0)).quantize(Decimal('0.01'))
+            impuesto_candidato = (base_candidata * tarifa / Decimal('100.00')).quantize(Decimal('0.01'))
+            delta_linea = ((base_candidata + impuesto_candidato) - (base_actual + impuesto_actual)).quantize(Decimal('0.01'))
+
+            if delta_linea == Decimal('0.00'):
+                continue
+
+            nuevo_restante = (restante - delta_linea).quantize(Decimal('0.01'))
+            score = abs(nuevo_restante)
+            if mejor is None or score < mejor['score']:
+                mejor = {
+                    'det': det,
+                    'base_candidata': base_candidata,
+                    'score': score,
+                    'nuevo_restante': nuevo_restante,
+                }
+
+        if not mejor:
+            break
+
+        if not _recalcular_detalle_legal(mejor['det'], mejor['base_candidata']):
+            break
+
     recalcular_totales_factura_desde_detalles(factura)
-    return True
+    return Decimal(str(factura.total or 0)).quantize(Decimal('0.01')) == total_objetivo
 
 
 def _consultar_autorizacion_inmediata(sri, comprobante, result):
@@ -309,6 +391,11 @@ def crear_factura_desde_venta(venta):
     factura.save(update_fields=['iva_12', 'iva_15'])
     aplicar_ajuste_centavos_factura(factura, venta.total)
     normalizar_precios_unitarios_factura(factura)
+    recalcular_totales_factura_desde_detalles(factura)
+    total_venta = Decimal(str(venta.total or 0)).quantize(Decimal('0.01'))
+    total_factura = Decimal(str(factura.total or 0)).quantize(Decimal('0.01'))
+    if total_factura != total_venta:
+        _marcar_factura_pendiente_redondeo(factura, total_venta, total_factura)
 
     # Vincular venta → factura
     venta.factura = factura
@@ -364,6 +451,12 @@ def procesar_factura_sri(factura):
     venta_rel = getattr(factura, 'venta', None)
     if venta_rel:
         aplicar_ajuste_centavos_factura(factura, venta_rel.total)
+        total_venta = Decimal(str(venta_rel.total or 0)).quantize(Decimal('0.01'))
+        total_factura = Decimal(str(factura.total or 0)).quantize(Decimal('0.01'))
+        if total_factura != total_venta:
+            result['mensaje'] = _marcar_factura_pendiente_redondeo(factura, total_venta, total_factura)
+            result['estado'] = comprobante.estado
+            return result
     normalizar_precios_unitarios_factura(factura)
 
     # Si el comprobante fue rechazado o no autorizado, se reinicia el artefacto

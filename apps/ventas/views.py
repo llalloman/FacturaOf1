@@ -6,6 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Sum, Count, Q
 from django.db import transaction
 from django.utils import timezone
+from decimal import Decimal, ROUND_HALF_UP
 from .models import Caja, AperturaCaja, Venta, MovimientoCaja
 from .serializers import (
     CajaSerializer, AperturaCajaSerializer, VentaSerializer,
@@ -199,6 +200,16 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(fecha_venta__gte=fecha_desde)
         if fecha_hasta:
             queryset = queryset.filter(fecha_venta__lte=fecha_hasta)
+
+        vista = (self.request.query_params.get('vista') or '').lower()
+        if vista == 'cerradas':
+            queryset = queryset.filter(estado='COMPLETADA').exclude(
+                factura__comprobante__estado='ANULADO'
+            )
+        elif vista == 'anuladas':
+            queryset = queryset.filter(
+                Q(estado='ANULADA') | Q(factura__comprobante__estado='ANULADO')
+            ).distinct()
         
         return queryset
     
@@ -273,17 +284,23 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def generar_factura(self, request, pk=None):
-        """Crea la Factura electrónica para esta venta y la envía al SRI."""
+        """Crea la Factura electrónica para esta venta y la envía al SRI.
+
+        Acepta opcionalmente `cliente_id` en el cuerpo del request para sobrescribir
+        el cliente de la venta en la factura (sin modificar la venta original).
+        """
         from apps.facturacion.services.factura_service import crear_factura_desde_venta, procesar_factura_sri
         from apps.facturacion.serializers import FacturaSerializer
         from apps.facturacion.services.factura_service import (
             MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE,
             cliente_consumidor_final_supera_limite,
         )
+        from apps.clientes.models import Cliente
 
         venta = self.get_object()
-        # Validar readiness fiscal (onboarding)
         empresa = venta.empresa
+
+        # Validar readiness fiscal (onboarding)
         if not getattr(empresa, 'onboarding_completado', False):
             return Response(
                 {'error': 'Debes completar la configuración fiscal de tu empresa para emitir facturas electrónicas.'},
@@ -294,7 +311,22 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
                 {'error': 'Esta venta ya tiene una factura electrónica vinculada.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Permitir cambiar de cliente antes de facturar (sin guardar en la venta)
+        cliente_id = request.data.get('cliente_id')
+        cliente_original = venta.cliente
+        if cliente_id:
+            try:
+                nuevo_cliente = Cliente.objects.get(pk=cliente_id, empresa=empresa)
+                venta.cliente = nuevo_cliente
+            except Cliente.DoesNotExist:
+                return Response(
+                    {'error': 'El cliente seleccionado no existe o no pertenece a esta empresa.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         if cliente_consumidor_final_supera_limite(venta.cliente, venta.total):
+            venta.cliente = cliente_original
             return Response(
                 {'error': MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -303,11 +335,205 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
             factura = crear_factura_desde_venta(venta)
             sri_result = procesar_factura_sri(factura)
         except Exception as e:
+            venta.cliente = cliente_original
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({
             'factura': FacturaSerializer(factura, context={'request': request}).data,
             'sri': sri_result,
+        })
+
+    def _reconciliar_venta_factura(self, venta):
+        from apps.facturacion.services.factura_service import (
+            MENSAJE_FACTURA_PENDIENTE_REDONDEO,
+            aplicar_ajuste_centavos_factura,
+            normalizar_precios_unitarios_factura,
+            recalcular_totales_factura_desde_detalles,
+        )
+
+        if not venta.factura_id:
+            return {
+                'venta_id': venta.id,
+                'numero_venta': venta.numero_venta,
+                'reconciliada': False,
+                'mensaje': 'La venta no tiene factura vinculada.',
+            }
+
+        factura = venta.factura
+        comprobante = getattr(factura, 'comprobante', None)
+
+        total_venta = Decimal(str(venta.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_factura_antes = Decimal(str(factura.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        aplicar_ajuste_centavos_factura(factura, total_venta)
+        normalizar_precios_unitarios_factura(factura)
+        recalcular_totales_factura_desde_detalles(factura)
+
+        total_factura_despues = Decimal(str(factura.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        diferencia = (total_venta - total_factura_despues).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        reconciliada = diferencia == Decimal('0.00')
+
+        if comprobante:
+            if reconciliada:
+                if str(comprobante.mensajes_sri or '').startswith(MENSAJE_FACTURA_PENDIENTE_REDONDEO):
+                    comprobante.mensajes_sri = ''
+                if comprobante.estado == 'BORRADOR':
+                    comprobante.save(update_fields=['mensajes_sri'])
+                else:
+                    comprobante.save(update_fields=['mensajes_sri'])
+            else:
+                comprobante.estado = 'BORRADOR'
+                comprobante.mensajes_sri = (
+                    f"{MENSAJE_FACTURA_PENDIENTE_REDONDEO} "
+                    f"Total cobrado: {total_venta}. Total fiscal calculado: {total_factura_despues}."
+                )
+                comprobante.save(update_fields=['estado', 'mensajes_sri'])
+
+        return {
+            'venta_id': venta.id,
+            'numero_venta': venta.numero_venta,
+            'factura_id': venta.factura_id,
+            'total_venta': total_venta,
+            'total_factura_antes': total_factura_antes,
+            'total_factura_despues': total_factura_despues,
+            'diferencia': diferencia,
+            'reconciliada': reconciliada,
+            'estado_factura': getattr(comprobante, 'estado', None),
+        }
+
+    @action(detail=True, methods=['post'], url_path='reconciliar-factura')
+    @transaction.atomic
+    def reconciliar_factura(self, request, pk=None):
+        """
+        Reconciliar una venta facturada contra su total cobrado sin enviar al SRI.
+        """
+        venta = self.get_object()
+        result = self._reconciliar_venta_factura(venta)
+        return Response(result)
+
+    @action(detail=False, methods=['post'], url_path='reconciliar-inconsistencias')
+    @transaction.atomic
+    def reconciliar_inconsistencias(self, request):
+        """
+        Reconciliar en lote ventas con factura cuyo total no coincide con el total cobrado.
+        """
+        ventas_facturadas = self.get_queryset().filter(estado='COMPLETADA', factura__isnull=False).select_related('factura', 'factura__comprobante')
+
+        procesadas = 0
+        reconciliadas = 0
+        pendientes = 0
+        resultados = []
+
+        for venta in ventas_facturadas:
+            total_venta = Decimal(str(venta.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_factura = Decimal(str(venta.factura.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            if total_venta == total_factura:
+                continue
+
+            procesadas += 1
+            result = self._reconciliar_venta_factura(venta)
+            resultados.append(result)
+
+            if result.get('reconciliada'):
+                reconciliadas += 1
+            else:
+                pendientes += 1
+
+        return Response({
+            'resumen': {
+                'procesadas': procesadas,
+                'reconciliadas': reconciliadas,
+                'pendientes': pendientes,
+            },
+            'resultados': resultados,
+        })
+
+    @action(detail=False, methods=['get'], url_path='notas-venta')
+    def notas_venta(self, request):
+        """
+        Apartado de notas de venta:
+        ventas completadas sin comprobante electrónico (sin factura vinculada).
+        """
+        qs = self.get_queryset().filter(
+            estado='COMPLETADA',
+            factura__isnull=True,
+        )
+
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='coherencia-facturacion')
+    def coherencia_facturacion(self, request):
+        """
+        Valida coherencia entre total de venta y total facturado para ventas que sí tienen factura.
+        """
+        solo_inconsistentes = (request.query_params.get('solo_inconsistentes') or '').lower() in ('1', 'true', 'si', 'yes')
+        tolerancia = Decimal(str(request.query_params.get('tolerancia', '0.00'))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        ventas_facturadas = self.get_queryset().filter(factura__isnull=False).select_related('factura')
+
+        resultados = []
+        coherentes = 0
+        inconsistentes = 0
+
+        for venta in ventas_facturadas:
+            total_venta = Decimal(str(venta.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_factura = Decimal(str(venta.factura.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            diferencia = (total_venta - total_factura).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            es_coherente = abs(diferencia) <= tolerancia
+
+            if es_coherente:
+                coherentes += 1
+            else:
+                inconsistentes += 1
+
+            if solo_inconsistentes and es_coherente:
+                continue
+
+            resultados.append({
+                'venta_id': venta.id,
+                'numero_venta': venta.numero_venta,
+                'factura_id': venta.factura_id,
+                'numero_factura': getattr(getattr(venta.factura, 'comprobante', None), 'numero_comprobante', None),
+                'total_venta': total_venta,
+                'total_factura': total_factura,
+                'diferencia': diferencia,
+                'coherente': es_coherente,
+                'estado_factura': getattr(getattr(venta.factura, 'comprobante', None), 'estado', None),
+                'fecha_venta': venta.fecha_venta,
+            })
+
+        return Response({
+            'resumen': {
+                'ventas_facturadas': ventas_facturadas.count(),
+                'coherentes': coherentes,
+                'inconsistentes': inconsistentes,
+                'tolerancia': tolerancia,
+            },
+            'resultados': resultados,
+        })
+
+    @action(detail=True, methods=['get'], url_path='nota-venta')
+    def nota_venta(self, request, pk=None):
+        """
+        Devuelve el payload imprimible de nota de venta para una venta no facturada.
+        """
+        venta = self.get_object()
+        if venta.factura_id:
+            return Response(
+                {'error': 'Esta venta ya tiene factura electrónica; no aplica nota de venta.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        data = self.get_serializer(venta).data
+        return Response({
+            'tipo_documento': 'NOTA_VENTA',
+            'venta': data,
         })
 
     @action(detail=False, methods=['get'])

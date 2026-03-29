@@ -104,7 +104,10 @@ class FacturaSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         from apps.productos.models import Producto
         from apps.facturacion.models import Secuencial
-        from apps.facturacion.services.factura_service import aplicar_ajuste_centavos_factura
+        from apps.facturacion.services.factura_service import (
+            aplicar_ajuste_centavos_factura,
+            recalcular_totales_factura_desde_detalles,
+        )
 
         detalles_data = validated_data.pop('detalles_input', [])
         fecha_raw = validated_data.pop('fecha_emision_input', None)
@@ -255,6 +258,17 @@ class FacturaSerializer(serializers.ModelSerializer):
             for item in detalles_data
         ) - descuento_gral
         aplicar_ajuste_centavos_factura(factura, total_objetivo)
+        recalcular_totales_factura_desde_detalles(factura)
+
+        total_objetivo = Decimal(str(total_objetivo or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_fiscal = Decimal(str(factura.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        if total_fiscal != total_objetivo:
+            raise serializers.ValidationError({
+                'total': (
+                    f'El total solicitado ({total_objetivo}) no coincide con el total fiscal calculado ({total_fiscal}). '
+                    'Revise precios, descuentos o detalle de impuestos antes de crear la factura.'
+                )
+            })
 
         return factura
 

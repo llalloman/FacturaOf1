@@ -159,6 +159,10 @@ export interface Venta {
   total: number;
   estado: string;
   genera_factura?: boolean;
+  tipo_documento?: 'FACTURA' | 'NOTA_VENTA';
+  estado_documento?: string;
+  total_facturado?: number | null;
+  diferencia_vs_factura?: number | null;
   factura_detalle?: Factura | null;
   detalles?: Array<{
     producto: number;
@@ -174,6 +178,29 @@ export interface Venta {
   }>;
   pagos?: Array<{ forma_pago: string; monto: number }>;
   created_at?: string;
+}
+
+export interface CoherenciaFacturacionItem {
+  venta_id: number;
+  numero_venta: string;
+  factura_id: number;
+  numero_factura: string | null;
+  total_venta: number;
+  total_factura: number;
+  diferencia: number;
+  coherente: boolean;
+  estado_factura: string | null;
+  fecha_venta: string;
+}
+
+export interface CoherenciaFacturacionResponse {
+  resumen: {
+    ventas_facturadas: number;
+    coherentes: number;
+    inconsistentes: number;
+    tolerancia: number;
+  };
+  resultados: CoherenciaFacturacionItem[];
 }
 
 export interface Usuario {

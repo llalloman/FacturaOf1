@@ -192,7 +192,8 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def reprocesar(self, request, pk=None):
         """
-        Consulta la autorización del SRI para comprobantes en estado ENVIADO o RECHAZADO.
+        Consulta la autorización del SRI para comprobantes con clave registrada o
+        reprocesa documentos rechazados/no autorizados.
         Single-check: no blocking loops.
         """
         from apps.facturacion.services.sri_service import SRIService
@@ -200,9 +201,11 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
         factura = self.get_object()
         comp = factura.comprobante
 
-        if comp.estado not in ('ENVIADO', 'RECHAZADO', 'NO_AUTORIZADO'):
+        puede_consultar_autorizacion = bool(comp.clave_acceso)
+
+        if comp.estado not in ('ENVIADO', 'RECHAZADO', 'NO_AUTORIZADO', 'BORRADOR'):
             return Response(
-                {'error': f'Solo se reprocesa desde estado ENVIADO / RECHAZADO. Estado actual: {comp.estado}'},
+                {'error': f'Solo se reprocesa desde estados pendientes o fallidos. Estado actual: {comp.estado}'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -211,6 +214,12 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
             result = procesar_factura_sri(factura)
             http_status = status.HTTP_200_OK if result.get('success') else status.HTTP_422_UNPROCESSABLE_ENTITY
             return Response(result, status=http_status)
+
+        if comp.estado == 'BORRADOR' and not puede_consultar_autorizacion:
+            return Response(
+                {'error': 'Esta factura está en borrador y no tiene clave de acceso para consultar al SRI.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         sri = SRIService(comp.empresa)
         try:

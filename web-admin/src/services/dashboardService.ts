@@ -18,6 +18,14 @@ export interface DashboardSuperAdmin {
 
 export interface DashboardTenant {
   tipo: 'tenant';
+  fecha_desde: string;
+  fecha_hasta: string;
+  ventas_periodo: number;
+  ventas_periodo_cantidad: number;
+  ventas_anuladas_periodo: number;
+  ventas_anuladas_periodo_cantidad: number;
+  cobrado_periodo: number;
+  ticket_promedio_periodo: number;
   ventas_mes: number;
   ventas_mes_cantidad: number;
   ventas_hoy: number;
@@ -28,6 +36,7 @@ export interface DashboardTenant {
   facturas_emitidas: number;
   facturas_autorizadas: number;
   facturas_enviadas: number;
+  facturas_anuladas: number;
   facturas_rechazadas: number;
   facturas_por_estado: Record<string, number>;
   notas_credito_pendientes: number;
@@ -93,8 +102,8 @@ export interface DashboardTenant {
 export type DashboardData = DashboardSuperAdmin | DashboardTenant;
 
 export const dashboardService = {
-  get: async (): Promise<DashboardData> => {
-    const { data } = await apiClient.get('/dashboard/');
+  get: async (params?: Record<string, string>): Promise<DashboardData> => {
+    const { data } = await apiClient.get('/dashboard/', { params });
     return data;
   },
 };

@@ -55,6 +55,10 @@ class VentaSerializer(serializers.ModelSerializer):
     usuario_nombre = serializers.CharField(source='usuario.get_full_name', read_only=True)
     caja_nombre = serializers.CharField(source='caja.nombre', read_only=True)
     factura_detalle = FacturaSerializer(source='factura', read_only=True)
+    tipo_documento = serializers.SerializerMethodField()
+    estado_documento = serializers.SerializerMethodField()
+    total_facturado = serializers.SerializerMethodField()
+    diferencia_vs_factura = serializers.SerializerMethodField()
     detalles = DetalleVentaSerializer(many=True)
     pagos = PagoVentaSerializer(many=True)
 
@@ -66,6 +70,27 @@ class VentaSerializer(serializers.ModelSerializer):
             'apertura_caja', 'subtotal', 'subtotal_0', 'subtotal_12',
             'subtotal_15', 'iva', 'total', 'descuento',
         ]
+
+    def get_tipo_documento(self, obj):
+        return 'FACTURA' if obj.factura_id else 'NOTA_VENTA'
+
+    def get_estado_documento(self, obj):
+        if not obj.factura_id:
+            return 'NOTA_VENTA'
+        comp = getattr(obj.factura, 'comprobante', None)
+        return getattr(comp, 'estado', 'SIN_COMPROBANTE')
+
+    def get_total_facturado(self, obj):
+        if not obj.factura_id:
+            return None
+        return obj.factura.total
+
+    def get_diferencia_vs_factura(self, obj):
+        if not obj.factura_id:
+            return None
+        total_venta = Decimal(str(obj.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_factura = Decimal(str(obj.factura.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return (total_venta - total_factura).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

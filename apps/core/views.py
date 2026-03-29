@@ -7,10 +7,11 @@ GET /api/dashboard/
 """
 
 from calendar import monthrange
-from datetime import timedelta
+from datetime import timedelta, time
 from decimal import Decimal
 
 from django.db.models import Sum, Count, Q, F
+from django.utils.dateparse import parse_date
 from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -33,6 +34,23 @@ def _month_range(anio, mes):
     inicio = timezone.datetime(anio, mes, 1, tzinfo=tz)
     fin = timezone.datetime(anio, mes, ultimo, 23, 59, 59, tzinfo=tz)
     return inicio, fin
+
+
+def _parse_dashboard_range(request, fallback_date):
+    fecha_desde = parse_date(request.query_params.get('fecha_desde', '') or '')
+    fecha_hasta = parse_date(request.query_params.get('fecha_hasta', '') or '')
+
+    if not fecha_desde:
+        fecha_desde = fallback_date.replace(day=1)
+    if not fecha_hasta:
+        fecha_hasta = fallback_date
+    if fecha_desde > fecha_hasta:
+        fecha_desde, fecha_hasta = fecha_hasta, fecha_desde
+
+    tz = timezone.get_current_timezone()
+    inicio = timezone.make_aware(timezone.datetime.combine(fecha_desde, time.min), tz)
+    fin = timezone.make_aware(timezone.datetime.combine(fecha_hasta, time.max), tz)
+    return fecha_desde, fecha_hasta, inicio, fin
 
 
 @api_view(['GET'])
@@ -101,37 +119,84 @@ def _dashboard_tenant(request):
     ahora = timezone.now()
     hoy = timezone.localdate()
     mes, anio = ahora.month, ahora.year
-
-    # ── Ventas del mes ────────────────────────────────────────────────────────
+    fecha_desde, fecha_hasta, inicio_periodo, fin_periodo = _parse_dashboard_range(request, hoy)
     inicio_mes, fin_mes = _month_range(anio, mes)
-    ventas_mes_qs = Venta.objects.filter(
-        empresa=empresa, estado='COMPLETADA',
-        fecha_venta__gte=inicio_mes, fecha_venta__lte=fin_mes,
+
+    ventas_cerradas_q = Q(empresa=empresa, estado='COMPLETADA') & ~Q(factura__comprobante__estado='ANULADO')
+    ventas_anuladas_q = Q(empresa=empresa) & (Q(estado='ANULADA') | Q(factura__comprobante__estado='ANULADO'))
+
+    # ── Ventas del período ────────────────────────────────────────────────────
+    ventas_periodo_qs = Venta.objects.filter(
+        ventas_cerradas_q,
+        fecha_venta__gte=inicio_periodo,
+        fecha_venta__lte=fin_periodo,
     )
-    ventas_mes_agg = ventas_mes_qs.aggregate(
+    ventas_periodo_agg = ventas_periodo_qs.aggregate(
         total=Sum('total'), cantidad=Count('id'),
     )
     ventas_hoy_qs = Venta.objects.filter(
-        empresa=empresa, estado='COMPLETADA',
+        ventas_cerradas_q,
         fecha_venta__date=hoy,
     )
     ventas_hoy_agg = ventas_hoy_qs.aggregate(
         total=Sum('total'), cantidad=Count('id'),
     )
+    ventas_anuladas_periodo_qs = Venta.objects.filter(
+        ventas_anuladas_q,
+        fecha_venta__gte=inicio_periodo,
+        fecha_venta__lte=fin_periodo,
+    ).distinct()
+    ventas_anuladas_periodo_agg = ventas_anuladas_periodo_qs.aggregate(
+        total=Sum('total'), cantidad=Count('id'),
+    )
     cobrado_hoy = PagoVenta.objects.filter(
         venta__empresa=empresa,
         venta__estado='COMPLETADA',
+    ).exclude(
+        venta__factura__comprobante__estado='ANULADO',
+    ).filter(
         fecha_pago__date=hoy,
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+    cobrado_periodo = PagoVenta.objects.filter(
+        venta__empresa=empresa,
+        venta__estado='COMPLETADA',
+    ).exclude(
+        venta__factura__comprobante__estado='ANULADO',
+    ).filter(
+        fecha_pago__gte=inicio_periodo,
+        fecha_pago__lte=fin_periodo,
     ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
     cobrado_mes = PagoVenta.objects.filter(
         venta__empresa=empresa,
         venta__estado='COMPLETADA',
+    ).exclude(
+        venta__factura__comprobante__estado='ANULADO',
+    ).filter(
         fecha_pago__gte=inicio_mes,
         fecha_pago__lte=fin_mes,
     ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+    ticket_promedio_periodo = (
+        (ventas_periodo_agg['total'] or Decimal('0.00')) / (ventas_periodo_agg['cantidad'] or 1)
+        if (ventas_periodo_agg['cantidad'] or 0) > 0 else Decimal('0.00')
+    )
     ticket_promedio_mes = (
-        (ventas_mes_agg['total'] or Decimal('0.00')) / (ventas_mes_agg['cantidad'] or 1)
-        if (ventas_mes_agg['cantidad'] or 0) > 0 else Decimal('0.00')
+        (Venta.objects.filter(
+            ventas_cerradas_q,
+            fecha_venta__gte=inicio_mes,
+            fecha_venta__lte=fin_mes,
+        ).aggregate(total=Sum('total'), cantidad=Count('id'))['total'] or Decimal('0.00'))
+        / (
+            Venta.objects.filter(
+                ventas_cerradas_q,
+                fecha_venta__gte=inicio_mes,
+                fecha_venta__lte=fin_mes,
+            ).count() or 1
+        )
+        if Venta.objects.filter(
+            ventas_cerradas_q,
+            fecha_venta__gte=inicio_mes,
+            fecha_venta__lte=fin_mes,
+        ).count() > 0 else Decimal('0.00')
     )
 
     # ── Facturas ──────────────────────────────────────────────────────────────
@@ -144,6 +209,7 @@ def _dashboard_tenant(request):
     facturas_emitidas = facturas_por_estado.get('AUTORIZADO', 0) + facturas_por_estado.get('ENVIADO', 0)
     facturas_autorizadas = facturas_por_estado.get('AUTORIZADO', 0)
     facturas_enviadas = facturas_por_estado.get('ENVIADO', 0)
+    facturas_anuladas = facturas_por_estado.get('ANULADO', 0)
     facturas_rechazadas = facturas_por_estado.get('RECHAZADO', 0) + facturas_por_estado.get('NO_AUTORIZADO', 0)
     notas_credito_qs = NotaCredito.objects.filter(comprobante__empresa=empresa)
     notas_credito_pendientes = notas_credito_qs.filter(comprobante__estado='ENVIADO').count()
@@ -195,9 +261,10 @@ def _dashboard_tenant(request):
         DetalleVenta.objects.filter(
             venta__empresa=empresa,
             venta__estado='COMPLETADA',
-            venta__fecha_venta__gte=inicio_mes,
-            venta__fecha_venta__lte=fin_mes,
+            venta__fecha_venta__gte=inicio_periodo,
+            venta__fecha_venta__lte=fin_periodo,
         )
+        .exclude(venta__factura__comprobante__estado='ANULADO')
         .values('producto__id', 'producto__nombre')
         .annotate(
             cantidad_vendida=Sum('cantidad'),
@@ -219,10 +286,9 @@ def _dashboard_tenant(request):
     clientes_activos = Cliente.objects.filter(empresa=empresa, activo=True).count()
     top_clientes = list(
         Venta.objects.filter(
-            empresa=empresa,
-            estado='COMPLETADA',
-            fecha_venta__gte=inicio_mes,
-            fecha_venta__lte=fin_mes,
+            ventas_cerradas_q,
+            fecha_venta__gte=inicio_periodo,
+            fecha_venta__lte=fin_periodo,
         )
         .values('cliente__id', 'cliente__razon_social')
         .annotate(
@@ -245,8 +311,10 @@ def _dashboard_tenant(request):
         PagoVenta.objects.filter(
             venta__empresa=empresa,
             venta__estado='COMPLETADA',
-            venta__fecha_venta__gte=inicio_mes,
-            venta__fecha_venta__lte=fin_mes,
+            venta__fecha_venta__gte=inicio_periodo,
+            venta__fecha_venta__lte=fin_periodo,
+        ).exclude(
+            venta__factura__comprobante__estado='ANULADO',
         ).values('forma_pago').annotate(total=Sum('monto')).order_by('-total')
     )
     ventas_por_metodo = [
@@ -321,7 +389,7 @@ def _dashboard_tenant(request):
         m, a = fecha.month, fecha.year
         ini, fin = _month_range(a, m)
         agg = Venta.objects.filter(
-            empresa=empresa, estado='COMPLETADA',
+            ventas_cerradas_q,
             fecha_venta__gte=ini, fecha_venta__lte=fin,
         ).aggregate(total=Sum('total'), cantidad=Count('id'))
         ultimos_meses.append({
@@ -355,8 +423,24 @@ def _dashboard_tenant(request):
     return Response({
         'tipo': 'tenant',
         # KPIs
-        'ventas_mes': float(ventas_mes_agg['total'] or 0),
-        'ventas_mes_cantidad': ventas_mes_agg['cantidad'] or 0,
+        'fecha_desde': str(fecha_desde),
+        'fecha_hasta': str(fecha_hasta),
+        'ventas_periodo': float(ventas_periodo_agg['total'] or 0),
+        'ventas_periodo_cantidad': ventas_periodo_agg['cantidad'] or 0,
+        'ventas_anuladas_periodo': float(ventas_anuladas_periodo_agg['total'] or 0),
+        'ventas_anuladas_periodo_cantidad': ventas_anuladas_periodo_agg['cantidad'] or 0,
+        'cobrado_periodo': float(cobrado_periodo),
+        'ticket_promedio_periodo': float(ticket_promedio_periodo),
+        'ventas_mes': float(Venta.objects.filter(
+            ventas_cerradas_q,
+            fecha_venta__gte=inicio_mes,
+            fecha_venta__lte=fin_mes,
+        ).aggregate(total=Sum('total'))['total'] or 0),
+        'ventas_mes_cantidad': Venta.objects.filter(
+            ventas_cerradas_q,
+            fecha_venta__gte=inicio_mes,
+            fecha_venta__lte=fin_mes,
+        ).count(),
         'ventas_hoy': float(ventas_hoy_agg['total'] or 0),
         'ventas_hoy_cantidad': ventas_hoy_agg['cantidad'] or 0,
         'cobrado_hoy': float(cobrado_hoy),
@@ -365,6 +449,7 @@ def _dashboard_tenant(request):
         'facturas_emitidas': facturas_emitidas,
         'facturas_autorizadas': facturas_autorizadas,
         'facturas_enviadas': facturas_enviadas,
+        'facturas_anuladas': facturas_anuladas,
         'facturas_rechazadas': facturas_rechazadas,
         'facturas_por_estado': facturas_por_estado,
         'notas_credito_pendientes': notas_credito_pendientes,

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Download, FileSpreadsheet, FileText } from 'lucide-react';
 import { exportService } from '../../services/exportService';
+import { toast } from '../../store/toastStore';
 
 interface ExportButtonsProps {
   /** Base API path, e.g. '/facturacion/facturas' (no trailing slash) */
@@ -36,6 +37,15 @@ export default function ExportButtons({
       }
     } catch (err) {
       console.error('Export error:', err);
+      const message = (err as { response?: { data?: Blob | string } })?.response?.data;
+      toast.error(
+        `No se pudo exportar ${format.toUpperCase()}`,
+        typeof message === 'string'
+          ? message
+          : format === 'excel'
+            ? 'El backend no tiene openpyxl disponible en este ambiente. Puedes usar CSV o instalar la dependencia.'
+            : 'Ocurrió un error al generar la descarga.',
+      );
     } finally {
       setLoading(null);
     }

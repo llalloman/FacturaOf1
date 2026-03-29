@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import { useState, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -15,6 +15,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
+import { format, startOfMonth } from 'date-fns';
 import {
   Bar,
   BarChart,
@@ -179,37 +180,23 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
 
   const kpis = [
     {
-      label: 'Ventas hoy',
-      value: money(data.ventas_hoy),
-      helper: `${data.ventas_hoy_cantidad} ventas registradas`,
+      label: 'Ventas cerradas',
+      value: money(data.ventas_periodo),
+      helper: `${data.ventas_periodo_cantidad} ventas del rango seleccionado`,
       icon: Banknote,
       tone: 'emerald' as const,
     },
     {
-      label: 'Ventas mes',
-      value: money(data.ventas_mes),
-      helper: `${data.ventas_mes_cantidad} ventas acumuladas`,
-      icon: Banknote,
-      tone: 'emerald' as const,
-    },
-    {
-      label: 'Cobrado hoy',
-      value: money(data.cobrado_hoy),
-      helper: 'Entradas efectivas del día',
+      label: 'Cobrado del período',
+      value: money(data.cobrado_periodo),
+      helper: 'Cobros asociados solo a ventas cerradas',
       icon: Wallet,
       tone: 'blue' as const,
     },
     {
-      label: 'Cobrado mes',
-      value: money(data.cobrado_mes),
-      helper: 'Cobros registrados en el mes',
-      icon: Wallet,
-      tone: 'blue' as const,
-    },
-    {
-      label: 'Ticket promedio mes',
-      value: money(data.ticket_promedio_mes),
-      helper: `${data.ventas_mes_cantidad} ventas en el mes`,
+      label: 'Ticket promedio',
+      value: money(data.ticket_promedio_periodo),
+      helper: 'Promedio de ventas cerradas del rango',
       icon: BadgeDollarSign,
       tone: 'amber' as const,
     },
@@ -219,6 +206,20 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
       helper: `${data.facturas_enviadas} pendientes SRI`,
       icon: ReceiptText,
       tone: 'slate' as const,
+    },
+    {
+      label: 'Ventas anuladas',
+      value: String(data.ventas_anuladas_periodo_cantidad),
+      helper: `${money(data.ventas_anuladas_periodo)} anulados/cancelados en el rango`,
+      icon: AlertTriangle,
+      tone: 'rose' as const,
+    },
+    {
+      label: 'Facturas anuladas',
+      value: String(data.facturas_anuladas),
+      helper: 'Comprobantes SRI anulados',
+      icon: ReceiptText,
+      tone: 'rose' as const,
     },
     {
       label: 'Por cobrar',
@@ -266,12 +267,18 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
         <div>
           <h1 className="text-3xl font-bold text-slate-950">Panel operativo</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Vista diaria de ventas, facturación SRI, cartera, stock y actividad comercial.
+            Ventas cerradas, facturación SRI, cartera, stock y actividad comercial del rango elegido.
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-          <span className="font-medium text-slate-900">{data.clientes_activos}</span> clientes activos ·{' '}
-          <span className="font-medium text-slate-900">{data.productos_activos}</span> productos activos
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+            <span className="font-medium text-slate-900">{data.clientes_activos}</span> clientes activos ·{' '}
+            <span className="font-medium text-slate-900">{data.productos_activos}</span> productos activos
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+            Rango: <span className="font-medium text-slate-900">{data.fecha_desde}</span> a{' '}
+            <span className="font-medium text-slate-900">{data.fecha_hasta}</span>
+          </div>
         </div>
       </div>
 
@@ -372,7 +379,7 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionTitle title="Métodos de pago" subtitle="Composición del mes actual." />
+          <SectionTitle title="Métodos de pago" subtitle="Composición del rango seleccionado." />
           {ventasMetodo.length === 0 ? (
             <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin pagos registrados</div>
           ) : (
@@ -423,7 +430,7 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionTitle title="Top productos del mes" subtitle="Ordenados por ingreso generado." />
+          <SectionTitle title="Top productos" subtitle="Ordenados por ingreso generado en el rango." />
           <div className="space-y-3">
             {data.top_productos.length === 0 ? (
               <div className="py-12 text-center text-sm text-slate-400">Sin ventas registradas este mes</div>
@@ -447,7 +454,7 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionTitle title="Top clientes del mes" subtitle="Clientes con mayor volumen de compra." />
+          <SectionTitle title="Top clientes" subtitle="Clientes con mayor volumen de compra en el rango." />
           <div className="space-y-3">
             {data.top_clientes.length === 0 ? (
               <div className="py-12 text-center text-sm text-slate-400">Sin ventas por cliente en el período</div>
@@ -510,9 +517,13 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const today = new Date();
+  const [dateFrom, setDateFrom] = useState(format(startOfMonth(today), 'yyyy-MM-dd'));
+  const [dateTo, setDateTo] = useState(format(today, 'yyyy-MM-dd'));
+
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: dashboardService.get,
+    queryKey: ['dashboard', dateFrom, dateTo],
+    queryFn: () => dashboardService.get({ fecha_desde: dateFrom, fecha_hasta: dateTo }),
     staleTime: 60_000,
   });
 
@@ -526,6 +537,25 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-8">
+      {user?.rol !== 'SUPER_ADMIN' ? (
+        <div className="mb-6 flex justify-end">
+          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="text-sm text-slate-700 outline-none"
+            />
+            <span className="text-slate-300">—</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="text-sm text-slate-700 outline-none"
+            />
+          </div>
+        </div>
+      ) : null}
       {data.tipo === 'super_admin' ? (
         <DashboardSuperAdminView data={data as DashboardSuperAdmin} />
       ) : (
