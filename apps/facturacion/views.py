@@ -48,6 +48,8 @@ def _desvincular_venta(factura):
 class FacturaFilter(django_filters.FilterSet):
     estado = django_filters.CharFilter(field_name='comprobante__estado', lookup_expr='iexact')
     cliente = django_filters.NumberFilter(field_name='cliente__id')
+    fecha_desde = django_filters.DateFilter(field_name='comprobante__fecha_emision', lookup_expr='date__gte')
+    fecha_hasta = django_filters.DateFilter(field_name='comprobante__fecha_emision', lookup_expr='date__lte')
 
     class Meta:
         model = Factura

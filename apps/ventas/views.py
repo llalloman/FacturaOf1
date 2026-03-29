@@ -197,9 +197,9 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
         fecha_hasta = self.request.query_params.get('fecha_hasta', None)
         
         if fecha_desde:
-            queryset = queryset.filter(fecha_venta__gte=fecha_desde)
+            queryset = queryset.filter(fecha_venta__date__gte=fecha_desde)
         if fecha_hasta:
-            queryset = queryset.filter(fecha_venta__lte=fecha_hasta)
+            queryset = queryset.filter(fecha_venta__date__lte=fecha_hasta)
 
         vista = (self.request.query_params.get('vista') or '').lower()
         if vista == 'cerradas':

@@ -1,13 +1,15 @@
 import apiClient from './apiClient';
 import type { Factura } from '../types';
 
-const fetchAllFacturasPages = async () => {
+type FacturaQueryParams = Record<string, string | number | boolean | undefined | null>;
+
+const fetchAllFacturasPages = async (params?: FacturaQueryParams) => {
   const all: Factura[] = [];
   let page = 1;
 
   while (true) {
     const response = await apiClient.get('/facturacion/facturas/', {
-      params: { page },
+      params: { ...params, page },
     });
     const data = response.data as Factura[] | { results?: Factura[]; next?: string | null };
 
@@ -28,8 +30,8 @@ const fetchAllFacturasPages = async () => {
 };
 
 export const facturasService = {
-  getAll: async () => {
-    return fetchAllFacturasPages();
+  getAll: async (params?: FacturaQueryParams) => {
+    return fetchAllFacturasPages(params);
   },
 
   getById: async (id: number) => {

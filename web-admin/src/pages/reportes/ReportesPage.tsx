@@ -87,8 +87,8 @@ export default function ReportesPage() {
     staleTime: 60_000,
   });
   const { data: facturas = [], isLoading: loadingFacturas } = useQuery({
-    queryKey: ['reportes', 'facturas'],
-    queryFn: facturasService.getAll,
+    queryKey: ['reportes', 'facturas', dateFrom, dateTo],
+    queryFn: () => facturasService.getAll({ fecha_desde: dateFrom, fecha_hasta: dateTo }),
     staleTime: 60_000,
   });
   const { data: carteraResumen, isLoading: loadingCarteraResumen } = useQuery<CarteraResumen>({
@@ -118,12 +118,7 @@ export default function ReportesPage() {
     [ventas],
   );
 
-  const facturasFiltradas = useMemo(() => {
-    return (facturas as Factura[]).filter((factura) => {
-      const fecha = parseDateOnly(factura.fecha_emision);
-      return fecha >= dateFrom && fecha <= dateTo;
-    });
-  }, [facturas, dateFrom, dateTo]);
+  const facturasFiltradas = useMemo(() => facturas as Factura[], [facturas]);
 
   const ventasPorDia = useMemo(() => {
     const map = new Map<string, { total: number; cantidad: number }>();
