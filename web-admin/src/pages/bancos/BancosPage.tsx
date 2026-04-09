@@ -9,7 +9,6 @@ import {
 import { useToast } from '../../hooks/useToast';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(n);
 
