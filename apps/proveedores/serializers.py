@@ -26,7 +26,6 @@ class ProveedorSerializer(serializers.ModelSerializer):
         validated_data['empresa'] = self.context['request'].user.empresa
         return super().create(validated_data)
 
-
 class DetalleOrdenCompraSerializer(serializers.ModelSerializer):
     """Serializer para DetalleOrdenCompra"""
     
