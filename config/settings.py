@@ -227,6 +227,9 @@ EMAIL_TIMEOUT = 10  # segundos — evita que send_mail bloquee workers de gunico
 # Resend API (reemplaza SMTP bloqueado por Railway)
 RESEND_API_KEY = config('RESEND_API_KEY', default='')
 
+# URL pública del backend (usada por keepalive ping en Render free tier)
+APP_URL = config('APP_URL', default='')
+
 # SRI Configuration
 SRI_AMBIENTE = config('SRI_AMBIENTE', default='PRUEBAS')  # PRUEBAS o PRODUCCION
 SRI_PRUEBAS_RECEPCION_URL = config(

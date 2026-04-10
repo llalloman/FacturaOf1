@@ -19,6 +19,10 @@ app.autodiscover_tasks()
 
 # Periodic Tasks
 app.conf.beat_schedule = {
+    'keepalive-render-ping': {
+        'task': 'apps.core.tasks.keepalive_ping',
+        'schedule': crontab(minute='*/10'),  # Cada 10 min — evita hibernate en Render free
+    },
     'verificar-suscripciones-vencidas': {
         'task': 'apps.suscripciones.tasks.verificar_suscripciones_vencidas',
         'schedule': crontab(hour=0, minute=0),  # Diario a medianoche
