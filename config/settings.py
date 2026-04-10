@@ -31,6 +31,12 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 _hosts = config('ALLOWED_HOSTS', default='').strip()
 ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',') if h.strip()] if _hosts else (['*'] if DEBUG else ['localhost', '127.0.0.1'])
 
+# Alias locales utiles en Docker/Gunicorn para evitar falsos DisallowedHost
+# cuando se accede via 0.0.0.0 o desde la propia red interna del contenedor.
+for _local_host in ('localhost', '127.0.0.1', '0.0.0.0', 'back'):
+    if _local_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_local_host)
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',

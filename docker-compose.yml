@@ -1,0 +1,107 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: facturaof1-db
+    environment:
+      POSTGRES_DB: ${DOCKER_DB_NAME:-facturacion_sri}
+      POSTGRES_USER: ${DOCKER_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DOCKER_DB_PASSWORD:-postgres}
+    ports:
+      - "${DOCKER_DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DOCKER_DB_USER:-postgres} -d ${DOCKER_DB_NAME:-facturacion_sri}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: facturaof1-redis
+    ports:
+      - "${DOCKER_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  back:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: facturaof1-back
+    env_file:
+      - .env
+    environment:
+      PORT: 8000
+      DEBUG: "False"
+      DATABASE_URL: postgresql://${DOCKER_DB_USER:-postgres}:${DOCKER_DB_PASSWORD:-postgres}@db:5432/${DOCKER_DB_NAME:-facturacion_sri}
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:8080}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: facturaof1-worker
+    profiles: ["workers"]
+    env_file:
+      - .env
+    environment:
+      DEBUG: "False"
+      DATABASE_URL: postgresql://${DOCKER_DB_USER:-postgres}:${DOCKER_DB_PASSWORD:-postgres}@db:5432/${DOCKER_DB_NAME:-facturacion_sri}
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+    command: celery -A config.celery worker --loglevel=info --concurrency=2
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: facturaof1-beat
+    profiles: ["workers"]
+    env_file:
+      - .env
+    environment:
+      DEBUG: "False"
+      DATABASE_URL: postgresql://${DOCKER_DB_USER:-postgres}:${DOCKER_DB_PASSWORD:-postgres}@db:5432/${DOCKER_DB_NAME:-facturacion_sri}
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+    command: celery -A config.celery beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:
+  static_data:
