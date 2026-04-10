@@ -72,7 +72,6 @@ apiClient.interceptors.response.use(
             });
         }
         
-
         const newAccess = await refreshPromise;
         originalRequest.headers.Authorization = `Bearer ${newAccess}`;
         return apiClient(originalRequest);
