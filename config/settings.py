@@ -31,12 +31,6 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 _hosts = config('ALLOWED_HOSTS', default='').strip()
 ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',') if h.strip()] if _hosts else (['*'] if DEBUG else ['localhost', '127.0.0.1'])
 
-# Alias locales utiles en Docker/Gunicorn para evitar falsos DisallowedHost
-# cuando se accede via 0.0.0.0 o desde la propia red interna del contenedor.
-for _local_host in ('localhost', '127.0.0.1', '0.0.0.0', 'back'):
-    if _local_host not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(_local_host)
-
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -190,7 +184,7 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS Settings - lee dominios adicionales de producción desde env
+# CORS/CSRF Settings - lee dominios adicionales de producción desde env
 _cors_extra = config('CORS_ALLOWED_ORIGINS', default='')
 _cors_extra_list = [o.strip() for o in _cors_extra.split(',') if o.strip()]
 CORS_ALLOWED_ORIGINS = [
@@ -199,8 +193,22 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5174",
     "http://localhost:5175",
     "http://localhost:8080",
+    "https://facturaof1.of1solutions.com",
+    "https://facturaof1-back.of1solutions.com",
 ] + _cors_extra_list
 CORS_ALLOW_CREDENTIALS = True
+
+_csrf_extra = config('CSRF_TRUSTED_ORIGINS', default='')
+_csrf_extra_list = [o.strip() for o in _csrf_extra.split(',') if o.strip()]
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:8080",
+    "https://facturaof1.of1solutions.com",
+    "https://facturaof1-back.of1solutions.com",
+] + _csrf_extra_list
 
 # Celery Configuration
 CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')
@@ -232,6 +240,9 @@ EMAIL_TIMEOUT = 10  # segundos — evita que send_mail bloquee workers de gunico
 
 # Resend API (reemplaza SMTP bloqueado por Railway)
 RESEND_API_KEY = config('RESEND_API_KEY', default='')
+
+# URL pública del backend (usada por keepalive ping en Render free tier)
+APP_URL = config('APP_URL', default='')
 
 # SRI Configuration
 SRI_AMBIENTE = config('SRI_AMBIENTE', default='PRUEBAS')  # PRUEBAS o PRODUCCION
