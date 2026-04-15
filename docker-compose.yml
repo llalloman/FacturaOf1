@@ -3,11 +3,11 @@ services:
     image: postgres:16-alpine
     container_name: facturaof1-db
     environment:
-      POSTGRES_DB: ${DB_NAME:-facturacion_sri}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DOCKER_DB_NAME:-facturacion_sri}
+      POSTGRES_USER: ${DOCKER_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DOCKER_DB_PASSWORD:-postgres}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DOCKER_DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
