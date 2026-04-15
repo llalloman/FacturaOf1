@@ -184,7 +184,7 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS Settings - lee dominios adicionales de producción desde env
+# CORS/CSRF Settings - lee dominios adicionales de producción desde env
 _cors_extra = config('CORS_ALLOWED_ORIGINS', default='')
 _cors_extra_list = [o.strip() for o in _cors_extra.split(',') if o.strip()]
 CORS_ALLOWED_ORIGINS = [
@@ -193,8 +193,22 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5174",
     "http://localhost:5175",
     "http://localhost:8080",
+    "https://facturaof1.of1solutions.com",
+    "https://facturaof1-back.of1solutions.com",
 ] + _cors_extra_list
 CORS_ALLOW_CREDENTIALS = True
+
+_csrf_extra = config('CSRF_TRUSTED_ORIGINS', default='')
+_csrf_extra_list = [o.strip() for o in _csrf_extra.split(',') if o.strip()]
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:8080",
+    "https://facturaof1.of1solutions.com",
+    "https://facturaof1-back.of1solutions.com",
+] + _csrf_extra_list
 
 # Celery Configuration
 CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')
