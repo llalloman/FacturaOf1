@@ -92,75 +92,178 @@ def verificar_autorizaciones_pendientes():
 @shared_task
 def reintentar_comprobantes_fallidos():
     """
-    Reintenta automáticamente los comprobantes RECHAZADOS o NO_AUTORIZADOS
-    que fueron emitidos el mismo día (fecha_emision == hoy).
+    Reintenta automáticamente los comprobantes pendientes de envío al SRI,
+    procesándolos en orden estricto de secuencial por empresa/establecimiento/
+    punto_emision para evitar saltos en la numeración autorizada.
 
-    Para comprobantes de días anteriores solo se crea una notificación de advertencia
-    solicitando reenvío manual (el usuario debe confirmar el cambio de fecha).
+    Estados que se reintentan:
+      - BORRADOR  : facturas creadas pero nunca enviadas (error de redondeo resuelto,
+                    certificado ya configurado, fallo de red en la creación, etc.)
+      - RECHAZADO / NO_AUTORIZADO : respuesta negativa del SRI en intento previo.
+
+    Lógica de orden:
+      Para cada grupo (empresa, establecimiento, punto_emision) se obtiene el
+      secuencial más bajo en estado pendiente.  Si ese secuencial es el «siguiente
+      esperable» (no hay ningún hueco anterior sin autorizar) se procesa; de lo
+      contrario se bloquea hasta que el hueco se resuelva.
+
+    Para comprobantes de días anteriores se sigue necesitando la actualización de
+    fecha que ya implementa procesar_factura_sri(), pero si el usuario no tiene
+    certificado se notifica en lugar de reintentar.
     """
+    from apps.facturacion.models import Factura
     from apps.facturacion.services.factura_service import procesar_factura_sri
+    from django.db.models import Min
 
     today = timezone.localdate()
-    estados_fallidos = [
+    estados_pendientes = [
+        ComprobanteElectronico.EstadoChoices.BORRADOR,
         ComprobanteElectronico.EstadoChoices.RECHAZADO,
         ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO,
     ]
 
-    # Solo tipo FACTURA (01) para el reintento automático
-    comprobantes = ComprobanteElectronico.objects.filter(
-        estado__in=estados_fallidos,
-        tipo_comprobante='01',
-    ).select_related('empresa')
+    # Obtener todos los grupos que tienen facturas pendientes (solo tipo 01 = Factura)
+    grupos = (
+        ComprobanteElectronico.objects
+        .filter(estado__in=estados_pendientes, tipo_comprobante='01')
+        .values('empresa_id', 'establecimiento', 'punto_emision')
+        .distinct()
+    )
 
     count_reintentados = 0
+    count_bloqueados = 0
     count_alertados = 0
 
-    for comp in comprobantes:
-        empresa = comp.empresa
+    for grupo in grupos:
+        empresa_id  = grupo['empresa_id']
+        estab       = grupo['establecimiento']
+        pemi        = grupo['punto_emision']
 
-        # Sin certificado digital no hay nada que hacer
-        if not empresa.certificado_digital:
+        # --- Verificar si hay huecos: secuenciales anteriores al primer pendiente
+        #     que todavía no están autorizados.
+        # El menor secuencial pendiente de este grupo:
+        primer_pendiente = (
+            ComprobanteElectronico.objects
+            .filter(
+                empresa_id=empresa_id,
+                establecimiento=estab,
+                punto_emision=pemi,
+                tipo_comprobante='01',
+                estado__in=estados_pendientes,
+            )
+            .order_by('secuencial')
+            .values_list('secuencial', flat=True)
+            .first()
+        )
+        if not primer_pendiente:
             continue
 
-        fecha_emision_local = timezone.localtime(comp.fecha_emision).date()
+        # ¿Hay algún comprobante con secuencial MENOR que no esté autorizado ni anulado?
+        # (excluyendo los propios estados pendientes ya considerados arriba)
+        estados_resueltos = [
+            ComprobanteElectronico.EstadoChoices.AUTORIZADO,
+            ComprobanteElectronico.EstadoChoices.ANULADO,
+        ]
+        hueco_anterior = (
+            ComprobanteElectronico.objects
+            .filter(
+                empresa_id=empresa_id,
+                establecimiento=estab,
+                punto_emision=pemi,
+                tipo_comprobante='01',
+                secuencial__lt=primer_pendiente,
+            )
+            .exclude(estado__in=estados_resueltos)
+            .exists()
+        )
+        if hueco_anterior:
+            # Hay secuenciales anteriores aún sin resolver — bloquear este grupo
+            # para no crear más huecos y esperar a que el cron del siguiente ciclo
+            # resuelva el hueco primero.
+            count_bloqueados += 1
+            logger.info(
+                "Grupo empresa=%s %s-%s bloqueado: existe secuencial anterior sin autorizar antes de %s",
+                empresa_id, estab, pemi, primer_pendiente,
+            )
+            continue
 
-        if fecha_emision_local == today:
-            # Mismo día → reintentar automáticamente
+        # Procesar los comprobantes de este grupo en orden ascendente de secuencial
+        comprobantes = (
+            ComprobanteElectronico.objects
+            .filter(
+                empresa_id=empresa_id,
+                establecimiento=estab,
+                punto_emision=pemi,
+                tipo_comprobante='01',
+                estado__in=estados_pendientes,
+            )
+            .select_related('empresa')
+            .order_by('secuencial')
+        )
+
+        for comp in comprobantes:
+            empresa = comp.empresa
+
+            # Sin certificado digital → no se puede enviar; notificar si es de día anterior
+            if not empresa.certificado_digital:
+                fecha_emision_local = timezone.localtime(comp.fecha_emision).date()
+                if fecha_emision_local < today:
+                    from apps.empresas.models import Notificacion
+                    ya_notificado = Notificacion.objects.filter(
+                        empresa=empresa,
+                        titulo__contains=comp.numero_comprobante,
+                        fecha_creacion__date=today,
+                    ).exists()
+                    if not ya_notificado:
+                        _notif(
+                            empresa, 'ADVERTENCIA',
+                            f'Factura pendiente sin certificado: {comp.numero_comprobante}',
+                            (
+                                f'La factura {comp.numero_comprobante} (estado: {comp.estado}) '
+                                f'no puede enviarse porque la empresa no tiene certificado digital '
+                                f'configurado. Configúralo en Configuración → Firma Digital.'
+                            ),
+                            '/configuracion',
+                        )
+                        count_alertados += 1
+                # Si no tiene certificado detenemos el grupo: no tiene sentido procesar
+                # los siguientes si este va a quedar sin enviar
+                break
+
+            factura = Factura.objects.filter(comprobante=comp).first()
+            if not factura:
+                logger.warning("Comprobante %s sin Factura asociada, se omite.", comp.numero_comprobante)
+                continue
+
             try:
-                from apps.facturacion.models import Factura
-                factura = Factura.objects.filter(comprobante=comp).first()
-                if not factura:
-                    continue
                 result = procesar_factura_sri(factura)
-                count_reintentados += 1
+                logger.info(
+                    "Reintento %s → éxito=%s estado=%s msg=%s",
+                    comp.numero_comprobante,
+                    result.get('success'),
+                    result.get('estado'),
+                    result.get('mensaje'),
+                )
                 if result.get('success'):
-                    logger.info("Reintento exitoso: %s → %s", comp.numero_comprobante, result.get('estado'))
+                    count_reintentados += 1
+                else:
+                    # Este comprobante falló de nuevo; detener el grupo para no
+                    # desordenar los siguientes secuenciales.
+                    logger.warning(
+                        "Reintento fallido para %s: %s — se detiene el grupo para mantener orden.",
+                        comp.numero_comprobante, result.get('mensaje'),
+                    )
+                    break
             except Exception as e:
                 logger.error("Error en reintento de %s: %s", comp.numero_comprobante, e)
-        else:
-            # Día anterior → solo notificar (requiere acción manual)
-            # Evitar notificaciones duplicadas (máx 1 por comprobante por día)
-            from apps.empresas.models import Notificacion
-            ya_notificado = Notificacion.objects.filter(
-                empresa=empresa,
-                titulo__contains=comp.numero_comprobante,
-                fecha_creacion__date=today,
-            ).exists()
-            if not ya_notificado:
-                _notif(
-                    empresa, 'ADVERTENCIA',
-                    f'Factura pendiente requiere reenvío: {comp.numero_comprobante}',
-                    (
-                        f'La factura {comp.numero_comprobante} (estado: {comp.estado}) fue emitida el '
-                        f'{fecha_emision_local} y no pudo autorizarse. '
-                        f'El SRI solo acepta facturas del día actual. '
-                        f'Ingresa a Facturación y usa "Reprocesar" para reenviarla con la fecha de hoy.'
-                    ),
-                    '/facturacion',
-                )
-                count_alertados += 1
+                # Detener el grupo ante error inesperado
+                break
 
-    return f"Reintentados: {count_reintentados}, Alertados (fecha anterior): {count_alertados}"
+    return (
+        f"Reintentados: {count_reintentados}, "
+        f"Grupos bloqueados por hueco: {count_bloqueados}, "
+        f"Alertados (sin certificado): {count_alertados}"
+    )
 
 
 @shared_task

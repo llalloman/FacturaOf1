@@ -23,6 +23,11 @@ MENSAJE_FACTURA_PENDIENTE_REDONDEO = (
     'Revise precios, descuentos o composición de ítems antes de enviar al SRI.'
 )
 
+# Diferencia máxima entre el total cobrado y el total fiscal calculado que se
+# acepta enviar al SRI sin bloquear la factura. El SRI tolera pequeñas
+# diferencias de redondeo. Se usa el total fiscal (el calculado) en el XML.
+TOLERANCIA_REDONDEO_SRI = Decimal('0.05')
+
 
 def cliente_es_consumidor_final(cliente):
     if not cliente:
@@ -394,8 +399,14 @@ def crear_factura_desde_venta(venta):
     recalcular_totales_factura_desde_detalles(factura)
     total_venta = Decimal(str(venta.total or 0)).quantize(Decimal('0.01'))
     total_factura = Decimal(str(factura.total or 0)).quantize(Decimal('0.01'))
-    if total_factura != total_venta:
+    diferencia = abs(total_factura - total_venta)
+    if diferencia > TOLERANCIA_REDONDEO_SRI:
         _marcar_factura_pendiente_redondeo(factura, total_venta, total_factura)
+    elif diferencia > Decimal('0.00'):
+        logger.info(
+            'Factura %s: diferencia de redondeo %s dentro de tolerancia SRI (%s). Se procede con total fiscal.',
+            factura.comprobante.numero_comprobante, diferencia, TOLERANCIA_REDONDEO_SRI,
+        )
 
     # Vincular venta → factura
     venta.factura = factura
@@ -453,10 +464,16 @@ def procesar_factura_sri(factura):
         aplicar_ajuste_centavos_factura(factura, venta_rel.total)
         total_venta = Decimal(str(venta_rel.total or 0)).quantize(Decimal('0.01'))
         total_factura = Decimal(str(factura.total or 0)).quantize(Decimal('0.01'))
-        if total_factura != total_venta:
+        diferencia = abs(total_factura - total_venta)
+        if diferencia > TOLERANCIA_REDONDEO_SRI:
             result['mensaje'] = _marcar_factura_pendiente_redondeo(factura, total_venta, total_factura)
             result['estado'] = comprobante.estado
             return result
+        elif diferencia > Decimal('0.00'):
+            logger.info(
+                'Factura %s: diferencia de redondeo %s dentro de tolerancia SRI (%s). Se procede con total fiscal.',
+                comprobante.numero_comprobante, diferencia, TOLERANCIA_REDONDEO_SRI,
+            )
     normalizar_precios_unitarios_factura(factura)
 
     # Si el comprobante fue rechazado o no autorizado, se reinicia el artefacto

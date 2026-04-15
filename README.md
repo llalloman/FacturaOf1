@@ -1,4 +1,213 @@
-# Sistema de Facturación Electrónica Multi-Tenant SRI Ecuador
+# Sistema de Facturación Electrónica — SRI Ecuador
+
+> **Stack**: Django 4.2 · Django REST Framework · Celery + Redis · PostgreSQL · React 19 + Vite · TailwindCSS
+
+---
+
+## Inicio rápido en desarrollo
+
+### Requisitos previos
+
+| Herramienta | Versión mínima |
+|---|---|
+| Python | 3.10+ |
+| Node.js | 18+ |
+| PostgreSQL | 12+ |
+| Redis | 6+ |
+
+---
+
+### 1. Variables de entorno
+
+```bash
+# Raíz del proyecto → archivo .env
+SECRET_KEY=cambia-esto-por-un-valor-seguro
+DEBUG=True
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/facturacion_sri
+REDIS_URL=redis://localhost:6379/0
+SRI_AMBIENTE=PRUEBAS          # PRUEBAS | PRODUCCION
+
+# Email (opcional en desarrollo, usa consola por defecto)
+EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+
+# JWT
+JWT_ACCESS_TOKEN_LIFETIME_MINUTES=60
+JWT_REFRESH_TOKEN_LIFETIME_DAYS=7
+```
+
+> Copia `gcp-back.env.example` como punto de partida para producción.
+
+---
+
+### 2. Backend (Django)
+
+```bash
+# 1. Crear y activar entorno virtual
+python -m venv venv
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # macOS/Linux
+
+# 2. Instalar dependencias
+pip install -r requirements.txt
+
+# 3. Aplicar migraciones
+python manage.py migrate
+
+# 4. Cargar datos iniciales (planes de suscripción)
+python manage.py loaddata fixtures/planes_suscripcion.json
+
+# 5. Crear superusuario (primera vez)
+python manage.py createsuperuser
+```
+
+Levantar los servicios (3 terminales independientes):
+
+```bash
+# Terminal 1 — API Django
+python manage.py runserver 8000
+
+# Terminal 2 — Celery Worker (procesa tareas asíncronas)
+celery -A config worker -l info
+
+# Terminal 3 — Celery Beat (cron de tareas periódicas)
+celery -A config beat -l info
+```
+
+> La API queda disponible en: **http://127.0.0.1:8000/api/**
+> Admin Django: **http://127.0.0.1:8000/admin/**
+
+---
+
+### 3. Frontend (React + Vite)
+
+```bash
+cd web-admin
+npm install       # solo la primera vez
+npm run dev
+```
+
+> Queda disponible en: **http://localhost:5174/**
+
+La URL del backend se configura con la variable de entorno:
+
+```bash
+# web-admin/.env.local  (crear si no existe)
+VITE_API_URL=http://localhost:8000/api
+```
+
+Sin ese archivo, Vite usa `http://localhost:8000/api` como fallback automático.
+
+---
+
+## Tareas periódicas (Celery Beat)
+
+| Tarea | Frecuencia | Descripción |
+|---|---|---|
+| `verificar_autorizaciones_pendientes` | cada 2 min | Consulta al SRI el estado de comprobantes en estado `ENVIADO` |
+| `reintentar_comprobantes_fallidos` | cada 10 min | Reintenta `BORRADOR`, `RECHAZADO` y `NO_AUTORIZADO` en orden de secuencial |
+| `verificar_suscripciones_vencidas` | 00:00 diario | Desactiva suscripciones expiradas |
+| `verificar_suscripciones_por_vencer` | 09:00 diario | Envía alertas de vencimiento próximo |
+
+> **Importante**: sin Celery Worker y Beat corriendo, las facturas no se re-envían automáticamente al SRI y las suscripciones no se actualizan.
+
+---
+
+## Envío de facturas al SRI — flujo y estados
+
+```
+Nueva venta
+  └─ crear_factura_desde_venta()
+        ├─ Secuencial asignado (atómico con select_for_update)
+        ├─ ComprobanteElectronico creado en estado BORRADOR
+        └─ procesar_factura_sri()
+              ├─ Sin certificado digital    → queda en BORRADOR (mensaje visible en UI)
+              ├─ Error de redondeo fiscal   → queda en BORRADOR (mensaje visible en UI)
+              ├─ Firma + envío OK           → FIRMADO → ENVIADO
+              ├─ SRI autoriza               → AUTORIZADO ✓
+              └─ SRI rechaza               → RECHAZADO / NO_AUTORIZADO
+                                                └─ Celery lo reintenta en orden cada 10 min
+```
+
+### Estados posibles
+
+| Estado | Descripción |
+|---|---|
+| `BORRADOR` | Creado pero no enviado. Ver `mensajes_sri` para el motivo exacto. |
+| `FIRMADO` | XML generado y firmado, pendiente de envío |
+| `ENVIADO` | Recibido por el SRI, esperando autorización |
+| `AUTORIZADO` | Autorizado por el SRI. Número de autorización disponible. |
+| `RECHAZADO` | SRI rechazó la recepción (error en datos) |
+| `NO_AUTORIZADO` | SRI recibió pero denegó la autorización |
+| `ANULADO` | Anulado mediante Nota de Crédito |
+
+### Cola ordenada por secuencial
+
+El cron de reintento garantiza que si una factura queda bloqueada (BORRADOR/RECHAZADO), las siguientes del mismo punto de emisión **no se procesan** hasta que la anterior se resuelva, evitando saltos de secuencial en el SRI.
+
+---
+
+## Configuración del certificado digital
+
+1. Ir a **Configuración → Firma Digital** en la interfaz web
+2. Subir el archivo `.p12` de la empresa
+3. Ingresar la contraseña del certificado
+4. El sistema firma automáticamente todos los comprobantes desde ese momento
+
+> Sin certificado: los comprobantes se generan en XML pero quedan en `BORRADOR`. Se enviarán automáticamente en cuanto se configure el certificado (el cron los reintentará).
+
+---
+
+## Ambiente SRI
+
+| Variable `SRI_AMBIENTE` | Endpoints |
+|---|---|
+| `PRUEBAS` | `https://celarium.sri.gob.ec/...` |
+| `PRODUCCION` | `https://sri.gob.ec/...` |
+
+Cambiar el valor en `.env` y reiniciar Django. No requiere cambios de código.
+
+---
+
+## Estructura del proyecto
+
+```
+FacturaOf1/
+├── config/              # Settings, Celery, URLs raíz
+├── apps/
+│   ├── facturacion/     # Comprobantes, facturas, NC, ND, retenciones, guías
+│   │   ├── models.py    # ComprobanteElectronico, Factura, Secuencial…
+│   │   ├── tasks.py     # Celery: verificar autorizaciones, reintentar fallidos
+│   │   ├── views.py     # ViewSets REST
+│   │   └── services/    # factura_service, sri_service, ride_service…
+│   ├── ventas/          # POS y ventas
+│   ├── productos/       # Catálogo
+│   ├── clientes/        # Clientes
+│   ├── proveedores/     # Proveedores y órdenes de compra
+│   ├── inventarios/     # Bodegas y movimientos
+│   ├── empresas/        # Multi-tenant, configuración de empresa
+│   ├── usuarios/        # Auth JWT, roles
+│   └── suscripciones/   # Planes y límites de facturación
+├── web-admin/           # Frontend React + Vite (panel administrativo)
+│   └── src/
+│       ├── pages/       # Una carpeta por módulo (facturas, ventas, clientes…)
+│       ├── services/    # Clientes Axios por módulo
+│       ├── types/       # Interfaces TypeScript
+│       └── store/       # Zustand + toast/confirm helpers
+├── pos-client/          # Cliente POS (Electron/React, opcional)
+├── fixtures/            # Datos iniciales
+├── requirements.txt
+└── manage.py
+```
+
+---
+
+## Licencia
+
+Propietario — Todos los derechos reservados.  
+Desarrollado para Ecuador.
+
+---
+
 
 Sistema completo de facturación electrónica homologado para el SRI de Ecuador con arquitectura multi-tenant (multi-empresa) y gestión de suscripciones.
 

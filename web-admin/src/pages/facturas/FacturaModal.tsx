@@ -21,7 +21,27 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
     total_descuento: '',
   });
 
-  const [detalles, setDetalles] = useState<DetalleFactura[]>([]);
+  const [detalles, setDetalles] = useState<DetalleFactura[]>(() => {
+    if (!factura?.detalles?.length) return [];
+    // El backend devuelve precio_total_sin_impuesto / valor_impuesto;
+    // los mapeamos al formato interno del modal.
+    return factura.detalles.map((d) => {
+      const raw = d as DetalleFactura & { precio_total_sin_impuesto?: number; valor_impuesto?: number };
+      const subtotal = Number(raw.subtotal ?? raw.precio_total_sin_impuesto ?? 0);
+      const impuestos = Number(raw.impuestos ?? raw.valor_impuesto ?? 0);
+      return {
+        id: raw.id,
+        producto: raw.producto,
+        producto_nombre: raw.producto_nombre ?? '',
+        cantidad: Number(raw.cantidad),
+        precio_unitario: Number(raw.precio_unitario),
+        descuento: Number(raw.descuento ?? 0),
+        subtotal,
+        impuestos,
+        total: subtotal + impuestos,
+      };
+    });
+  });
   const [productoSeleccionado, setProductoSeleccionado] = useState(0);
   const [cantidad, setCantidad] = useState('');
 

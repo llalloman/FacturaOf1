@@ -357,8 +357,13 @@ const FacturasPage: React.FC = () => {
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getEstadoColor(factura.estado)}`}>
                           {factura.estado}
                         </span>
-                        {(factura.estado === 'RECHAZADO' || factura.estado === 'NO_AUTORIZADO') && factura.mensajes_sri && (
-                          <span className="text-xs text-red-600 max-w-[200px] text-center leading-tight" title={factura.mensajes_sri}>
+                        {(factura.estado === 'RECHAZADO' || factura.estado === 'NO_AUTORIZADO' || factura.estado === 'BORRADOR') && factura.mensajes_sri && (
+                          <span
+                            className={`text-xs max-w-[200px] text-center leading-tight ${
+                              factura.estado === 'BORRADOR' ? 'text-yellow-700' : 'text-red-600'
+                            }`}
+                            title={factura.mensajes_sri}
+                          >
                             {factura.mensajes_sri.length > 80 ? factura.mensajes_sri.slice(0, 80) + '…' : factura.mensajes_sri}
                           </span>
                         )}
