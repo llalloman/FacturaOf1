@@ -39,7 +39,22 @@ class DetallePedidoSerializer(serializers.ModelSerializer):
 class DetallePedidoCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = DetallePedido
-        fields = ['producto', 'cantidad', 'precio_unitario', 'notas']
+        fields = ['producto', 'cantidad', 'precio_unitario', 'descuento', 'notas']
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        cantidad = Decimal(str(attrs.get('cantidad', 0) or 0))
+        precio_unitario = Decimal(str(attrs.get('precio_unitario', 0) or 0))
+        descuento = Decimal(str(attrs.get('descuento', 0) or 0))
+
+        if descuento < Decimal('0.00'):
+            raise serializers.ValidationError({'descuento': 'El descuento no puede ser negativo.'})
+
+        base_bruta = cantidad * precio_unitario
+        if descuento > base_bruta:
+            raise serializers.ValidationError({'descuento': 'El descuento no puede superar el subtotal bruto del ítem.'})
+
+        return attrs
 
 
 class PedidoSerializer(serializers.ModelSerializer):

@@ -436,8 +436,8 @@ function CobroModal({
 // ─── Página Principal POS ─────────────────────────────────────────────────
 export default function POSPage() {
   const navigate = useNavigate();
-  const { items, cliente, setCliente, agregarItem, actualizarCantidad, eliminarItem, limpiarCarrito,
-          getSubtotal, getIVA, getTotal } = usePOSStore();
+  const { items, cliente, setCliente, agregarItem, actualizarCantidad, aplicarDescuento, eliminarItem, limpiarCarrito,
+          getSubtotal, getDescuento, getIVA, getTotal } = usePOSStore();
 
   const [search, setSearch] = useState('');
   const [showCliente, setShowCliente] = useState(false);
@@ -660,8 +660,23 @@ export default function POSPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-gray-400">{fmt(item.precio_unitario_visual)} c/u</p>
+                    {item.descuento > 0 && (
+                      <p className="text-xs text-red-500">Desc: -{fmt(item.descuento)}</p>
+                    )}
                     <p className="font-bold text-gray-800">{fmt(item.total)}</p>
                   </div>
+                </div>
+                <div className="mt-2">
+                  <p className="block text-[11px] text-gray-500 mb-1">Descuento del item</p>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={item.descuento}
+                    onChange={(e) => aplicarDescuento(item.producto_id, Number(e.target.value || 0))}
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
                 </div>
               </div>
             ))}
@@ -672,6 +687,11 @@ export default function POSPage() {
             <div className="flex justify-between text-sm text-gray-500">
               <span>Subtotal</span><span>{fmt(getSubtotal())}</span>
             </div>
+              {getDescuento() > 0 && (
+                <div className="flex justify-between text-sm text-red-500">
+                  <span>Descuento</span><span>-{fmt(getDescuento())}</span>
+                </div>
+              )}
             <div className="flex justify-between text-sm text-gray-500">
               <span>IVA</span><span>{fmt(getIVA())}</span>
             </div>

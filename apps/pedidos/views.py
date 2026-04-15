@@ -197,6 +197,7 @@ class PedidoViewSet(viewsets.ModelViewSet):
         from apps.ventas.models import Caja, AperturaCaja, Venta, DetalleVenta, PagoVenta
         from apps.clientes.models import Cliente
         import uuid as uuid_lib
+        from decimal import Decimal
 
         pedido = self.get_object()
         if pedido.estado == 'PAGADO':
@@ -257,8 +258,10 @@ class PedidoViewSet(viewsets.ModelViewSet):
         subtotal_0 = _D('0.00')
         subtotal_12 = _D('0.00')
         subtotal_15 = _D('0.00')
+        descuento_total = _D('0.00')
         for d in pedido.detalles.exclude(estado='CANCELADO'):
             pct = getattr(d.producto, 'porcentaje_iva', '4')
+            descuento_total += Decimal(str(d.descuento or '0.00'))
             if pct == '4':
                 subtotal_15 += d.subtotal
             elif pct in ('0', '6', '7'):
@@ -282,6 +285,7 @@ class PedidoViewSet(viewsets.ModelViewSet):
             subtotal_15=subtotal_15,
             iva=pedido.iva,
             total=pedido.total,
+            descuento=descuento_total.quantize(Decimal('0.01')),
             genera_factura=genera_factura,
         )
 
@@ -292,6 +296,7 @@ class PedidoViewSet(viewsets.ModelViewSet):
                 producto=d.producto,
                 cantidad=d.cantidad,
                 precio_unitario=d.precio_unitario,
+                descuento=d.descuento,
                 subtotal=d.subtotal,
                 iva=d.iva,
                 total=d.subtotal + d.iva,

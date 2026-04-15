@@ -34,13 +34,14 @@ const ESTADO_PEDIDO_COLOR: Record<Pedido['estado'], string> = {
 interface AgregarItemModalProps {
   productos: Producto[];
   onClose: () => void;
-  onAdd: (item: { producto: number; cantidad: number; precio_unitario: number; notas?: string }) => Promise<void>;
+  onAdd: (item: { producto: number; cantidad: number; precio_unitario: number; descuento?: number; notas?: string }) => Promise<void>;
 }
 
 function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) {
   const [busqueda, setBusqueda] = useState('');
   const [seleccionado, setSeleccionado] = useState<Producto | null>(null);
   const [cantidad, setCantidad] = useState(1);
+  const [descuento, setDescuento] = useState('0');
   const [notas, setNotas] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -54,14 +55,20 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
   const handleAdd = async () => {
     if (!seleccionado) return;
     setSaving(true);
+    const descuentoNum = Math.max(0, Number(descuento) || 0);
     await onAdd({
       producto: seleccionado.id,
       cantidad,
       precio_unitario: Number(seleccionado.precio),
+      descuento: descuentoNum,
       notas: notas.trim() || undefined,
     });
     setSaving(false);
   };
+
+  const subtotalBruto = seleccionado ? Number(seleccionado.precio_con_iva ?? seleccionado.precio) * cantidad : 0;
+  const descuentoNum = Math.max(0, Number(descuento) || 0);
+  const subtotalNeto = Math.max(0, subtotalBruto - descuentoNum);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
@@ -128,9 +135,24 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Subtotal</label>
                 <div className="text-lg font-bold text-indigo-600">
-                  ${(Number(seleccionado.precio_con_iva ?? seleccionado.precio) * cantidad).toFixed(2)}
+                  ${subtotalNeto.toFixed(2)}
                 </div>
+                {descuentoNum > 0 && (
+                  <div className="text-xs text-gray-500">Bruto: ${subtotalBruto.toFixed(2)}</div>
+                )}
               </div>
+            </div>
+            <div>
+              <p className="block text-xs text-gray-500 mb-1">Descuento</p>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={descuento}
+                onChange={e => setDescuento(e.target.value)}
+                placeholder="0.00"
+              />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Notas (sin cebolla, etc.)</label>
@@ -383,6 +405,9 @@ function DetalleItem({ item, onCambiarEstado, onEliminar, pedidoCerrado }: Detal
           <span className="text-sm font-semibold text-gray-700 shrink-0 ml-2">${Number(item.subtotal).toFixed(2)}</span>
         </div>
         <div className="text-xs text-gray-400 mt-0.5">x{item.cantidad} · ${Number(item.precio_unitario).toFixed(2)} c/u</div>
+        {Number(item.descuento) > 0 && (
+          <div className="text-xs text-red-500 mt-0.5">Descuento: -${Number(item.descuento).toFixed(2)}</div>
+        )}
         {item.notas && (
           <div className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
             <MessageSquare size={10} /> {item.notas}
@@ -476,7 +501,7 @@ export default function PedidoDetallePage() {
 
   const pedidoCerrado = pedido?.estado === 'PAGADO' || pedido?.estado === 'CANCELADO';
 
-  const handleAgregarItem = async (item: { producto: number; cantidad: number; precio_unitario: number; notas?: string }) => {
+  const handleAgregarItem = async (item: { producto: number; cantidad: number; precio_unitario: number; descuento?: number; notas?: string }) => {
     if (!pedido) return;
     await pedidosService.agregarItem(pedido.id, item);
     setModalAgregarItem(false);
@@ -520,6 +545,10 @@ export default function PedidoDetallePage() {
   }
 
   const detallesActivos = pedido.detalles.filter(d => d.estado !== 'CANCELADO');
+  const descuentoDisplay = pedido.detalles
+    .filter(d => d.estado !== 'CANCELADO')
+    .reduce((sum, d) => sum + Number(d.descuento || 0), 0)
+    .toFixed(2);
   const subtotalDisplay = Number(pedido.subtotal).toFixed(2);
   const ivaDisplay = Number(pedido.iva).toFixed(2);
   const totalDisplay = Number(pedido.total).toFixed(2);
@@ -631,6 +660,12 @@ export default function PedidoDetallePage() {
                 <span>Subtotal</span>
                 <span>${subtotalDisplay}</span>
               </div>
+              {Number(descuentoDisplay) > 0 && (
+                <div className="flex justify-between text-red-500">
+                  <span>Descuento</span>
+                  <span>-${descuentoDisplay}</span>
+                </div>
+              )}
               <div className="flex justify-between text-gray-600">
                 <span>IVA</span>
                 <span>${ivaDisplay}</span>

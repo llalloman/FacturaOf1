@@ -3,6 +3,7 @@ import { usePOSStore } from '../store/posStore';
 export default function Cart() {
   const items = usePOSStore((state) => state.items);
   const actualizarCantidad = usePOSStore((state) => state.actualizarCantidad);
+  const aplicarDescuento = usePOSStore((state) => state.aplicarDescuento);
   const eliminarItem = usePOSStore((state) => state.eliminarItem);
   const getSubtotal = usePOSStore((state) => state.getSubtotal);
   const getDescuentoTotal = usePOSStore((state) => state.getDescuentoTotal);
@@ -92,10 +93,26 @@ export default function Cart() {
                 <p className="text-xs text-gray-500">
                   ${item.precio_unitario.toFixed(2)} c/u
                 </p>
+                {item.descuento > 0 && (
+                  <p className="text-xs text-red-500">Desc: -${item.descuento.toFixed(2)}</p>
+                )}
                 <p className="font-bold text-gray-800">
                   ${item.total.toFixed(2)}
                 </p>
               </div>
+            </div>
+
+            <div className="mt-2">
+              <p className="block text-xs text-gray-500 mb-1">Descuento</p>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={item.descuento}
+                onChange={(e) => aplicarDescuento(item.producto_id, Number(e.target.value || 0))}
+                className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="0.00"
+              />
             </div>
           </div>
         ))}

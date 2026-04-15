@@ -33,6 +33,7 @@ export interface DetallePedido {
   producto_codigo?: string;
   cantidad: number;
   precio_unitario: number;
+  descuento: number;
   subtotal: number;
   iva: number;
   notas?: string;
@@ -136,7 +137,7 @@ export const pedidosService = {
     const { data } = await apiClient.patch(`/pedidos/pedidos/${id}/cambiar_estado/`, { estado });
     return data;
   },
-  agregarItem: async (pedidoId: number, item: { producto: number; cantidad: number; precio_unitario: number; notas?: string }): Promise<DetallePedido> => {
+  agregarItem: async (pedidoId: number, item: { producto: number; cantidad: number; precio_unitario: number; descuento?: number; notas?: string }): Promise<DetallePedido> => {
     const { data } = await apiClient.post(`/pedidos/pedidos/${pedidoId}/agregar_item/`, item);
     return data;
   },

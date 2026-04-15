@@ -141,12 +141,15 @@ class VentaSerializer(serializers.ModelSerializer):
         subtotal_12 = Decimal('0')
         subtotal_15 = Decimal('0')
         iva_total = Decimal('0')
+        descuento_total = Decimal('0')
 
         for d in detalles_data:
             sub = Decimal(str(d.get('subtotal', Decimal(str(d['cantidad'])) * Decimal(str(d['precio_unitario']))))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             iva_d = Decimal(str(d.get('iva', '0'))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            descuento_d = Decimal(str(d.get('descuento', '0'))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             subtotal += sub
             iva_total += iva_d
+            descuento_total += descuento_d
             producto = d.get('producto')
             pct = getattr(producto, 'porcentaje_iva', '2') if producto else '2'
             if pct == '4':
@@ -162,7 +165,7 @@ class VentaSerializer(serializers.ModelSerializer):
         validated_data['subtotal_15'] = subtotal_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         validated_data['iva'] = iva_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         validated_data['total'] = (subtotal + iva_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        validated_data.setdefault('descuento', Decimal('0.00'))
+        validated_data['descuento'] = descuento_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
         # ── Crear venta ───────────────────────────────────────────────────
         venta = Venta.objects.create(**validated_data)

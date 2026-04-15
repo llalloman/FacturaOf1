@@ -245,6 +245,7 @@ class DetallePedido(models.Model):
     )
     cantidad = models.DecimalField(_('cantidad'), max_digits=10, decimal_places=2)
     precio_unitario = models.DecimalField(_('precio unitario'), max_digits=12, decimal_places=6)
+    descuento = models.DecimalField(_('descuento'), max_digits=12, decimal_places=2, default=Decimal('0.00'))
     subtotal = models.DecimalField(_('subtotal'), max_digits=12, decimal_places=2)
     iva = models.DecimalField(_('IVA'), max_digits=12, decimal_places=2, default=Decimal('0.00'))
     notas = models.CharField(_('notas / modificaciones'), max_length=200, blank=True,
@@ -272,14 +273,19 @@ class DetallePedido(models.Model):
 
     def save(self, *args, **kwargs):
         # Mantener base sin redondear para evitar arrastre de +0.01 al calcular IVA.
-        base = self.cantidad * self.precio_unitario
-        self.subtotal = base.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        base_bruta = self.cantidad * self.precio_unitario
+        descuento = Decimal(str(self.descuento or '0.00'))
+        if descuento < Decimal('0.00'):
+            descuento = Decimal('0.00')
+        base_neta = max(Decimal('0.00'), base_bruta - descuento)
+        self.descuento = descuento.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        self.subtotal = base_neta.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
         # IVA simple según tarifa del producto
         if self.producto.aplica_iva:
             tarifas = {'0': Decimal('0'), '2': Decimal('12'), '4': Decimal('15')}
             pct = tarifas.get(self.producto.porcentaje_iva, Decimal('0'))
-            self.iva = (base * pct / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            self.iva = (base_neta * pct / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         else:
             self.iva = Decimal('0.00')
         super().save(*args, **kwargs)

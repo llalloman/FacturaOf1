@@ -48,6 +48,14 @@ const IVA_RATES: Record<string, number> = {
 const round2 = (value: number) => Math.round(value * 100) / 100;
 const calcIVA = (subtotal: number, pct: string) =>
   round2(subtotal * (IVA_RATES[pct] ?? 0.12));
+const calcSubtotalNeto = (cantidad: number, precioUnitario: number, descuento: number) => {
+  const bruto = round2(cantidad * precioUnitario);
+  const descuentoSeguro = Math.max(0, Math.min(round2(descuento), bruto));
+  return {
+    descuentoSeguro,
+    subtotalNeto: round2(bruto - descuentoSeguro),
+  };
+};
 
 interface POSState {
   items: ItemCarrito[];
@@ -55,6 +63,7 @@ interface POSState {
   setCliente: (c: ClientePOS | null) => void;
   agregarItem: (p: ProductoPOS, cantidad?: number) => void;
   actualizarCantidad: (productoId: number, cantidad: number) => void;
+  aplicarDescuento: (productoId: number, descuento: number) => void;
   eliminarItem: (productoId: number) => void;
   limpiarCarrito: () => void;
   getSubtotal: () => number;
@@ -76,13 +85,20 @@ export const usePOSStore = create<POSState>((set, get) => ({
       const updated = [...items];
       const item = updated[idx];
       const newQty = item.cantidad + cantidad;
-      const sub = round2(newQty * item.precio_unitario);
-      const iva = p.aplica_iva ? calcIVA(sub, p.porcentaje_iva) : 0;
-      updated[idx] = { ...item, cantidad: newQty, subtotal: sub, iva, total: round2(sub + iva) };
+      const { descuentoSeguro, subtotalNeto } = calcSubtotalNeto(newQty, item.precio_unitario, item.descuento);
+      const iva = p.aplica_iva ? calcIVA(subtotalNeto, p.porcentaje_iva) : 0;
+      updated[idx] = {
+        ...item,
+        cantidad: newQty,
+        descuento: descuentoSeguro,
+        subtotal: subtotalNeto,
+        iva,
+        total: round2(subtotalNeto + iva),
+      };
       set({ items: updated });
     } else {
-      const sub = round2(cantidad * p.precio);
-      const iva = p.aplica_iva ? calcIVA(sub, p.porcentaje_iva) : 0;
+      const { subtotalNeto } = calcSubtotalNeto(cantidad, p.precio, 0);
+      const iva = p.aplica_iva ? calcIVA(subtotalNeto, p.porcentaje_iva) : 0;
       set({
         items: [
           ...items,
@@ -94,9 +110,9 @@ export const usePOSStore = create<POSState>((set, get) => ({
             precio_unitario: p.precio,
             precio_unitario_visual: p.precio_con_iva ?? round2(p.precio * (1 + (IVA_RATES[p.porcentaje_iva] ?? 0))),
             descuento: 0,
-            subtotal: sub,
+            subtotal: subtotalNeto,
             iva,
-            total: round2(sub + iva),
+            total: round2(subtotalNeto + iva),
             porcentaje_iva: p.porcentaje_iva,
             aplica_iva: p.aplica_iva,
           },
@@ -110,9 +126,33 @@ export const usePOSStore = create<POSState>((set, get) => ({
     set({
       items: get().items.map((i) => {
         if (i.producto_id !== productoId) return i;
-        const sub = round2(cantidad * i.precio_unitario);
-        const iva = i.aplica_iva ? calcIVA(sub, i.porcentaje_iva) : 0;
-        return { ...i, cantidad, subtotal: sub, iva, total: round2(sub + iva) };
+        const { descuentoSeguro, subtotalNeto } = calcSubtotalNeto(cantidad, i.precio_unitario, i.descuento);
+        const iva = i.aplica_iva ? calcIVA(subtotalNeto, i.porcentaje_iva) : 0;
+        return {
+          ...i,
+          cantidad,
+          descuento: descuentoSeguro,
+          subtotal: subtotalNeto,
+          iva,
+          total: round2(subtotalNeto + iva),
+        };
+      }),
+    });
+  },
+
+  aplicarDescuento: (productoId, descuento) => {
+    set({
+      items: get().items.map((i) => {
+        if (i.producto_id !== productoId) return i;
+        const { descuentoSeguro, subtotalNeto } = calcSubtotalNeto(i.cantidad, i.precio_unitario, descuento);
+        const iva = i.aplica_iva ? calcIVA(subtotalNeto, i.porcentaje_iva) : 0;
+        return {
+          ...i,
+          descuento: descuentoSeguro,
+          subtotal: subtotalNeto,
+          iva,
+          total: round2(subtotalNeto + iva),
+        };
       }),
     });
   },
