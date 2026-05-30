@@ -34,38 +34,30 @@ def _generate_provisional_ruc() -> str:
 
 
 def _send_verification_email(email: str, code: str, nombre: str = ''):
-    """Envía el código de verificación vía Resend API (evita bloqueo SMTP de Railway)."""
-    resend_key = getattr(settings, 'RESEND_API_KEY', None)
+    """Envía el código de verificación usando el backend SMTP configurado en Django."""
+    from django.core.mail import send_mail
+    from django.conf import settings
+
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
     saludo = f'Hola {nombre},' if nombre else 'Hola,'
-    payload = {
-        'from': f'OF1 Solutions <{from_email}>',
-        'to': [email],
-        'subject': 'Código de verificación - OF1 Solutions',
-        'text': (
-            f'{saludo}\n\n'
-            f'Tu código de verificación es:\n\n'
-            f'    {code}\n\n'
-            f'Este código es válido por 30 minutos.\n\n'
-            f'Si no solicitaste este código, ignora este mensaje.\n\n'
-            f'— OF1 Solutions S.A.S.'
-        ),
-    }
-    if not resend_key:
-        logger.warning('_send_verification_email: RESEND_API_KEY no configurado, email no enviado a %s', email)
-        raise Exception('RESEND_API_KEY no configurado en las variables de entorno.')
-    resp = http_requests.post(
-        'https://api.resend.com/emails',
-        json=payload,
-        headers={
-            'Authorization': f'Bearer {resend_key}',
-            'Content-Type': 'application/json',
-        },
-        timeout=15,
+
+    asunto = 'Código de verificación - OF1 Solutions'
+    mensaje = (
+        f'{saludo}\n\n'
+        f'Tu código de verificación es:\n\n'
+        f'    {code}\n\n'
+        f'Este código es válido por 30 minutos.\n\n'
+        f'Si no solicitaste este código, ignora este mensaje.\n\n'
+        f'— OF1 Solutions S.A.S.'
     )
-    if resp.status_code not in (200, 201):
-        logger.error('_send_verification_email Resend error for %s: %s %s', email, resp.status_code, resp.text)
-        raise Exception(f'Resend API {resp.status_code}: {resp.text}')
+
+    send_mail(
+        subject=asunto,
+        message=mensaje,
+        from_email=from_email,
+        recipient_list=[email],
+        fail_silently=False,
+    )
 
 
 def _user_dict(user, empresa=None):
