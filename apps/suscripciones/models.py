@@ -7,33 +7,111 @@ from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
 
-# ── Catálogo de módulos del sistema ─────────────────────────────────────────
-MODULOS_DISPONIBLES = [
-    ('dashboard',      'Dashboard'),
-    ('facturacion',    'Facturación'),
-    ('retenciones',    'Retenciones'),
-    ('guias_remision', 'Guías de Remisión'),
-    ('notas_debito',   'Notas de Débito'),
-    ('notas_credito',  'Notas de Crédito'),
-    ('cartera',        'Cartera por Cobrar'),
-    ('declaraciones',  'Declaraciones SRI'),
-    ('cotizaciones',   'Cotizaciones'),
-    ('contabilidad',   'Contabilidad'),
-    ('bancos',         'Bancos'),
-    ('nomina',         'Nómina'),
-    ('ventas',         'Ventas'),
-    ('pedidos',        'Mesas / Pedidos'),
-    ('clientes',       'Clientes'),
-    ('productos',      'Productos'),
-    ('proveedores',    'Proveedores'),
-    ('inventarios',    'Inventarios'),
-    ('reportes',       'Reportes'),
-    ('configuracion',  'Configuración'),
-    ('usuarios',       'Usuarios'),
-    ('pos',            'Punto de Venta'),
+# ── Catálogo base de módulos del sistema ────────────────────────────────────
+# Fallback usado por migraciones, seeds y arranque inicial. La fuente
+# administrable en ejecución es ModuloSistema.
+MODULOS_BASE = [
+    {'codigo': 'dashboard',      'label': 'Dashboard',          'ruta': '/',               'grupo': 'Inicio',                    'icono': 'LayoutDashboard', 'orden': 1},
+    {'codigo': 'pos',            'label': 'POS',                'ruta': '/pos',            'grupo': 'Ventas',                    'icono': 'Tablet',          'orden': 1, 'external': True},
+    {'codigo': 'cotizaciones',   'label': 'Cotizaciones',       'ruta': '/cotizaciones',   'grupo': 'Ventas',                    'icono': 'ClipboardList',   'orden': 2},
+    {'codigo': 'pedidos',        'label': 'Mesas y Pedidos',    'ruta': '/pedidos',        'grupo': 'Ventas',                    'icono': 'LayoutGrid',      'orden': 3},
+    {'codigo': 'ventas',         'label': 'Ventas',             'ruta': '/ventas',         'grupo': 'Ventas',                    'icono': 'ShoppingCart',    'orden': 4},
+    {'codigo': 'clientes',       'label': 'Clientes',           'ruta': '/clientes',       'grupo': 'Ventas',                    'icono': 'Users',           'orden': 5},
+    {'codigo': 'facturacion',    'label': 'Facturas',           'ruta': '/facturacion',    'grupo': 'Facturación Electrónica',   'icono': 'FileText',        'orden': 1},
+    {'codigo': 'notas_credito',  'label': 'Notas de Crédito',   'ruta': '/notas-credito',  'grupo': 'Facturación Electrónica',   'icono': 'FileCheck2',      'orden': 2},
+    {'codigo': 'notas_debito',   'label': 'Notas de Débito',    'ruta': '/notas-debito',   'grupo': 'Facturación Electrónica',   'icono': 'FileMinus',       'orden': 3},
+    {'codigo': 'retenciones',    'label': 'Retenciones',        'ruta': '/retenciones',    'grupo': 'Facturación Electrónica',   'icono': 'Receipt',         'orden': 4},
+    {'codigo': 'guias_remision', 'label': 'Guías de Remisión',  'ruta': '/guias-remision', 'grupo': 'Facturación Electrónica',   'icono': 'Truck',           'orden': 5},
+    {'codigo': 'productos',      'label': 'Productos',          'ruta': '/productos',      'grupo': 'Inventario',                'icono': 'Package',         'orden': 1},
+    {'codigo': 'inventarios',    'label': 'Inventarios',        'ruta': '/inventarios',    'grupo': 'Inventario',                'icono': 'Warehouse',       'orden': 2},
+    {'codigo': 'proveedores',    'label': 'Proveedores',        'ruta': '/proveedores',    'grupo': 'Compras',                   'icono': 'ShoppingBag',     'orden': 1},
+    {'codigo': 'cartera',        'label': 'Cartera',            'ruta': '/cartera',        'grupo': 'Finanzas',                  'icono': 'Landmark',        'orden': 1},
+    {'codigo': 'bancos',         'label': 'Bancos',             'ruta': '/bancos',         'grupo': 'Finanzas',                  'icono': 'Banknote',        'orden': 2},
+    {'codigo': 'contabilidad',   'label': 'Contabilidad',       'ruta': '/contabilidad',   'grupo': 'Finanzas',                  'icono': 'BookOpen',        'orden': 3},
+    {'codigo': 'declaraciones',  'label': 'Declaraciones SRI',  'ruta': '/declaraciones',  'grupo': 'Finanzas',                  'icono': 'FileBarChart2',   'orden': 4},
+    {'codigo': 'nomina',         'label': 'Nómina',             'ruta': '/nomina',         'grupo': 'Finanzas',                  'icono': 'UsersRound',      'orden': 5},
+    {'codigo': 'reportes',       'label': 'Reportes',           'ruta': '/reportes',       'grupo': 'Reportes',                  'icono': 'TrendingUp',      'orden': 1},
+    {'codigo': 'usuarios',       'label': 'Usuarios',           'ruta': '/usuarios',       'grupo': 'Administración',            'icono': 'Users',           'orden': 1},
+    {'codigo': 'configuracion',  'label': 'Configuración',      'ruta': '/configuracion',  'grupo': 'Administración',            'icono': 'Settings',        'orden': 2},
+    {'codigo': 'firmas_electronicas', 'label': 'Solicitudes de Firma Electrónica', 'ruta': '/firmas-electronicas', 'grupo': 'Administración', 'icono': 'FileSignature', 'orden': 3},
 ]
 
+MODULOS_DISPONIBLES = [(m['codigo'], m['label']) for m in MODULOS_BASE]
 TODOS_LOS_MODULOS = [codigo for codigo, _ in MODULOS_DISPONIBLES]
+SECCIONES_BASE = [
+    {'codigo': grupo.lower().replace(' ', '_').replace('ó', 'o').replace('é', 'e').replace('á', 'a'), 'nombre': grupo, 'orden': index}
+    for index, grupo in enumerate(dict.fromkeys(m['grupo'] for m in MODULOS_BASE).keys(), start=1)
+]
+
+
+class SeccionModulo(models.Model):
+    """Tema principal del menú/catálogo que agrupa varios módulos."""
+    codigo = models.CharField(_('código'), max_length=50, unique=True)
+    nombre = models.CharField(_('nombre'), max_length=100)
+    orden = models.PositiveIntegerField(_('orden'), default=0)
+    activo = models.BooleanField(_('activo'), default=True)
+    fecha_creacion = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(_('fecha de modificación'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('sección de módulo')
+        verbose_name_plural = _('secciones de módulos')
+        ordering = ['orden', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class ModuloSistema(models.Model):
+    """Catálogo administrable de módulos/opciones disponibles en el sistema."""
+    seccion = models.ForeignKey(
+        SeccionModulo,
+        on_delete=models.PROTECT,
+        related_name='modulos',
+        verbose_name=_('sección'),
+        null=True,
+        blank=True,
+    )
+    codigo = models.CharField(_('código'), max_length=50, unique=True)
+    label = models.CharField(_('etiqueta'), max_length=100)
+    ruta = models.CharField(_('ruta'), max_length=120)
+    grupo = models.CharField(_('grupo'), max_length=80)
+    icono = models.CharField(_('icono'), max_length=60, blank=True)
+    orden = models.PositiveIntegerField(_('orden'), default=0)
+    activo = models.BooleanField(_('activo'), default=True)
+    external = models.BooleanField(_('abre externo'), default=False)
+    fecha_creacion = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(_('fecha de modificación'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('módulo del sistema')
+        verbose_name_plural = _('módulos del sistema')
+        ordering = ['seccion__orden', 'grupo', 'orden', 'label']
+
+    def __str__(self):
+        return f'{self.codigo} - {self.label}'
+
+    def save(self, *args, **kwargs):
+        if self.seccion_id:
+            self.grupo = self.seccion.nombre
+        super().save(*args, **kwargs)
+
+
+def get_modulos_catalogo_queryset():
+    return (
+        ModuloSistema.objects
+        .select_related('seccion')
+        .filter(activo=True)
+        .order_by('seccion__orden', 'grupo', 'orden', 'label')
+    )
+
+
+def get_todos_modulos_codigos():
+    try:
+        codigos = list(get_modulos_catalogo_queryset().values_list('codigo', flat=True))
+    except Exception:
+        return TODOS_LOS_MODULOS
+    return codigos or TODOS_LOS_MODULOS
 
 
 class PlanSuscripcion(models.Model):
@@ -352,7 +430,6 @@ class ModuloPermiso(models.Model):
     modulo = models.CharField(
         _('módulo'),
         max_length=50,
-        choices=MODULOS_DISPONIBLES,
     )
 
     class Meta:

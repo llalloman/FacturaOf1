@@ -91,6 +91,8 @@ class FacturaSerializer(serializers.ModelSerializer):
             for item in detalles_input
         ) - total_descuento
         if cliente:
+            if not cliente.activo:
+                raise serializers.ValidationError({'cliente': 'No se puede usar un cliente inactivo para emitir nuevos documentos.'})
             from apps.facturacion.services.factura_service import (
                 MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE,
                 cliente_consumidor_final_supera_limite,
@@ -497,6 +499,9 @@ class NotaDebitoSerializer(serializers.ModelSerializer):
         cliente        = validated_data['cliente']
         motivo         = validated_data['motivo']
         factura_origen = validated_data.get('factura_origen')
+
+        if not cliente.activo:
+            raise serializers.ValidationError({'cliente': 'No se puede usar un cliente inactivo para emitir nuevos documentos.'})
 
         request = self.context.get('request')
         empresa = getattr(request, 'tenant', None) or getattr(request.user, 'empresa', None)

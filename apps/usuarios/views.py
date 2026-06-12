@@ -16,6 +16,7 @@ from .serializers import (
     CambiarPasswordSerializer
 )
 from .permissions import IsSuperAdmin, IsAdminEmpresa
+from apps.core.permissions import HasModuleAccess
 
 User = get_user_model()
 
@@ -34,6 +35,14 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     permission_classes = [IsAuthenticated]
+    module_required = 'usuarios'
+
+    def get_permissions(self):
+        if self.action in ('me', 'cambiar_password'):
+            return [IsAuthenticated()]
+        if self.action in ('activar', 'desactivar', 'reset_password'):
+            return [IsAdminEmpresa(), HasModuleAccess()]
+        return [permission() for permission in (IsAuthenticated, HasModuleAccess)]
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -87,7 +96,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             'message': 'Contraseña cambiada exitosamente.'
         }, status=status.HTTP_200_OK)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminEmpresa])
+    @action(detail=True, methods=['post'])
     def activar(self, request, pk=None):
         """Activar un usuario"""
         usuario = self.get_object()
@@ -97,7 +106,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             'message': f'Usuario {usuario.email} activado exitosamente.'
         })
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminEmpresa])
+    @action(detail=True, methods=['post'])
     def desactivar(self, request, pk=None):
         """Desactivar un usuario"""
         usuario = self.get_object()
@@ -113,7 +122,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             'message': f'Usuario {usuario.email} desactivado exitosamente.'
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminEmpresa])
+    @action(detail=True, methods=['post'])
     def reset_password(self, request, pk=None):
         """Resetear contraseña de un usuario (solo admins)"""
         usuario = self.get_object()

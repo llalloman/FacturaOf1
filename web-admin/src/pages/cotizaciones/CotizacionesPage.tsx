@@ -62,7 +62,7 @@ const FormModal: React.FC<FormModalProps> = ({ editing, onClose, onSuccess }) =>
 
   const { data: todosClientes = [] } = useQuery<Cliente[]>({
     queryKey: ['clientes'],
-    queryFn: clientesService.getAll,
+    queryFn: clientesService.getActivos,
     staleTime: 60_000,
   });
 

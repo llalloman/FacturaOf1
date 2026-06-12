@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'apps.contabilidad',
     'apps.bancos',
     'apps.nomina',
+    'apps.firmas',
 ]
 
 MIDDLEWARE = [
@@ -145,6 +146,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Configuración comercial
+KIT_EMPRENDEDOR_PRICE = config('KIT_EMPRENDEDOR_PRICE', default='79.99')
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -193,6 +197,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5174",
     "http://localhost:5175",
     "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+    "http://127.0.0.1:8080",
     "https://facturaof1.of1solutions.com",
     "https://facturaof1-back.of1solutions.com",
 ] + _cors_extra_list
@@ -206,6 +215,11 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5174",
     "http://localhost:5175",
     "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+    "http://127.0.0.1:8080",
     "https://facturaof1.of1solutions.com",
     "https://facturaof1-back.of1solutions.com",
 ] + _csrf_extra_list
@@ -278,6 +292,15 @@ if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+    # Feature flags (rollout seguro; desactivadas por defecto)
+    FEATURE_FLAGS = {
+        'CONTROL_POLICY_ENGINE_ENABLED': config('CONTROL_POLICY_ENGINE_ENABLED', default=False, cast=bool),
+        'CONTROL_WORKFLOW_ENGINE_ENABLED': config('CONTROL_WORKFLOW_ENGINE_ENABLED', default=False, cast=bool),
+        'CONTROL_AUDIT_ENGINE_ENABLED': config('CONTROL_AUDIT_ENGINE_ENABLED', default=False, cast=bool),
+        'CONTROL_ALERT_ENGINE_ENABLED': config('CONTROL_ALERT_ENGINE_ENABLED', default=False, cast=bool),
+        'CONTROL_SRI_ENGINE_ENABLED': config('CONTROL_SRI_ENGINE_ENABLED', default=False, cast=bool),
+    }
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 # Deshabilitamos AdminEmailHandler (default de Django en DEBUG=False) porque

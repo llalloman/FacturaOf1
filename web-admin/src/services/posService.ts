@@ -21,7 +21,7 @@ export const posService = {
   },
 
   getClientes: async (search = ''): Promise<ClientePOS[]> => {
-    const params = search ? { search } : {};
+    const params = { activo: true, ...(search ? { search } : {}) };
     const { data } = await apiClient.get('/clientes/', { params });
     const list = (data.results ?? data).map((c: Record<string, unknown>) => ({
       id: c.id as number,

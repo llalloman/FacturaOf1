@@ -64,9 +64,9 @@ def _user_dict(user, empresa=None):
     emp = empresa or user.empresa
 
     # ── Módulos activos según plan de suscripción ──────────────────────────────
-    from apps.suscripciones.models import Suscripcion, ModuloPermiso, TODOS_LOS_MODULOS
+    from apps.suscripciones.models import Suscripcion, ModuloPermiso, get_todos_modulos_codigos
     if getattr(user, 'rol', None) == 'SUPER_ADMIN' or user.is_superuser:
-        modulos_activos = TODOS_LOS_MODULOS
+        modulos_activos = get_todos_modulos_codigos()
     elif emp:
         try:
             suscripcion_activa = (
@@ -79,7 +79,7 @@ def _user_dict(user, empresa=None):
             if suscripcion_activa:
                 if suscripcion_activa.estado == 'PRUEBA':
                     # Durante el período de prueba el usuario accede a todo
-                    modulos_activos = TODOS_LOS_MODULOS
+                    modulos_activos = get_todos_modulos_codigos()
                 else:
                     modulos_activos = list(
                         ModuloPermiso.objects.filter(plan=suscripcion_activa.plan)

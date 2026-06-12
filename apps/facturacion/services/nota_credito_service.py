@@ -152,3 +152,107 @@ def procesar_nota_credito_sri(nota_credito):
         result['estado']  = comprobante.estado
 
     return result
+
+
+def _enviar_nota_credito_email(nota_credito):
+    """
+    Envia la Nota de Credito autorizada al correo del cliente con XML firmado y RIDE PDF.
+    """
+    from django.conf import settings
+    from django.core.mail import EmailMessage
+    from apps.facturacion.services.ride_service import generar_ride_nota_credito_pdf
+
+    factura = nota_credito.factura_origen
+    cliente = factura.cliente
+    destino = getattr(cliente, 'email', None)
+    comp = nota_credito.comprobante
+
+    if not destino:
+        logger.info(
+            "Cliente %s sin email - NC %s no enviada por correo",
+            getattr(cliente, 'identificacion', ''),
+            comp.numero_comprobante,
+        )
+        return {'enviado': False, 'mensaje': 'El cliente no tiene email registrado.'}
+
+    empresa = comp.empresa
+    num_doc = comp.numero_comprobante
+    num_aut = comp.numero_autorizacion or ''
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
+
+    asunto = f"Nota de Credito Electronica {num_doc} - {empresa.razon_social}"
+    cuerpo = (
+        f"Estimado/a {cliente.razon_social},\n\n"
+        f"Adjunto encontrará su nota de credito electronica:\n"
+        f"  - Numero: {num_doc}\n"
+        f"  - Factura modificada: {factura.comprobante.numero_comprobante}\n"
+        f"  - Autorizacion SRI: {num_aut}\n"
+        f"  - Motivo: {nota_credito.motivo}\n\n"
+        f"Se adjuntan el comprobante en formato XML y el RIDE (PDF).\n\n"
+        f"Saludos,\n{empresa.razon_social}"
+    )
+
+    email = EmailMessage(subject=asunto, body=cuerpo, from_email=from_email, to=[destino])
+
+    if comp.xml_firmado:
+        email.attach(f"{num_doc}.xml", comp.xml_firmado.encode('utf-8'), "application/xml")
+
+    try:
+        pdf_bytes = generar_ride_nota_credito_pdf(nota_credito)
+        email.attach(f"RIDE-NC-{num_doc}.pdf", pdf_bytes, "application/pdf")
+    except Exception as ride_err:
+        logger.warning("No se pudo generar RIDE para email de NC %s: %s", num_doc, ride_err)
+
+    try:
+        email.send(fail_silently=False)
+    except Exception as email_err:
+        logger.warning("No se pudo enviar email de NC %s: %s", num_doc, email_err)
+        return {
+            'enviado': False,
+            'mensaje': f'No se pudo enviar el email: {email_err}',
+        }
+
+    logger.info("Nota de Credito %s enviada por email a %s", num_doc, destino)
+    return {'enviado': True, 'mensaje': f'Email enviado a {destino}'}
+
+
+def finalizar_nota_credito_autorizada(nota_credito, usuario=None, enviar_email=True):
+    """
+    Aplica los efectos locales de una NC ya AUTORIZADA.
+    Idempotente: puede ejecutarse si el SRI autorizo la NC pero la factura quedo AUTORIZADA.
+    """
+    from apps.facturacion.models import ComprobanteElectronico
+    from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
+
+    comp = nota_credito.comprobante
+    if comp.estado != ComprobanteElectronico.EstadoChoices.AUTORIZADO:
+        return {
+            'finalizada': False,
+            'mensaje': f'La Nota de Credito no esta AUTORIZADA. Estado actual: {comp.estado}',
+        }
+
+    reversal = aplicar_anulacion_factura_autorizada(
+        nota_credito.factura_origen,
+        nota_credito,
+        usuario=usuario,
+    )
+    result = {
+        'finalizada': True,
+        'reversion_financiera': reversal,
+    }
+
+    if enviar_email:
+        try:
+            result['email'] = _enviar_nota_credito_email(nota_credito)
+        except Exception as email_err:
+            logger.warning(
+                "No se pudo enviar email de NC %s: %s",
+                comp.numero_comprobante,
+                email_err,
+            )
+            result['email'] = {
+                'enviado': False,
+                'mensaje': f'No se pudo enviar el email: {email_err}',
+            }
+
+    return result

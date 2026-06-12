@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { usePOSStore } from '../../store/posStore';
 import type { ClientePOS, PagoPOS } from '../../store/posStore';
@@ -10,6 +10,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { type DiscountMode, IVA_PCT, round2, getBruto, discountToMonto } from '../../lib/posDiscount';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 const fmt = (n: number) => `$${n.toFixed(2)}`;
@@ -443,7 +444,52 @@ export default function POSPage() {
   const [showCliente, setShowCliente] = useState(false);
   const [showCobro, setShowCobro] = useState(false);
   const [cajaId, setCajaId] = useState<number | null>(null);
+  const [discountModeByItem, setDiscountModeByItem] = useState<Record<number, DiscountMode>>({});
+  const [discountInputByItem, setDiscountInputByItem] = useState<Record<number, string>>({});
+  const [finalPriceByItem, setFinalPriceByItem] = useState<Record<number, string>>({});
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const ivaSummary = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const item of items) {
+      const pct = IVA_PCT[item.porcentaje_iva] ?? 0;
+      if (pct <= 0) continue;
+      map.set(pct, round2((map.get(pct) ?? 0) + item.iva));
+    }
+    return map;
+  }, [items]);
+
+  const ivaRates = useMemo(() => [...ivaSummary.keys()].sort((a, b) => a - b), [ivaSummary]);
+
+  let ivaLabel = 'IVA';
+  if (ivaRates.length === 1) ivaLabel = `IVA ${ivaRates[0]}%`;
+  if (ivaRates.length > 1) ivaLabel = 'IVA (mixto)';
+
+  const applyDiscountByMode = (item: (typeof items)[number], rawValue: string, mode: DiscountMode) => {
+    const ivaPct = IVA_PCT[item.porcentaje_iva] ?? 0;
+    const bruto = getBruto(item.cantidad, item.precio_unitario);
+    const discount = discountToMonto(mode, rawValue, bruto, ivaPct);
+    aplicarDescuento(item.producto_id, discount);
+  };
+
+  const handleChangeMode = (item: (typeof items)[number], mode: DiscountMode) => {
+    const bruto = getBruto(item.cantidad, item.precio_unitario);
+    setDiscountModeByItem((prev) => ({ ...prev, [item.producto_id]: mode }));
+
+    if (mode === 'monto') {
+      setDiscountInputByItem((prev) => ({ ...prev, [item.producto_id]: item.descuento.toFixed(2) }));
+      return;
+    }
+
+    if (mode === 'porcentaje') {
+      const pct = bruto > 0 ? round2((item.descuento / bruto) * 100) : 0;
+      setDiscountInputByItem((prev) => ({ ...prev, [item.producto_id]: String(pct) }));
+      return;
+    }
+
+    const finalBase = Math.max(0, bruto - item.descuento);
+    setFinalPriceByItem((prev) => ({ ...prev, [item.producto_id]: finalBase.toFixed(2) }));
+  };
 
   // Cargar cajas al inicio
   useEffect(() => {
@@ -667,16 +713,96 @@ export default function POSPage() {
                   </div>
                 </div>
                 <div className="mt-2">
-                  <p className="block text-[11px] text-gray-500 mb-1">Descuento del item</p>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.descuento}
-                    onChange={(e) => aplicarDescuento(item.producto_id, Number(e.target.value || 0))}
-                    className="w-full border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="0.00"
-                  />
+                  <p className="block text-[11px] text-gray-500 mb-1">Descuento (base sin IVA)</p>
+                  <div className="grid grid-cols-3 gap-1 mb-2">
+                    {(['monto', 'porcentaje', 'precio_final'] as const).map((mode) => {
+                      const current = discountModeByItem[item.producto_id] ?? 'monto';
+                      const label = mode === 'monto' ? '$' : mode === 'porcentaje' ? '%' : 'Final';
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => handleChangeMode(item, mode)}
+                          className={`text-[11px] py-1 rounded border transition ${
+                            current === mode
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {(discountModeByItem[item.producto_id] ?? 'monto') === 'monto' && (
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={discountInputByItem[item.producto_id] ?? item.descuento.toFixed(2)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDiscountInputByItem((prev) => ({ ...prev, [item.producto_id]: val }));
+                        applyDiscountByMode(item, val, 'monto');
+                      }}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="0.00"
+                      title={`Precio sin IVA: $${item.precio_unitario.toFixed(2)}`}
+                    />
+                  )}
+
+                  {(discountModeByItem[item.producto_id] ?? 'monto') === 'porcentaje' && (
+                    <>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={discountInputByItem[item.producto_id] ?? '0'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDiscountInputByItem((prev) => ({ ...prev, [item.producto_id]: val }));
+                          applyDiscountByMode(item, val, 'porcentaje');
+                        }}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="0.0"
+                      />
+                      <div className="grid grid-cols-4 gap-1 mt-2">
+                        {[5, 10, 15, 20].map((pct) => (
+                          <button
+                            key={pct}
+                            type="button"
+                            onClick={() => {
+                              const val = String(pct);
+                              setDiscountInputByItem((prev) => ({ ...prev, [item.producto_id]: val }));
+                              applyDiscountByMode(item, val, 'porcentaje');
+                            }}
+                            className="text-[11px] py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                          >
+                            {pct}%
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {(discountModeByItem[item.producto_id] ?? 'monto') === 'precio_final' && (
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={finalPriceByItem[item.producto_id] ?? Math.max(0, getBruto(item.cantidad, item.precio_unitario) - item.descuento).toFixed(2)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFinalPriceByItem((prev) => ({ ...prev, [item.producto_id]: val }));
+                        applyDiscountByMode(item, val, 'precio_final');
+                      }}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder={getBruto(item.cantidad, item.precio_unitario).toFixed(2)}
+                      title="Monto final objetivo sin IVA"
+                    />
+                  )}
                 </div>
               </div>
             ))}
@@ -693,8 +819,18 @@ export default function POSPage() {
                 </div>
               )}
             <div className="flex justify-between text-sm text-gray-500">
-              <span>IVA</span><span>{fmt(getIVA())}</span>
+              <span>{ivaLabel}</span><span>{fmt(getIVA())}</span>
             </div>
+            {ivaRates.length > 1 && (
+              <div className="text-[11px] text-gray-500 space-y-0.5">
+                {ivaRates.map((rate) => (
+                  <div key={rate} className="flex justify-between">
+                    <span>IVA {rate}%</span>
+                    <span>{fmt(ivaSummary.get(rate) ?? 0)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex justify-between text-xl font-black border-t pt-2">
               <span>TOTAL</span>
               <span className="text-blue-600">{fmt(getTotal())}</span>

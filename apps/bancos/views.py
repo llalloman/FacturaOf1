@@ -7,10 +7,12 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import CuentaBancaria, MovimientoBancario
 from .serializers import CuentaBancariaSerializer, MovimientoBancarioSerializer
+from apps.core.permissions import HasModuleAccess
 
 
 class CuentaBancariaViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'bancos'
     serializer_class = CuentaBancariaSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['activa', 'tipo_cuenta']
@@ -38,7 +40,8 @@ class CuentaBancariaViewSet(viewsets.ModelViewSet):
 
 
 class MovimientoBancarioViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'bancos'
     serializer_class = MovimientoBancarioSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {'cuenta': ['exact'], 'tipo': ['exact'], 'conciliado': ['exact'], 'fecha': ['exact', 'gte', 'lte', 'year', 'month']}

@@ -13,6 +13,7 @@ from .serializers import (
     PedidoSerializer, PedidoListSerializer,
     DetallePedidoSerializer, DetallePedidoCreateSerializer,
 )
+from apps.core.permissions import HasModuleAccess
 
 
 def _empresa(user):
@@ -24,7 +25,8 @@ def _empresa(user):
 
 class ZonaViewSet(viewsets.ModelViewSet):
     serializer_class = ZonaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'pedidos'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['activa']
     search_fields = ['nombre']
@@ -43,7 +45,8 @@ class ZonaViewSet(viewsets.ModelViewSet):
 
 class MesaViewSet(viewsets.ModelViewSet):
     serializer_class = MesaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'pedidos'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['zona', 'estado', 'activa']
     search_fields = ['numero', 'nombre']
@@ -69,7 +72,8 @@ class MesaViewSet(viewsets.ModelViewSet):
 
 
 class PedidoViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'pedidos'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['mesa', 'estado', 'tipo', 'caja']
     search_fields = ['numero_pedido', 'cliente__razon_social', 'mesa__numero']
@@ -229,9 +233,9 @@ class PedidoViewSet(viewsets.ModelViewSet):
         except Caja.DoesNotExist:
             return Response({'error': 'Caja no encontrada.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            cliente = Cliente.objects.get(id=cliente_id)
+            cliente = Cliente.objects.get(id=cliente_id, empresa=pedido.empresa, activo=True)
         except Cliente.DoesNotExist:
-            return Response({'error': 'Cliente no encontrado.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Cliente no encontrado o inactivo.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if genera_factura:
             # Validar readiness fiscal (onboarding)
@@ -348,7 +352,8 @@ class DetallePedidoViewSet(viewsets.ModelViewSet):
     CRUD de ítems individuales.  Útil para actualizar estado desde una pantalla de cocina.
     """
     serializer_class = DetallePedidoSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'pedidos'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['pedido', 'estado']
     search_fields = ['producto__nombre', 'producto__codigo_principal']

@@ -46,7 +46,7 @@ const NotasDebitoPage: React.FC = () => {
 
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
-    queryFn: clientesService.getAll,
+    queryFn: clientesService.getActivos,
   });
 
   // ── Mutations ─────────────────────────────────────────────────────────────────

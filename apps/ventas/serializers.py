@@ -96,6 +96,8 @@ class VentaSerializer(serializers.ModelSerializer):
         attrs = super().validate(attrs)
         cliente = attrs.get('cliente') or getattr(self.instance, 'cliente', None)
         genera_factura = attrs.get('genera_factura')
+        if cliente and not cliente.activo:
+            raise serializers.ValidationError({'cliente': 'No se puede usar un cliente inactivo para nuevas ventas.'})
         if genera_factura and cliente:
             detalles = attrs.get('detalles', [])
             total_estimado = sum(

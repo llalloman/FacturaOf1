@@ -133,7 +133,7 @@ export default function LoginPage() {
                 className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white rounded-xl font-bold text-base shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 mb-4"
               >
                 <UserPlus className="w-5 h-5" />
-                Crear cuenta nueva gratis
+                Crear cuenta nueva
               </button>
 
               <button
@@ -269,7 +269,7 @@ export default function LoginPage() {
                     to="/registro"
                     className="font-bold text-blue-600 hover:text-blue-700 underline-offset-2 hover:underline transition-colors"
                   >
-                    Registra tu empresa gratis
+                    Registra tu empresa
                   </Link>
                 </p>
                 <p className="text-sm text-gray-500 mb-3">

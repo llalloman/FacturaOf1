@@ -90,7 +90,7 @@ function SuscripcionCard({ suscripcion }: { suscripcion: Suscripcion }) {
                 {plan.nombre}
                 {isPrueba && (
                   <span className="ml-2 text-xs font-semibold bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full align-middle">
-                    Prueba gratuita
+                    Demo activa
                   </span>
                 )}
               </h3>
@@ -272,17 +272,15 @@ export default function BienvenidaPage() {
               ¡Bienvenido, {user?.first_name || user?.email?.split('@')[0]}! 🎉
             </h1>
             <p className="text-blue-100 text-lg max-w-xl mx-auto">
-              Tu cuenta fue creada exitosamente. Tienes{' '}
-              <strong className="text-white">30 días de prueba gratuita</strong>{' '}
-              para explorar todas las funciones de la plataforma.
+              Tu cuenta fue creada exitosamente. Completa la configuración para empezar a facturar electrónicamente y controlar tu negocio.
             </p>
 
             {/* Trial highlights */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-7">
               <div className="bg-white/10 rounded-2xl p-4 text-center">
                 <Clock className="w-8 h-8 text-sky-300 mx-auto mb-2" />
-                <p className="text-white font-bold text-lg">30 días</p>
-                <p className="text-blue-200 text-xs">prueba gratuita, sin tarjeta requerida</p>
+                <p className="text-white font-bold text-lg">Demo guiada</p>
+                <p className="text-blue-200 text-xs">acompañamiento para iniciar correctamente</p>
               </div>
               <div className="bg-white/10 rounded-2xl p-4 text-center">
                 <FileText className="w-8 h-8 text-sky-300 mx-auto mb-2" />
@@ -306,7 +304,7 @@ export default function BienvenidaPage() {
         <div className="mb-8">
           <div className="text-center mb-6">
             <h2 className="text-xl font-black text-white mb-1">Todo lo que necesita tu negocio</h2>
-            <p className="text-white/50 text-sm">Todos los módulos activos durante tu prueba gratuita</p>
+            <p className="text-white/50 text-sm">Módulos disponibles para facturar y controlar tu operación</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {[

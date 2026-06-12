@@ -13,7 +13,7 @@ from .serializers import (
     RecepcionCompraSerializer, CuentaPorPagarSerializer,
     PagoProveedorSerializer
 )
-from apps.core.permissions import IsAuthenticated, IsTenantUser
+from apps.core.permissions import IsAuthenticated, IsTenantUser, HasModuleAccess
 
 
 class ProveedorViewSet(viewsets.ModelViewSet):
@@ -21,7 +21,8 @@ class ProveedorViewSet(viewsets.ModelViewSet):
     ViewSet para gestión de proveedores
     """
     serializer_class = ProveedorSerializer
-    permission_classes = [IsAuthenticated, IsTenantUser]
+    permission_classes = [IsAuthenticated, IsTenantUser, HasModuleAccess]
+    module_required = 'proveedores'
     filterset_fields = ['activo', 'tipo_identificacion']
     search_fields = ['identificacion', 'razon_social', 'nombre_comercial']
     ordering_fields = ['razon_social', 'creado_en']
@@ -61,7 +62,8 @@ class OrdenCompraViewSet(viewsets.ModelViewSet):
     ViewSet para gestión de órdenes de compra
     """
     serializer_class = OrdenCompraSerializer
-    permission_classes = [IsAuthenticated, IsTenantUser]
+    permission_classes = [IsAuthenticated, IsTenantUser, HasModuleAccess]
+    module_required = 'proveedores'
     filterset_fields = ['estado', 'proveedor', 'bodega_destino']
     search_fields = ['numero_orden']
     ordering_fields = ['fecha_orden', 'numero_orden', 'total']
@@ -139,7 +141,8 @@ class RecepcionCompraViewSet(viewsets.ModelViewSet):
     ViewSet para gestión de recepciones de compra
     """
     serializer_class = RecepcionCompraSerializer
-    permission_classes = [IsAuthenticated, IsTenantUser]
+    permission_classes = [IsAuthenticated, IsTenantUser, HasModuleAccess]
+    module_required = 'proveedores'
     filterset_fields = ['estado', 'orden_compra', 'bodega']
     search_fields = ['numero_recepcion', 'numero_factura_proveedor']
     ordering_fields = ['fecha_recepcion', 'numero_recepcion']
@@ -254,7 +257,8 @@ class CuentaPorPagarViewSet(viewsets.ModelViewSet):
     ViewSet para gestión de cuentas por pagar
     """
     serializer_class = CuentaPorPagarSerializer
-    permission_classes = [IsAuthenticated, IsTenantUser]
+    permission_classes = [IsAuthenticated, IsTenantUser, HasModuleAccess]
+    module_required = 'proveedores'
     filterset_fields = ['estado', 'proveedor']
     search_fields = ['numero_cuenta']
     ordering_fields = ['fecha_vencimiento', 'fecha_emision', 'monto_total']
@@ -320,7 +324,8 @@ class PagoProveedorViewSet(viewsets.ModelViewSet):
     ViewSet para gestión de pagos a proveedores
     """
     serializer_class = PagoProveedorSerializer
-    permission_classes = [IsAuthenticated, IsTenantUser]
+    permission_classes = [IsAuthenticated, IsTenantUser, HasModuleAccess]
+    module_required = 'proveedores'
     filterset_fields = ['proveedor', 'cuenta_por_pagar', 'forma_pago']
     search_fields = ['numero_pago', 'numero_documento']
     ordering_fields = ['fecha_pago', 'monto']

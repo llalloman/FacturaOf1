@@ -1,12 +1,9 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { suscripcionesService } from '../../services/suscripcionesService';
 import { MODULOS } from '../../constants/modulos';
 import { Shield, Save, CheckCircle2, Loader2, Lock } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
-
-// Group modules for display
-const GRUPOS = [...new Set(MODULOS.map((m) => m.grupo))];
 
 export default function MatrizPermisosPage() {
   const queryClient = useQueryClient();
@@ -18,6 +15,12 @@ export default function MatrizPermisosPage() {
     queryKey: ['planes-suscripcion'],
     queryFn: () => suscripcionesService.getTodosPlanes(),
   });
+  const { data: catalogoServidor = [], isLoading: loadingCatalogo } = useQuery({
+    queryKey: ['modulos-catalogo'],
+    queryFn: () => suscripcionesService.getCatalogModulos(),
+  });
+  const modulos = catalogoServidor.length > 0 ? catalogoServidor : MODULOS;
+  const grupos = [...new Set(modulos.map((m) => m.grupo))];
 
   // Fetch modulos per plan (one query per plan)
   const modulosQueries = useQuery({
@@ -66,7 +69,7 @@ export default function MatrizPermisosPage() {
     if (!activo) return;
     setLocalMatrix((prev) => ({
       ...prev,
-      [planId]: checked ? new Set(MODULOS.map((m) => m.codigo)) : new Set(),
+      [planId]: checked ? new Set(modulos.map((m) => m.codigo)) : new Set(),
     }));
   };
 
@@ -89,7 +92,7 @@ export default function MatrizPermisosPage() {
     }
   };
 
-  const isLoading = loadingPlanes || modulosQueries.isLoading;
+  const isLoading = loadingPlanes || loadingCatalogo || modulosQueries.isLoading;
 
   if (isLoading) {
     return (
@@ -141,7 +144,7 @@ export default function MatrizPermisosPage() {
                           className="rounded accent-blue-600"
                           checked={
                             matrix[plan.id]
-                              ? MODULOS.every((m) => matrix[plan.id]?.has(m.codigo))
+                              ? modulos.every((m) => matrix[plan.id]?.has(m.codigo))
                               : false
                           }
                           onChange={(e) => toggleAll(plan.id, e.target.checked, plan.activo)}
@@ -155,12 +158,12 @@ export default function MatrizPermisosPage() {
             </tr>
           </thead>
           <tbody>
-            {GRUPOS.map((grupo) => {
-              const modulosGrupo = MODULOS.filter((m) => m.grupo === grupo);
+            {grupos.map((grupo) => {
+              const modulosGrupo = modulos.filter((m) => m.grupo === grupo);
               return (
-                <>
+                <Fragment key={grupo}>
                   {/* Group header row */}
-                  <tr key={`grupo-${grupo}`} className="bg-gray-50">
+                  <tr className="bg-gray-50">
                     <td
                       colSpan={planesArr.length + 1}
                       className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 sticky left-0"
@@ -203,7 +206,7 @@ export default function MatrizPermisosPage() {
                       })}
                     </tr>
                   ))}
-                </>
+                </Fragment>
               );
             })}
           </tbody>

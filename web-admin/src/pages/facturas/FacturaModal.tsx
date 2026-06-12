@@ -47,7 +47,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
 
   const { data: clientes } = useQuery({
     queryKey: ['clientes'],
-    queryFn: clientesService.getAll,
+    queryFn: clientesService.getActivos,
   });
 
   const { data: productos } = useQuery({

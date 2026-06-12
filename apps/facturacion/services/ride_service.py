@@ -315,3 +315,165 @@ def generar_ride_pdf(factura) -> bytes:
 
     doc.build(story)
     return buffer.getvalue()
+
+
+def generar_ride_nota_credito_pdf(nota_credito) -> bytes:
+    """
+    Genera un RIDE simple en PDF para una Nota de Credito autorizada.
+    """
+    comp = nota_credito.comprobante
+    factura = nota_credito.factura_origen
+    cliente = factura.cliente
+    empresa = comp.empresa
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=15 * mm,
+        leftMargin=15 * mm,
+        topMargin=15 * mm,
+        bottomMargin=15 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+    normal = styles['Normal']
+    small = ParagraphStyle('small_nc', parent=normal, fontSize=8)
+    bold_sm = ParagraphStyle('bold_sm_nc', parent=normal, fontSize=8, fontName='Helvetica-Bold')
+    centered = ParagraphStyle('centered_nc', parent=normal, alignment=TA_CENTER, fontSize=8)
+    title_st = ParagraphStyle('title_nc', parent=normal, fontSize=10, fontName='Helvetica-Bold', alignment=TA_CENTER)
+    right_st = ParagraphStyle('right_nc', parent=normal, fontSize=8, alignment=TA_RIGHT)
+
+    story = []
+
+    fecha_aut = (
+        timezone.localtime(comp.fecha_autorizacion).strftime('%d/%m/%Y %H:%M:%S')
+        if comp.fecha_autorizacion else ''
+    )
+    fecha_emision = timezone.localtime(comp.fecha_emision).strftime('%d/%m/%Y')
+    ambiente_txt = 'PRODUCCION' if comp.empresa.ambiente == '2' else 'PRUEBAS'
+
+    left_data = [
+        [Paragraph(f'<b>{empresa.nombre_comercial or empresa.razon_social}</b>', title_st)],
+        [Paragraph(empresa.razon_social or '', centered)],
+        [Paragraph(f'Direccion Matriz: {empresa.direccion_matriz or ""}', centered)],
+        [Paragraph(f'RUC: {empresa.ruc or ""}', centered)],
+        [Paragraph(f'Ambiente: {ambiente_txt}', centered)],
+    ]
+
+    right_data = [
+        [Paragraph('<b>NOTA DE CREDITO</b>', title_st)],
+        [Paragraph(f'No. {comp.numero_comprobante}', centered)],
+        [Paragraph('<b>NUMERO DE AUTORIZACION</b>', bold_sm)],
+        [Paragraph(comp.numero_autorizacion or '(pendiente)', ParagraphStyle('aut_nc', parent=normal, fontSize=7, alignment=TA_CENTER, wordWrap='CJK'))],
+        [Paragraph('<b>Fecha y hora de autorizacion:</b>', bold_sm)],
+        [Paragraph(fecha_aut, centered)],
+    ]
+
+    header_table = Table(
+        [[Table(left_data, colWidths=['100%']), Table(right_data, colWidths=['100%'])]],
+        colWidths=['55%', '45%'],
+    )
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.grey),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    story.append(header_table)
+
+    story.append(Spacer(1, 2 * mm))
+    clave_table = Table(
+        [[Paragraph('<b>CLAVE DE ACCESO</b>', bold_sm),
+          Paragraph(comp.clave_acceso or '', ParagraphStyle('clave_nc', parent=normal, fontSize=7, wordWrap='CJK'))]],
+        colWidths=['28%', '72%'],
+    )
+    clave_table.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    story.append(clave_table)
+
+    story.append(Spacer(1, 4 * mm))
+    buyer_data = [
+        [Paragraph('<b>Razon Social / Nombres:</b>', bold_sm), Paragraph(cliente.razon_social, small),
+         Paragraph('<b>Fecha Emision:</b>', bold_sm), Paragraph(fecha_emision, small)],
+        [Paragraph('<b>Identificacion:</b>', bold_sm), Paragraph(cliente.identificacion, small),
+         Paragraph('<b>Comprobante que modifica:</b>', bold_sm), Paragraph(factura.comprobante.numero_comprobante, small)],
+        [Paragraph('<b>Motivo:</b>', bold_sm), Paragraph(nota_credito.motivo, small), '', ''],
+    ]
+    buyer_table = Table(buyer_data, colWidths=['22%', '35%', '20%', '23%'])
+    buyer_table.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('SPAN', (1, 2), (3, 2)),
+    ]))
+    story.append(buyer_table)
+
+    story.append(Spacer(1, 4 * mm))
+    det_rows = [[
+        Paragraph('<b>Cod. Principal</b>', centered),
+        Paragraph('<b>Descripcion</b>', centered),
+        Paragraph('<b>Cantidad</b>', centered),
+        Paragraph('<b>P. Unitario</b>', centered),
+        Paragraph('<b>Descuento</b>', centered),
+        Paragraph('<b>P. Total</b>', centered),
+    ]]
+    for d in nota_credito.detalles.all():
+        det_rows.append([
+            Paragraph(d.codigo_principal, small),
+            Paragraph(d.descripcion, small),
+            Paragraph(f"{d.cantidad:.2f}", right_st),
+            Paragraph(f"${d.precio_unitario:.4f}", right_st),
+            Paragraph(f"${d.descuento:.2f}", right_st),
+            Paragraph(f"${d.precio_total_sin_impuesto:.2f}", right_st),
+        ])
+
+    det_table = Table(det_rows, colWidths=['15%', '37%', '10%', '14%', '11%', '13%'], repeatRows=1)
+    det_table.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.grey),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#D9D9D9')),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    story.append(det_table)
+
+    story.append(Spacer(1, 4 * mm))
+    totals_data = [
+        [Paragraph('<b>SUBTOTAL SIN IMPUESTOS</b>', bold_sm), Paragraph(f"${nota_credito.subtotal_sin_impuestos:.2f}", right_st)],
+        [Paragraph('<b>DESCUENTO</b>', bold_sm), Paragraph(f"${nota_credito.total_descuento:.2f}", right_st)],
+        [Paragraph('<b>VALOR MODIFICACION</b>', bold_sm), Paragraph(f"${nota_credito.total:.2f}", right_st)],
+    ]
+    totals_table = Table(totals_data, colWidths=['75%', '25%'])
+    totals_table.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.grey),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#D9D9D9')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    story.append(Table([['', totals_table]], colWidths=['55%', '45%']))
+
+    story.append(Spacer(1, 4 * mm))
+    story.append(HRFlowable(width='100%', thickness=0.5, color=colors.grey))
+    story.append(Spacer(1, 2 * mm))
+    story.append(Paragraph(
+        'Documento electronico autorizado por el Servicio de Rentas Internas del Ecuador.',
+        ParagraphStyle('footer_nc', parent=normal, fontSize=7, alignment=TA_CENTER, textColor=colors.grey),
+    ))
+
+    doc.build(story)
+    return buffer.getvalue()

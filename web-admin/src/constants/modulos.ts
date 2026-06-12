@@ -11,35 +11,37 @@ export interface ModuloInfo {
 }
 
 export const MODULOS: ModuloInfo[] = [
-  // General
-  { codigo: 'dashboard',      ruta: '/',                label: 'Dashboard',         grupo: 'General' },
-  // Facturación SRI
-  { codigo: 'facturacion',    ruta: '/facturacion',     label: 'Facturación',       grupo: 'Facturación SRI' },
-  { codigo: 'retenciones',    ruta: '/retenciones',     label: 'Retenciones',       grupo: 'Facturación SRI' },
-  { codigo: 'guias_remision', ruta: '/guias-remision',  label: 'Guías de Remisión', grupo: 'Facturación SRI' },
-  { codigo: 'notas_debito',   ruta: '/notas-debito',    label: 'Notas de Débito',   grupo: 'Facturación SRI' },
-  { codigo: 'notas_credito',  ruta: '/notas-credito',   label: 'Notas de Crédito',  grupo: 'Facturación SRI' },
+  // Inicio
+  { codigo: 'dashboard',      ruta: '/',                label: 'Dashboard',          grupo: 'Inicio' },
+  // Ventas
+  { codigo: 'pos',            ruta: '/pos',             label: 'POS',                grupo: 'Ventas' },
+  { codigo: 'cotizaciones',   ruta: '/cotizaciones',    label: 'Cotizaciones',       grupo: 'Ventas' },
+  { codigo: 'pedidos',        ruta: '/pedidos',         label: 'Mesas y Pedidos',    grupo: 'Ventas' },
+  { codigo: 'ventas',         ruta: '/ventas',          label: 'Ventas',             grupo: 'Ventas' },
+  { codigo: 'clientes',       ruta: '/clientes',        label: 'Clientes',           grupo: 'Ventas' },
+  // Facturación Electrónica
+  { codigo: 'facturacion',    ruta: '/facturacion',     label: 'Facturas',           grupo: 'Facturación Electrónica' },
+  { codigo: 'notas_credito',  ruta: '/notas-credito',   label: 'Notas de Crédito',   grupo: 'Facturación Electrónica' },
+  { codigo: 'notas_debito',   ruta: '/notas-debito',    label: 'Notas de Débito',    grupo: 'Facturación Electrónica' },
+  { codigo: 'retenciones',    ruta: '/retenciones',     label: 'Retenciones',        grupo: 'Facturación Electrónica' },
+  { codigo: 'guias_remision', ruta: '/guias-remision',  label: 'Guías de Remisión',  grupo: 'Facturación Electrónica' },
+  // Inventario
+  { codigo: 'productos',      ruta: '/productos',       label: 'Productos',          grupo: 'Inventario' },
+  { codigo: 'inventarios',    ruta: '/inventarios',     label: 'Inventarios',        grupo: 'Inventario' },
+  // Compras
+  { codigo: 'proveedores',    ruta: '/proveedores',     label: 'Proveedores',        grupo: 'Compras' },
   // Finanzas
-  { codigo: 'cartera',        ruta: '/cartera',         label: 'Cartera por Cobrar', grupo: 'Finanzas' },
-  { codigo: 'declaraciones',  ruta: '/declaraciones',   label: 'Declaraciones SRI', grupo: 'Finanzas' },
-  { codigo: 'contabilidad',   ruta: '/contabilidad',    label: 'Contabilidad',      grupo: 'Finanzas' },
-  { codigo: 'bancos',         ruta: '/bancos',          label: 'Bancos',            grupo: 'Finanzas' },
-  { codigo: 'nomina',         ruta: '/nomina',          label: 'Nómina',            grupo: 'Finanzas' },
-  // Comercial
-  { codigo: 'cotizaciones',   ruta: '/cotizaciones',    label: 'Cotizaciones',      grupo: 'Comercial' },
-  { codigo: 'ventas',         ruta: '/ventas',          label: 'Ventas',            grupo: 'Comercial' },
-  { codigo: 'pedidos',        ruta: '/pedidos',         label: 'Mesas / Pedidos',   grupo: 'Comercial' },
-  { codigo: 'clientes',       ruta: '/clientes',        label: 'Clientes',          grupo: 'Comercial' },
-  // Catálogo
-  { codigo: 'productos',      ruta: '/productos',       label: 'Productos',         grupo: 'Catálogo' },
-  { codigo: 'proveedores',    ruta: '/proveedores',     label: 'Proveedores',       grupo: 'Catálogo' },
-  { codigo: 'inventarios',    ruta: '/inventarios',     label: 'Inventarios',       grupo: 'Catálogo' },
+  { codigo: 'cartera',        ruta: '/cartera',         label: 'Cartera',            grupo: 'Finanzas' },
+  { codigo: 'bancos',         ruta: '/bancos',          label: 'Bancos',             grupo: 'Finanzas' },
+  { codigo: 'contabilidad',   ruta: '/contabilidad',    label: 'Contabilidad',       grupo: 'Finanzas' },
+  { codigo: 'declaraciones',  ruta: '/declaraciones',   label: 'Declaraciones SRI',  grupo: 'Finanzas' },
+  { codigo: 'nomina',         ruta: '/nomina',          label: 'Nómina',             grupo: 'Finanzas' },
+  { codigo: 'firmas_electronicas', ruta: '/firmas-electronicas', label: 'Solicitudes de Firma Electrónica', grupo: 'Administración' },
+  // Reportes
+  { codigo: 'reportes',       ruta: '/reportes',        label: 'Reportes',           grupo: 'Reportes' },
   // Administración
-  { codigo: 'reportes',       ruta: '/reportes',        label: 'Reportes',          grupo: 'Administración' },
-  { codigo: 'configuracion',  ruta: '/configuracion',   label: 'Configuración',     grupo: 'Administración' },
-  { codigo: 'usuarios',       ruta: '/usuarios',        label: 'Usuarios',          grupo: 'Administración' },
-  // POS
-  { codigo: 'pos',            ruta: '/pos',             label: 'Punto de Venta',    grupo: 'POS' },
+  { codigo: 'usuarios',       ruta: '/usuarios',        label: 'Usuarios',           grupo: 'Administración' },
+  { codigo: 'configuracion',  ruta: '/configuracion',   label: 'Configuración',      grupo: 'Administración' },
 ];
 
 /** Mapa ruta → código para lookup O(1) */

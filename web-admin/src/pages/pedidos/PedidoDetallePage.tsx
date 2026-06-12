@@ -29,6 +29,19 @@ const ESTADO_PEDIDO_COLOR: Record<Pedido['estado'], string> = {
   CANCELADO:       'bg-red-100    text-red-700',
 };
 
+// Convertir código de IVA SRI a decimal
+const getIVADecimal = (porcentajeIva: string, aplica: boolean): number => {
+  if (!aplica) return 0;
+  const rates: Record<string, number> = {
+    '0': 0,      // 0%
+    '2': 0.12,   // 12%
+    '4': 0.15,   // 15%
+    '6': 0,      // No objeto
+    '7': 0,      // Exento
+  };
+  return rates[porcentajeIva] ?? 0;
+};
+
 // ── Modal: Agregar producto ───────────────────────────────────────────────────
 
 interface AgregarItemModalProps {
@@ -42,6 +55,8 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
   const [seleccionado, setSeleccionado] = useState<Producto | null>(null);
   const [cantidad, setCantidad] = useState(1);
   const [descuento, setDescuento] = useState('0');
+  const [modoDescuento, setModoDescuento] = useState<'monto' | 'porcentaje' | 'precio_final'>('monto');
+  const [precioFinal, setPrecioFinal] = useState('');
   const [notas, setNotas] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -52,23 +67,55 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
     )
   );
 
+  // Usar precio SIN IVA para base bruta
+  const precioSinIva = seleccionado ? Number(seleccionado.precio) : 0;
+  const subtotalBruto = precioSinIva * cantidad;
+  const ivaRate = seleccionado ? getIVADecimal(seleccionado.porcentaje_iva, seleccionado.aplica_iva) : 0;
+
+  // Calcular descuento según el modo
+  let descuentoMonto = 0;
+  if (modoDescuento === 'monto') {
+    descuentoMonto = Math.max(0, Number(descuento) || 0);
+  } else if (modoDescuento === 'porcentaje') {
+    const porcentaje = Math.max(0, Number(descuento) || 0);
+    descuentoMonto = (subtotalBruto * porcentaje) / 100;
+  } else if (modoDescuento === 'precio_final') {
+    const pf = Math.max(0, Number(precioFinal) || 0);
+    descuentoMonto = Math.max(0, subtotalBruto - pf);
+  }
+
+  // Validar que no exceda el subtotal
+  descuentoMonto = Math.min(descuentoMonto, subtotalBruto);
+
+  // Cálculos finales
+  const subtotalNeto = Math.max(0, subtotalBruto - descuentoMonto);
+  const iva = subtotalNeto * ivaRate;
+  const totalConIva = subtotalNeto + iva;
+
   const handleAdd = async () => {
     if (!seleccionado) return;
+    if (cantidad <= 0) {
+      alert('La cantidad debe ser mayor a 0');
+      return;
+    }
     setSaving(true);
-    const descuentoNum = Math.max(0, Number(descuento) || 0);
+
     await onAdd({
       producto: seleccionado.id,
       cantidad,
       precio_unitario: Number(seleccionado.precio),
-      descuento: descuentoNum,
-      notas: notas.trim() || undefined,
+      descuento: Math.round(descuentoMonto * 100) / 100,
+      notas: notas.trim(),
     });
     setSaving(false);
   };
 
-  const subtotalBruto = seleccionado ? Number(seleccionado.precio_con_iva ?? seleccionado.precio) * cantidad : 0;
-  const descuentoNum = Math.max(0, Number(descuento) || 0);
-  const subtotalNeto = Math.max(0, subtotalBruto - descuentoNum);
+  // Helper para aplicar descuentos predefinidos
+  const aplicarDescuentoPredefinido = (porcentaje: number) => {
+    setModoDescuento('porcentaje');
+    setDescuento(porcentaje.toString());
+    setPrecioFinal('');
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
@@ -133,34 +180,144 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Subtotal</label>
-                <div className="text-lg font-bold text-indigo-600">
-                  ${subtotalNeto.toFixed(2)}
+                <label className="block text-xs text-gray-500 mb-1">Precio Unitario</label>
+                <div className="text-sm">
+                  <p className="text-xs text-gray-600 font-mono">${precioSinIva.toFixed(2)} (sin IVA)</p>
+                  <p className="text-xs text-gray-400 font-mono">${(precioSinIva * (1 + ivaRate)).toFixed(2)} (con {(ivaRate * 100).toFixed(0)}% IVA)</p>
                 </div>
-                {descuentoNum > 0 && (
-                  <div className="text-xs text-gray-500">Bruto: ${subtotalBruto.toFixed(2)}</div>
-                )}
               </div>
             </div>
-            <div>
-              <p className="block text-xs text-gray-500 mb-1">Descuento</p>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={descuento}
-                onChange={e => setDescuento(e.target.value)}
-                placeholder="0.00"
-              />
+            {/* Resumen de precios */}
+            <div className="bg-indigo-50 rounded-lg p-3 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Subtotal (sin descuento):</span>
+                <span className="font-semibold text-gray-800">${subtotalBruto.toFixed(2)}</span>
+              </div>
+              {descuentoMonto > 0 && (
+                <div className="flex justify-between text-red-600">
+                  <span>Descuento ({modoDescuento === 'porcentaje' ? `${Number(descuento)}%` : 'monto'}):</span>
+                  <span className="font-semibold">-${descuentoMonto.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-indigo-200 pt-1 font-semibold">
+                <span className="text-gray-600">Subtotal Neto:</span>
+                <span className="text-indigo-700">${subtotalNeto.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>IVA ({(ivaRate * 100).toFixed(0)}%):</span>
+                <span className="font-semibold">${iva.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-lg font-bold border-t border-indigo-200 pt-1">
+                <span>TOTAL c/IVA:</span>
+                <span className="text-indigo-700">${totalConIva.toFixed(2)}</span>
+              </div>
             </div>
+
+            {/* Modo de Descuento */}
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500 font-semibold">CONFIGURAR DESCUENTO</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setModoDescuento('monto'); setDescuento('0'); setPrecioFinal(''); }}
+                  className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition ${
+                    modoDescuento === 'monto'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  💵 Por Monto
+                </button>
+                <button
+                  onClick={() => { setModoDescuento('porcentaje'); setDescuento('0'); setPrecioFinal(''); }}
+                  className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition ${
+                    modoDescuento === 'porcentaje'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  📊 Por Porcentaje
+                </button>
+                <button
+                  onClick={() => { setModoDescuento('precio_final'); setDescuento('0'); setPrecioFinal(subtotalBruto.toFixed(2)); }}
+                  className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition ${
+                    modoDescuento === 'precio_final'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  🎯 Precio Final
+                </button>
+              </div>
+            </div>
+
+            {/* Entrada según modo */}
+            {modoDescuento === 'monto' && (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Descuento en $</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={descuento}
+                  onChange={e => setDescuento(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+            )}
+
+            {modoDescuento === 'porcentaje' && (
+              <div>
+                <label className="block text-xs text-gray-500 mb-2">Descuento en %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
+                  value={descuento}
+                  onChange={e => setDescuento(e.target.value)}
+                  placeholder="0.0"
+                />
+                <div className="grid grid-cols-4 gap-1">
+                  {[5, 10, 15, 20].map(p => (
+                    <button
+                      key={p}
+                      onClick={() => aplicarDescuentoPredefinido(p)}
+                      className="text-xs py-1 px-1 rounded bg-blue-100 text-blue-700 font-semibold hover:bg-blue-200 transition"
+                    >
+                      {p}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {modoDescuento === 'precio_final' && (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">¿Cuánto quieres cobrar (sin IVA)?</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={precioFinal}
+                  onChange={e => setPrecioFinal(e.target.value)}
+                  placeholder={subtotalBruto.toFixed(2)}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Sistema calculará automáticamente el descuento necesario
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs text-gray-500 mb-1">Notas (sin cebolla, etc.)</label>
               <input
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 value={notas}
                 onChange={e => setNotas(e.target.value)}
-                placeholder="Indicaciones especiales…"
+                placeholder="Indicaciones especiales..."
               />
             </div>
             <button
@@ -168,7 +325,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
               disabled={saving}
               className="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50"
             >
-              {saving ? 'Agregando…' : 'Agregar al pedido'}
+              {saving ? 'Agregando...' : 'Agregar al pedido'}
             </button>
           </div>
         )}
@@ -486,7 +643,7 @@ export default function PedidoDetallePage() {
           pedidosService.getPedido(Number(id)),
           productosService.getAll({ activo: true }),
           cajasService.getAll(),
-          clientesService.getAll(),
+          clientesService.getActivos(),
         ]);
         setPedido(pData);
         setProductos(prdData);

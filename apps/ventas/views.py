@@ -13,11 +13,13 @@ from .serializers import (
     VentaSyncSerializer, MovimientoCajaSerializer
 )
 from apps.core.export_mixin import ExportMixin
+from apps.core.permissions import HasModuleAccess
 
 
 class CajaViewSet(viewsets.ModelViewSet):
     serializer_class = CajaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = ['ventas', 'pos']
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['empresa', 'activa']
     search_fields = ['nombre', 'codigo']
@@ -71,7 +73,8 @@ class CajaViewSet(viewsets.ModelViewSet):
 
 class AperturaCajaViewSet(viewsets.ModelViewSet):
     serializer_class = AperturaCajaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = ['ventas', 'pos']
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['caja', 'estado']
     search_fields = ['caja__nombre', 'caja__codigo', 'usuario__username']
@@ -161,7 +164,8 @@ class AperturaCajaViewSet(viewsets.ModelViewSet):
 
 class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
     serializer_class = VentaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = ['ventas', 'pos']
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['caja', 'cliente', 'estado']
     search_fields = ['numero_venta', 'cliente__razon_social']
@@ -317,11 +321,11 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
         cliente_original = venta.cliente
         if cliente_id:
             try:
-                nuevo_cliente = Cliente.objects.get(pk=cliente_id, empresa=empresa)
+                nuevo_cliente = Cliente.objects.get(pk=cliente_id, empresa=empresa, activo=True)
                 venta.cliente = nuevo_cliente
             except Cliente.DoesNotExist:
                 return Response(
-                    {'error': 'El cliente seleccionado no existe o no pertenece a esta empresa.'},
+                    {'error': 'El cliente seleccionado no existe, no pertenece a esta empresa o está inactivo.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -705,7 +709,8 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
 
 class MovimientoCajaViewSet(viewsets.ModelViewSet):
     serializer_class = MovimientoCajaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = ['ventas', 'pos']
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['apertura_caja', 'tipo']
     search_fields = ['descripcion', 'referencia']

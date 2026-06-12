@@ -41,7 +41,7 @@ const WHO = [
   {
     icon: Briefcase,
     title: 'Emprendedores y PyMEs',
-    description: 'Comienza con el plan gratis y crece sin cambiar de sistema.',
+    description: 'Recibe asesoría, factura electrónicamente y crece sin cambiar de sistema.',
     color: 'from-cyan-500 to-sky-600',
   },
 ];

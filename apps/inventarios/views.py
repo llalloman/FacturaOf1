@@ -10,11 +10,13 @@ from .serializers import (
     BodegaSerializer, StockProductoSerializer, MovimientoInventarioSerializer,
     TransferenciaInventarioSerializer
 )
+from apps.core.permissions import HasModuleAccess
 
 
 class BodegaViewSet(viewsets.ModelViewSet):
     serializer_class = BodegaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'inventarios'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['empresa', 'activa']
     search_fields = ['nombre', 'codigo']
@@ -33,7 +35,8 @@ class BodegaViewSet(viewsets.ModelViewSet):
 
 class StockProductoViewSet(viewsets.ModelViewSet):
     serializer_class = StockProductoSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'inventarios'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['bodega', 'producto']
     search_fields = ['producto__codigo', 'producto__nombre']
@@ -68,7 +71,8 @@ class StockProductoViewSet(viewsets.ModelViewSet):
 
 class MovimientoInventarioViewSet(viewsets.ModelViewSet):
     serializer_class = MovimientoInventarioSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'inventarios'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['bodega', 'producto', 'tipo_movimiento']
     search_fields = ['producto__codigo', 'producto__nombre', 'referencia']
@@ -116,7 +120,8 @@ class MovimientoInventarioViewSet(viewsets.ModelViewSet):
 
 class TransferenciaInventarioViewSet(viewsets.ModelViewSet):
     serializer_class = TransferenciaInventarioSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'inventarios'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['bodega_origen', 'bodega_destino', 'estado']
     search_fields = ['observaciones', 'bodega_origen__nombre', 'bodega_destino__nombre']

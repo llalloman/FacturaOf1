@@ -133,8 +133,8 @@ export default function LandingFooter() {
             <Link to="/login" className="text-slate-500 hover:text-slate-300 text-xs transition-colors">
               Iniciar sesión
             </Link>
-            <Link to="/registro" className="text-blue-500 hover:text-blue-400 text-xs font-semibold transition-colors">
-              Crear cuenta gratis →
+            <Link to="/solicitar-demo" className="text-blue-500 hover:text-blue-400 text-xs font-semibold transition-colors">
+              Solicitar demostración →
             </Link>
           </div>
         </div>

@@ -15,7 +15,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 
-from apps.core.permissions import IsAuthenticated, IsTenantUser
+from apps.core.permissions import IsAuthenticated, IsTenantUser, user_has_module_access
 from apps.facturacion.models import Factura, Retencion
 
 from .models import DeclaracionMensual
@@ -49,6 +49,12 @@ def _get_empresa(request):
     return empresa
 
 
+def _check_module_access(request):
+    if user_has_module_access(request.user, 'declaraciones'):
+        return None
+    return Response({'detail': 'Este módulo no está incluido en tu plan actual.'}, status=status.HTTP_403_FORBIDDEN)
+
+
 # ── Form 104 — IVA (lectura en tiempo real) ──────────────────────────────────
 
 @api_view(['GET'])
@@ -58,6 +64,10 @@ def form104(request):
     Resumen de IVA para el formulario 104 del período solicitado.
     GET /api/declaraciones/form104/?anio=2025&mes=3
     """
+    blocked = _check_module_access(request)
+    if blocked:
+        return blocked
+
     anio, mes, err = _get_params(request)
     if err:
         return err
@@ -91,6 +101,10 @@ def form103(request):
     Detalle de retenciones en la fuente para el formulario 103.
     GET /api/declaraciones/form103/?anio=2025&mes=3
     """
+    blocked = _check_module_access(request)
+    if blocked:
+        return blocked
+
     anio, mes, err = _get_params(request)
     if err:
         return err
@@ -117,6 +131,10 @@ def calendario(request):
     Calendario de obligaciones tributarias del año.
     GET /api/declaraciones/calendario/?anio=2025
     """
+    blocked = _check_module_access(request)
+    if blocked:
+        return blocked
+
     try:
         anio = int(request.query_params.get('anio', timezone.localdate().year))
     except (TypeError, ValueError):
@@ -143,6 +161,10 @@ def proximas_obligaciones(request):
     Las 5 próximas obligaciones pendientes (para widget de dashboard).
     GET /api/declaraciones/proximas/
     """
+    blocked = _check_module_access(request)
+    if blocked:
+        return blocked
+
     empresa = _get_empresa(request)
     if not empresa:
         return Response({'error': 'Sin empresa asociada'}, status=status.HTTP_403_FORBIDDEN)
@@ -175,6 +197,10 @@ def listar_declaraciones(request):
     Lista declaraciones de la empresa. Filtros opcionales: ?anio=2025&tipo=104
     GET /api/declaraciones/
     """
+    blocked = _check_module_access(request)
+    if blocked:
+        return blocked
+
     empresa = _get_empresa(request)
     if not empresa:
         return Response({'error': 'Sin empresa asociada'}, status=status.HTTP_403_FORBIDDEN)
@@ -201,6 +227,10 @@ def calcular_y_guardar(request):
     POST /api/declaraciones/calcular/  { "tipo": "104", "anio": 2025, "mes": 3 }
     Si ya existe, recalcula los datos actualizados.
     """
+    blocked = _check_module_access(request)
+    if blocked:
+        return blocked
+
     empresa = _get_empresa(request)
     if not empresa:
         return Response({'error': 'Sin empresa asociada'}, status=status.HTTP_403_FORBIDDEN)
@@ -264,6 +294,10 @@ def detalle_declaracion(request, pk):
     Detalle de una declaración guardada.
     GET /api/declaraciones/<id>/
     """
+    blocked = _check_module_access(request)
+    if blocked:
+        return blocked
+
     empresa = _get_empresa(request)
     if not empresa:
         return Response({'error': 'Sin empresa asociada'}, status=status.HTTP_403_FORBIDDEN)
@@ -285,6 +319,10 @@ def marcar_presentada(request, pk):
     POST /api/declaraciones/<id>/presentar/
     { "numero_formulario_sri": "12345678", "notas": "Presentado vía web SRI" }
     """
+    blocked = _check_module_access(request)
+    if blocked:
+        return blocked
+
     empresa = _get_empresa(request)
     if not empresa:
         return Response({'error': 'Sin empresa asociada'}, status=status.HTTP_403_FORBIDDEN)
@@ -319,6 +357,10 @@ def ats(request):
     Genera el XML del Anexo Transaccional Simplificado (ATS).
     GET /api/declaraciones/ats/?anio=2025&mes=3
     """
+    blocked = _check_module_access(request)
+    if blocked:
+        return blocked
+
     anio, mes, err = _get_params(request)
     if err:
         return err

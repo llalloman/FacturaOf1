@@ -24,7 +24,7 @@ from apps.suscripciones.models import PlanSuscripcion
 PLANES = [
     {
         'codigo': 'FREE',
-        'nombre': 'Prueba Gratuita',
+        'nombre': 'Demo guiada',
         'tipo': 'FREE',
         'periodo': 'MENSUAL',
         'precio': Decimal('0.00'),
@@ -35,7 +35,7 @@ PLANES = [
         'api_access': False,
         'reportes_avanzados': False,
         'activo': True,
-        'descripcion': '30 días de acceso completo. Sin tarjeta de crédito.',
+        'descripcion': 'Agenda una demostración gratuita y recibe asesoría para empezar a facturar.',
     },
     {
         'codigo': 'BASICO-MENSUAL',

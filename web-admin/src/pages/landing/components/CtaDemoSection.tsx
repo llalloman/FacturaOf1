@@ -23,18 +23,18 @@ export default function CtaDemoSection() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <a
-            href="mailto:info@of1solutions.com?subject=Solicitud%20de%20Demo%20FacturaOF1"
+          <Link
+            to="/solicitar-demo"
             className="inline-flex items-center justify-center gap-2.5 px-8 py-4 border-2 border-blue-600 text-blue-700 font-bold text-base rounded-xl hover:bg-blue-50 transition-all"
           >
             <Play className="w-4 h-4" />
-            Solicitar demo
-          </a>
+            Solicitar demo del ERP
+          </Link>
           <Link
             to="/registro"
             className="inline-flex items-center justify-center gap-2.5 px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base rounded-xl shadow-xl shadow-blue-600/20 hover:shadow-blue-600/30 transition-all hover:-translate-y-px"
           >
-            Probar gratis 30 días
+            Quiero empezar a facturar
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -43,8 +43,8 @@ export default function CtaDemoSection() {
         <div className="grid grid-cols-3 gap-8 mt-16 pt-12 border-t border-slate-200">
           {[
             { value: '100%', label: 'Compatible SRI' },
-            { value: '30 días', label: 'Prueba gratuita' },
-            { value: '24/7', label: 'Disponibilidad' },
+            { value: 'Demo', label: 'Acompañamiento guiado' },
+            { value: 'ERP', label: 'Control operativo' },
           ].map((stat) => (
             <div key={stat.label}>
               <div className="text-3xl lg:text-4xl font-black text-slate-900 mb-1">{stat.value}</div>

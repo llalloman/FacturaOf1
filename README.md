@@ -11,7 +11,7 @@
 | Herramienta | Versión mínima |
 |---|---|
 | Python | 3.10+ |
-| Node.js | 18+ |
+| Node.js | 20+ |
 | PostgreSQL | 12+ |
 | Redis | 6+ |
 

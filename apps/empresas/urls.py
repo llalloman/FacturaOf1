@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Empresa, Notificacion
+from apps.core.permissions import HasModuleAccess
 
 
 class EmpresaSerializer(serializers.ModelSerializer):
@@ -36,6 +37,7 @@ class IsSuperAdmin(IsAuthenticated):
 class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all().order_by('-id')
     serializer_class = EmpresaSerializer
+    module_required = 'configuracion'
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['ruc', 'razon_social', 'nombre_comercial', 'email']
     ordering_fields = ['razon_social', 'ruc', 'fecha_creacion']
@@ -44,9 +46,13 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         rol = getattr(self.request.user, 'rol', None)
         # mi_empresa: cualquier usuario autenticado puede acceder a su empresa
         if self.action == 'mi_empresa':
+            if self.request.method == 'PATCH':
+                return [IsAuthenticated(), HasModuleAccess()]
             return [IsAuthenticated()]
         # ADMIN_EMPRESA puede leer y actualizar su propia empresa (controlado en get_queryset)
         if rol == 'ADMIN_EMPRESA' and self.action in ('list', 'retrieve', 'partial_update', 'update'):
+            if self.action in ('partial_update', 'update'):
+                return [IsAuthenticated(), HasModuleAccess()]
             return [IsAuthenticated()]
         return [IsSuperAdmin()]
 

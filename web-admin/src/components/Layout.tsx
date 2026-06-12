@@ -1,7 +1,9 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
 import { useModulosAcceso } from '../hooks/useModulosAcceso';
-import { RUTA_A_MODULO } from '../constants/modulos';
+import { MODULOS, RUTA_A_MODULO, type ModuloInfo } from '../constants/modulos';
+import { suscripcionesService, type ModuloSistema } from '../services/suscripcionesService';
 import {
   LayoutDashboard,
   FileText,
@@ -39,73 +41,108 @@ import {
   Info,
   AlertTriangle,
   CheckCheck,
+  Star,
+  Layers3,
+  FileSignature,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 
-type MenuItem = { icon: React.ElementType; label: string; path: string };
+type MenuItem = { icon: React.ElementType; label: string; path: string; external?: boolean };
 type MenuGroup = { label: string; items: MenuItem[] };
 
-// Menú agrupado por sección para empresas
-const MENU_GROUPS: MenuGroup[] = [
-  {
-    label: 'General',
-    items: [
-      { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-    ],
-  },
-  {
-    label: 'Facturación SRI',
-    items: [
-      { icon: FileText,   label: 'Facturación',    path: '/facturacion' },
-      { icon: Receipt,    label: 'Retenciones',    path: '/retenciones' },
-      { icon: Truck,      label: 'Guías Remisión', path: '/guias-remision' },
-      { icon: FileMinus,  label: 'Notas Débito',   path: '/notas-debito' },
-      { icon: FileCheck2, label: 'Notas Crédito',  path: '/notas-credito' },
-    ],
-  },
-  {
-    label: 'Finanzas',
-    items: [
-      { icon: Landmark,      label: 'Cartera',       path: '/cartera' },
-      { icon: FileBarChart2, label: 'Declaraciones', path: '/declaraciones' },
-      { icon: BookOpen,      label: 'Contabilidad',  path: '/contabilidad' },
-      { icon: Banknote,      label: 'Bancos',        path: '/bancos' },
-      { icon: UsersRound,    label: 'Nómina',        path: '/nomina' },
-    ],
-  },
-  {
-    label: 'Comercial',
-    items: [
-      { icon: ClipboardList, label: 'Cotizaciones',    path: '/cotizaciones' },
-      { icon: ShoppingCart,  label: 'Ventas',          path: '/ventas' },
-      { icon: LayoutGrid,    label: 'Mesas / Pedidos', path: '/pedidos' },
-      { icon: Users,         label: 'Clientes',        path: '/clientes' },
-    ],
-  },
-  {
-    label: 'Catálogo',
-    items: [
-      { icon: Package,     label: 'Productos',   path: '/productos' },
-      { icon: ShoppingBag, label: 'Proveedores', path: '/proveedores' },
-      { icon: Warehouse,   label: 'Inventarios', path: '/inventarios' },
-    ],
-  },
-  {
-    label: 'Administración',
-    items: [
-      { icon: TrendingUp, label: 'Reportes',      path: '/reportes' },
-      { icon: Settings,   label: 'Configuración', path: '/configuracion' },
-      { icon: CreditCard, label: 'Suscripción',   path: '/suscripcion' },
-    ],
-  },
+const MODULO_ICONOS: Record<string, React.ElementType> = {
+  dashboard: LayoutDashboard,
+  pos: Tablet,
+  cotizaciones: ClipboardList,
+  pedidos: LayoutGrid,
+  ventas: ShoppingCart,
+  clientes: Users,
+  facturacion: FileText,
+  notas_credito: FileCheck2,
+  notas_debito: FileMinus,
+  retenciones: Receipt,
+  guias_remision: Truck,
+  productos: Package,
+  inventarios: Warehouse,
+  proveedores: ShoppingBag,
+  cartera: Landmark,
+  bancos: Banknote,
+  contabilidad: BookOpen,
+  declaraciones: FileBarChart2,
+  nomina: UsersRound,
+  reportes: TrendingUp,
+  usuarios: Users,
+  configuracion: Settings,
+  firmas_electronicas: FileSignature,
+};
+
+const ICONOS_POR_NOMBRE: Record<string, React.ElementType> = {
+  LayoutDashboard,
+  Tablet,
+  ClipboardList,
+  LayoutGrid,
+  ShoppingCart,
+  Users,
+  FileText,
+  FileCheck2,
+  FileMinus,
+  Receipt,
+  Truck,
+  Package,
+  Warehouse,
+  ShoppingBag,
+  Landmark,
+  Banknote,
+  BookOpen,
+  FileBarChart2,
+  UsersRound,
+  TrendingUp,
+  Settings,
+  CreditCard,
+  FileSignature,
+};
+
+const EXTRA_MENU_ITEMS: Array<MenuItem & { grupo: string; roles?: string[] }> = [
+  { icon: Users, label: 'Usuarios', path: '/usuarios', grupo: 'Administración', roles: ['ADMIN_EMPRESA'] },
+  { icon: Settings, label: 'Configuración', path: '/configuracion', grupo: 'Administración', roles: ['ADMIN_EMPRESA'] },
+  { icon: CreditCard, label: 'Suscripción', path: '/suscripcion', grupo: 'Administración' },
 ];
+
+const moduloToMenuItem = (modulo: ModuloInfo | ModuloSistema): MenuItem => ({
+  icon: ('icono' in modulo && modulo.icono ? ICONOS_POR_NOMBRE[modulo.icono] : undefined)
+    ?? MODULO_ICONOS[modulo.codigo]
+    ?? FileText,
+  label: modulo.label,
+  path: modulo.ruta,
+  external: 'external' in modulo ? Boolean(modulo.external) : modulo.codigo === 'pos',
+});
+
+const buildMenuGroups = (modulos: Array<ModuloInfo | ModuloSistema>, rol: string): MenuGroup[] => Array.from(
+  [
+    ...modulos.map((m) => m.grupo),
+    ...EXTRA_MENU_ITEMS
+      .filter((m) => !m.roles || m.roles.includes(rol))
+      .map((m) => m.grupo),
+  ]
+    .reduce((set, grupo) => set.add(grupo), new Set<string>())
+).map((grupo) => ({
+  label: grupo,
+  items: Array.from(
+    [
+      ...modulos.filter((m) => m.grupo === grupo).map(moduloToMenuItem),
+      ...EXTRA_MENU_ITEMS.filter((m) => m.grupo === grupo && (!m.roles || m.roles.includes(rol))),
+    ]
+      .reduce((map, item) => map.set(item.path, item), new Map<string, MenuItem>())
+      .values()
+  ),
+}));
 
 // Menú por rol (paths permitidos en el sidebar)
 const ROL_PATHS: Record<string, string[]> = {
-  ADMIN_EMPRESA: ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/contabilidad', '/bancos', '/nomina', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion'],
+  ADMIN_EMPRESA: ['/', '/pos', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/contabilidad', '/bancos', '/nomina', '/firmas-electronicas', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion', '/usuarios'],
   CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/contabilidad', '/bancos', '/nomina', '/clientes', '/reportes'],
-  VENDEDOR:      ['/', '/ventas', '/pedidos', '/cotizaciones', '/clientes', '/productos'],
+  VENDEDOR:      ['/', '/pos', '/ventas', '/pedidos', '/cotizaciones', '/clientes', '/productos'],
   CONSULTOR:     ['/', '/facturacion', '/retenciones', '/ventas', '/reportes'],
 };
 
@@ -115,6 +152,8 @@ const menuItemsSuperAdmin: MenuItem[] = [
   { icon: Building2,       label: 'Empresas',         path: '/empresas' },
   { icon: CreditCard,      label: 'Suscripciones',   path: '/suscripciones-admin' },
   { icon: Shield,          label: 'Matriz de Acceso', path: '/matriz-permisos' },
+  { icon: Layers3,         label: 'Catálogo de Menús', path: '/catalogo-modulos' },
+  { icon: FileSignature,   label: 'Solicitudes de Firma', path: '/firmas-electronicas' },
   { icon: Users,           label: 'Usuarios',         path: '/usuarios' },
 ];
 
@@ -126,6 +165,7 @@ export default function Layout() {
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true
   );
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [favoritePaths, setFavoritePaths] = useState<string[]>([]);
 
   const handleLogout = () => {
     logout();
@@ -137,11 +177,18 @@ export default function Layout() {
 
   // Menú filtrado por rol del usuario
   const rol = user?.rol ?? '';
-  const allowedPaths = ROL_PATHS[rol] ?? ROL_PATHS['ADMIN_EMPRESA'];
+  const rolePaths = ROL_PATHS[rol] ?? ROL_PATHS['ADMIN_EMPRESA'];
   const { tieneAccesoModulo } = useModulosAcceso();
+  const { data: catalogoModulos = [] } = useQuery({
+    queryKey: ['modulos-catalogo'],
+    queryFn: () => suscripcionesService.getCatalogModulos(),
+    enabled: !!user && user.rol !== 'SUPER_ADMIN',
+    staleTime: 5 * 60 * 1000,
+  });
   const { notificaciones, noLeidas, marcarLeida, marcarTodasLeidas } = useNotificaciones();
   const [bellOpen, setBellOpen] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
+  const favoritesKey = user?.id ? `menu:favorites:${user.id}` : 'menu:favorites:anonymous';
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -163,17 +210,64 @@ export default function Layout() {
     }
   };
 
-  const menuGroups = MENU_GROUPS
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(favoritesKey);
+      setFavoritePaths(raw ? JSON.parse(raw) as string[] : []);
+    } catch {
+      setFavoritePaths([]);
+    }
+  }, [favoritesKey]);
+
+  const modulosMenu = catalogoModulos.length > 0 ? catalogoModulos : MODULOS;
+  const allowedPaths = rol === 'ADMIN_EMPRESA'
+    ? Array.from(new Set([...rolePaths, ...modulosMenu.map((m) => m.ruta)]))
+    : rolePaths;
+  const rutaAModulo = {
+    ...RUTA_A_MODULO,
+    ...Object.fromEntries(modulosMenu.map((m) => [m.ruta, m.codigo])),
+  };
+
+  const adminBasePaths = new Set(['/usuarios', '/configuracion', '/suscripcion']);
+
+  const isBlockedPath = (path: string) => {
+    if (rol === 'ADMIN_EMPRESA' && adminBasePaths.has(path)) return false;
+    const codigoModulo = rutaAModulo[path];
+    return codigoModulo ? !tieneAccesoModulo(codigoModulo) : false;
+  };
+
+  const menuGroups = buildMenuGroups(modulosMenu, rol)
     .map((g) => ({ ...g, items: g.items.filter((i) => allowedPaths.includes(i.path)) }))
     .filter((g) => g.items.length > 0);
-  const showPOS = rol !== 'CONSULTOR';
+  const availableItems = menuGroups.flatMap((g) => g.items).filter((item) => !isBlockedPath(item.path));
+  const favoriteItems = favoritePaths
+    .map((path) => availableItems.find((item) => item.path === path))
+    .filter((item): item is MenuItem => Boolean(item));
+  const displayGroups = favoriteItems.length > 0
+    ? [{ label: 'Favoritos', items: favoriteItems }, ...menuGroups]
+    : menuGroups;
+
+  const toggleFavorite = (path: string) => {
+    setFavoritePaths((prev) => {
+      const wasFavorite = prev.includes(path);
+      const next = wasFavorite
+        ? prev.filter((p) => p !== path)
+        : [...prev, path];
+      localStorage.setItem(favoritesKey, JSON.stringify(next));
+      if (!wasFavorite) {
+        setOpenGroups((groups) => ({ ...groups, Favoritos: true }));
+      }
+      return next;
+    });
+  };
 
   // Abrir automáticamente el grupo que contiene la ruta activa
   useEffect(() => {
     const initial: Record<string, boolean> = {};
-    menuGroups.forEach((g) => {
+    displayGroups.forEach((g) => {
       if (g.items.some((i) => isActive(i.path))) initial[g.label] = true;
     });
+    if (favoriteItems.length > 0) initial.Favoritos = true;
     setOpenGroups(initial);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
@@ -260,7 +354,7 @@ export default function Layout() {
           ) : (
             /* Usuarios con empresa: menú agrupado desplegable */
             <>
-              {menuGroups.map((group) => {
+              {displayGroups.map((group) => {
                 const isOpen = !!openGroups[group.label];
                 const hasActive = group.items.some((i) => isActive(i.path));
                 return (
@@ -290,21 +384,18 @@ export default function Layout() {
                       }`}
                     >
                       {group.items.map((item) => {
-                        const codigoModulo = RUTA_A_MODULO[item.path];
+                        const codigoModulo = rutaAModulo[item.path];
                         const bloqueado = codigoModulo ? !tieneAccesoModulo(codigoModulo) : false;
-                        return (
-                          <Link
-                            key={item.path}
-                            to={item.path}
-                            title={bloqueado ? 'Módulo no incluido en tu plan. Haz clic para ver detalles.' : undefined}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
-                              isActive(item.path)
-                                ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
-                                : bloqueado
-                                ? 'opacity-50 hover:bg-gray-800/50 cursor-pointer'
-                                : 'hover:bg-gray-800 hover:translate-x-1'
-                            }`}
-                          >
+                        const isFavorite = favoritePaths.includes(item.path);
+                        const itemClassName = `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
+                          isActive(item.path)
+                            ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
+                            : bloqueado
+                            ? 'opacity-50 hover:bg-gray-800/50 cursor-pointer'
+                            : 'hover:bg-gray-800 hover:translate-x-1'
+                        }`;
+                        const itemContent = (
+                          <>
                             <item.icon size={20} className={isActive(item.path) ? 'text-white' : 'text-gray-400'} />
                             {sidebarOpen && (
                               <span className={`flex-1 text-sm font-medium ${
@@ -316,51 +407,51 @@ export default function Layout() {
                             {sidebarOpen && bloqueado && (
                               <Lock size={12} className="text-gray-500 flex-shrink-0" />
                             )}
-                          </Link>
+                          </>
+                        );
+                        return (
+                          <div key={`${group.label}-${item.path}`} className="group/item flex items-center gap-1">
+                            {item.external ? (
+                              <a
+                                href={item.path}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={bloqueado ? 'Módulo no incluido en tu plan. Haz clic para ver detalles.' : undefined}
+                                className={`${itemClassName} flex-1 min-w-0`}
+                              >
+                                {itemContent}
+                              </a>
+                            ) : (
+                              <Link
+                                to={item.path}
+                                title={bloqueado ? 'Módulo no incluido en tu plan. Haz clic para ver detalles.' : undefined}
+                                className={`${itemClassName} flex-1 min-w-0`}
+                              >
+                                {itemContent}
+                              </Link>
+                            )}
+                            {sidebarOpen && !bloqueado && (
+                              <button
+                                type="button"
+                                onClick={() => toggleFavorite(item.path)}
+                                className={`shrink-0 p-2 rounded-lg transition-colors ${
+                                  isFavorite
+                                    ? 'text-amber-300 hover:bg-gray-800'
+                                    : 'text-gray-600 hover:text-amber-300 hover:bg-gray-800 opacity-0 group-hover/item:opacity-100 focus:opacity-100'
+                                }`}
+                                aria-label={isFavorite ? `Quitar ${item.label} de favoritos` : `Agregar ${item.label} a favoritos`}
+                                title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                              >
+                                <Star size={15} fill={isFavorite ? 'currentColor' : 'none'} />
+                              </button>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
                   </div>
                 );
               })}
-              {/* Gestión de usuarios para ADMIN_EMPRESA */}
-              {user?.rol === 'ADMIN_EMPRESA' && (
-                <>
-                  {sidebarOpen && <div className="my-1 border-t border-gray-700/60" />}
-                  <Link
-                    to="/usuarios"
-                    className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 ${
-                      isActive('/usuarios')
-                        ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
-                        : 'hover:bg-gray-800 hover:translate-x-1'
-                    }`}
-                  >
-                    <Users size={20} className={isActive('/usuarios') ? 'text-white' : 'text-gray-400'} />
-                    {sidebarOpen && (
-                      <span className={`text-sm font-medium ${isActive('/usuarios') ? 'text-white' : 'text-gray-300'}`}>
-                        Usuarios
-                      </span>
-                    )}
-                  </Link>
-                </>
-              )}
-              {/* Botón POS — solo roles que operan caja */}
-              {showPOS && (
-                <>
-                  {sidebarOpen && (
-                    <p className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">Punto de Venta</p>
-                  )}
-                  <a
-                    href="/pos"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 bg-gradient-to-r from-green-700 to-emerald-600 hover:from-green-600 hover:to-emerald-500 shadow-lg shadow-green-900/40 mt-1"
-                  >
-                    <Tablet size={22} className="text-white" />
-                    {sidebarOpen && <span className="font-bold text-white">Abrir POS</span>}
-                  </a>
-                </>
-              )}
             </>
           )}
         </nav>

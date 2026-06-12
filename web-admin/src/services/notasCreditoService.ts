@@ -12,4 +12,9 @@ export const notasCreditoService = {
     const response = await apiClient.post(`/facturacion/notas-credito/${id}/reprocesar/`);
     return response.data;
   },
+
+  reenviarEmail: async (id: number) => {
+    const response = await apiClient.post(`/facturacion/notas-credito/${id}/reenviar_email/`);
+    return response.data as { enviado: boolean; mensaje: string };
+  },
 };

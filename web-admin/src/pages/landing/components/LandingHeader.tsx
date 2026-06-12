@@ -81,10 +81,10 @@ export default function LandingHeader() {
               Iniciar sesión
             </Link>
             <Link
-              to="/registro"
+              to="/solicitar-demo"
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-blue-500/30 transition-all hover:-translate-y-px"
             >
-              Probar gratis
+              Solicitar demostración
             </Link>
           </div>
 
@@ -125,11 +125,11 @@ export default function LandingHeader() {
               Iniciar sesión
             </Link>
             <Link
-              to="/registro"
+              to="/solicitar-demo"
               onClick={() => setMenuOpen(false)}
               className="block w-full text-center py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors"
             >
-              Probar gratis 30 días
+              Solicitar demostración
             </Link>
           </div>
         </div>

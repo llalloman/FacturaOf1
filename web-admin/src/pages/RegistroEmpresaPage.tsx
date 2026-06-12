@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { FormEvent } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/authService';
@@ -23,6 +24,10 @@ function PlanCard({ plan, selected, onSelect }: { plan: PlanSuscripcion; selecte
   const isFeatured = s.featured;
   const textClass = isFeatured ? 'text-white' : 'text-gray-900';
   const subClass  = isFeatured ? 'text-blue-100' : 'text-gray-500';
+  const displayName = plan.tipo === 'FREE' ? 'Demo guiada' : plan.nombre;
+  const displayDescription = plan.tipo === 'FREE'
+    ? 'Agenda una demostración y recibe asesoría para empezar.'
+    : plan.descripcion;
 
   const features = [
     plan.facturas_mensuales === -1 ? 'Docs ilimitados' : `${plan.facturas_mensuales} docs / período`,
@@ -48,14 +53,14 @@ function PlanCard({ plan, selected, onSelect }: { plan: PlanSuscripcion; selecte
       )}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold mb-2 ${s.badge}`}>{plan.nombre}</span>
+          <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold mb-2 ${s.badge}`}>{displayName}</span>
           <div className={`flex items-baseline gap-1 ${textClass}`}>
             {plan.precio === 0
-              ? <span className="text-2xl font-black">Gratis</span>
+              ? <span className="text-2xl font-black">Demo</span>
               : <><span className="text-2xl font-black">${plan.precio}</span><span className={`text-sm ${subClass}`}>/{plan.periodo === 'MENSUAL' ? 'mes' : plan.periodo.toLowerCase()}</span></>
             }
           </div>
-          {plan.descripcion && <p className={`text-xs mt-1 ${subClass}`}>{plan.descripcion}</p>}
+          {displayDescription && <p className={`text-xs mt-1 ${subClass}`}>{displayDescription}</p>}
         </div>
         <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 transition-colors
           ${selected ? (isFeatured ? 'bg-white border-white' : 'bg-blue-600 border-blue-600') : (isFeatured ? 'border-white/50' : 'border-gray-300')}`}>
@@ -124,7 +129,7 @@ export default function RegistroEmpresaPage() {
       .finally(() => setPlanesLoading(false));
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     if (!aceptaTerminos) { setError('Debes aceptar los términos y condiciones para continuar.'); return; }
@@ -166,10 +171,10 @@ export default function RegistroEmpresaPage() {
           {/* Header */}
           <div className="px-8 pt-8 pb-6 text-center border-b border-gray-100">
             <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-16 mx-auto mb-3 object-contain drop-shadow-md" />
-            <h1 className="text-2xl font-black text-gray-900 mb-1">Crea tu cuenta gratis</h1>
-            <p className="text-sm text-gray-500">30 días de prueba · Sin tarjeta de crédito</p>
+            <h1 className="text-2xl font-black text-gray-900 mb-1">Empieza con FacturaOF1 ERP</h1>
+            <p className="text-sm text-gray-500">Facturación electrónica SRI y control de negocio</p>
             <div className="flex items-center justify-center gap-3 mt-3">
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full"><CheckCircle2 className="w-3.5 h-3.5" />30 días gratis</span>
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full"><CheckCircle2 className="w-3.5 h-3.5" />Demo guiada</span>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full"><Shield className="w-3.5 h-3.5" />Datos seguros</span>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-50 px-3 py-1 rounded-full"><Zap className="w-3.5 h-3.5" />Sin contrato</span>
             </div>
@@ -194,7 +199,7 @@ export default function RegistroEmpresaPage() {
             {step === 1 && (
               <div>
                 <p className="text-sm text-gray-600 mb-5 text-center">
-                  Todos los planes incluyen <strong>30 días de prueba gratuita</strong>. Puedes cambiar en cualquier momento.
+                  Elige el plan que mejor se adapta a tu negocio. Si necesitas ayuda, agenda una demostración.
                 </p>
                 {planesLoading ? (
                   <div className="flex justify-center py-10">
@@ -247,7 +252,7 @@ export default function RegistroEmpresaPage() {
                   onClick={() => setStep(2)}
                   className="w-full mt-6 py-3.5 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  Continuar con {selectedPlan ? `Plan ${selectedPlan.nombre}` : '…'}
+                  Continuar con {selectedPlan ? `Plan ${selectedPlan.tipo === 'FREE' ? 'Demo guiada' : selectedPlan.nombre}` : '…'}
                 </button>
               </div>
             )}
@@ -374,7 +379,7 @@ export default function RegistroEmpresaPage() {
                     className="w-full mt-2 py-3.5 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none">
                     {loading
                       ? <><Loader2 className="w-5 h-5 animate-spin" />Creando cuenta&hellip;</>
-                      : <><CheckCircle2 className="w-5 h-5" />Crear cuenta gratis</>
+                      : <><CheckCircle2 className="w-5 h-5" />Crear cuenta</>
                     }
                   </button>
                 </form>

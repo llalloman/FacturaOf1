@@ -104,7 +104,7 @@ function DashboardMock() {
       </div>
       <div className="absolute -bottom-4 -left-4 bg-white text-slate-800 text-xs font-bold px-3 py-1.5 rounded-full shadow-xl flex items-center gap-1.5">
         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-        30 días gratis
+        Firma disponible
       </div>
     </div>
   );
@@ -140,24 +140,18 @@ export default function HeroSection() {
             {/* Badge */}
             <div className="inline-flex items-center gap-2 bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs font-semibold px-3.5 py-1.5 rounded-full mb-6">
               <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-              Conectado al SRI Ecuador · Listo para usar
+              Pensado para negocios en Ecuador
             </div>
 
             {/* Headline */}
             <h1 className="text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.05] tracking-tight mb-4">
-              Factura
-              <br />
-              <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-                electrónica
-              </span>
-              <br />
-              sin complicaciones
+              Todo lo que necesitas para facturar electrónicamente y controlar tu negocio
             </h1>
 
             <p className="text-lg text-slate-300 leading-relaxed mb-8 max-w-lg">
-              Sistema SaaS para emitir comprobantes electrónicos, controlar
-              inventario, gestionar ventas y hacer crecer tu negocio desde un solo lugar.
-              Aprobado por el SRI.
+              FacturaOF1 ERP integra facturación electrónica SRI, punto de venta,
+              inventario, clientes, cartera y reportes. Si aún no tienes firma
+              electrónica, también te acompañamos en la solicitud.
             </p>
 
             {/* Benefit list */}
@@ -173,23 +167,26 @@ export default function HeroSection() {
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
-                to="/registro"
+                to="/solicitar-demo"
                 className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-base rounded-xl shadow-xl shadow-blue-700/30 hover:shadow-blue-500/40 transition-all hover:-translate-y-px"
               >
-                Probar gratis 30 días
+                Solicitar demostración del ERP
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                to="/login"
+                to="/registro"
                 className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-white/20 text-white/90 hover:text-white hover:bg-white/10 font-semibold text-base rounded-xl transition-all"
               >
-                Iniciar sesión
+                Quiero empezar a facturar
               </Link>
             </div>
 
             <p className="text-slate-500 text-xs mt-4">
-              Sin tarjeta de crédito · Cancela cuando quieras · Precios + IVA
+              Pensado para Ecuador · Compatible con procesos del SRI · Soporte personalizado · Firma electrónica disponible
             </p>
+            <Link to="/solicitar-firma-electronica" className="mt-3 inline-flex text-sm font-semibold text-blue-300 hover:text-blue-200">
+              ¿Solo necesitas firma electrónica?
+            </Link>
           </div>
 
           {/* Right: dashboard mock */}

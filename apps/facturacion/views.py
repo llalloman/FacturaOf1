@@ -19,6 +19,7 @@ from .serializers import (
     SecuencialSerializer,
 )
 from apps.core.export_mixin import ExportMixin
+from apps.core.permissions import HasModuleAccess
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,7 +61,8 @@ class FacturaFilter(django_filters.FilterSet):
 
 class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
     serializer_class = FacturaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'facturacion'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = FacturaFilter
     search_fields = ['comprobante__numero_comprobante', 'cliente__razon_social']
@@ -160,13 +162,13 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
             }
 
             if nc_estado == 'AUTORIZADO':
-                from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
-                reversal = aplicar_anulacion_factura_autorizada(factura, nota_credito, usuario=request.user)
+                from apps.facturacion.services.nota_credito_service import finalizar_nota_credito_autorizada
+                finalizacion = finalizar_nota_credito_autorizada(nota_credito, usuario=request.user)
                 return Response({
                     'mensaje': 'Factura anulada. Nota de Crédito autorizada por el SRI.',
                     'estado': 'ANULADO',
                     'nota_credito': nc_info,
-                    'reversion_financiera': reversal,
+                    **finalizacion,
                 })
             if nc_estado == 'ENVIADO':
                 return Response({
@@ -369,7 +371,8 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
 
 class RetencionViewSet(ExportMixin, viewsets.ModelViewSet):
     serializer_class = RetencionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'retenciones'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {'comprobante__estado': ['exact', 'iexact'], 'proveedor': ['exact']}
     search_fields = ['comprobante__numero_comprobante', 'proveedor__razon_social']
@@ -444,7 +447,8 @@ class RetencionViewSet(ExportMixin, viewsets.ModelViewSet):
 
 class GuiaRemisionViewSet(viewsets.ModelViewSet):
     serializer_class = GuiaRemisionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'guias_remision'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {'comprobante__estado': ['exact', 'iexact']}
     search_fields = ['comprobante__numero_comprobante', 'razon_social_transportista', 'placa']
@@ -511,7 +515,8 @@ class GuiaRemisionViewSet(viewsets.ModelViewSet):
 
 class NotaDebitoViewSet(viewsets.ModelViewSet):
     serializer_class = NotaDebitoSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'notas_debito'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {'comprobante__estado': ['exact', 'iexact'], 'cliente': ['exact']}
     search_fields = ['comprobante__numero_comprobante', 'cliente__razon_social', 'motivo']
@@ -580,7 +585,8 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
     Las NC no se crean aquí — se crean automáticamente al anular una Factura AUTORIZADA.
     """
     serializer_class = NotaCreditoSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'notas_credito'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {'comprobante__estado': ['exact', 'iexact']}
     search_fields = [
@@ -625,6 +631,16 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
         nc = self.get_object()
         comp = nc.comprobante
 
+        if comp.estado == ComprobanteElectronico.EstadoChoices.AUTORIZADO:
+            from apps.facturacion.services.nota_credito_service import finalizar_nota_credito_autorizada
+            finalizacion = finalizar_nota_credito_autorizada(nc, usuario=request.user)
+            return Response({
+                'estado': comp.estado,
+                'numero_autorizacion': comp.numero_autorizacion,
+                'mensaje': 'Nota de Crédito autorizada. Anulación local verificada.',
+                **finalizacion,
+            })
+
         if comp.estado not in ('ENVIADO', 'RECHAZADO', 'NO_AUTORIZADO'):
             return Response(
                 {'error': f'Solo se reprocesa en estado ENVIADO/RECHAZADO. Estado actual: {comp.estado}'},
@@ -635,10 +651,8 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
             from apps.facturacion.services.nota_credito_service import procesar_nota_credito_sri
             result = procesar_nota_credito_sri(nc)
             if result.get('estado') == 'AUTORIZADO':
-                from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
-                result['reversion_financiera'] = aplicar_anulacion_factura_autorizada(
-                    nc.factura_origen, nc, usuario=request.user
-                )
+                from apps.facturacion.services.nota_credito_service import finalizar_nota_credito_autorizada
+                result.update(finalizar_nota_credito_autorizada(nc, usuario=request.user))
             http_status = status.HTTP_200_OK if result.get('success') else status.HTTP_422_UNPROCESSABLE_ENTITY
             return Response(result, status=http_status)
 
@@ -657,13 +671,13 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
                     comp.fecha_autorizacion = getattr(aut_obj, 'fechaAutorizacion', None)
                     comp.mensajes_sri = ''
                     comp.save()
-                    from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
-                    reversal = aplicar_anulacion_factura_autorizada(nc.factura_origen, nc, usuario=request.user)
+                    from apps.facturacion.services.nota_credito_service import finalizar_nota_credito_autorizada
+                    finalizacion = finalizar_nota_credito_autorizada(nc, usuario=request.user)
                     return Response({
                         'estado': comp.estado,
                         'numero_autorizacion': comp.numero_autorizacion,
                         'mensaje': f'Autorizada: {comp.numero_autorizacion}',
-                        'reversion_financiera': reversal,
+                        **finalizacion,
                     })
 
                 mensajes_list = []
@@ -727,13 +741,13 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
                     comp.fecha_autorizacion = getattr(aut_obj, 'fechaAutorizacion', None)
                     comp.mensajes_sri = ''
                     comp.save()
-                    from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
-                    reversal = aplicar_anulacion_factura_autorizada(nc.factura_origen, nc, usuario=request.user)
+                    from apps.facturacion.services.nota_credito_service import finalizar_nota_credito_autorizada
+                    finalizacion = finalizar_nota_credito_autorizada(nc, usuario=request.user)
                     return Response({
                         'estado': comp.estado,
                         'numero_autorizacion': comp.numero_autorizacion,
                         'mensaje': f'Autorizada: {comp.numero_autorizacion}',
-                        'reversion_financiera': reversal,
+                        **finalizacion,
                     })
 
             return Response({
@@ -742,6 +756,58 @@ class NotaCreditoViewSet(ExportMixin, viewsets.ReadOnlyModelViewSet):
             })
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'])
+    def reenviar_email(self, request, pk=None):
+        """Reenvia el PDF+XML de la Nota de Credito AUTORIZADA al email del cliente."""
+        nc = self.get_object()
+        comp = nc.comprobante
+        if comp.estado != 'AUTORIZADO':
+            return Response(
+                {'error': 'Solo se puede reenviar email de notas de crédito autorizadas'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from apps.facturacion.services.nota_credito_service import _enviar_nota_credito_email
+        try:
+            result = _enviar_nota_credito_email(nc)
+        except Exception as e:
+            return Response({'mensaje': f'Error al enviar email: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+        if not result.get('enviado'):
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
+    @action(detail=True, methods=['get'])
+    def xml(self, request, pk=None):
+        """Retorna el XML generado/firmado de la Nota de Credito."""
+        nc = self.get_object()
+        comp = nc.comprobante
+        xml = comp.xml_firmado or comp.xml_generado
+        if not xml:
+            return Response({'error': 'No hay XML generado aún'}, status=status.HTTP_404_NOT_FOUND)
+        from django.http import HttpResponse
+        response = HttpResponse(xml, content_type='application/xml')
+        response['Content-Disposition'] = f'attachment; filename="{comp.numero_comprobante}.xml"'
+        return response
+
+    @action(detail=True, methods=['get'])
+    def pdf(self, request, pk=None):
+        """Genera y retorna el RIDE PDF de la Nota de Credito autorizada."""
+        nc = self.get_object()
+        comp = nc.comprobante
+        if comp.estado != 'AUTORIZADO':
+            return Response(
+                {'error': 'Solo se genera el RIDE de notas de crédito autorizadas'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from apps.facturacion.services.ride_service import generar_ride_nota_credito_pdf
+        from django.http import HttpResponse
+        try:
+            pdf_bytes = generar_ride_nota_credito_pdf(nc)
+        except Exception as e:
+            return Response({'error': f'Error al generar PDF: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="RIDE-NC-{comp.numero_comprobante}.pdf"'
+        return response
 
 
 # ─── Secuencial ──────────────────────────────────────────────────────────────
@@ -753,7 +819,8 @@ class SecuencialViewSet(viewsets.ModelViewSet):
     - ADMIN_EMPRESA: GET + PATCH (solo si configurado=False).
     """
     serializer_class = SecuencialSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'configuracion'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['tipo_comprobante', 'empresa', 'configurado']
     search_fields = ['establecimiento', 'punto_emision']

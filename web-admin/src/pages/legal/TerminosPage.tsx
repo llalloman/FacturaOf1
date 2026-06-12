@@ -97,7 +97,7 @@ export default function TerminosPage() {
             <ul className="list-disc pl-6 space-y-1.5 text-slate-600">
               <li>Presenten información falsa o errónea.</li>
               <li>Realicen actividades que vulneren estos términos o la ley ecuatoriana.</li>
-              <li>Permanezcan inactivas por más de 12 meses consecutivos en plan gratuito.</li>
+              <li>Permanezcan inactivas por más de 12 meses consecutivos sin un plan activo.</li>
             </ul>
           </section>
 
@@ -108,9 +108,9 @@ export default function TerminosPage() {
               Suscripción y pagos
             </h2>
             <p className="mb-2">
-              OF1 Solutions ofrece un período de prueba gratuito de 30 días con acceso completo a las funcionalidades.
-              Transcurrido dicho período, el usuario debe contratar un plan de suscripción pago para continuar emitiendo
-              documentos electrónicos.
+              OF1 Solutions puede ofrecer demostraciones guiadas o activaciones asistidas para evaluar el servicio.
+              Para emitir documentos electrónicos de forma operativa, el usuario debe contratar un plan de suscripción
+              vigente y completar la configuración requerida.
             </p>
             <ul className="list-disc pl-6 space-y-1.5 text-slate-600">
               <li>Los precios publicados no incluyen IVA (12%), salvo indicación expresa.</li>

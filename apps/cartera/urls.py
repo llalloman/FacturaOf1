@@ -6,7 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.routers import DefaultRouter
 
-from apps.core.permissions import IsAuthenticated, IsTenantUser
+from apps.core.permissions import IsAuthenticated, IsTenantUser, HasModuleAccess
 from .models import CuentaPorCobrar, PagoCliente, MovimientoCuentaPorCobrar
 from .serializers import (
     CuentaPorCobrarSerializer,
@@ -27,7 +27,8 @@ class CuentaPorCobrarViewSet(viewsets.ModelViewSet):
     resumen → GET /api/cartera/cuentas/resumen/
     """
 
-    permission_classes = [IsAuthenticated, IsTenantUser]
+    permission_classes = [IsAuthenticated, IsTenantUser, HasModuleAccess]
+    module_required = 'cartera'
     filterset_fields = ['estado', 'cliente']
     search_fields = ['numero_cuenta', 'cliente__razon_social', 'cliente__identificacion']
     ordering_fields = ['fecha_vencimiento', 'monto_total', 'saldo', 'created_at']
@@ -157,7 +158,8 @@ class PagoClienteViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = PagoClienteSerializer
-    permission_classes = [IsAuthenticated, IsTenantUser]
+    permission_classes = [IsAuthenticated, IsTenantUser, HasModuleAccess]
+    module_required = 'cartera'
     filterset_fields = ['cuenta', 'forma_pago', 'fecha_pago']
     search_fields = ['cuenta__numero_cuenta', 'cuenta__cliente__razon_social', 'numero_documento']
     ordering_fields = ['fecha_pago', 'monto']
@@ -171,7 +173,8 @@ class PagoClienteViewSet(viewsets.ModelViewSet):
 
 class MovimientoCuentaPorCobrarViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MovimientoCuentaPorCobrarSerializer
-    permission_classes = [IsAuthenticated, IsTenantUser]
+    permission_classes = [IsAuthenticated, IsTenantUser, HasModuleAccess]
+    module_required = 'cartera'
     filterset_fields = ['cuenta', 'tipo_movimiento', 'motivo', 'fecha_movimiento']
     search_fields = ['cuenta__numero_cuenta', 'cuenta__cliente__razon_social', 'referencia', 'concepto']
     ordering_fields = ['fecha_movimiento', 'monto', 'created_at']

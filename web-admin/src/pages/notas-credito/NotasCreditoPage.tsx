@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notasCreditoService } from '../../services/notasCreditoService';
-import { FiSearch, FiRefreshCw, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiSearch, FiRefreshCw, FiChevronDown, FiChevronUp, FiSend } from 'react-icons/fi';
 import { FileCheck2 } from 'lucide-react';
 import { toast } from '../../store/toastStore';
 
@@ -38,6 +38,20 @@ const NotasCreditoPage: React.FC = () => {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error
         || 'Error al reprocesar';
+      toast.error(msg);
+    },
+  });
+
+  const reenviarEmailMutation = useMutation({
+    mutationFn: notasCreditoService.reenviarEmail,
+    onSuccess: (data) => {
+      toast.success(data.mensaje || 'Nota de crédito enviada al cliente');
+    },
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { error?: string; mensaje?: string } } })?.response?.data?.error
+        || (err as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje
+        || 'Error al enviar email';
       toast.error(msg);
     },
   });
@@ -207,7 +221,15 @@ const NotasCreditoPage: React.FC = () => {
                         </button>
                       )}
                       {nota.estado === 'AUTORIZADO' && (
-                        <span className="text-xs text-green-600 font-medium">✓ Autorizada</span>
+                        <button
+                          onClick={() => reenviarEmailMutation.mutate(nota.id)}
+                          disabled={reenviarEmailMutation.isPending}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors disabled:opacity-50"
+                          title="Reenviar nota de crédito al cliente"
+                        >
+                          <FiSend className="h-3.5 w-3.5" />
+                          {reenviarEmailMutation.isPending ? 'Enviando...' : 'Reenviar email'}
+                        </button>
                       )}
                     </td>
                   </tr>

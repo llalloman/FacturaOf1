@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.routers import DefaultRouter
 
-from apps.core.permissions import IsAuthenticated, IsTenantUser
+from apps.core.permissions import IsAuthenticated, IsTenantUser, HasModuleAccess
 from .models import Cotizacion, ItemCotizacion
 from .serializers import CotizacionSerializer, CotizacionCreateSerializer
 
@@ -19,7 +19,8 @@ class CotizacionViewSet(viewsets.ModelViewSet):
       convertir_factura POST /cotizaciones/{id}/convertir_factura/
     """
 
-    permission_classes = [IsAuthenticated, IsTenantUser]
+    permission_classes = [IsAuthenticated, IsTenantUser, HasModuleAccess]
+    module_required = 'cotizaciones'
     filterset_fields = ['estado', 'cliente']
     search_fields = ['numero', 'cliente__razon_social']
     ordering_fields = ['created_at', 'total', 'fecha_validez']
@@ -231,4 +232,3 @@ def _enviar_cotizacion_email(cotizacion):
     except Exception as e:
         logger.error("Error enviando cotización %s por email: %s", cotizacion.numero, e)
         return {'enviado': False, 'mensaje': f'No se pudo enviar el email: {e}'}
-

@@ -32,9 +32,9 @@ export interface PlanUIData {
   tagline: string;
   /** Descripcion breve del valor del plan */
   shortDescription: string;
-  /** Precio mensual en USD. null = plan gratuito/trial */
+  /** Precio mensual en USD. null = demo guiada */
   precioMensual: number | null;
-  /** Precio anual en USD. null = plan gratuito/trial */
+  /** Precio anual en USD. null = demo guiada */
   precioAnual: number | null;
   moneda: 'USD';
   /** Si este plan debe destacarse visualmente */
@@ -57,29 +57,29 @@ export interface PlanUIData {
   limiteUsuarios: number | null;
   /** Cantidad de empresas (0 = sin limite) */
   limiteEmpresas: number;
-  /** True si es un plan de prueba, no de pago */
+  /** True si es una opcion de demo, no de pago */
   esTrialGratuito: boolean;
 }
 
 export const PLAN_UI_DATA: Record<string, PlanUIData> = {
   FREE: {
-    tagline: 'Sin tarjeta de credito',
-    shortDescription: 'Prueba todas las funciones principales por 30 dias, sin compromiso.',
+    tagline: 'Demo guiada',
+    shortDescription: 'Agenda una demostracion gratuita y recibe asesoria para empezar a facturar.',
     precioMensual: null,
     precioAnual: null,
     moneda: 'USD',
     featured: false,
     features: [
-      { label: 'Prueba gratuita por 30 dias', included: true, highlight: true },
-      { label: 'Facturacion electronica SRI', included: true },
-      { label: 'Hasta 10 documentos de prueba', included: true },
-      { label: '1 usuario incluido', included: true },
-      { label: '1 empresa', included: true },
-      { label: 'Soporte por email', included: true },
-      { label: 'Reportes avanzados', included: false },
-      { label: 'Acceso a la API', included: false },
+      { label: 'Demostracion gratuita', included: true, highlight: true },
+      { label: 'Revision de necesidades del negocio', included: true },
+      { label: 'Asesoria sobre firma electronica', included: true },
+      { label: 'Recomendacion de plan', included: true },
+      { label: 'Activacion del ERP segun contrato', included: true },
+      { label: 'Soporte personalizado', included: true },
+      { label: 'Emision ilimitada sin plan activo', included: false },
+      { label: 'Acceso a API sin plan activo', included: false },
     ],
-    ctaLabel: 'Comenzar prueba gratis',
+    ctaLabel: 'Solicitar demostracion',
     gradient: 'from-emerald-500 to-teal-600',
     badgeClass: 'bg-emerald-100 text-emerald-700',
     btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',
@@ -386,11 +386,11 @@ function PricingBlock({
     return (
       <div className={`rounded-2xl p-5 border mb-6 ${dark ? 'bg-white/10 border-white/20' : 'bg-emerald-50 border-emerald-100'}`}>
         <div className="flex items-baseline gap-2 mb-1.5">
-          <span className={`text-4xl font-black ${dark ? 'text-white' : 'text-emerald-600'}`}>30 dias</span>
-          <span className={`font-bold text-lg ${dark ? 'text-emerald-300' : 'text-emerald-500'}`}>gratis</span>
+          <span className={`text-4xl font-black ${dark ? 'text-white' : 'text-emerald-600'}`}>Demo</span>
+          <span className={`font-bold text-lg ${dark ? 'text-emerald-300' : 'text-emerald-500'}`}>guiada</span>
         </div>
-        <p className={`text-sm font-semibold ${dark ? 'text-white/80' : 'text-emerald-700'}`}>Sin tarjeta de credito</p>
-        <p className={`text-xs mt-1 ${dark ? 'text-white/50' : 'text-gray-500'}`}>Acceso completo durante el periodo de prueba</p>
+        <p className={`text-sm font-semibold ${dark ? 'text-white/80' : 'text-emerald-700'}`}>Con asesoria personalizada</p>
+        <p className={`text-xs mt-1 ${dark ? 'text-white/50' : 'text-gray-500'}`}>Revisamos firma, configuracion y plan recomendado</p>
       </div>
     );
   }
@@ -441,7 +441,7 @@ function PricingBlock({
             : 'bg-green-50 border border-green-100 text-green-700'
         }`}>
           <TrendingUp size={12} className="shrink-0" />
-          Ahorra ${ahorro.toFixed(2)} al ano &mdash; como 2 meses gratis
+          Ahorra ${ahorro.toFixed(2)} al ano con el pago anual
         </div>
       )}
     </div>
@@ -661,7 +661,7 @@ function BillingToggle({ anual, onChange }: { anual: boolean; onChange: (v: bool
       </div>
       {anual && (
         <p className="text-xs text-green-600 font-semibold">
-          Pagando anual es como recibir 2 meses gratis
+          El pago anual mantiene el mejor precio del plan
         </p>
       )}
     </div>
@@ -879,7 +879,7 @@ export default function SuscripcionesPage() {
             <span>✓ Facturacion electronica SRI</span>
             <span>✓ Sin contratos de permanencia</span>
             <span>✓ Cancela cuando quieras</span>
-            <span>✓ Actualizaciones gratuitas</span>
+            <span>✓ Actualizaciones incluidas</span>
           </div>
           <p className="text-xs text-gray-400">
             Todos los precios en USD &middot; No incluyen IVA (12%) &middot; Pago seguro

@@ -39,6 +39,17 @@ export interface DashboardTenant {
   facturas_anuladas: number;
   facturas_rechazadas: number;
   facturas_por_estado: Record<string, number>;
+  facturado_periodo: number;
+  facturado_periodo_cantidad: number;
+  facturado_mes: number;
+  facturado_hoy: number;
+  facturado_anulado_periodo: number;
+  facturado_anulado_cantidad: number;
+  facturado_directo_periodo: number;
+  facturado_directo_cantidad: number;
+  notas_credito_periodo: number;
+  notas_credito_periodo_cantidad: number;
+  facturado_neto_periodo: number;
   notas_credito_pendientes: number;
   notas_credito_hoy: number;
   productos_activos: number;
@@ -96,6 +107,12 @@ export interface DashboardTenant {
     periodo: string;
     fecha_limite: string;
     dias_restantes: number;
+  }[];
+  configuracion_incompleta?: boolean;
+  progreso_configuracion?: {
+    key: string;
+    label: string;
+    completed: boolean;
   }[];
 }
 

@@ -7,10 +7,12 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Empleado, RolPago
 from .serializers import EmpleadoSerializer, RolPagoSerializer, RolPagoCreateSerializer
+from apps.core.permissions import HasModuleAccess
 
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'nomina'
     serializer_class = EmpleadoSerializer
     pagination_class = None
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -65,7 +67,8 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
 
 class RolPagoViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'nomina'
     pagination_class = None
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['anio', 'mes', 'empleado', 'estado']

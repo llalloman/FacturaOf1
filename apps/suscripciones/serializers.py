@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PlanSuscripcion, Suscripcion, Pago, ModuloPermiso, MODULOS_DISPONIBLES
+from .models import PlanSuscripcion, Suscripcion, Pago, ModuloSistema, SeccionModulo, get_todos_modulos_codigos
 
 
 class PlanSuscripcionSerializer(serializers.ModelSerializer):
@@ -66,15 +66,55 @@ class PagoSerializer(serializers.ModelSerializer):
         fields = ['id', 'suscripcion', 'monto', 'tipo', 'estado', 'metodo', 'referencia', 'notas', 'fecha_creacion']
 
 
-class ModuloCatalogSerializer(serializers.Serializer):
+class SeccionModuloSerializer(serializers.ModelSerializer):
+    """Temas principales que agrupan módulos del menú/catálogo."""
+    class Meta:
+        model = SeccionModulo
+        fields = ['id', 'codigo', 'nombre', 'orden', 'activo']
+
+
+class ModuloSistemaSerializer(serializers.ModelSerializer):
     """Catálogo de todos los módulos disponibles (solo lectura)."""
+    seccion_codigo = serializers.CharField(source='seccion.codigo', read_only=True)
+    seccion_nombre = serializers.CharField(source='seccion.nombre', read_only=True)
+
+    class Meta:
+        model = ModuloSistema
+        fields = [
+            'id', 'seccion', 'seccion_codigo', 'seccion_nombre',
+            'codigo', 'label', 'ruta', 'grupo', 'icono', 'orden', 'activo', 'external',
+        ]
+
+    def validate(self, attrs):
+        seccion = attrs.get('seccion') or getattr(self.instance, 'seccion', None)
+        grupo = attrs.get('grupo') or getattr(self.instance, 'grupo', '')
+        if not seccion and not grupo:
+            raise serializers.ValidationError({'seccion': 'Selecciona un tema principal.'})
+        return attrs
+
+
+class ModuloCatalogSerializer(serializers.Serializer):
+    """Compatibilidad para payloads simples del catálogo."""
     codigo = serializers.CharField()
     label = serializers.CharField()
+    ruta = serializers.CharField(required=False)
+    grupo = serializers.CharField(required=False)
+    icono = serializers.CharField(required=False, allow_blank=True)
+    orden = serializers.IntegerField(required=False)
+    activo = serializers.BooleanField(required=False)
+    external = serializers.BooleanField(required=False)
 
 
 class ModuloPermisoSerializer(serializers.Serializer):
     """Actualización de permisos de un plan (lista de códigos de módulo)."""
     modulos = serializers.ListField(
-        child=serializers.ChoiceField(choices=[c for c, _ in MODULOS_DISPONIBLES]),
+        child=serializers.CharField(max_length=50),
         allow_empty=True,
     )
+
+    def validate_modulos(self, value):
+        permitidos = set(get_todos_modulos_codigos())
+        invalidos = sorted(set(value) - permitidos)
+        if invalidos:
+            raise serializers.ValidationError(f'Módulos inválidos o inactivos: {", ".join(invalidos)}')
+        return value

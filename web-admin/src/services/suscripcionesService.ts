@@ -9,6 +9,29 @@ export interface ResumenEmpresaSuscripcion {
   suscripcion: Suscripcion | null;
 }
 
+export interface ModuloSistema {
+  id?: number;
+  seccion?: number | null;
+  seccion_codigo?: string;
+  seccion_nombre?: string;
+  codigo: string;
+  label: string;
+  ruta: string;
+  grupo: string;
+  icono?: string;
+  orden?: number;
+  activo?: boolean;
+  external?: boolean;
+}
+
+export interface SeccionModulo {
+  id?: number;
+  codigo: string;
+  nombre: string;
+  orden?: number;
+  activo?: boolean;
+}
+
 export const suscripcionesService = {
   getPlanes: async (): Promise<PlanSuscripcion[]> => {
     const { data } = await apiClient.get('/suscripciones/planes/');
@@ -101,9 +124,47 @@ export const suscripcionesService = {
     return data.modulos ?? [];
   },
 
-  getCatalogModulos: async (): Promise<{ codigo: string; label: string }[]> => {
+  getCatalogModulos: async (): Promise<ModuloSistema[]> => {
     const { data } = await apiClient.get('/suscripciones/modulos-catalogo/');
     return data;
+  },
+
+  getModulosSistema: async (): Promise<ModuloSistema[]> => {
+    const { data } = await apiClient.get('/suscripciones/modulos/');
+    return Array.isArray(data) ? data : (data.results ?? []);
+  },
+
+  getSeccionesModulos: async (): Promise<SeccionModulo[]> => {
+    const { data } = await apiClient.get('/suscripciones/modulos-secciones/');
+    return Array.isArray(data) ? data : (data.results ?? []);
+  },
+
+  createSeccionModulo: async (payload: Partial<SeccionModulo>): Promise<SeccionModulo> => {
+    const { data } = await apiClient.post('/suscripciones/modulos-secciones/', payload);
+    return data;
+  },
+
+  updateSeccionModulo: async (id: number, payload: Partial<SeccionModulo>): Promise<SeccionModulo> => {
+    const { data } = await apiClient.patch(`/suscripciones/modulos-secciones/${id}/`, payload);
+    return data;
+  },
+
+  deleteSeccionModulo: async (id: number): Promise<void> => {
+    await apiClient.delete(`/suscripciones/modulos-secciones/${id}/`);
+  },
+
+  createModuloSistema: async (payload: Partial<ModuloSistema>): Promise<ModuloSistema> => {
+    const { data } = await apiClient.post('/suscripciones/modulos/', payload);
+    return data;
+  },
+
+  updateModuloSistema: async (id: number, payload: Partial<ModuloSistema>): Promise<ModuloSistema> => {
+    const { data } = await apiClient.patch(`/suscripciones/modulos/${id}/`, payload);
+    return data;
+  },
+
+  deleteModuloSistema: async (id: number): Promise<void> => {
+    await apiClient.delete(`/suscripciones/modulos/${id}/`);
   },
 
   getModulosPlan: async (planId: number): Promise<string[]> => {

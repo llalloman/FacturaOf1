@@ -64,6 +64,11 @@ class CotizacionCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('La cotización debe tener al menos un ítem.')
         return value
 
+    def validate_cliente(self, value):
+        if not value.activo:
+            raise serializers.ValidationError('No se puede usar un cliente inactivo para nuevas cotizaciones.')
+        return value
+
     def create(self, validated_data):
         items_data = validated_data.pop('items')
         request = self.context.get('request')

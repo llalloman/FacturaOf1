@@ -76,11 +76,8 @@ def verificar_autorizaciones_pendientes():
                     and comprobante.tipo_comprobante == '04'
                     and hasattr(comprobante, 'nota_credito')
                 ):
-                    from apps.facturacion.services.anulacion_service import aplicar_anulacion_factura_autorizada
-                    aplicar_anulacion_factura_autorizada(
-                        comprobante.nota_credito.factura_origen,
-                        comprobante.nota_credito,
-                    )
+                    from apps.facturacion.services.nota_credito_service import finalizar_nota_credito_autorizada
+                    finalizar_nota_credito_autorizada(comprobante.nota_credito)
                 
         except Exception as e:
             logger.error("Error al verificar autorización de %s: %s", comprobante.clave_acceso, e)

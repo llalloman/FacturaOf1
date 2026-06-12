@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
 import Layout from './components/Layout';
@@ -48,6 +48,10 @@ const LandingPage = lazy(() => import('./pages/landing/LandingPage'));
 const TerminosPage = lazy(() => import('./pages/legal/TerminosPage'));
 const PrivacidadPage = lazy(() => import('./pages/legal/PrivacidadPage'));
 const MatrizPermisosPage = lazy(() => import('./pages/empresas/MatrizPermisosPage'));
+const CatalogoModulosPage = lazy(() => import('./pages/empresas/CatalogoModulosPage'));
+const SolicitudesFirmaPage = lazy(() => import('./pages/firmas/SolicitudesFirmaPage'));
+const SolicitarDemoPage = lazy(() => import('./pages/public/SolicitarDemoPage'));
+const SolicitarFirmaElectronicaPage = lazy(() => import('./pages/public/SolicitarFirmaElectronicaPage'));
 
 /** Spinner global usado mientras se verifica el estado de suscripción */
 function AppLoader() {
@@ -70,10 +74,128 @@ const queryClient = new QueryClient({
   },
 });
 
+// ─── Layout routes extracted to reduce cognitive complexity ─────────────────
+const appLayoutRoutes = (
+  <>
+    <Route index element={<DashboardPage />} />
+    <Route path="facturacion" element={
+      <ModuloGuard modulo="facturacion"><FacturasPage /></ModuloGuard>
+    } />
+    <Route path="inventarios" element={
+      <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'VENDEDOR']}>
+        <ModuloGuard modulo="inventarios"><InventariosPage /></ModuloGuard>
+      </ProtectedRoute>
+    } />
+    <Route path="proveedores" element={
+      <ProtectedRoute allowedRoles={['ADMIN_EMPRESA']}>
+        <ModuloGuard modulo="proveedores"><ProveedoresPage /></ModuloGuard>
+      </ProtectedRoute>
+    } />
+    <Route path="productos" element={
+      <ModuloGuard modulo="productos"><ProductosPage /></ModuloGuard>
+    } />
+    <Route path="clientes" element={
+      <ModuloGuard modulo="clientes"><ClientesPage /></ModuloGuard>
+    } />
+    <Route path="ventas" element={
+      <ModuloGuard modulo="ventas"><VentasPage /></ModuloGuard>
+    } />
+    <Route path="reportes" element={
+      <ModuloGuard modulo="reportes"><ReportesPage /></ModuloGuard>
+    } />
+    <Route path="configuracion" element={
+      <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
+        <ConfiguracionPage />
+      </ProtectedRoute>
+    } />
+    <Route path="retenciones" element={
+      <ModuloGuard modulo="retenciones"><RetencionesPage /></ModuloGuard>
+    } />
+    <Route path="guias-remision" element={
+      <ModuloGuard modulo="guias_remision"><GuiasRemisionPage /></ModuloGuard>
+    } />
+    <Route path="notas-debito" element={
+      <ModuloGuard modulo="notas_debito"><NotasDebitoPage /></ModuloGuard>
+    } />
+    <Route path="notas-credito" element={
+      <ModuloGuard modulo="notas_credito"><NotasCreditoPage /></ModuloGuard>
+    } />
+    <Route path="cartera" element={
+      <ModuloGuard modulo="cartera"><CarteraPage /></ModuloGuard>
+    } />
+    <Route path="declaraciones" element={
+      <ModuloGuard modulo="declaraciones"><DeclaracionesPage /></ModuloGuard>
+    } />
+    <Route path="cotizaciones" element={
+      <ModuloGuard modulo="cotizaciones"><CotizacionesPage /></ModuloGuard>
+    } />
+    <Route path="contabilidad" element={
+      <ModuloGuard modulo="contabilidad"><ContabilidadPage /></ModuloGuard>
+    } />
+    <Route path="bancos" element={
+      <ModuloGuard modulo="bancos"><BancosPage /></ModuloGuard>
+    } />
+    <Route path="nomina" element={
+      <ModuloGuard modulo="nomina"><NominaPage /></ModuloGuard>
+    } />
+    <Route path="firmas-electronicas" element={
+      <ModuloGuard modulo="firmas_electronicas"><SolicitudesFirmaPage /></ModuloGuard>
+    } />
+    <Route path="suscripcion" element={
+      <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
+        <SuscripcionesPage />
+      </ProtectedRoute>
+    } />
+    <Route path="empresas" element={
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+        <EmpresasPage />
+      </ProtectedRoute>
+    } />
+    <Route path="suscripciones-admin" element={
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+        <SuscripcionesAdminPage />
+      </ProtectedRoute>
+    } />
+    <Route path="matriz-permisos" element={
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+        <MatrizPermisosPage />
+      </ProtectedRoute>
+    } />
+    <Route path="catalogo-modulos" element={
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+        <CatalogoModulosPage />
+      </ProtectedRoute>
+    } />
+    <Route path="usuarios" element={
+      <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
+        <ModuloGuard modulo="usuarios"><UsuariosPage /></ModuloGuard>
+      </ProtectedRoute>
+    } />
+    <Route path="pedidos" element={
+      <ModuloGuard modulo="pedidos"><MesasPage /></ModuloGuard>
+    } />
+    <Route path="pedidos/:id" element={
+      <ModuloGuard modulo="pedidos"><PedidoDetallePage /></ModuloGuard>
+    } />
+  </>
+);
+
 function AppRoutes() {
+  const navigate = useNavigate();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
   const { tieneAcceso, cargando: cargandoSuscripcion, esSuperAdmin } = useSubscriptionStatus();
+
+  // Handle token expiry signalled by apiClient (avoids hard window.location redirect)
+  useEffect(() => {
+    const handler = () => {
+      logout();
+      navigate('/login', { replace: true });
+    };
+    window.addEventListener('auth:session-expired', handler);
+    return () => window.removeEventListener('auth:session-expired', handler);
+  }, [logout, navigate]);
 
   /**
    * Determina la ruta de destino para un usuario autenticado.
@@ -90,8 +212,7 @@ function AppRoutes() {
   };
 
   return (
-    <BrowserRouter>
-      <Suspense fallback={<AppLoader />}>
+    <Suspense fallback={<AppLoader />}>
       <Routes>
           <Route
             path="/login"
@@ -177,6 +298,8 @@ function AppRoutes() {
           {/* Legal pages — public */}
           <Route path="/terminos" element={<TerminosPage />} />
           <Route path="/privacidad" element={<PrivacidadPage />} />
+          <Route path="/solicitar-demo" element={<SolicitarDemoPage />} />
+          <Route path="/solicitar-firma-electronica" element={<SolicitarFirmaElectronicaPage />} />
 
           {/* POS - pantalla completa, sin el Layout del admin */}
           <Route
@@ -202,111 +325,21 @@ function AppRoutes() {
               )
             }
           >
-            <Route index element={<DashboardPage />} />
-            <Route path="facturacion" element={
-              <ModuloGuard modulo="facturacion"><FacturasPage /></ModuloGuard>
-            } />
-            <Route path="inventarios" element={
-              <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'VENDEDOR']}>
-                <ModuloGuard modulo="inventarios"><InventariosPage /></ModuloGuard>
-              </ProtectedRoute>
-            } />
-            <Route path="proveedores" element={
-              <ProtectedRoute allowedRoles={['ADMIN_EMPRESA']}>
-                <ModuloGuard modulo="proveedores"><ProveedoresPage /></ModuloGuard>
-              </ProtectedRoute>
-            } />
-            <Route path="productos" element={
-              <ModuloGuard modulo="productos"><ProductosPage /></ModuloGuard>
-            } />
-            <Route path="clientes" element={
-              <ModuloGuard modulo="clientes"><ClientesPage /></ModuloGuard>
-            } />
-            <Route path="ventas" element={
-              <ModuloGuard modulo="ventas"><VentasPage /></ModuloGuard>
-            } />
-            <Route path="reportes" element={
-              <ModuloGuard modulo="reportes"><ReportesPage /></ModuloGuard>
-            } />
-            <Route path="configuracion" element={
-              <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
-                <ConfiguracionPage />
-              </ProtectedRoute>
-            } />
-            <Route path="retenciones" element={
-              <ModuloGuard modulo="retenciones"><RetencionesPage /></ModuloGuard>
-            } />
-            <Route path="guias-remision" element={
-              <ModuloGuard modulo="guias_remision"><GuiasRemisionPage /></ModuloGuard>
-            } />
-            <Route path="notas-debito" element={
-              <ModuloGuard modulo="notas_debito"><NotasDebitoPage /></ModuloGuard>
-            } />
-            <Route path="notas-credito" element={
-              <ModuloGuard modulo="notas_credito"><NotasCreditoPage /></ModuloGuard>
-            } />
-            <Route path="cartera" element={
-              <ModuloGuard modulo="cartera"><CarteraPage /></ModuloGuard>
-            } />
-            <Route path="declaraciones" element={
-              <ModuloGuard modulo="declaraciones"><DeclaracionesPage /></ModuloGuard>
-            } />
-            <Route path="cotizaciones" element={
-              <ModuloGuard modulo="cotizaciones"><CotizacionesPage /></ModuloGuard>
-            } />
-            <Route path="contabilidad" element={
-              <ModuloGuard modulo="contabilidad"><ContabilidadPage /></ModuloGuard>
-            } />
-            <Route path="bancos" element={
-              <ModuloGuard modulo="bancos"><BancosPage /></ModuloGuard>
-            } />
-            <Route path="nomina" element={
-              <ModuloGuard modulo="nomina"><NominaPage /></ModuloGuard>
-            } />
-            <Route path="suscripcion" element={
-              <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
-                <SuscripcionesPage />
-              </ProtectedRoute>
-            } />
-            <Route path="empresas" element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
-                <EmpresasPage />
-              </ProtectedRoute>
-            } />
-            <Route path="suscripciones-admin" element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
-                <SuscripcionesAdminPage />
-              </ProtectedRoute>
-            } />
-            <Route path="matriz-permisos" element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
-                <MatrizPermisosPage />
-              </ProtectedRoute>
-            } />
-            <Route path="usuarios" element={
-              <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'SUPER_ADMIN']}>
-                <ModuloGuard modulo="usuarios"><UsuariosPage /></ModuloGuard>
-              </ProtectedRoute>
-            } />
-            <Route path="pedidos" element={
-              <ModuloGuard modulo="pedidos"><MesasPage /></ModuloGuard>
-            } />
-            <Route path="pedidos/:id" element={
-              <ModuloGuard modulo="pedidos"><PedidoDetallePage /></ModuloGuard>
-            } />
+            {appLayoutRoutes}
           </Route>
         </Routes>
       </Suspense>
-    </BrowserRouter>
   );
 }
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppRoutes />
-      <ToastContainer />
-      <ConfirmModal />
+      <BrowserRouter>
+        <AppRoutes />
+        <ToastContainer />
+        <ConfirmModal />
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }

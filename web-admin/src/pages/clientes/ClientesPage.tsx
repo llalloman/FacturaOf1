@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { clientesService } from '../../services/clientesService';
 import type { Cliente } from '../../types';
 import { confirmDialog } from '../../store/confirmStore';
+import { toast } from '../../store/toastStore';
 import {
   Plus,
   Search,
@@ -31,8 +32,24 @@ export default function ClientesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: clientesService.delete,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      if (data?.accion === 'desactivado') {
+        toast.warning('Cliente desactivado', data.mensaje);
+      } else {
+        toast.success('Cliente eliminado');
+      }
+    },
+    onError: (err: unknown) => {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const msg =
+        (err as { response?: { data?: { mensaje?: string; error?: string } } })?.response?.data?.mensaje
+        || (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        || (status === 500
+          ? 'No se pudo eliminar el cliente. Si tiene facturas, ventas u otros documentos asociados, debe conservarse el historial y marcarse como inactivo.'
+          : '')
+        || 'No se pudo eliminar el cliente';
+      toast.error(msg);
     },
   });
 
@@ -47,7 +64,11 @@ export default function ClientesPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (await confirmDialog('¿Está seguro de eliminar este cliente?', undefined, 'danger')) {
+    if (await confirmDialog(
+      '¿Está seguro de eliminar este cliente?',
+      'Si tiene documentos asociados, se marcará como inactivo para conservar el historial.',
+      'danger',
+    )) {
       await deleteMutation.mutateAsync(id);
     }
   };

@@ -5,8 +5,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from datetime import timedelta
-from .models import PlanSuscripcion, Suscripcion, ModuloPermiso, MODULOS_DISPONIBLES, TODOS_LOS_MODULOS
-from .serializers import PlanSuscripcionSerializer, SuscripcionSerializer, ModuloPermisoSerializer
+from .models import PlanSuscripcion, Suscripcion, ModuloPermiso, ModuloSistema, SeccionModulo, MODULOS_BASE, get_todos_modulos_codigos
+from .serializers import PlanSuscripcionSerializer, SuscripcionSerializer, ModuloPermisoSerializer, ModuloSistemaSerializer, SeccionModuloSerializer
 
 
 def _is_super_admin(user):
@@ -75,6 +75,117 @@ class PlanSuscripcionViewSet(viewsets.ModelViewSet):
             ModuloPermiso(plan=plan, modulo=m) for m in nuevos
         ])
         return Response({'plan_id': plan.id, 'modulos': sorted(nuevos)})
+
+
+class ModuloSistemaViewSet(viewsets.ModelViewSet):
+    """Catálogo administrable de módulos/opciones. Solo SUPER_ADMIN."""
+    serializer_class = ModuloSistemaSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = ModuloSistema.objects.select_related('seccion').all().order_by('seccion__orden', 'grupo', 'orden', 'label')
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['activo', 'grupo', 'seccion']
+    search_fields = ['codigo', 'label', 'ruta', 'grupo', 'seccion__nombre']
+    ordering_fields = ['seccion__orden', 'grupo', 'orden', 'label', 'codigo']
+    ordering = ['seccion__orden', 'grupo', 'orden', 'label']
+
+    def get_permissions(self):
+        return [IsAuthenticated()]
+
+    def _require_super_admin(self, request):
+        if not _is_super_admin(request.user):
+            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        return None
+
+    def list(self, request, *args, **kwargs):
+        blocked = self._require_super_admin(request)
+        if blocked:
+            return blocked
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        blocked = self._require_super_admin(request)
+        if blocked:
+            return blocked
+        return super().retrieve(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        blocked = self._require_super_admin(request)
+        if blocked:
+            return blocked
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        blocked = self._require_super_admin(request)
+        if blocked:
+            return blocked
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        blocked = self._require_super_admin(request)
+        if blocked:
+            return blocked
+        modulo = self.get_object()
+        ModuloPermiso.objects.filter(modulo=modulo.codigo).delete()
+        return super().destroy(request, *args, **kwargs)
+
+
+class SeccionModuloViewSet(viewsets.ModelViewSet):
+    """Temas principales del catálogo de módulos. Solo SUPER_ADMIN."""
+    serializer_class = SeccionModuloSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = SeccionModulo.objects.all().order_by('orden', 'nombre')
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['activo']
+    search_fields = ['codigo', 'nombre']
+    ordering_fields = ['orden', 'nombre', 'codigo']
+    ordering = ['orden', 'nombre']
+
+    def _require_super_admin(self, request):
+        if not _is_super_admin(request.user):
+            return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
+        return None
+
+    def list(self, request, *args, **kwargs):
+        blocked = self._require_super_admin(request)
+        if blocked:
+            return blocked
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        blocked = self._require_super_admin(request)
+        if blocked:
+            return blocked
+        return super().retrieve(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        blocked = self._require_super_admin(request)
+        if blocked:
+            return blocked
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        blocked = self._require_super_admin(request)
+        if blocked:
+            return blocked
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        blocked = self._require_super_admin(request)
+        if blocked:
+            return blocked
+        seccion = self.get_object()
+        total_modulos = seccion.modulos.count()
+        if total_modulos:
+            return Response(
+                {
+                    'detail': (
+                        f'No se puede eliminar el menú "{seccion.nombre}" porque tiene '
+                        f'{total_modulos} submenú(s) asociado(s). Elimina o mueve primero esos submenús.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
 
 
 class SuscripcionViewSet(viewsets.ModelViewSet):
@@ -341,7 +452,18 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
 @permission_classes([IsAuthenticated])
 def catalogo_modulos(request):
     """Devuelve el catálogo completo de módulos disponibles en el sistema."""
-    return Response([{'codigo': c, 'label': l} for c, l in MODULOS_DISPONIBLES])
+    try:
+        modulos = list(
+            ModuloSistema.objects
+            .select_related('seccion')
+            .filter(activo=True)
+            .order_by('seccion__orden', 'grupo', 'orden', 'label')
+        )
+    except Exception:
+        modulos = []
+    if modulos:
+        return Response(ModuloSistemaSerializer(modulos, many=True).data)
+    return Response([{**m, 'activo': m.get('activo', True), 'external': m.get('external', False)} for m in MODULOS_BASE])
 
 
 @api_view(['GET'])
@@ -355,7 +477,7 @@ def mis_modulos(request):
     """
     user = request.user
     if getattr(user, 'rol', None) == 'SUPER_ADMIN' or user.is_superuser:
-        return Response({'modulos': TODOS_LOS_MODULOS})
+        return Response({'modulos': get_todos_modulos_codigos()})
 
     empresa = getattr(user, 'empresa', None)
     if not empresa:
@@ -373,10 +495,9 @@ def mis_modulos(request):
 
     # Durante el período de prueba el usuario accede a todo
     if suscripcion.estado == 'PRUEBA':
-        return Response({'modulos': TODOS_LOS_MODULOS})
+        return Response({'modulos': get_todos_modulos_codigos()})
 
     codigos = list(
         ModuloPermiso.objects.filter(plan=suscripcion.plan).values_list('modulo', flat=True)
     )
     return Response({'modulos': codigos})
-

@@ -28,22 +28,22 @@ interface Plan {
 
 const PLANS: Plan[] = [
   {
-    id: 'free',
-    name: 'Prueba gratis',
+    id: 'demo',
+    name: 'Demo guiada',
     precioMensual: null,
     precioAnual: null,
     moneda: 'USD',
-    descripcion: '30 días de acceso completo. Sin tarjeta de crédito.',
-    ctaLabel: 'Comenzar gratis',
-    ctaTo: '/registro',
+    descripcion: 'Agenda una demostración gratuita y conoce cómo FacturaOF1 ERP puede ayudarte a vender, facturar y controlar tu negocio.',
+    ctaLabel: 'Solicitar demostración',
+    ctaTo: '/solicitar-demo',
     esGratis: true,
     featured: false,
     features: [
-      { text: '30 días de acceso' },
-      { text: 'Sin tarjeta de crédito' },
-      { text: 'Facturación electrónica SRI' },
-      { text: 'Hasta 50 documentos' },
-      { text: '1 usuario · 1 empresa' },
+      { text: 'Revisión de necesidades del negocio' },
+      { text: 'Explicación de facturación electrónica SRI' },
+      { text: 'Recorrido por POS, inventario y cartera' },
+      { text: 'Asesoría para firma electrónica' },
+      { text: 'Recomendación de plan' },
     ],
   },
   {
@@ -158,10 +158,10 @@ function PlanCard({ plan, anual }: { plan: Plan; anual: boolean }) {
           {plan.esGratis ? (
             <div>
               <div className={`text-4xl font-black ${plan.featured ? 'text-white' : 'text-slate-900'}`}>
-                Gratis
+                Demo
               </div>
               <div className={`text-sm mt-1 ${plan.featured ? 'text-blue-200' : 'text-slate-500'}`}>
-                30 días · sin tarjeta
+                guiada · sin compromiso
               </div>
             </div>
           ) : (
@@ -176,7 +176,7 @@ function PlanCard({ plan, anual }: { plan: Plan; anual: boolean }) {
               </div>
               {anual && ahorro && (
                 <div className="mt-1 text-xs font-semibold text-emerald-400">
-                  Ahorras ${ahorro} — como 2 meses gratis
+                  Ahorras ${ahorro} con pago anual
                 </div>
               )}
               {!anual && (
@@ -273,7 +273,7 @@ export default function PricingSection() {
             Precios simples y transparentes
           </h2>
           <p className="text-slate-500 text-lg">
-            Empieza gratis y crece según las necesidades de tu negocio. Sin costos ocultos.
+            Elige el plan según el tamaño de tu operación o agenda una demo para recibir asesoría.
           </p>
         </div>
 
@@ -301,7 +301,7 @@ export default function PricingSection() {
               Anual
               <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                 <Zap className="w-3 h-3" />
-                Ahorra 2 meses
+                Mejor precio anual
               </span>
             </button>
           </div>
@@ -312,6 +312,25 @@ export default function PricingSection() {
           {plans.map((plan) => (
             <PlanCard key={plan.id} plan={plan} anual={anual} />
           ))}
+        </div>
+
+        <div className="mt-8 rounded-3xl border border-blue-100 bg-blue-50 p-6 lg:flex lg:items-center lg:justify-between">
+          <div>
+            <span className="inline-flex rounded-full bg-blue-600 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
+              Kit Emprendedor
+            </span>
+            <h3 className="mt-3 text-2xl font-black text-slate-900">Ideal para negocios que quieren empezar a facturar sin complicaciones.</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Incluye firma electrónica 1 año, configuración inicial, capacitación y activación de FacturaOF1 ERP.
+            </p>
+          </div>
+          <div className="mt-5 lg:mt-0 lg:text-right">
+            <p className="text-sm font-medium text-slate-500">Desde</p>
+            <p className="text-4xl font-black text-blue-700">${Number(import.meta.env.VITE_KIT_EMPRENDEDOR_PRICE ?? 79.99).toFixed(2)}</p>
+            <Link to="/solicitar-demo" className="mt-3 inline-flex rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700">
+              Solicitar kit emprendedor
+            </Link>
+          </div>
         </div>
 
         {/* Footer note */}

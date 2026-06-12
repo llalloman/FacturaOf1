@@ -8,6 +8,11 @@ export const clientesService = {
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
+  getActivos: async (): Promise<Cliente[]> => {
+    const { data } = await apiClient.get('/clientes/', { params: { activo: true } });
+    return Array.isArray(data) ? data : (data.results ?? []);
+  },
+
   getById: async (id: number): Promise<Cliente> => {
     const { data } = await apiClient.get(`/clientes/${id}/`);
     return data;
@@ -23,7 +28,8 @@ export const clientesService = {
     return data;
   },
 
-  delete: async (id: number): Promise<void> => {
-    await apiClient.delete(`/clientes/${id}/`);
+  delete: async (id: number): Promise<{ mensaje?: string; accion?: string }> => {
+    const { data } = await apiClient.delete(`/clientes/${id}/`);
+    return data ?? {};
   },
 };

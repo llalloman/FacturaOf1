@@ -177,14 +177,39 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
     ventas: item.total_ventas,
     tickets: item.cantidad_ventas,
   }));
+  const facturadoSriHelper =
+    data.facturado_anulado_cantidad > 0
+      ? `${data.facturado_periodo_cantidad} facturas del rango; incluye ${data.facturado_anulado_cantidad} anulada(s) con NC por ${money(data.facturado_anulado_periodo)}`
+      : `${data.facturado_periodo_cantidad} facturas emitidas/autorizadas del rango`;
 
   const kpis = [
     {
       label: 'Ventas cerradas',
       value: money(data.ventas_periodo),
-      helper: `${data.ventas_periodo_cantidad} ventas del rango seleccionado`,
+      helper: `${data.ventas_periodo_cantidad} ventas operativas: POS, pedidos y ventas registradas`,
       icon: Banknote,
       tone: 'emerald' as const,
+    },
+    {
+      label: 'Facturado SRI',
+      value: money(data.facturado_periodo),
+      helper: facturadoSriHelper,
+      icon: ReceiptText,
+      tone: 'blue' as const,
+    },
+    {
+      label: 'Facturación directa',
+      value: money(data.facturado_directo_periodo),
+      helper: `${data.facturado_directo_cantidad} factura(s) de servicios o emisión directa`,
+      icon: BadgeDollarSign,
+      tone: 'amber' as const,
+    },
+    {
+      label: 'Neto facturado',
+      value: money(data.facturado_neto_periodo),
+      helper: `Bruto SRI menos ${money(data.notas_credito_periodo)} en notas de crédito`,
+      icon: ShieldCheck,
+      tone: 'slate' as const,
     },
     {
       label: 'Cobrado del período',
@@ -203,7 +228,7 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
     {
       label: 'Facturas autorizadas',
       value: String(data.facturas_autorizadas),
-      helper: `${data.facturas_enviadas} pendientes SRI`,
+      helper: `${data.facturas_enviadas} pendientes SRI en todo el historial`,
       icon: ReceiptText,
       tone: 'slate' as const,
     },
@@ -261,6 +286,42 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
             </p>
           </div>
         </Link>
+      )}
+
+      {data.configuracion_incompleta && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-blue-950">Completa tu configuración y empieza a facturar electrónicamente.</h2>
+              <p className="mt-1 text-sm text-blue-700">
+                Revisa los datos fiscales, firma electrónica, secuenciales y certificado para dejar la empresa lista para operar.
+              </p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                {(data.progreso_configuracion ?? []).map((step) => (
+                  <div key={step.key} className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-sm">
+                    {step.completed ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    )}
+                    <span className={step.completed ? 'text-slate-700' : 'font-medium text-slate-900'}>{step.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link to="/configuracion" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                Configurar empresa
+              </Link>
+              <Link to="/solicitar-firma-electronica" className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50">
+                Solicitar firma electrónica
+              </Link>
+              <Link to="/firmas-electronicas" className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50">
+                Agendar soporte
+              </Link>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -333,7 +394,7 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <SectionTitle
             title="Tendencia comercial"
-            subtitle="Evolución mensual de ventas y número de tickets."
+            subtitle="Evolución mensual de ventas operativas y número de tickets."
           />
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={tendenciaVentas}>

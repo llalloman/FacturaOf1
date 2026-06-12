@@ -16,6 +16,7 @@ from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from apps.core.permissions import user_has_module_access
 
 MESES = [
     '', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
@@ -60,6 +61,8 @@ def dashboard(request):
 
     if _is_super_admin(user):
         return _dashboard_super_admin(request)
+    if not user_has_module_access(user, 'dashboard'):
+        return Response({'detail': 'Este módulo no está incluido en tu plan actual.'}, status=403)
     return _dashboard_tenant(request)
 
 
@@ -214,6 +217,44 @@ def _dashboard_tenant(request):
     notas_credito_qs = NotaCredito.objects.filter(comprobante__empresa=empresa)
     notas_credito_pendientes = notas_credito_qs.filter(comprobante__estado='ENVIADO').count()
     notas_credito_hoy = notas_credito_qs.filter(comprobante__fecha_emision__date=hoy).count()
+
+    facturas_emitidas_periodo_qs = facturas_qs.filter(
+        comprobante__fecha_emision__gte=inicio_periodo,
+        comprobante__fecha_emision__lte=fin_periodo,
+    ).filter(
+        Q(comprobante__estado='AUTORIZADO') |
+        Q(comprobante__estado='ANULADO', notas_credito__comprobante__estado='AUTORIZADO')
+    ).distinct()
+    facturas_emitidas_mes_qs = facturas_qs.filter(
+        comprobante__fecha_emision__gte=inicio_mes,
+        comprobante__fecha_emision__lte=fin_mes,
+    ).filter(
+        Q(comprobante__estado='AUTORIZADO') |
+        Q(comprobante__estado='ANULADO', notas_credito__comprobante__estado='AUTORIZADO')
+    ).distinct()
+    facturas_emitidas_hoy_qs = facturas_qs.filter(
+        comprobante__fecha_emision__date=hoy,
+    ).filter(
+        Q(comprobante__estado='AUTORIZADO') |
+        Q(comprobante__estado='ANULADO', notas_credito__comprobante__estado='AUTORIZADO')
+    ).distinct()
+    facturas_anuladas_con_nc_periodo_qs = facturas_emitidas_periodo_qs.filter(
+        comprobante__estado='ANULADO',
+        notas_credito__comprobante__estado='AUTORIZADO',
+    ).distinct()
+    facturas_directas_periodo_qs = facturas_emitidas_periodo_qs.filter(venta__isnull=True)
+    notas_credito_autorizadas_periodo_qs = notas_credito_qs.filter(
+        comprobante__estado='AUTORIZADO',
+        comprobante__fecha_emision__gte=inicio_periodo,
+        comprobante__fecha_emision__lte=fin_periodo,
+    )
+    facturado_periodo = facturas_emitidas_periodo_qs.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+    facturado_mes = facturas_emitidas_mes_qs.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+    facturado_hoy = facturas_emitidas_hoy_qs.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+    facturado_anulado_periodo = facturas_anuladas_con_nc_periodo_qs.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+    facturado_directo_periodo = facturas_directas_periodo_qs.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+    notas_credito_periodo = notas_credito_autorizadas_periodo_qs.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+    facturado_neto_periodo = facturado_periodo - notas_credito_periodo
 
     # Facturas recientes
     facturas_recientes = list(
@@ -420,6 +461,30 @@ def _dashboard_tenant(request):
     except Exception:
         pass  # Declaraciones module may not be fully set up
 
+    certificado_cargado = bool(getattr(empresa, 'certificado_digital', None) or getattr(empresa, 'certificado_data', None))
+    secuenciales_configurados = False
+    firma_solicitada = False
+    try:
+        from apps.facturacion.models import Secuencial
+        secuenciales_configurados = Secuencial.objects.filter(empresa=empresa, configurado=True).exists()
+    except Exception:
+        pass
+    try:
+        from apps.firmas.models import SolicitudFirmaElectronica
+        firma_solicitada = SolicitudFirmaElectronica.objects.filter(company=empresa).exclude(status='ANULADA').exists()
+    except Exception:
+        pass
+
+    primer_comprobante_emitido = facturas_qs.filter(comprobante__estado='AUTORIZADO').exists()
+    progreso_configuracion = [
+        {'key': 'empresa_registrada', 'label': 'Empresa registrada', 'completed': True},
+        {'key': 'firma_solicitada', 'label': 'Firma electrónica cargada o solicitada', 'completed': certificado_cargado or firma_solicitada},
+        {'key': 'secuenciales_configurados', 'label': 'Secuenciales configurados', 'completed': secuenciales_configurados},
+        {'key': 'certificado_cargado', 'label': 'Certificado cargado', 'completed': certificado_cargado},
+        {'key': 'primer_comprobante_emitido', 'label': 'Primer comprobante emitido', 'completed': primer_comprobante_emitido},
+    ]
+    configuracion_incompleta = any(not step['completed'] for step in progreso_configuracion)
+
     return Response({
         'tipo': 'tenant',
         # KPIs
@@ -452,6 +517,17 @@ def _dashboard_tenant(request):
         'facturas_anuladas': facturas_anuladas,
         'facturas_rechazadas': facturas_rechazadas,
         'facturas_por_estado': facturas_por_estado,
+        'facturado_periodo': float(facturado_periodo),
+        'facturado_periodo_cantidad': facturas_emitidas_periodo_qs.count(),
+        'facturado_mes': float(facturado_mes),
+        'facturado_hoy': float(facturado_hoy),
+        'facturado_anulado_periodo': float(facturado_anulado_periodo),
+        'facturado_anulado_cantidad': facturas_anuladas_con_nc_periodo_qs.count(),
+        'facturado_directo_periodo': float(facturado_directo_periodo),
+        'facturado_directo_cantidad': facturas_directas_periodo_qs.count(),
+        'notas_credito_periodo': float(notas_credito_periodo),
+        'notas_credito_periodo_cantidad': notas_credito_autorizadas_periodo_qs.count(),
+        'facturado_neto_periodo': float(facturado_neto_periodo),
         'notas_credito_pendientes': notas_credito_pendientes,
         'notas_credito_hoy': notas_credito_hoy,
         'productos_activos': productos_activos,
@@ -471,4 +547,6 @@ def _dashboard_tenant(request):
         'stock_bajo': stock_bajo,
         'ultimos_meses': ultimos_meses,
         'proximas_declaraciones': proximas_declaraciones,
+        'configuracion_incompleta': configuracion_incompleta,
+        'progreso_configuracion': progreso_configuracion,
     })

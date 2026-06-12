@@ -74,7 +74,7 @@ export default function VentasPage() {
 
   const { data: clientes = [] } = useQuery<Cliente[]>({
     queryKey: ['clientes'],
-    queryFn: clientesService.getAll,
+    queryFn: clientesService.getActivos,
     enabled: ventaToFacturar !== null,
   });
 

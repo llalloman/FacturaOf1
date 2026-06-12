@@ -4,12 +4,17 @@ Seed: configura la matriz de permisos de módulos por plan.
 Ejecutar: python manage.py seed_modulos
 """
 from django.core.management.base import BaseCommand
-from apps.suscripciones.models import PlanSuscripcion, ModuloPermiso, TODOS_LOS_MODULOS
+from apps.suscripciones.models import (
+    MODULOS_BASE,
+    ModuloPermiso,
+    ModuloSistema,
+    PlanSuscripcion,
+    SeccionModulo,
+    get_todos_modulos_codigos,
+)
 
 
 # ── Definición de permisos por tipo de plan ──────────────────────────────────
-
-MODULOS_FREE = TODOS_LOS_MODULOS  # FREE tiene acceso a todo durante su período
 
 MODULOS_BASICO = [
     'dashboard',
@@ -41,19 +46,13 @@ MODULOS_PROFESIONAL = [
     'reportes',
     'configuracion',
     'usuarios',
+    'firmas_electronicas',
 ]
-
-MODULOS_EMPRESARIAL = TODOS_LOS_MODULOS  # Empresarial tiene todo
-
-MODULOS_ILIMITADO = TODOS_LOS_MODULOS
 
 # Mapa tipo → módulos
 PLAN_MODULOS = {
-    'FREE':        MODULOS_FREE,
     'BASICO':      MODULOS_BASICO,
     'PROFESIONAL': MODULOS_PROFESIONAL,
-    'EMPRESARIAL': MODULOS_EMPRESARIAL,
-    'ILIMITADO':   MODULOS_ILIMITADO,
 }
 
 
@@ -69,12 +68,14 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         force = options['force']
+        self._seed_catalogo()
+        todos_modulos = get_todos_modulos_codigos()
         planes = PlanSuscripcion.objects.all()
         total_creados = 0
         total_planes = 0
 
         for plan in planes:
-            modulos = PLAN_MODULOS.get(plan.tipo)
+            modulos = todos_modulos if plan.tipo in ('FREE', 'EMPRESARIAL', 'ILIMITADO') else PLAN_MODULOS.get(plan.tipo)
             if modulos is None:
                 self.stdout.write(self.style.WARNING(
                     f'  Plan "{plan.nombre}" (tipo={plan.tipo}) — sin configuración, saltando.'
@@ -100,3 +101,45 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f'\nListo: {total_planes} planes actualizados, {total_creados} permisos creados.'
         ))
+
+    def _seed_catalogo(self):
+        secciones = {}
+        grupos = list(dict.fromkeys(m['grupo'] for m in MODULOS_BASE))
+        for index, grupo in enumerate(grupos, start=1):
+            codigo = self._normalizar_codigo(grupo)
+            seccion, _ = SeccionModulo.objects.update_or_create(
+                codigo=codigo,
+                defaults={'nombre': grupo, 'orden': index, 'activo': True},
+            )
+            secciones[grupo] = seccion
+
+        for modulo in MODULOS_BASE:
+            seccion = secciones[modulo['grupo']]
+            ModuloSistema.objects.update_or_create(
+                codigo=modulo['codigo'],
+                defaults={
+                    'seccion': seccion,
+                    'label': modulo['label'],
+                    'ruta': modulo['ruta'],
+                    'grupo': seccion.nombre,
+                    'icono': modulo.get('icono', ''),
+                    'orden': modulo.get('orden', 0),
+                    'activo': modulo.get('activo', True),
+                    'external': modulo.get('external', False),
+                },
+            )
+
+    def _normalizar_codigo(self, valor):
+        reemplazos = str.maketrans('áéíóúñÁÉÍÓÚÑ', 'aeiounAEIOUN')
+        texto = valor.translate(reemplazos).lower()
+        partes = []
+        actual = []
+        for char in texto:
+            if char.isalnum():
+                actual.append(char)
+            elif actual:
+                partes.append(''.join(actual))
+                actual = []
+        if actual:
+            partes.append(''.join(actual))
+        return '_'.join(partes)

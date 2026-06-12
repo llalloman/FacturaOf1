@@ -9,11 +9,13 @@ from django.db.models.deletion import ProtectedError
 from .models import Producto
 from .serializers import ProductoSerializer
 from apps.core.export_mixin import ExportMixin
+from apps.core.permissions import HasModuleAccess
 
 
 class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
     serializer_class = ProductoSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'productos'
     pagination_class = None  # Devolver todos los productos sin paginar
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['tipo', 'aplica_iva', 'activo', 'maneja_inventario']

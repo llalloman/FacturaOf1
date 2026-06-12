@@ -12,10 +12,12 @@ from .serializers import (
     AsientoContableSerializer,
     AsientoContableCreateSerializer,
 )
+from apps.core.permissions import HasModuleAccess
 
 
 class CuentaContableViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'contabilidad'
     serializer_class = CuentaContableSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['tipo', 'naturaleza', 'nivel', 'activa', 'es_hoja']
@@ -125,7 +127,8 @@ class CuentaContableViewSet(viewsets.ModelViewSet):
 
 
 class AsientoContableViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'contabilidad'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {'tipo': ['exact'], 'bloqueado': ['exact'], 'fecha': ['exact', 'gte', 'lte', 'year', 'month']}
     search_fields = ['numero', 'descripcion']
