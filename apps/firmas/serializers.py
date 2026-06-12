@@ -132,13 +132,13 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
     def validate_phone(self, value):
         value = (value or '').strip()
         if not PHONE_RE.match(value):
-            raise serializers.ValidationError('Ingresa un celular Ecuador valido: 09xxxxxxxx o +593xxxxxxxxx.')
+            raise serializers.ValidationError('Ingresa un celular Ecuador válido: 09xxxxxxxx o +593xxxxxxxxx.')
         return value
 
     def validate_secondary_phone(self, value):
         value = (value or '').strip()
         if value and not PHONE_RE.match(value):
-            raise serializers.ValidationError('Ingresa un celular Ecuador valido: 09xxxxxxxx o +593xxxxxxxxx.')
+            raise serializers.ValidationError('Ingresa un celular Ecuador válido: 09xxxxxxxx o +593xxxxxxxxx.')
         return value
 
     def validate(self, attrs):
@@ -229,7 +229,7 @@ class SolicitudDemoERPSerializer(serializers.ModelSerializer):
     def validate_phone(self, value):
         value = (value or '').strip()
         if not PHONE_RE.match(value):
-            raise serializers.ValidationError('Ingresa un celular Ecuador valido: 09xxxxxxxx o +593xxxxxxxxx.')
+            raise serializers.ValidationError('Ingresa un celular Ecuador válido: 09xxxxxxxx o +593xxxxxxxxx.')
         return value
 
     def create(self, validated_data):

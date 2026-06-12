@@ -55,7 +55,7 @@ const baseForm: SolicitudFirmaPublicPayload = {
   archivos: {},
 };
 
-const steps = ['Datos personales', 'Documentos', 'Resumen', 'Confirmacion'];
+const steps = ['Datos personales', 'Documentos', 'Resumen', 'Confirmación'];
 
 const tipoLabels: Record<TipoSolicitudFirma, string> = {
   PERSONA_NATURAL: 'Persona Natural',
@@ -74,33 +74,33 @@ type DocumentConfig = {
 };
 
 const naturalDocs: DocumentConfig[] = [
-  { key: 'cedula_anverso', label: 'Cedula frontal', helper: 'Foto del lado frontal. JPG o PNG.', required: true },
-  { key: 'cedula_reverso', label: 'Cedula posterior', helper: 'Foto del lado posterior. JPG o PNG.', required: true },
-  { key: 'selfie_cedula', label: 'Selfie', helper: 'Foto selfie con la cedula. JPG o PNG.', required: true },
+  { key: 'cedula_anverso', label: 'Cédula frontal', helper: 'Foto del lado frontal. JPG o PNG.', required: true },
+  { key: 'cedula_reverso', label: 'Cédula posterior', helper: 'Foto del lado posterior. JPG o PNG.', required: true },
+  { key: 'selfie_cedula', label: 'Selfie', helper: 'Foto selfie con la cédula. JPG o PNG.', required: true },
   { key: 'documento_adicional', label: 'Documento adicional', helper: 'PDF, JPG o PNG.', required: false },
 ];
 
 const companyDocs: DocumentConfig[] = [
-  { key: 'cedula_anverso', label: 'Cedula frontal', helper: 'Foto del lado frontal. JPG o PNG.', required: true },
-  { key: 'cedula_reverso', label: 'Cedula posterior', helper: 'Foto del lado posterior. JPG o PNG.', required: true },
-  { key: 'selfie_cedula', label: 'Selfie', helper: 'Foto selfie con la cedula. JPG o PNG.', required: true },
+  { key: 'cedula_anverso', label: 'Cédula frontal', helper: 'Foto del lado frontal. JPG o PNG.', required: true },
+  { key: 'cedula_reverso', label: 'Cédula posterior', helper: 'Foto del lado posterior. JPG o PNG.', required: true },
+  { key: 'selfie_cedula', label: 'Selfie', helper: 'Foto selfie con la cédula. JPG o PNG.', required: true },
   { key: 'ruc_pdf', label: 'RUC', helper: 'Archivo PDF del certificado del RUC.', required: true },
-  { key: 'constitucion_compania', label: 'Constitucion de compania', helper: 'Archivo PDF de la constitucion.', required: true },
+  { key: 'constitucion_compania', label: 'Constitución de compañía', helper: 'Archivo PDF de la constitución.', required: true },
   { key: 'nombramiento_representante', label: 'Nombramiento', helper: 'PDF del nombramiento legalizado.', required: true },
-  { key: 'aceptacion_nombramiento', label: 'Aceptacion de nombramiento', helper: 'PDF de aceptacion si no consta en el nombramiento.', required: false },
-  { key: 'carta_autorizacion', label: 'Autorizacion', helper: 'PDF de autorizacion del representante legal.', required: true },
-  { key: 'cedula_representante', label: 'Identificacion del representante legal', helper: 'PDF con ambos lados del documento.', required: true },
+  { key: 'aceptacion_nombramiento', label: 'Aceptación de nombramiento', helper: 'PDF de aceptación si no consta en el nombramiento.', required: false },
+  { key: 'carta_autorizacion', label: 'Autorización', helper: 'PDF de autorización del representante legal.', required: true },
+  { key: 'cedula_representante', label: 'Identificación del representante legal', helper: 'PDF con ambos lados del documento.', required: true },
   { key: 'documento_adicional', label: 'Documento adicional', helper: 'PDF, JPG o PNG.', required: false },
 ];
 
 const legalDocs: DocumentConfig[] = [
-  { key: 'cedula_anverso', label: 'Cedula frontal', helper: 'Foto del lado frontal. JPG o PNG.', required: true },
-  { key: 'cedula_reverso', label: 'Cedula posterior', helper: 'Foto del lado posterior. JPG o PNG.', required: true },
-  { key: 'selfie_cedula', label: 'Selfie', helper: 'Foto selfie con la cedula. JPG o PNG.', required: true },
+  { key: 'cedula_anverso', label: 'Cédula frontal', helper: 'Foto del lado frontal. JPG o PNG.', required: true },
+  { key: 'cedula_reverso', label: 'Cédula posterior', helper: 'Foto del lado posterior. JPG o PNG.', required: true },
+  { key: 'selfie_cedula', label: 'Selfie', helper: 'Foto selfie con la cédula. JPG o PNG.', required: true },
   { key: 'ruc_pdf', label: 'RUC', helper: 'Archivo PDF del certificado del RUC.', required: true },
-  { key: 'constitucion_compania', label: 'Constitucion de compania', helper: 'Archivo PDF de la constitucion.', required: true },
+  { key: 'constitucion_compania', label: 'Constitución de compañía', helper: 'Archivo PDF de la constitución.', required: true },
   { key: 'nombramiento_representante', label: 'Nombramiento', helper: 'PDF del nombramiento legalizado.', required: true },
-  { key: 'aceptacion_nombramiento', label: 'Aceptacion de nombramiento', helper: 'PDF de aceptacion si aplica.', required: false },
+  { key: 'aceptacion_nombramiento', label: 'Aceptación de nombramiento', helper: 'PDF de aceptación si aplica.', required: false },
   { key: 'documento_adicional', label: 'Documento adicional', helper: 'PDF, JPG o PNG.', required: false },
 ];
 
@@ -207,7 +207,7 @@ export default function SolicitarFirmaElectronicaPage() {
   };
 
   const whatsappUrl = confirmed
-    ? `${whatsappBase}?phone=593983904993&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma numero ${confirmed.requestNumber}`)}&type=phone_number&app_absent=0`
+    ? `${whatsappBase}?phone=593983904993&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma número ${confirmed.requestNumber}`)}&type=phone_number&app_absent=0`
     : '';
 
   return (
@@ -225,10 +225,10 @@ export default function SolicitarFirmaElectronicaPage() {
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <section className="mb-7">
-          <p className="text-sm font-bold uppercase text-blue-600">Firma electronica</p>
-          <h1 className="mt-2 text-3xl font-black text-slate-950">Solicitud de firma electronica</h1>
+          <p className="text-sm font-bold uppercase text-blue-600">Firma electrónica</p>
+          <h1 className="mt-2 text-3xl font-black text-slate-950">Solicitud de firma electrónica</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Completa los datos y documentos requeridos. Al finalizar recibiras un numero de solicitud para confirmar el pago por WhatsApp.
+            Completa los datos y documentos requeridos. Al finalizar recibirás un número de solicitud para confirmar el pago por WhatsApp.
           </p>
         </section>
 
@@ -248,14 +248,14 @@ export default function SolicitarFirmaElectronicaPage() {
                     <option value="REPRESENTANTE_LEGAL">Representante Legal</option>
                   </select>
                 </Field>
-                <Field label="Tipo de identificacion *">
+                <Field label="Tipo de identificación *">
                   <select className={inputClass} value={form.identification_type} onChange={(e) => setField('identification_type', e.target.value)}>
-                    <option value="CEDULA">Cedula</option>
+                    <option value="CEDULA">Cédula</option>
                     <option value="PASAPORTE">Pasaporte</option>
                     <option value="RUC">RUC</option>
                   </select>
                 </Field>
-                <Field label="Identificacion *">
+                <Field label="Identificación *">
                   <input className={inputClass} value={form.identification ?? ''} onChange={(e) => setField('identification', e.target.value)} />
                 </Field>
                 <Field label="Codigo dactilar *">
@@ -284,10 +284,10 @@ export default function SolicitarFirmaElectronicaPage() {
                     <option value="OTRO">Otro</option>
                   </select>
                 </Field>
-                <Field label="Telefono *">
+                <Field label="Teléfono *">
                   <input className={inputClass} placeholder="09xxxxxxxx" value={form.phone ?? ''} onChange={(e) => setField('phone', e.target.value)} />
                 </Field>
-                <Field label="Telefono 2">
+                <Field label="Teléfono 2">
                   <input className={inputClass} placeholder="09xxxxxxxx" value={form.secondary_phone ?? ''} onChange={(e) => setField('secondary_phone', e.target.value)} />
                 </Field>
                 <Field label="Correo electronico *">
@@ -333,22 +333,22 @@ export default function SolicitarFirmaElectronicaPage() {
                 <Field label="Provincia *">
                   <input className={inputClass} value={form.province ?? ''} onChange={(e) => setField('province', e.target.value)} />
                 </Field>
-                <Field label="Canton *">
+                <Field label="Cantón *">
                   <input className={inputClass} value={form.city ?? ''} onChange={(e) => setField('city', e.target.value)} />
                 </Field>
-                <Field label="Direccion *">
+                <Field label="Dirección *">
                   <input className={inputClass} value={form.address ?? ''} onChange={(e) => setField('address', e.target.value)} />
                 </Field>
                 {isMemberRequest && (
                   <>
-                    <Field label="Tipo identificacion representante legal *">
+                    <Field label="Tipo identificación representante legal *">
                       <select className={inputClass} value={form.representative_identification_type ?? 'CEDULA'} onChange={(e) => setField('representative_identification_type', e.target.value)}>
-                        <option value="CEDULA">Cedula</option>
+                        <option value="CEDULA">Cédula</option>
                         <option value="PASAPORTE">Pasaporte</option>
                         <option value="RUC">RUC</option>
                       </select>
                     </Field>
-                    <Field label="Identificacion representante legal *">
+                    <Field label="Identificación representante legal *">
                       <input className={inputClass} value={form.representative_identification ?? ''} onChange={(e) => setField('representative_identification', e.target.value)} />
                     </Field>
                     <Field label="Nombres representante legal *">
@@ -363,11 +363,11 @@ export default function SolicitarFirmaElectronicaPage() {
                   <select className={inputClass} value={form.validity} onChange={(e) => setField('validity', e.target.value)}>
                     <option value="15_DIAS">15 dias</option>
                     <option value="1_MES">1 mes</option>
-                    <option value="1_ANIO">1 anio</option>
-                    <option value="2_ANIOS">2 anios</option>
-                    <option value="3_ANIOS">3 anios</option>
-                    <option value="4_ANIOS">4 anios</option>
-                    <option value="5_ANIOS">5 anios</option>
+                    <option value="1_ANIO">1 año</option>
+                    <option value="2_ANIOS">2 años</option>
+                    <option value="3_ANIOS">3 años</option>
+                    <option value="4_ANIOS">4 años</option>
+                    <option value="5_ANIOS">5 años</option>
                   </select>
                 </Field>
               </div>
@@ -396,7 +396,7 @@ export default function SolicitarFirmaElectronicaPage() {
               <div className="grid gap-4 lg:grid-cols-3">
                 <SummaryBlock title="Solicitante" rows={[
                   ['Tipo', tipoLabels[form.request_type as TipoSolicitudFirma]],
-                  ['Identificacion', `${form.identification_type}: ${form.identification}`],
+                  ['Identificación', `${form.identification_type}: ${form.identification}`],
                   ['Codigo dactilar', form.fingerprint_code],
                   ['Nombre', `${form.first_name} ${form.last_name} ${form.second_last_name ?? ''}`],
                   ['Nacimiento', form.birth_date],
@@ -404,13 +404,13 @@ export default function SolicitarFirmaElectronicaPage() {
                   ['Sexo', form.gender],
                 ]} />
                 <SummaryBlock title="Contacto y ubicacion" rows={[
-                  ['Telefono', form.phone],
-                  ['Telefono 2', form.secondary_phone],
+                  ['Teléfono', form.phone],
+                  ['Teléfono 2', form.secondary_phone],
                   ['Correo', form.email],
                   ['Correo 2', form.secondary_email],
                   ['Provincia', form.province],
-                  ['Canton', form.city],
-                  ['Direccion', form.address],
+                  ['Cantón', form.city],
+                  ['Dirección', form.address],
                 ]} />
                 <SummaryBlock title="Empresa" rows={[
                   ['RUC', form.ruc],
@@ -524,7 +524,7 @@ function FileDrop({ config, file, onFile }: { config: DocumentConfig; file: File
           <>
             <FileUp className="mb-3 text-blue-600" size={28} />
             <p className="text-sm font-bold text-slate-800">Arrastra el archivo para cargar</p>
-            <p className="mt-1 text-xs text-slate-500">o clic aqui. Maximo 15 MB.</p>
+            <p className="mt-1 text-xs text-slate-500">o clic aquí. Máximo 15 MB.</p>
           </>
         )}
       </div>

@@ -20,12 +20,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='solicitudfirmaelectronica',
             name='request_number',
-            field=models.CharField(blank=True, max_length=30, null=True, unique=True, verbose_name='numero de solicitud'),
+            field=models.CharField(blank=True, max_length=30, null=True, unique=True, verbose_name='número de solicitud'),
         ),
         migrations.AddField(
             model_name='solicitudfirmaelectronica',
             name='identification_type',
-            field=models.CharField(choices=[('CEDULA', 'Cedula'), ('PASAPORTE', 'Pasaporte'), ('RUC', 'RUC')], default='CEDULA', max_length=20, verbose_name='tipo de identificacion'),
+            field=models.CharField(choices=[('CEDULA', 'Cédula'), ('PASAPORTE', 'Pasaporte'), ('RUC', 'RUC')], default='CEDULA', max_length=20, verbose_name='tipo de identificación'),
         ),
         migrations.AddField(
             model_name='solicitudfirmaelectronica',
@@ -75,17 +75,17 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='solicitudfirmaelectronica',
             name='secondary_phone',
-            field=models.CharField(blank=True, max_length=20, verbose_name='telefono secundario'),
+            field=models.CharField(blank=True, max_length=20, verbose_name='teléfono secundario'),
         ),
         migrations.AddField(
             model_name='solicitudfirmaelectronica',
             name='representative_identification_type',
-            field=models.CharField(blank=True, choices=[('CEDULA', 'Cedula'), ('PASAPORTE', 'Pasaporte'), ('RUC', 'RUC')], max_length=20, verbose_name='tipo identificacion representante'),
+            field=models.CharField(blank=True, choices=[('CEDULA', 'Cédula'), ('PASAPORTE', 'Pasaporte'), ('RUC', 'RUC')], max_length=20, verbose_name='tipo identificación representante'),
         ),
         migrations.AddField(
             model_name='solicitudfirmaelectronica',
             name='representative_identification',
-            field=models.CharField(blank=True, max_length=20, verbose_name='identificacion representante'),
+            field=models.CharField(blank=True, max_length=20, verbose_name='identificación representante'),
         ),
         migrations.AddField(
             model_name='solicitudfirmaelectronica',
@@ -100,7 +100,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='documentosolicitudfirma',
             name='document_type',
-            field=models.CharField(choices=[('CEDULA_ANVERSO', 'Anverso de cedula'), ('CEDULA_REVERSO', 'Reverso de cedula'), ('SELFIE_CEDULA', 'Selfie con cedula'), ('RUC_PDF', 'RUC PDF'), ('CONSTITUCION_COMPANIA', 'Constitucion de compania'), ('NOMBRAMIENTO_REPRESENTANTE', 'Nombramiento representante legal'), ('ACEPTACION_NOMBRAMIENTO', 'Aceptacion de nombramiento'), ('CARTA_AUTORIZACION', 'Carta de autorizacion'), ('CEDULA_REPRESENTANTE', 'Cedula representante legal'), ('VIDEO_AUTORIZACION', 'Video de autorizacion'), ('DOCUMENTO_ADICIONAL', 'Documento adicional')], max_length=40, verbose_name='tipo de documento'),
+            field=models.CharField(choices=[('CEDULA_ANVERSO', 'Anverso de cédula'), ('CEDULA_REVERSO', 'Reverso de cédula'), ('SELFIE_CEDULA', 'Selfie con cédula'), ('RUC_PDF', 'RUC PDF'), ('CONSTITUCION_COMPANIA', 'Constitución de compañía'), ('NOMBRAMIENTO_REPRESENTANTE', 'Nombramiento representante legal'), ('ACEPTACION_NOMBRAMIENTO', 'Aceptación de nombramiento'), ('CARTA_AUTORIZACION', 'Carta de autorización'), ('CEDULA_REPRESENTANTE', 'Cédula representante legal'), ('VIDEO_AUTORIZACION', 'Video de autorización'), ('DOCUMENTO_ADICIONAL', 'Documento adicional')], max_length=40, verbose_name='tipo de documento'),
         ),
         migrations.RunPython(backfill_request_numbers, migrations.RunPython.noop),
         migrations.AddIndex(

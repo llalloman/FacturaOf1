@@ -179,18 +179,18 @@ def notificar_solicitud_publica(request, solicitud):
     admin_url = request.build_absolute_uri(f'/firmas-electronicas?solicitud={solicitud.id}')
     subject = f'Nueva solicitud de firma {solicitud.request_number}'
     message = (
-        'Nueva solicitud de firma electronica\n\n'
-        f'Numero: {solicitud.request_number}\n'
+        'Nueva solicitud de firma electrónica\n\n'
+        f'Número: {solicitud.request_number}\n'
         f'Tipo: {solicitud.get_request_type_display()}\n'
         f'Cliente: {solicitud.full_name}\n'
-        f'Identificacion: {solicitud.identification}\n'
+        f'Identificación: {solicitud.identification}\n'
         f'RUC: {solicitud.ruc or "-"}\n'
         f'Empresa: {solicitud.business_name or "-"}\n'
         f'Correo: {solicitud.email}\n'
-        f'Telefono: {solicitud.phone}\n'
-        f'Ubicacion: {solicitud.city}, {solicitud.province}\n'
+        f'Teléfono: {solicitud.phone}\n'
+        f'Ubicación: {solicitud.city}, {solicitud.province}\n'
         f'Documentos: {documents}\n\n'
-        f'Revisar en administracion: {admin_url}\n'
+        f'Revisar en administración: {admin_url}\n'
     )
     try:
         send_mail(
@@ -213,7 +213,7 @@ def crear_demo_publica(request):
     return Response(
         {
             'id': demo.id,
-            'mensaje': 'Hemos recibido tu solicitud. Un asesor de OF1 Solutions se comunicara contigo para agendar la demostracion.',
+            'mensaje': 'Hemos recibido tu solicitud. Un asesor de OF1 Solutions se comunicará contigo para agendar la demostración.',
         },
         status=status.HTTP_201_CREATED,
     )

@@ -9,7 +9,7 @@ const estados: Array<{ value: EstadoSolicitudFirma; label: string; color: string
   { value: 'NUEVA', label: 'Nueva', color: 'bg-blue-50 text-blue-700' },
   { value: 'CONTACTADO', label: 'Contactado', color: 'bg-sky-50 text-sky-700' },
   { value: 'DOCUMENTOS_PENDIENTES', label: 'Documentos pendientes', color: 'bg-amber-50 text-amber-700' },
-  { value: 'EN_REVISION', label: 'En revision', color: 'bg-purple-50 text-purple-700' },
+  { value: 'EN_REVISION', label: 'En revisión', color: 'bg-purple-50 text-purple-700' },
   { value: 'ENVIADA_PROVEEDOR', label: 'Enviada a proveedor', color: 'bg-indigo-50 text-indigo-700' },
   { value: 'EMITIDA', label: 'Emitida', color: 'bg-emerald-50 text-emerald-700' },
   { value: 'RECHAZADA', label: 'Rechazada', color: 'bg-red-50 text-red-700' },
@@ -17,22 +17,22 @@ const estados: Array<{ value: EstadoSolicitudFirma; label: string; color: string
 ];
 
 const documentTypes = [
-  ['CEDULA_ANVERSO', 'Anverso de cedula'],
-  ['CEDULA_REVERSO', 'Reverso de cedula'],
-  ['SELFIE_CEDULA', 'Selfie con cedula'],
+  ['CEDULA_ANVERSO', 'Anverso de cédula'],
+  ['CEDULA_REVERSO', 'Reverso de cédula'],
+  ['SELFIE_CEDULA', 'Selfie con cédula'],
   ['RUC_PDF', 'RUC PDF'],
-  ['CONSTITUCION_COMPANIA', 'Constitucion de compania'],
+  ['CONSTITUCION_COMPANIA', 'Constitución de compañía'],
   ['NOMBRAMIENTO_REPRESENTANTE', 'Nombramiento representante legal'],
-  ['ACEPTACION_NOMBRAMIENTO', 'Aceptacion de nombramiento'],
-  ['CARTA_AUTORIZACION', 'Carta de autorizacion'],
-  ['CEDULA_REPRESENTANTE', 'Cedula representante legal'],
-  ['VIDEO_AUTORIZACION', 'Video de autorizacion'],
+  ['ACEPTACION_NOMBRAMIENTO', 'Aceptación de nombramiento'],
+  ['CARTA_AUTORIZACION', 'Carta de autorización'],
+  ['CEDULA_REPRESENTANTE', 'Cédula representante legal'],
+  ['VIDEO_AUTORIZACION', 'Video de autorización'],
   ['DOCUMENTO_ADICIONAL', 'Documento adicional'],
 ];
 
 const badgeFor = (status?: string) => estados.find((e) => e.value === status)?.color ?? 'bg-slate-100 text-slate-600';
 const whatsappFor = (requestNumber?: string) => (
-  `https://api.whatsapp.com/send/?phone=593983904993&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma numero ${requestNumber ?? ''}`)}&type=phone_number&app_absent=0`
+  `https://api.whatsapp.com/send/?phone=593983904993&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma número ${requestNumber ?? ''}`)}&type=phone_number&app_absent=0`
 );
 
 export default function SolicitudesFirmaPage() {
@@ -110,7 +110,7 @@ export default function SolicitudesFirmaPage() {
             <FileSignature size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-950">Solicitudes de Firma Electronica</h1>
+            <h1 className="text-2xl font-bold text-slate-950">Solicitudes de Firma Electrónica</h1>
             <p className="text-sm text-slate-500">Gestiona solicitudes, documentos, proveedor, costos e historial.</p>
           </div>
         </div>
@@ -121,7 +121,7 @@ export default function SolicitudesFirmaPage() {
       </div>
 
       <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-3 xl:grid-cols-6">
-        <input className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Buscar nombre, cedula, solicitud" value={filters.search ?? ''} onChange={(e) => setFilter('search', e.target.value)} />
+        <input className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Buscar nombre, cédula, solicitud" value={filters.search ?? ''} onChange={(e) => setFilter('search', e.target.value)} />
         <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" value={filters.status ?? ''} onChange={(e) => setFilter('status', e.target.value)}>
           <option value="">Estado</option>
           {estados.map((estado) => <option key={estado.value} value={estado.value}>{estado.label}</option>)}
@@ -143,7 +143,7 @@ export default function SolicitudesFirmaPage() {
         </select>
         <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" value={filters.interested_plan ?? ''} onChange={(e) => setFilter('interested_plan', e.target.value)}>
           <option value="">Plan</option>
-          <option value="BASICO">Basico</option>
+          <option value="BASICO">Básico</option>
           <option value="PROFESIONAL">Profesional</option>
           <option value="EMPRESARIAL">Empresarial</option>
           <option value="SOLO_FIRMA">Solo firma</option>
@@ -202,23 +202,23 @@ export default function SolicitudesFirmaPage() {
               <Section title="Datos ingresados">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   <Info label="Tipo" value={selected.request_type_display ?? selected.request_type} />
-                  <Info label="Tipo identificacion" value={selected.identification_type_display ?? selected.identification_type ?? '-'} />
-                  <Info label="Identificacion" value={selected.identification} />
+                  <Info label="Tipo identificación" value={selected.identification_type_display ?? selected.identification_type ?? '-'} />
+                  <Info label="Identificación" value={selected.identification} />
                   <Info label="Codigo dactilar" value={selected.fingerprint_code} />
                   <Info label="Fecha nacimiento" value={selected.birth_date || '-'} />
                   <Info label="Nacionalidad" value={selected.nationality || '-'} />
                   <Info label="Sexo" value={selected.gender || '-'} />
-                  <Info label="Telefono 2" value={selected.secondary_phone || '-'} />
+                  <Info label="Teléfono 2" value={selected.secondary_phone || '-'} />
                   <Info label="Correo 2" value={selected.secondary_email || '-'} />
                   <Info label="RUC" value={selected.ruc || '-'} />
-                  <Info label="Razon social" value={selected.business_name || '-'} />
+                  <Info label="Razón social" value={selected.business_name || '-'} />
                   <Info label="Unidad" value={selected.company_unit || '-'} />
                   <Info label="Cargo" value={selected.applicant_position || '-'} />
                   <Info label="Motivo" value={selected.request_reason || '-'} />
                   <Info label="Representante" value={`${selected.representative_names ?? ''} ${selected.representative_last_names ?? ''}`.trim() || '-'} />
                   <Info label="ID representante" value={selected.representative_identification || '-'} />
-                  <Info label="Ubicacion" value={`${selected.city}, ${selected.province}`} />
-                  <Info label="Direccion" value={selected.address || '-'} />
+                  <Info label="Ubicación" value={`${selected.city}, ${selected.province}`} />
+                  <Info label="Dirección" value={selected.address || '-'} />
                   <Info label="Vigencia" value={selected.validity_display ?? selected.validity} />
                   <Info label="Origen" value={selected.source_display ?? selected.source ?? '-'} />
                 </div>

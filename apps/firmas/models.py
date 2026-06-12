@@ -13,7 +13,7 @@ def firma_document_upload_to(instance, filename):
 
 class SolicitudFirmaElectronica(models.Model):
     class TipoIdentificacion(models.TextChoices):
-        CEDULA = 'CEDULA', _('Cedula')
+        CEDULA = 'CEDULA', _('Cédula')
         PASAPORTE = 'PASAPORTE', _('Pasaporte')
         RUC = 'RUC', _('RUC')
 
@@ -23,13 +23,13 @@ class SolicitudFirmaElectronica(models.Model):
         MIEMBRO_EMPRESA = 'MIEMBRO_EMPRESA', _('Miembro de Empresa')
 
     class Vigencia(models.TextChoices):
-        QUINCE_DIAS = '15_DIAS', _('15 dias')
+        QUINCE_DIAS = '15_DIAS', _('15 días')
         UN_MES = '1_MES', _('1 mes')
-        UN_ANIO = '1_ANIO', _('1 anio')
-        DOS_ANIOS = '2_ANIOS', _('2 anios')
-        TRES_ANIOS = '3_ANIOS', _('3 anios')
-        CUATRO_ANIOS = '4_ANIOS', _('4 anios')
-        CINCO_ANIOS = '5_ANIOS', _('5 anios')
+        UN_ANIO = '1_ANIO', _('1 año')
+        DOS_ANIOS = '2_ANIOS', _('2 años')
+        TRES_ANIOS = '3_ANIOS', _('3 años')
+        CUATRO_ANIOS = '4_ANIOS', _('4 años')
+        CINCO_ANIOS = '5_ANIOS', _('5 años')
 
     class Contenedor(models.TextChoices):
         ARCHIVO = 'ARCHIVO', _('Archivo')
@@ -37,7 +37,7 @@ class SolicitudFirmaElectronica(models.Model):
         TOKEN = 'TOKEN', _('Token')
 
     class PlanInteres(models.TextChoices):
-        BASICO = 'BASICO', _('Basico')
+        BASICO = 'BASICO', _('Básico')
         PROFESIONAL = 'PROFESIONAL', _('Profesional')
         EMPRESARIAL = 'EMPRESARIAL', _('Empresarial')
         SOLO_FIRMA = 'SOLO_FIRMA', _('Solo firma')
@@ -46,7 +46,7 @@ class SolicitudFirmaElectronica(models.Model):
         NUEVA = 'NUEVA', _('Nueva')
         CONTACTADO = 'CONTACTADO', _('Contactado')
         DOCUMENTOS_PENDIENTES = 'DOCUMENTOS_PENDIENTES', _('Documentos pendientes')
-        EN_REVISION = 'EN_REVISION', _('En revision')
+        EN_REVISION = 'EN_REVISION', _('En revisión')
         ENVIADA_PROVEEDOR = 'ENVIADA_PROVEEDOR', _('Enviada a proveedor')
         EMITIDA = 'EMITIDA', _('Emitida')
         RECHAZADA = 'RECHAZADA', _('Rechazada')
@@ -81,38 +81,38 @@ class SolicitudFirmaElectronica(models.Model):
         related_name='solicitudes_firma',
         verbose_name=_('cliente'),
     )
-    request_number = models.CharField(_('numero de solicitud'), max_length=30, unique=True, null=True, blank=True)
+    request_number = models.CharField(_('número de solicitud'), max_length=30, unique=True, null=True, blank=True)
     request_type = models.CharField(_('tipo de solicitud'), max_length=30, choices=TipoSolicitud.choices)
-    identification_type = models.CharField(_('tipo de identificacion'), max_length=20, choices=TipoIdentificacion.choices, default=TipoIdentificacion.CEDULA)
+    identification_type = models.CharField(_('tipo de identificación'), max_length=20, choices=TipoIdentificacion.choices, default=TipoIdentificacion.CEDULA)
     first_name = models.CharField(_('nombres'), max_length=120)
     last_name = models.CharField(_('apellidos'), max_length=120)
     second_last_name = models.CharField(_('segundo apellido'), max_length=120, blank=True)
-    identification = models.CharField(_('cedula'), max_length=20)
-    fingerprint_code = models.CharField(_('codigo dactilar'), max_length=30)
+    identification = models.CharField(_('cédula'), max_length=20)
+    fingerprint_code = models.CharField(_('código dactilar'), max_length=30)
     birth_date = models.DateField(_('fecha de nacimiento'), null=True, blank=True)
     nationality = models.CharField(_('nacionalidad'), max_length=80, default='ECUATORIANA', blank=True)
     gender = models.CharField(_('sexo'), max_length=20, blank=True)
     ruc = models.CharField(_('RUC'), max_length=20, blank=True)
     has_ruc = models.BooleanField(_('tiene RUC'), default=False)
-    business_name = models.CharField(_('razon social'), max_length=180, blank=True)
+    business_name = models.CharField(_('razón social'), max_length=180, blank=True)
     company_unit = models.CharField(_('unidad de empresa'), max_length=120, blank=True)
     applicant_position = models.CharField(_('cargo'), max_length=120, blank=True)
     request_reason = models.CharField(_('motivo de solicitud'), max_length=180, blank=True)
-    email = models.EmailField(_('correo electronico'))
-    secondary_email = models.EmailField(_('correo electronico secundario'), blank=True)
-    phone = models.CharField(_('telefono/celular'), max_length=20)
-    secondary_phone = models.CharField(_('telefono secundario'), max_length=20, blank=True)
+    email = models.EmailField(_('correo electrónico'))
+    secondary_email = models.EmailField(_('correo electrónico secundario'), blank=True)
+    phone = models.CharField(_('teléfono/celular'), max_length=20)
+    secondary_phone = models.CharField(_('teléfono secundario'), max_length=20, blank=True)
     province = models.CharField(_('provincia'), max_length=80)
     city = models.CharField(_('ciudad'), max_length=80)
-    address = models.CharField(_('direccion'), max_length=255)
-    representative_identification_type = models.CharField(_('tipo identificacion representante'), max_length=20, choices=TipoIdentificacion.choices, blank=True)
-    representative_identification = models.CharField(_('identificacion representante'), max_length=20, blank=True)
+    address = models.CharField(_('dirección'), max_length=255)
+    representative_identification_type = models.CharField(_('tipo identificación representante'), max_length=20, choices=TipoIdentificacion.choices, blank=True)
+    representative_identification = models.CharField(_('identificación representante'), max_length=20, blank=True)
     representative_names = models.CharField(_('nombres representante'), max_length=120, blank=True)
     representative_last_names = models.CharField(_('apellidos representante'), max_length=160, blank=True)
     validity = models.CharField(_('vigencia solicitada'), max_length=20, choices=Vigencia.choices)
     container_type = models.CharField(_('tipo de contenedor'), max_length=20, choices=Contenedor.choices, blank=True)
-    wants_erp = models.BooleanField(_('tambien desea ERP'), default=False)
-    interested_plan = models.CharField(_('plan de interes'), max_length=20, choices=PlanInteres.choices)
+    wants_erp = models.BooleanField(_('también desea ERP'), default=False)
+    interested_plan = models.CharField(_('plan de interés'), max_length=20, choices=PlanInteres.choices)
     status = models.CharField(_('estado'), max_length=30, choices=Estado.choices, default=Estado.NUEVA)
     source = models.CharField(_('origen'), max_length=30, choices=Origen.choices, default=Origen.MANUAL_ADMINISTRATIVO)
     provider = models.CharField(_('proveedor'), max_length=20, choices=Proveedor.choices, blank=True)
@@ -121,15 +121,15 @@ class SolicitudFirmaElectronica(models.Model):
     margin = models.DecimalField(_('margen'), max_digits=10, decimal_places=2, default=Decimal('0.00'))
     internal_notes = models.TextField(_('observaciones internas'), blank=True)
     provider_request_id = models.CharField(_('id solicitud proveedor'), max_length=120, blank=True, null=True)
-    emitted_at = models.DateTimeField(_('fecha de emision'), null=True, blank=True)
+    emitted_at = models.DateTimeField(_('fecha de emisión'), null=True, blank=True)
     rejected_reason = models.TextField(_('motivo de rechazo'), blank=True)
-    created_at = models.DateTimeField(_('fecha de creacion'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('fecha de actualizacion'), auto_now=True)
+    created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('fecha de actualización'), auto_now=True)
 
     class Meta:
         db_table = 'electronic_signature_requests'
-        verbose_name = _('solicitud de firma electronica')
-        verbose_name_plural = _('solicitudes de firma electronica')
+        verbose_name = _('solicitud de firma electrónica')
+        verbose_name_plural = _('solicitudes de firma electrónica')
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['request_number']),
@@ -158,16 +158,16 @@ class SolicitudFirmaElectronica(models.Model):
 
 class DocumentoSolicitudFirma(models.Model):
     class TipoDocumento(models.TextChoices):
-        CEDULA_ANVERSO = 'CEDULA_ANVERSO', _('Anverso de cedula')
-        CEDULA_REVERSO = 'CEDULA_REVERSO', _('Reverso de cedula')
-        SELFIE_CEDULA = 'SELFIE_CEDULA', _('Selfie con cedula')
+        CEDULA_ANVERSO = 'CEDULA_ANVERSO', _('Anverso de cédula')
+        CEDULA_REVERSO = 'CEDULA_REVERSO', _('Reverso de cédula')
+        SELFIE_CEDULA = 'SELFIE_CEDULA', _('Selfie con cédula')
         RUC_PDF = 'RUC_PDF', _('RUC PDF')
-        CONSTITUCION_COMPANIA = 'CONSTITUCION_COMPANIA', _('Constitucion de compania')
+        CONSTITUCION_COMPANIA = 'CONSTITUCION_COMPANIA', _('Constitución de compañía')
         NOMBRAMIENTO_REPRESENTANTE = 'NOMBRAMIENTO_REPRESENTANTE', _('Nombramiento representante legal')
-        ACEPTACION_NOMBRAMIENTO = 'ACEPTACION_NOMBRAMIENTO', _('Aceptacion de nombramiento')
-        CARTA_AUTORIZACION = 'CARTA_AUTORIZACION', _('Carta de autorizacion')
-        CEDULA_REPRESENTANTE = 'CEDULA_REPRESENTANTE', _('Cedula representante legal')
-        VIDEO_AUTORIZACION = 'VIDEO_AUTORIZACION', _('Video de autorizacion')
+        ACEPTACION_NOMBRAMIENTO = 'ACEPTACION_NOMBRAMIENTO', _('Aceptación de nombramiento')
+        CARTA_AUTORIZACION = 'CARTA_AUTORIZACION', _('Carta de autorización')
+        CEDULA_REPRESENTANTE = 'CEDULA_REPRESENTANTE', _('Cédula representante legal')
+        VIDEO_AUTORIZACION = 'VIDEO_AUTORIZACION', _('Video de autorización')
         DOCUMENTO_ADICIONAL = 'DOCUMENTO_ADICIONAL', _('Documento adicional')
 
     class EstadoDocumento(models.TextChoices):
@@ -221,7 +221,7 @@ class HistorialEstadoSolicitudFirma(models.Model):
         null=True,
         blank=True,
         related_name='cambios_estado_firma',
-        verbose_name=_('usuario que cambio'),
+        verbose_name=_('usuario que cambió'),
     )
     created_at = models.DateTimeField(_('fecha de cambio'), auto_now_add=True)
 
@@ -237,7 +237,7 @@ class HistorialEstadoSolicitudFirma(models.Model):
 
 class SolicitudDemoERP(models.Model):
     class PlanInteres(models.TextChoices):
-        BASICO = 'BASICO', _('Basico')
+        BASICO = 'BASICO', _('Básico')
         PROFESIONAL = 'PROFESIONAL', _('Profesional')
         EMPRESARIAL = 'EMPRESARIAL', _('Empresarial')
         NO_SEGURO = 'NO_SEGURO', _('No estoy seguro')
@@ -258,18 +258,18 @@ class SolicitudDemoERP(models.Model):
 
     business_name = models.CharField(_('negocio'), max_length=180)
     contact_name = models.CharField(_('contacto'), max_length=160)
-    email = models.EmailField(_('correo electronico'))
-    phone = models.CharField(_('telefono/celular'), max_length=20)
+    email = models.EmailField(_('correo electrónico'))
+    phone = models.CharField(_('teléfono/celular'), max_length=20)
     city = models.CharField(_('ciudad'), max_length=80, blank=True)
     business_type = models.CharField(_('tipo de negocio'), max_length=120, blank=True)
-    interested_plan = models.CharField(_('plan de interes'), max_length=20, choices=PlanInteres.choices, default=PlanInteres.NO_SEGURO)
-    needs_signature = models.BooleanField(_('necesita firma electronica'), default=False)
-    already_has_signature = models.BooleanField(_('ya tiene firma electronica'), default=False)
+    interested_plan = models.CharField(_('plan de interés'), max_length=20, choices=PlanInteres.choices, default=PlanInteres.NO_SEGURO)
+    needs_signature = models.BooleanField(_('necesita firma electrónica'), default=False)
+    already_has_signature = models.BooleanField(_('ya tiene firma electrónica'), default=False)
     message = models.TextField(_('mensaje'), blank=True)
     source = models.CharField(_('origen'), max_length=20, choices=Origen.choices, default=Origen.LANDING)
     status = models.CharField(_('estado'), max_length=20, choices=Estado.choices, default=Estado.NUEVA)
-    created_at = models.DateTimeField(_('fecha de creacion'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('fecha de actualizacion'), auto_now=True)
+    created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('fecha de actualización'), auto_now=True)
 
     class Meta:
         db_table = 'erp_demo_requests'
