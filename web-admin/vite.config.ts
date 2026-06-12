@@ -1,11 +1,11 @@
-/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
-  test: {
+  ...({
+    test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
@@ -13,7 +13,8 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/lib/**', 'src/store/**'],
     },
-  },
+    },
+  } as Record<string, unknown>),
   plugins: [
     react(),
     VitePWA({

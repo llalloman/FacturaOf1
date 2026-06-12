@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileSignature, Loader2, RefreshCw, Save, Upload } from 'lucide-react';
+import { FileSignature, Loader2, MessageCircle, RefreshCw, Save, Upload } from 'lucide-react';
 import { firmasService, type EstadoSolicitudFirma, type SolicitudFirma, type SolicitudFirmaFilters } from '../../services/firmasService';
 import { useToast } from '../../hooks/useToast';
 
@@ -8,7 +9,7 @@ const estados: Array<{ value: EstadoSolicitudFirma; label: string; color: string
   { value: 'NUEVA', label: 'Nueva', color: 'bg-blue-50 text-blue-700' },
   { value: 'CONTACTADO', label: 'Contactado', color: 'bg-sky-50 text-sky-700' },
   { value: 'DOCUMENTOS_PENDIENTES', label: 'Documentos pendientes', color: 'bg-amber-50 text-amber-700' },
-  { value: 'EN_REVISION', label: 'En revisión', color: 'bg-purple-50 text-purple-700' },
+  { value: 'EN_REVISION', label: 'En revision', color: 'bg-purple-50 text-purple-700' },
   { value: 'ENVIADA_PROVEEDOR', label: 'Enviada a proveedor', color: 'bg-indigo-50 text-indigo-700' },
   { value: 'EMITIDA', label: 'Emitida', color: 'bg-emerald-50 text-emerald-700' },
   { value: 'RECHAZADA', label: 'Rechazada', color: 'bg-red-50 text-red-700' },
@@ -16,17 +17,23 @@ const estados: Array<{ value: EstadoSolicitudFirma; label: string; color: string
 ];
 
 const documentTypes = [
-  ['CEDULA_ANVERSO', 'Anverso de cédula'],
-  ['CEDULA_REVERSO', 'Reverso de cédula'],
-  ['SELFIE_CEDULA', 'Selfie con cédula'],
+  ['CEDULA_ANVERSO', 'Anverso de cedula'],
+  ['CEDULA_REVERSO', 'Reverso de cedula'],
+  ['SELFIE_CEDULA', 'Selfie con cedula'],
   ['RUC_PDF', 'RUC PDF'],
+  ['CONSTITUCION_COMPANIA', 'Constitucion de compania'],
   ['NOMBRAMIENTO_REPRESENTANTE', 'Nombramiento representante legal'],
-  ['CARTA_AUTORIZACION', 'Carta de autorización'],
-  ['CEDULA_REPRESENTANTE', 'Cédula representante legal'],
-  ['VIDEO_AUTORIZACION', 'Video de autorización'],
+  ['ACEPTACION_NOMBRAMIENTO', 'Aceptacion de nombramiento'],
+  ['CARTA_AUTORIZACION', 'Carta de autorizacion'],
+  ['CEDULA_REPRESENTANTE', 'Cedula representante legal'],
+  ['VIDEO_AUTORIZACION', 'Video de autorizacion'],
+  ['DOCUMENTO_ADICIONAL', 'Documento adicional'],
 ];
 
 const badgeFor = (status?: string) => estados.find((e) => e.value === status)?.color ?? 'bg-slate-100 text-slate-600';
+const whatsappFor = (requestNumber?: string) => (
+  `https://api.whatsapp.com/send/?phone=593983904993&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma numero ${requestNumber ?? ''}`)}&type=phone_number&app_absent=0`
+);
 
 export default function SolicitudesFirmaPage() {
   const queryClient = useQueryClient();
@@ -103,7 +110,7 @@ export default function SolicitudesFirmaPage() {
             <FileSignature size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-950">Solicitudes de Firma Electrónica</h1>
+            <h1 className="text-2xl font-bold text-slate-950">Solicitudes de Firma Electronica</h1>
             <p className="text-sm text-slate-500">Gestiona solicitudes, documentos, proveedor, costos e historial.</p>
           </div>
         </div>
@@ -114,7 +121,7 @@ export default function SolicitudesFirmaPage() {
       </div>
 
       <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-3 xl:grid-cols-6">
-        <input className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Buscar" value={filters.search ?? ''} onChange={(e) => setFilter('search', e.target.value)} />
+        <input className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Buscar nombre, cedula, solicitud" value={filters.search ?? ''} onChange={(e) => setFilter('search', e.target.value)} />
         <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" value={filters.status ?? ''} onChange={(e) => setFilter('status', e.target.value)}>
           <option value="">Estado</option>
           {estados.map((estado) => <option key={estado.value} value={estado.value}>{estado.label}</option>)}
@@ -136,7 +143,7 @@ export default function SolicitudesFirmaPage() {
         </select>
         <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" value={filters.interested_plan ?? ''} onChange={(e) => setFilter('interested_plan', e.target.value)}>
           <option value="">Plan</option>
-          <option value="BASICO">Básico</option>
+          <option value="BASICO">Basico</option>
           <option value="PROFESIONAL">Profesional</option>
           <option value="EMPRESARIAL">Empresarial</option>
           <option value="SOLO_FIRMA">Solo firma</option>
@@ -149,12 +156,12 @@ export default function SolicitudesFirmaPage() {
         </select>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.4fr]">
+      <div className="grid gap-5 xl:grid-cols-[0.85fr_1.45fr]">
         <div className="rounded-2xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
             {solicitudes.length} solicitud(es)
           </div>
-          <div className="max-h-[680px] divide-y divide-slate-100 overflow-y-auto">
+          <div className="max-h-[720px] divide-y divide-slate-100 overflow-y-auto">
             {isLoading ? (
               <div className="flex h-40 items-center justify-center"><Loader2 className="animate-spin text-blue-600" /></div>
             ) : solicitudes.map((item) => (
@@ -163,8 +170,9 @@ export default function SolicitudesFirmaPage() {
                   <p className="font-medium text-slate-900">{item.full_name || `${item.first_name} ${item.last_name}`}</p>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badgeFor(item.status)}`}>{item.status_display ?? item.status}</span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">{item.identification} · {item.email}</p>
-                <p className="mt-1 text-xs text-slate-400">{item.request_type_display ?? item.request_type} · {item.interested_plan_display ?? item.interested_plan}</p>
+                <p className="mt-1 text-xs font-semibold text-blue-600">{item.request_number ?? `Solicitud #${item.id}`}</p>
+                <p className="mt-1 text-xs text-slate-500">{item.identification} - {item.email}</p>
+                <p className="mt-1 text-xs text-slate-400">{item.request_type_display ?? item.request_type} - {item.interested_plan_display ?? item.interested_plan}</p>
               </button>
             ))}
             {!isLoading && solicitudes.length === 0 && <div className="p-6 text-sm text-slate-400">No hay solicitudes con estos filtros.</div>}
@@ -179,21 +187,42 @@ export default function SolicitudesFirmaPage() {
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-slate-950">{selected.full_name || `${selected.first_name} ${selected.last_name}`}</h2>
-                  <p className="text-sm text-slate-500">{selected.email} · {selected.phone}</p>
+                  <p className="text-sm font-semibold text-blue-600">{selected.request_number ?? `Solicitud #${selected.id}`}</p>
+                  <p className="text-sm text-slate-500">{selected.email} - {selected.phone}</p>
                 </div>
-                <span className={`w-fit rounded-full px-3 py-1 text-sm font-medium ${badgeFor(selected.status)}`}>{selected.status_display ?? selected.status}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a href={whatsappFor(selected.request_number)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50">
+                    <MessageCircle size={15} />
+                    WhatsApp
+                  </a>
+                  <span className={`w-fit rounded-full px-3 py-1 text-sm font-medium ${badgeFor(selected.status)}`}>{selected.status_display ?? selected.status}</span>
+                </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <Info label="Tipo" value={selected.request_type_display ?? selected.request_type} />
-                <Info label="Cédula" value={selected.identification} />
-                <Info label="Código dactilar" value={selected.fingerprint_code} />
-                <Info label="RUC" value={selected.ruc || '-'} />
-                <Info label="Razón social" value={selected.business_name || '-'} />
-                <Info label="Ubicación" value={`${selected.city}, ${selected.province}`} />
-                <Info label="Vigencia" value={selected.validity_display ?? selected.validity} />
-                <Info label="Origen" value={selected.source_display ?? selected.source ?? '-'} />
-              </div>
+              <Section title="Datos ingresados">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <Info label="Tipo" value={selected.request_type_display ?? selected.request_type} />
+                  <Info label="Tipo identificacion" value={selected.identification_type_display ?? selected.identification_type ?? '-'} />
+                  <Info label="Identificacion" value={selected.identification} />
+                  <Info label="Codigo dactilar" value={selected.fingerprint_code} />
+                  <Info label="Fecha nacimiento" value={selected.birth_date || '-'} />
+                  <Info label="Nacionalidad" value={selected.nationality || '-'} />
+                  <Info label="Sexo" value={selected.gender || '-'} />
+                  <Info label="Telefono 2" value={selected.secondary_phone || '-'} />
+                  <Info label="Correo 2" value={selected.secondary_email || '-'} />
+                  <Info label="RUC" value={selected.ruc || '-'} />
+                  <Info label="Razon social" value={selected.business_name || '-'} />
+                  <Info label="Unidad" value={selected.company_unit || '-'} />
+                  <Info label="Cargo" value={selected.applicant_position || '-'} />
+                  <Info label="Motivo" value={selected.request_reason || '-'} />
+                  <Info label="Representante" value={`${selected.representative_names ?? ''} ${selected.representative_last_names ?? ''}`.trim() || '-'} />
+                  <Info label="ID representante" value={selected.representative_identification || '-'} />
+                  <Info label="Ubicacion" value={`${selected.city}, ${selected.province}`} />
+                  <Info label="Direccion" value={selected.address || '-'} />
+                  <Info label="Vigencia" value={selected.validity_display ?? selected.validity} />
+                  <Info label="Origen" value={selected.source_display ?? selected.source ?? '-'} />
+                </div>
+              </Section>
 
               <div className="grid gap-3 rounded-xl bg-slate-50 p-4 md:grid-cols-4">
                 <label className="text-xs font-medium text-slate-500">
@@ -210,8 +239,7 @@ export default function SolicitudesFirmaPage() {
                 <Info label="Margen" value={`$${Number(selected.margin ?? 0).toFixed(2)}`} />
               </div>
 
-              <div className="rounded-xl border border-slate-200 p-4">
-                <h3 className="mb-3 text-sm font-semibold text-slate-700">Cambiar estado</h3>
+              <Section title="Cambiar estado">
                 <div className="grid gap-3 md:grid-cols-[1fr_1.2fr_auto]">
                   <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" value={selected.status} onChange={(e) => changeStatus(e.target.value as EstadoSolicitudFirma)} disabled={saving}>
                     {estados.map((estado) => <option key={estado.value} value={estado.value}>{estado.label}</option>)}
@@ -222,10 +250,9 @@ export default function SolicitudesFirmaPage() {
                     Guardar
                   </button>
                 </div>
-              </div>
+              </Section>
 
-              <div className="rounded-xl border border-slate-200 p-4">
-                <h3 className="mb-3 text-sm font-semibold text-slate-700">Documentos</h3>
+              <Section title="Documentos">
                 <div className="mb-3 grid gap-2 md:grid-cols-[1fr_1fr]">
                   <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" value={uploadType} onChange={(e) => setUploadType(e.target.value)}>
                     {documentTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -240,24 +267,23 @@ export default function SolicitudesFirmaPage() {
                   {(selected.documents ?? []).map((doc) => (
                     <a key={doc.id} href={doc.download_url} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm hover:bg-slate-50">
                       <span>{doc.document_type_display}</span>
-                      <span className="text-slate-400">{doc.file_name}</span>
+                      <span className="truncate pl-4 text-slate-400">{doc.file_name}</span>
                     </a>
                   ))}
                   {(selected.documents ?? []).length === 0 && <p className="text-sm text-slate-400">Sin documentos cargados.</p>}
                 </div>
-              </div>
+              </Section>
 
-              <div className="rounded-xl border border-slate-200 p-4">
-                <h3 className="mb-3 text-sm font-semibold text-slate-700">Historial</h3>
+              <Section title="Historial">
                 <div className="space-y-2">
                   {(selected.status_history ?? []).map((item) => (
                     <div key={item.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                      <p className="font-medium text-slate-700">{item.previous_status || 'Inicio'} → {item.new_status}</p>
-                      <p className="text-xs text-slate-500">{item.comment || 'Sin comentario'} · {item.changed_by_name || 'Sistema'} · {item.created_at}</p>
+                      <p className="font-medium text-slate-700">{item.previous_status || 'Inicio'} {'->'} {item.new_status}</p>
+                      <p className="text-xs text-slate-500">{item.comment || 'Sin comentario'} - {item.changed_by_name || 'Sistema'} - {item.created_at}</p>
                     </div>
                   ))}
                 </div>
-              </div>
+              </Section>
             </div>
           )}
         </div>
@@ -266,11 +292,20 @@ export default function SolicitudesFirmaPage() {
   );
 }
 
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-slate-200 p-4">
+      <h3 className="mb-3 text-sm font-semibold text-slate-700">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
 function Info({ label, value }: { label: string; value?: string }) {
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-sm font-medium text-slate-700">{value || '-'}</p>
+      <p className="mt-1 break-words text-sm font-medium text-slate-700">{value || '-'}</p>
     </div>
   );
 }

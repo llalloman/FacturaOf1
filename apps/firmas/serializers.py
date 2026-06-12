@@ -11,6 +11,35 @@ from .models import (
 
 
 PHONE_RE = re.compile(r'^(09\d{8}|\+593\d{9})$')
+MAX_DOCUMENT_SIZE = 15 * 1024 * 1024
+ALLOWED_DOCUMENT_MIME_TYPES = {
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/jpg',
+}
+
+
+PUBLIC_DOCUMENT_FIELDS = {
+    'cedula_anverso': DocumentoSolicitudFirma.TipoDocumento.CEDULA_ANVERSO,
+    'cedula_reverso': DocumentoSolicitudFirma.TipoDocumento.CEDULA_REVERSO,
+    'selfie_cedula': DocumentoSolicitudFirma.TipoDocumento.SELFIE_CEDULA,
+    'ruc_pdf': DocumentoSolicitudFirma.TipoDocumento.RUC_PDF,
+    'constitucion_compania': DocumentoSolicitudFirma.TipoDocumento.CONSTITUCION_COMPANIA,
+    'nombramiento_representante': DocumentoSolicitudFirma.TipoDocumento.NOMBRAMIENTO_REPRESENTANTE,
+    'aceptacion_nombramiento': DocumentoSolicitudFirma.TipoDocumento.ACEPTACION_NOMBRAMIENTO,
+    'carta_autorizacion': DocumentoSolicitudFirma.TipoDocumento.CARTA_AUTORIZACION,
+    'cedula_representante': DocumentoSolicitudFirma.TipoDocumento.CEDULA_REPRESENTANTE,
+    'documento_adicional': DocumentoSolicitudFirma.TipoDocumento.DOCUMENTO_ADICIONAL,
+}
+
+
+def validate_document_file(file):
+    if file.size > MAX_DOCUMENT_SIZE:
+        raise serializers.ValidationError('El archivo no puede superar 15 MB.')
+    content_type = (getattr(file, 'content_type', '') or '').lower()
+    if content_type and content_type not in ALLOWED_DOCUMENT_MIME_TYPES:
+        raise serializers.ValidationError('Formato no permitido. Usa PDF, JPG o PNG.')
 
 
 class DocumentoSolicitudFirmaSerializer(serializers.ModelSerializer):
@@ -38,6 +67,10 @@ class DocumentoSolicitudFirmaUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentoSolicitudFirma
         fields = ['document_type', 'file', 'status']
+
+    def validate_file(self, value):
+        validate_document_file(value)
+        return value
 
     def create(self, validated_data):
         file = validated_data.get('file')
@@ -67,6 +100,7 @@ class HistorialEstadoSolicitudFirmaSerializer(serializers.ModelSerializer):
 class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
     request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
+    identification_type_display = serializers.CharField(source='get_identification_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_display = serializers.CharField(source='get_source_display', read_only=True)
     provider_display = serializers.CharField(source='get_provider_display', read_only=True)
@@ -78,9 +112,14 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
     class Meta:
         model = SolicitudFirmaElectronica
         fields = [
-            'id', 'company', 'customer', 'request_type', 'request_type_display',
-            'first_name', 'last_name', 'full_name', 'identification', 'fingerprint_code',
-            'ruc', 'business_name', 'email', 'phone', 'province', 'city', 'address',
+            'id', 'request_number', 'company', 'customer', 'request_type', 'request_type_display',
+            'identification_type', 'identification_type_display', 'first_name', 'last_name',
+            'second_last_name', 'full_name', 'identification', 'fingerprint_code',
+            'birth_date', 'nationality', 'gender', 'ruc', 'has_ruc', 'business_name',
+            'company_unit', 'applicant_position', 'request_reason', 'email',
+            'secondary_email', 'phone', 'secondary_phone', 'province', 'city', 'address',
+            'representative_identification_type', 'representative_identification',
+            'representative_names', 'representative_last_names',
             'validity', 'validity_display', 'container_type', 'wants_erp',
             'interested_plan', 'interested_plan_display', 'status', 'status_display',
             'source', 'source_display', 'provider', 'provider_display',
@@ -88,22 +127,39 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
             'provider_request_id', 'emitted_at', 'rejected_reason',
             'created_at', 'updated_at', 'documents', 'status_history',
         ]
-        read_only_fields = ['margin', 'created_at', 'updated_at', 'documents', 'status_history']
+        read_only_fields = ['request_number', 'margin', 'created_at', 'updated_at', 'documents', 'status_history']
 
     def validate_phone(self, value):
         value = (value or '').strip()
         if not PHONE_RE.match(value):
-            raise serializers.ValidationError('Ingresa un celular Ecuador válido: 09xxxxxxxx o +593xxxxxxxxx.')
+            raise serializers.ValidationError('Ingresa un celular Ecuador valido: 09xxxxxxxx o +593xxxxxxxxx.')
+        return value
+
+    def validate_secondary_phone(self, value):
+        value = (value or '').strip()
+        if value and not PHONE_RE.match(value):
+            raise serializers.ValidationError('Ingresa un celular Ecuador valido: 09xxxxxxxx o +593xxxxxxxxx.')
         return value
 
     def validate(self, attrs):
         request_type = attrs.get('request_type') or getattr(self.instance, 'request_type', None)
-        required = ['first_name', 'last_name', 'identification', 'fingerprint_code', 'email', 'phone', 'province', 'city', 'address']
+        required = [
+            'identification_type', 'first_name', 'last_name', 'identification',
+            'fingerprint_code', 'birth_date', 'nationality', 'gender',
+            'email', 'phone', 'province', 'city', 'address',
+        ]
 
-        if request_type == SolicitudFirmaElectronica.TipoSolicitud.REPRESENTANTE_LEGAL:
-            required += ['ruc', 'business_name']
+        if request_type in (
+            SolicitudFirmaElectronica.TipoSolicitud.REPRESENTANTE_LEGAL,
+            SolicitudFirmaElectronica.TipoSolicitud.MIEMBRO_EMPRESA,
+        ):
+            required += ['ruc', 'business_name', 'applicant_position']
+
         if request_type == SolicitudFirmaElectronica.TipoSolicitud.MIEMBRO_EMPRESA:
-            required += ['ruc', 'business_name']
+            required += [
+                'company_unit', 'request_reason', 'representative_identification_type',
+                'representative_identification', 'representative_names', 'representative_last_names',
+            ]
 
         errors = {}
         for field in required:
@@ -129,18 +185,22 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
 class SolicitudFirmaElectronicaPublicSerializer(SolicitudFirmaElectronicaSerializer):
     class Meta(SolicitudFirmaElectronicaSerializer.Meta):
         fields = [
-            'id', 'request_type', 'first_name', 'last_name', 'identification',
-            'fingerprint_code', 'ruc', 'business_name', 'email', 'phone',
-            'province', 'city', 'address', 'validity', 'container_type',
-            'wants_erp', 'interested_plan', 'source', 'provider', 'internal_notes',
+            'id', 'request_number', 'request_type', 'identification_type',
+            'first_name', 'last_name', 'second_last_name', 'identification',
+            'fingerprint_code', 'birth_date', 'nationality', 'gender', 'ruc',
+            'has_ruc', 'business_name', 'company_unit', 'applicant_position',
+            'request_reason', 'email', 'secondary_email', 'phone', 'secondary_phone',
+            'province', 'city', 'address', 'representative_identification_type',
+            'representative_identification', 'representative_names',
+            'representative_last_names', 'validity', 'container_type',
+            'wants_erp', 'interested_plan',
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'request_number']
 
     def create(self, validated_data):
         validated_data['source'] = SolicitudFirmaElectronica.Origen.LANDING
         validated_data['status'] = SolicitudFirmaElectronica.Estado.NUEVA
-        if not validated_data.get('provider'):
-            validated_data['provider'] = SolicitudFirmaElectronica.Proveedor.UANATACA
+        validated_data['provider'] = SolicitudFirmaElectronica.Proveedor.UANATACA
         return super().create(validated_data)
 
 
@@ -169,7 +229,7 @@ class SolicitudDemoERPSerializer(serializers.ModelSerializer):
     def validate_phone(self, value):
         value = (value or '').strip()
         if not PHONE_RE.match(value):
-            raise serializers.ValidationError('Ingresa un celular Ecuador válido: 09xxxxxxxx o +593xxxxxxxxx.')
+            raise serializers.ValidationError('Ingresa un celular Ecuador valido: 09xxxxxxxx o +593xxxxxxxxx.')
         return value
 
     def create(self, validated_data):

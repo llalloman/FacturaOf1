@@ -6,22 +6,39 @@ export type PlanInteresFirma = 'BASICO' | 'PROFESIONAL' | 'EMPRESARIAL' | 'SOLO_
 
 export interface SolicitudFirma {
   id?: number;
+  request_number?: string;
   company?: number | null;
   customer?: number | null;
   request_type: TipoSolicitudFirma;
   request_type_display?: string;
+  identification_type?: string;
+  identification_type_display?: string;
   first_name: string;
   last_name: string;
+  second_last_name?: string;
   full_name?: string;
   identification: string;
   fingerprint_code: string;
+  birth_date?: string;
+  nationality?: string;
+  gender?: string;
   ruc?: string;
+  has_ruc?: boolean;
   business_name?: string;
+  company_unit?: string;
+  applicant_position?: string;
+  request_reason?: string;
   email: string;
+  secondary_email?: string;
   phone: string;
+  secondary_phone?: string;
   province: string;
   city: string;
   address: string;
+  representative_identification_type?: string;
+  representative_identification?: string;
+  representative_names?: string;
+  representative_last_names?: string;
   validity: string;
   validity_display?: string;
   container_type?: string;
@@ -78,6 +95,22 @@ export interface SolicitudFirmaFilters {
   search?: string;
 }
 
+export type DocumentoPublicoFirma =
+  | 'cedula_anverso'
+  | 'cedula_reverso'
+  | 'selfie_cedula'
+  | 'ruc_pdf'
+  | 'constitucion_compania'
+  | 'nombramiento_representante'
+  | 'aceptacion_nombramiento'
+  | 'carta_autorizacion'
+  | 'cedula_representante'
+  | 'documento_adicional';
+
+export type SolicitudFirmaPublicPayload = Partial<SolicitudFirma> & {
+  archivos?: Partial<Record<DocumentoPublicoFirma, File | null>>;
+};
+
 export type PlanInteresDemo = 'BASICO' | 'PROFESIONAL' | 'EMPRESARIAL' | 'NO_SEGURO';
 
 export interface SolicitudDemoERP {
@@ -113,8 +146,19 @@ export const firmasService = {
     return data;
   },
 
-  createPublic: async (payload: Partial<SolicitudFirma>): Promise<{ id: number; mensaje: string }> => {
-    const { data } = await apiClient.post('/firmas/solicitudes-publicas/', payload);
+  createPublic: async (payload: SolicitudFirmaPublicPayload): Promise<{ id: number; request_number: string; mensaje: string }> => {
+    const formData = new FormData();
+    const { archivos = {}, ...fields } = payload;
+    Object.entries(fields).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      formData.append(key, typeof value === 'boolean' ? String(value) : String(value));
+    });
+    Object.entries(archivos).forEach(([key, file]) => {
+      if (file) formData.append(key, file);
+    });
+    const { data } = await apiClient.post('/firmas/solicitudes-publicas/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return data;
   },
 

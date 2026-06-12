@@ -1,9 +1,15 @@
+import logging
+
+from django.conf import settings
+from django.core.mail import send_mail
+from django.db import transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, parser_classes, permission_classes
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -20,10 +26,15 @@ from .serializers import (
     DocumentoSolicitudFirmaSerializer,
     DocumentoSolicitudFirmaUploadSerializer,
     HistorialEstadoSolicitudFirmaSerializer,
+    PUBLIC_DOCUMENT_FIELDS,
     SolicitudDemoERPSerializer,
     SolicitudFirmaElectronicaPublicSerializer,
     SolicitudFirmaElectronicaSerializer,
+    validate_document_file,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def is_super_admin(user):
@@ -43,7 +54,7 @@ class SolicitudFirmaElectronicaViewSet(viewsets.ModelViewSet):
     module_required = 'firmas_electronicas'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'request_type', 'source', 'interested_plan', 'provider']
-    search_fields = ['first_name', 'last_name', 'identification', 'ruc', 'business_name', 'email', 'phone']
+    search_fields = ['request_number', 'first_name', 'last_name', 'second_last_name', 'identification', 'ruc', 'business_name', 'email', 'phone']
     ordering_fields = ['created_at', 'updated_at', 'status', 'sale_price', 'margin']
     ordering = ['-created_at']
 
@@ -133,17 +144,64 @@ class DocumentoSolicitudFirmaViewSet(viewsets.ReadOnlyModelViewSet):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@parser_classes([MultiPartParser, FormParser])
 def crear_solicitud_publica(request):
-    serializer = SolicitudFirmaElectronicaPublicSerializer(data=request.data, context={'request': request})
-    serializer.is_valid(raise_exception=True)
-    solicitud = serializer.save()
+    with transaction.atomic():
+        serializer = SolicitudFirmaElectronicaPublicSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        solicitud = serializer.save()
+        for field_name, document_type in PUBLIC_DOCUMENT_FIELDS.items():
+            file = request.FILES.get(field_name)
+            if not file:
+                continue
+            validate_document_file(file)
+            DocumentoSolicitudFirma.objects.create(
+                request=solicitud,
+                document_type=document_type,
+                file=file,
+                file_name=getattr(file, 'name', ''),
+                mime_type=getattr(file, 'content_type', '') or '',
+            )
+
+    notificar_solicitud_publica(request, solicitud)
     return Response(
         {
             'id': solicitud.id,
-            'mensaje': 'Hemos recibido tu solicitud. Un asesor de OF1 Solutions se comunicará contigo para continuar el proceso.',
+            'request_number': solicitud.request_number,
+            'mensaje': f'Tu solicitud {solicitud.request_number} fue registrada correctamente.',
         },
         status=status.HTTP_201_CREATED,
     )
+
+
+def notificar_solicitud_publica(request, solicitud):
+    documents = ', '.join(solicitud.documents.values_list('document_type', flat=True)) or 'Sin documentos'
+    admin_url = request.build_absolute_uri(f'/firmas-electronicas?solicitud={solicitud.id}')
+    subject = f'Nueva solicitud de firma {solicitud.request_number}'
+    message = (
+        'Nueva solicitud de firma electronica\n\n'
+        f'Numero: {solicitud.request_number}\n'
+        f'Tipo: {solicitud.get_request_type_display()}\n'
+        f'Cliente: {solicitud.full_name}\n'
+        f'Identificacion: {solicitud.identification}\n'
+        f'RUC: {solicitud.ruc or "-"}\n'
+        f'Empresa: {solicitud.business_name or "-"}\n'
+        f'Correo: {solicitud.email}\n'
+        f'Telefono: {solicitud.phone}\n'
+        f'Ubicacion: {solicitud.city}, {solicitud.province}\n'
+        f'Documentos: {documents}\n\n'
+        f'Revisar en administracion: {admin_url}\n'
+    )
+    try:
+        send_mail(
+            subject,
+            message,
+            getattr(settings, 'DEFAULT_FROM_EMAIL', '') or 'info@of1solutions.com',
+            ['info@of1solutions.com'],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception('No se pudo enviar correo de solicitud de firma %s', solicitud.request_number)
 
 
 @api_view(['POST'])
@@ -155,7 +213,7 @@ def crear_demo_publica(request):
     return Response(
         {
             'id': demo.id,
-            'mensaje': 'Hemos recibido tu solicitud. Un asesor de OF1 Solutions se comunicará contigo para agendar la demostración.',
+            'mensaje': 'Hemos recibido tu solicitud. Un asesor de OF1 Solutions se comunicara contigo para agendar la demostracion.',
         },
         status=status.HTTP_201_CREATED,
     )
