@@ -1,0 +1,85 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: facturaof1_automation_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - facturaof1_automation_net
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: facturaof1_n8n
+    restart: unless-stopped
+    ports:
+      - "${N8N_PORT}:5678"
+    environment:
+      TZ: ${TZ}
+      GENERIC_TIMEZONE: ${TZ}
+
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+
+      FACTURAOF1_API_URL: ${FACTURAOF1_API_URL}
+      FACTURAOF1_API_TOKEN: ${FACTURAOF1_API_TOKEN}
+      FACTURAOF1_SIGNATURE_FORM_URL: ${FACTURAOF1_SIGNATURE_FORM_URL}
+
+      AI_PROVIDER: ${AI_PROVIDER}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL}
+
+      MAIL_FROM: ${MAIL_FROM}
+      MAIL_INTERNAL_TO: ${MAIL_INTERNAL_TO}
+      MAIL_INFO_TO: ${MAIL_INFO_TO}
+    depends_on:
+      - postgres
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - facturaof1_automation_net
+
+  openwa:
+    image: openwa/wa-automate:latest
+    container_name: facturaof1_openwa
+    restart: unless-stopped
+    ports:
+      - "${OPENWA_PORT}:8080"
+    environment:
+      PORT: 8080
+      WEBHOOK: ${OPENWA_WEBHOOK_URL}
+      TZ: ${TZ}
+    volumes:
+      - ./openwa/session:/app/session
+    networks:
+      - facturaof1_automation_net
+
+volumes:
+  postgres_data:
+  n8n_data:
+
+networks:
+  facturaof1_automation_net:
+    driver: bridge

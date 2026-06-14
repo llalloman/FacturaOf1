@@ -152,6 +152,17 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request_type = attrs.get('request_type') or getattr(self.instance, 'request_type', None)
+        has_ruc = attrs.get('has_ruc', getattr(self.instance, 'has_ruc', False))
+        identification = attrs.get('identification', getattr(self.instance, 'identification', ''))
+
+        if request_type == SolicitudFirmaElectronica.TipoSolicitud.PERSONA_NATURAL:
+            if has_ruc:
+                digits = re.sub(r'\D', '', identification or '')
+                if not attrs.get('ruc') and len(digits) == 10:
+                    attrs['ruc'] = f'{digits}001'
+            else:
+                attrs['ruc'] = ''
+
         required = [
             'identification_type', 'first_name', 'last_name', 'identification',
             'fingerprint_code', 'birth_date', 'nationality', 'gender',
@@ -163,6 +174,8 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
             SolicitudFirmaElectronica.TipoSolicitud.MIEMBRO_EMPRESA,
         ):
             required += ['ruc', 'business_name', 'applicant_position']
+        elif has_ruc:
+            required += ['ruc']
 
         if request_type == SolicitudFirmaElectronica.TipoSolicitud.MIEMBRO_EMPRESA:
             required += [

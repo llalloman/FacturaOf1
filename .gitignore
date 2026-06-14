@@ -64,3 +64,9 @@ celerybeat.pid
 htmlcov/
 .pytest_cache/
 .tox/
+
+# FacturaOF1 automation
+automation/.env
+automation/openwa/session/*
+!automation/openwa/session/.gitkeep
+automation/n8n/.n8n

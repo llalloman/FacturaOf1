@@ -63,6 +63,11 @@ const tipoLabels: Record<TipoSolicitudFirma, string> = {
   REPRESENTANTE_LEGAL: 'Representante Legal',
 };
 
+const buildNaturalRuc = (identification?: string) => {
+  const digits = (identification ?? '').replace(/\D/g, '');
+  return digits.length === 10 ? `${digits}001` : '';
+};
+
 const inputClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100';
 const labelClass = 'mb-1.5 block text-xs font-semibold uppercase text-slate-500';
 
@@ -134,6 +139,13 @@ export default function SolicitarFirmaElectronicaPage() {
       if (field === 'request_type') {
         next.archivos = {};
         next.has_ruc = value !== 'PERSONA_NATURAL';
+        next.ruc = value === 'PERSONA_NATURAL' ? '' : next.ruc;
+      }
+      if (field === 'identification' && next.request_type === 'PERSONA_NATURAL' && next.has_ruc) {
+        next.ruc = buildNaturalRuc(String(value));
+      }
+      if (field === 'has_ruc' && next.request_type === 'PERSONA_NATURAL') {
+        next.ruc = value ? buildNaturalRuc(next.identification) : '';
       }
       return next;
     });
@@ -309,6 +321,9 @@ export default function SolicitarFirmaElectronicaPage() {
                   <>
                     <Field label="Nro. RUC *">
                       <input className={inputClass} value={form.ruc ?? ''} onChange={(e) => setField('ruc', e.target.value)} />
+                      {!isCompanyRequest && (
+                        <p className="mt-1 text-xs text-slate-500">Se autocompleta con la cédula seguida de 001.</p>
+                      )}
                     </Field>
                     <Field label="Nombre empresa *">
                       <input className={inputClass} value={form.business_name ?? ''} onChange={(e) => setField('business_name', e.target.value)} />
