@@ -6,6 +6,7 @@ import {
   BarChart3,
   ShoppingCart,
   Star,
+  FileSignature,
 } from 'lucide-react';
 
 const BENEFITS = [
@@ -165,7 +166,7 @@ export default function HeroSection() {
             </ul>
 
             {/* CTAs */}
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
               <Link
                 to="/solicitar-demo"
                 className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-base rounded-xl shadow-xl shadow-blue-700/30 hover:shadow-blue-500/40 transition-all hover:-translate-y-px"
@@ -179,14 +180,18 @@ export default function HeroSection() {
               >
                 Quiero empezar a facturar
               </Link>
+              <Link
+                to="/solicitar-firma-electronica"
+                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-white text-blue-700 hover:bg-blue-50 font-bold text-base rounded-xl shadow-xl shadow-black/10 transition-all hover:-translate-y-px"
+              >
+                <FileSignature className="w-4 h-4" />
+                Solicitar firma electrónica
+              </Link>
             </div>
 
             <p className="text-slate-500 text-xs mt-4">
               Pensado para Ecuador · Compatible con procesos del SRI · Soporte personalizado · Firma electrónica disponible
             </p>
-            <Link to="/solicitar-firma-electronica" className="mt-3 inline-flex text-sm font-semibold text-blue-300 hover:text-blue-200">
-              ¿Solo necesitas firma electrónica?
-            </Link>
           </div>
 
           {/* Right: dashboard mock */}

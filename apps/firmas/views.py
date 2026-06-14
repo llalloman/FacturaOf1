@@ -1,4 +1,5 @@
 import logging
+import os
 
 from django.conf import settings
 from django.core.mail import send_mail
@@ -139,7 +140,25 @@ class DocumentoSolicitudFirmaViewSet(viewsets.ReadOnlyModelViewSet):
         documento = self.get_object()
         if not user_can_access_request(request.user, documento.request):
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
-        return FileResponse(documento.file.open('rb'), as_attachment=True, filename=documento.file_name)
+        if not documento.file or not documento.file.storage.exists(documento.file.name):
+            logger.warning(
+                'Documento de firma no encontrado en storage. documento_id=%s path=%s',
+                documento.id,
+                getattr(documento.file, 'name', ''),
+            )
+            return Response(
+                {
+                    'detail': 'El archivo no está disponible en el almacenamiento. Vuelve a cargar el documento.',
+                    'code': 'file_missing',
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return FileResponse(
+            documento.file.open('rb'),
+            as_attachment=False,
+            filename=documento.file_name or os.path.basename(documento.file.name),
+            content_type=documento.mime_type or 'application/octet-stream',
+        )
 
 
 @api_view(['POST'])

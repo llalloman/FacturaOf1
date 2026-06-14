@@ -71,6 +71,16 @@ export default function LandingHeader() {
           {/* CTA desktop */}
           <div className="hidden lg:flex items-center gap-3">
             <Link
+              to="/solicitar-firma-electronica"
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                scrolled
+                  ? 'text-blue-700 hover:bg-blue-50'
+                  : 'text-blue-100 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Firma electrónica
+            </Link>
+            <Link
               to="/login"
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                 scrolled
@@ -130,6 +140,13 @@ export default function LandingHeader() {
               className="block w-full text-center py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors"
             >
               Solicitar demostración
+            </Link>
+            <Link
+              to="/solicitar-firma-electronica"
+              onClick={() => setMenuOpen(false)}
+              className="block w-full text-center py-2.5 text-blue-700 border border-blue-100 rounded-lg text-sm font-semibold hover:bg-blue-50 transition-colors"
+            >
+              Solicitar firma electrónica
             </Link>
           </div>
         </div>

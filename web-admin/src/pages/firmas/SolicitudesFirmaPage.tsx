@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileSignature, Loader2, MessageCircle, RefreshCw, Save, Upload } from 'lucide-react';
-import { firmasService, type EstadoSolicitudFirma, type SolicitudFirma, type SolicitudFirmaFilters } from '../../services/firmasService';
+import { Download, Eye, FileSignature, Loader2, MessageCircle, RefreshCw, Save, Upload } from 'lucide-react';
+import { firmasService, type DocumentoSolicitudFirma, type EstadoSolicitudFirma, type SolicitudFirma, type SolicitudFirmaFilters } from '../../services/firmasService';
 import { useToast } from '../../hooks/useToast';
 
 const estados: Array<{ value: EstadoSolicitudFirma; label: string; color: string }> = [
@@ -99,6 +99,35 @@ export default function SolicitudesFirmaPage() {
       showToast('No se pudo cargar el documento', 'error');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const openDocument = async (doc: DocumentoSolicitudFirma, mode: 'view' | 'download') => {
+    if (doc.file_available === false) {
+      showToast('El archivo no está disponible. Vuelve a subirlo.', 'error');
+      return;
+    }
+    try {
+      const blob = await firmasService.downloadDocument(doc.id);
+      const url = URL.createObjectURL(blob);
+      if (mode === 'download') {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = doc.file_name || doc.document_type_display || 'documento';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      showToast(
+        status === 404 ? 'El archivo no está disponible. Vuelve a subirlo.' : 'No se pudo abrir el documento',
+        'error',
+      );
     }
   };
 
@@ -265,10 +294,35 @@ export default function SolicitudesFirmaPage() {
                 </div>
                 <div className="space-y-2">
                   {(selected.documents ?? []).map((doc) => (
-                    <a key={doc.id} href={doc.download_url} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm hover:bg-slate-50">
-                      <span>{doc.document_type_display}</span>
-                      <span className="truncate pl-4 text-slate-400">{doc.file_name}</span>
-                    </a>
+                    <div key={doc.id} className="flex flex-col gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm hover:bg-slate-50 md:flex-row md:items-center md:justify-between">
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-700">{doc.document_type_display}</p>
+                        <p className="truncate text-xs text-slate-400">{doc.file_name}</p>
+                        {doc.file_available === false && (
+                          <p className="mt-1 text-xs font-medium text-amber-600">Archivo no disponible. Vuelve a subir este documento.</p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openDocument(doc, 'view')}
+                          disabled={doc.file_available === false}
+                          className="inline-flex items-center gap-1 rounded-lg border border-blue-100 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300 disabled:hover:bg-transparent"
+                        >
+                          <Eye size={14} />
+                          Ver
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openDocument(doc, 'download')}
+                          disabled={doc.file_available === false}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300 disabled:hover:bg-transparent"
+                        >
+                          <Download size={14} />
+                          Descargar
+                        </button>
+                      </div>
+                    </div>
                   ))}
                   {(selected.documents ?? []).length === 0 && <p className="text-sm text-slate-400">Sin documentos cargados.</p>}
                 </div>

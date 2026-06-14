@@ -46,21 +46,30 @@ class DocumentoSolicitudFirmaSerializer(serializers.ModelSerializer):
     document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     download_url = serializers.SerializerMethodField()
+    file_available = serializers.SerializerMethodField()
 
     class Meta:
         model = DocumentoSolicitudFirma
         fields = [
             'id', 'request', 'document_type', 'document_type_display',
             'file_name', 'mime_type', 'status', 'status_display',
-            'uploaded_at', 'download_url',
+            'uploaded_at', 'download_url', 'file_available',
         ]
-        read_only_fields = ['request', 'file_name', 'mime_type', 'uploaded_at', 'download_url']
+        read_only_fields = ['request', 'file_name', 'mime_type', 'uploaded_at', 'download_url', 'file_available']
 
     def get_download_url(self, obj):
         request = self.context.get('request')
         if not request:
             return None
         return request.build_absolute_uri(f'/api/firmas/documentos/{obj.id}/descargar/')
+
+    def get_file_available(self, obj):
+        if not obj.file:
+            return False
+        try:
+            return obj.file.storage.exists(obj.file.name)
+        except Exception:
+            return False
 
 
 class DocumentoSolicitudFirmaUploadSerializer(serializers.ModelSerializer):

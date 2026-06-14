@@ -75,6 +75,7 @@ export interface DocumentoSolicitudFirma {
   status_display: string;
   uploaded_at: string;
   download_url?: string;
+  file_available?: boolean;
 }
 
 export interface HistorialSolicitudFirma {
@@ -183,6 +184,13 @@ export const firmasService = {
     formData.append('file', file);
     const { data } = await apiClient.post(`/firmas/solicitudes/${id}/documentos/`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
+  downloadDocument: async (id: number): Promise<Blob> => {
+    const { data } = await apiClient.get(`/firmas/documentos/${id}/descargar/`, {
+      responseType: 'blob',
     });
     return data;
   },
