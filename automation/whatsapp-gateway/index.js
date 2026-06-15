@@ -39,11 +39,22 @@ function normalizePhone(phone) {
 async function startWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState("./session");
 
-  sock = makeWASocket({
-    auth: state,
-    logger: pino({ level: "silent" }),
-    printQRInTerminal: false
-  });
+const { version, isLatest } = await fetchLatestBaileysVersion();
+
+console.log("Usando versión de WhatsApp Web:", version, {
+  isLatest
+});
+
+sock = makeWASocket({
+  version,
+  auth: state,
+  logger: pino({ level: "silent" }),
+  browser: Browsers.ubuntu("Chrome"),
+  syncFullHistory: false,
+  connectTimeoutMs: 60_000,
+  defaultQueryTimeoutMs: 60_000,
+  printQRInTerminal: false
+});
 
   sock.ev.on("creds.update", saveCreds);
 
