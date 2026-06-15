@@ -122,6 +122,7 @@ export default function SolicitarFirmaElectronicaPage() {
   const [form, setForm] = useState<SolicitudFirmaPublicPayload>(baseForm);
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const [error, setError] = useState('');
   const [confirmed, setConfirmed] = useState<{ requestNumber: string; message: string } | null>(null);
 
@@ -206,15 +207,25 @@ export default function SolicitarFirmaElectronicaPage() {
     if (!validateStep()) return;
     setLoading(true);
     setError('');
+    setUploadProgress('Registrando solicitud...');
     try {
       const result = await firmasService.createPublic(form);
-      setConfirmed({ requestNumber: result.request_number, message: result.mensaje });
+      const filesToUpload = Object.entries(form.archivos ?? {}).filter((entry): entry is [DocumentoPublicoFirma, File] => Boolean(entry[1]));
+      for (let index = 0; index < filesToUpload.length; index += 1) {
+        const [documentKey, file] = filesToUpload[index];
+        setUploadProgress(`Subiendo documento ${index + 1} de ${filesToUpload.length}: ${file.name}`);
+        await firmasService.uploadPublicDocument(result.id, result.request_number, documentKey, file);
+      }
+      setUploadProgress('Finalizando solicitud...');
+      const finalized = await firmasService.finalizePublic(result.id, result.request_number);
+      setConfirmed({ requestNumber: finalized.request_number, message: finalized.mensaje });
       setStep(3);
     } catch (err) {
       const data = (err as { response?: { data?: unknown } })?.response?.data;
       setError(data ? JSON.stringify(data) : 'No se pudo enviar la solicitud. Intenta nuevamente.');
     } finally {
       setLoading(false);
+      setUploadProgress('');
     }
   };
 
@@ -248,6 +259,7 @@ export default function SolicitarFirmaElectronicaPage() {
 
         <form onSubmit={submit} className="mt-7 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           {error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+          {loading && uploadProgress && <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">{uploadProgress}</div>}
 
           {step === 0 && (
             <div className="space-y-5">

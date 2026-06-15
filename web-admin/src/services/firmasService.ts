@@ -112,6 +112,19 @@ export type SolicitudFirmaPublicPayload = Partial<SolicitudFirma> & {
   archivos?: Partial<Record<DocumentoPublicoFirma, File | null>>;
 };
 
+const publicDocumentTypeMap: Record<DocumentoPublicoFirma, string> = {
+  cedula_anverso: 'CEDULA_ANVERSO',
+  cedula_reverso: 'CEDULA_REVERSO',
+  selfie_cedula: 'SELFIE_CEDULA',
+  ruc_pdf: 'RUC_PDF',
+  constitucion_compania: 'CONSTITUCION_COMPANIA',
+  nombramiento_representante: 'NOMBRAMIENTO_REPRESENTANTE',
+  aceptacion_nombramiento: 'ACEPTACION_NOMBRAMIENTO',
+  carta_autorizacion: 'CARTA_AUTORIZACION',
+  cedula_representante: 'CEDULA_REPRESENTANTE',
+  documento_adicional: 'DOCUMENTO_ADICIONAL',
+};
+
 export type PlanInteresDemo = 'BASICO' | 'PROFESIONAL' | 'EMPRESARIAL' | 'NO_SEGURO';
 
 export interface SolicitudDemoERP {
@@ -148,16 +161,24 @@ export const firmasService = {
   },
 
   createPublic: async (payload: SolicitudFirmaPublicPayload): Promise<{ id: number; request_number: string; mensaje: string }> => {
+    const { archivos: _archivos, ...fields } = payload;
+    const { data } = await apiClient.post('/firmas/solicitudes-publicas/', fields);
+    return data;
+  },
+
+  uploadPublicDocument: async (id: number, requestNumber: string, documentKey: DocumentoPublicoFirma, file: File): Promise<DocumentoSolicitudFirma> => {
     const formData = new FormData();
-    const { archivos = {}, ...fields } = payload;
-    Object.entries(fields).forEach(([key, value]) => {
-      if (value === undefined || value === null) return;
-      formData.append(key, typeof value === 'boolean' ? String(value) : String(value));
+    formData.append('request_number', requestNumber);
+    formData.append('document_type', publicDocumentTypeMap[documentKey]);
+    formData.append('file', file);
+    const { data } = await apiClient.post(`/firmas/solicitudes-publicas/${id}/documentos/`, formData);
+    return data;
+  },
+
+  finalizePublic: async (id: number, requestNumber: string): Promise<{ id: number; request_number: string; mensaje: string }> => {
+    const { data } = await apiClient.post(`/firmas/solicitudes-publicas/${id}/finalizar/`, {
+      request_number: requestNumber,
     });
-    Object.entries(archivos).forEach(([key, file]) => {
-      if (file) formData.append(key, file);
-    });
-    const { data } = await apiClient.post('/firmas/solicitudes-publicas/', formData);
     return data;
   },
 

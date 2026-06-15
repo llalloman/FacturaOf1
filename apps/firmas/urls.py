@@ -1,7 +1,14 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import DocumentoSolicitudFirmaViewSet, SolicitudFirmaElectronicaViewSet, crear_demo_publica, crear_solicitud_publica
+from .views import (
+    DocumentoSolicitudFirmaViewSet,
+    SolicitudFirmaElectronicaViewSet,
+    crear_demo_publica,
+    crear_solicitud_publica,
+    finalizar_solicitud_publica,
+    subir_documento_solicitud_publica,
+)
 
 router = DefaultRouter()
 router.register(r'solicitudes', SolicitudFirmaElectronicaViewSet, basename='solicitudes-firma')
@@ -11,4 +18,6 @@ urlpatterns = [
     path('', include(router.urls)),
     path('demos-publicas/', crear_demo_publica, name='solicitud-demo-publica'),
     path('solicitudes-publicas/', crear_solicitud_publica, name='solicitud-firma-publica'),
+    path('solicitudes-publicas/<int:pk>/documentos/', subir_documento_solicitud_publica, name='solicitud-firma-publica-documento'),
+    path('solicitudes-publicas/<int:pk>/finalizar/', finalizar_solicitud_publica, name='solicitud-firma-publica-finalizar'),
 ]

@@ -182,7 +182,6 @@ def crear_solicitud_publica(request):
                 mime_type=getattr(file, 'content_type', '') or '',
             )
 
-    notificar_solicitud_publica(request, solicitud)
     return Response(
         {
             'id': solicitud.id,
@@ -190,6 +189,56 @@ def crear_solicitud_publica(request):
             'mensaje': f'Tu solicitud {solicitud.request_number} fue registrada correctamente.',
         },
         status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@parser_classes([MultiPartParser, FormParser])
+def subir_documento_solicitud_publica(request, pk):
+    solicitud = get_object_or_404(SolicitudFirmaElectronica, pk=pk)
+    request_number = request.data.get('request_number')
+    if request_number != solicitud.request_number:
+        return Response({'detail': 'Número de solicitud inválido.'}, status=status.HTTP_403_FORBIDDEN)
+
+    document_type = request.data.get('document_type')
+    allowed_types = set(PUBLIC_DOCUMENT_FIELDS.values())
+    if document_type not in allowed_types:
+        return Response({'document_type': 'Tipo de documento no permitido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    file = request.FILES.get('file')
+    if not file:
+        return Response({'file': 'Este campo es requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    validate_document_file(file)
+    documento = DocumentoSolicitudFirma.objects.create(
+        request=solicitud,
+        document_type=document_type,
+        file=file,
+        file_name=getattr(file, 'name', ''),
+        mime_type=getattr(file, 'content_type', '') or '',
+    )
+    return Response(
+        DocumentoSolicitudFirmaSerializer(documento, context={'request': request}).data,
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def finalizar_solicitud_publica(request, pk):
+    solicitud = get_object_or_404(SolicitudFirmaElectronica, pk=pk)
+    request_number = request.data.get('request_number')
+    if request_number != solicitud.request_number:
+        return Response({'detail': 'Número de solicitud inválido.'}, status=status.HTTP_403_FORBIDDEN)
+
+    notificar_solicitud_publica(request, solicitud)
+    return Response(
+        {
+            'id': solicitud.id,
+            'request_number': solicitud.request_number,
+            'mensaje': f'Tu solicitud {solicitud.request_number} fue registrada correctamente.',
+        }
     )
 
 
