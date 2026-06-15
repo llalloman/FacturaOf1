@@ -196,8 +196,10 @@ def crear_solicitud_publica(request):
 def notificar_solicitud_publica(request, solicitud):
     documents = ', '.join(solicitud.documents.values_list('document_type', flat=True)) or 'Sin documentos'
     admin_url = request.build_absolute_uri(f'/firmas-electronicas?solicitud={solicitud.id}')
-    subject = f'Nueva solicitud de firma {solicitud.request_number}'
-    message = (
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or 'info@of1solutions.com'
+
+    admin_subject = f'Nueva solicitud de firma {solicitud.request_number}'
+    admin_message = (
         'Nueva solicitud de firma electrónica\n\n'
         f'Número: {solicitud.request_number}\n'
         f'Tipo: {solicitud.get_request_type_display()}\n'
@@ -211,16 +213,40 @@ def notificar_solicitud_publica(request, solicitud):
         f'Documentos: {documents}\n\n'
         f'Revisar en administración: {admin_url}\n'
     )
+    cliente_subject = f'Solicitud de firma electrónica recibida {solicitud.request_number}'
+    cliente_message = (
+        f'Hola {solicitud.full_name},\n\n'
+        'Hemos recibido tu solicitud de firma electrónica en OF1 Solutions.\n\n'
+        f'Número de solicitud: {solicitud.request_number}\n'
+        f'Tipo de solicitud: {solicitud.get_request_type_display()}\n'
+        f'Identificación: {solicitud.identification}\n'
+        f'Correo registrado: {solicitud.email}\n\n'
+        'Un asesor revisará la información y documentación cargada para continuar el proceso.\n'
+        'Para confirmar el pago o consultar el estado de tu trámite, contáctanos por WhatsApp indicando tu número de solicitud.\n\n'
+        'Gracias por confiar en OF1 Solutions.\n'
+    )
+
     try:
         send_mail(
-            subject,
-            message,
-            getattr(settings, 'DEFAULT_FROM_EMAIL', '') or 'info@of1solutions.com',
+            admin_subject,
+            admin_message,
+            from_email,
             ['info@of1solutions.com'],
             fail_silently=False,
         )
     except Exception:
-        logger.exception('No se pudo enviar correo de solicitud de firma %s', solicitud.request_number)
+        logger.exception('No se pudo enviar correo interno de solicitud de firma %s', solicitud.request_number)
+
+    try:
+        send_mail(
+            cliente_subject,
+            cliente_message,
+            from_email,
+            [solicitud.email],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception('No se pudo enviar correo al cliente de solicitud de firma %s', solicitud.request_number)
 
 
 @api_view(['POST'])
