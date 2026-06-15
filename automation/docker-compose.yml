@@ -74,6 +74,11 @@ services:
       PORT: 8080
       WEBHOOK: ${OPENWA_WEBHOOK_URL}
       TZ: ${TZ}
+      WA_POPUP: "false"
+      WA_DISABLE_SPINS: "true"
+      WA_USE_CHROME: "true"
+      WA_IN_DOCKER: "true"
+      WA_QR_TIMEOUT: "0"
     volumes:
       - ./openwa/session:/sessions
     networks:
