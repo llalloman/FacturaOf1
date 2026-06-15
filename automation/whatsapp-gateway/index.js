@@ -5,7 +5,9 @@ import pino from "pino";
 import {
   makeWASocket,
   useMultiFileAuthState,
-  DisconnectReason
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  Browsers
 } from "@whiskeysockets/baileys";
 
 const PORT = Number(process.env.WHATSAPP_GATEWAY_PORT || 8081);
