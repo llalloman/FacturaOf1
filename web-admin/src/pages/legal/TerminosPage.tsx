@@ -234,7 +234,7 @@ export default function TerminosPage() {
               <a href="mailto:info@of1solutions.com" className="text-blue-600 hover:underline font-semibold">
                 info@of1solutions.com
               </a>{' '}
-              o al teléfono <a href="tel:+593983904993" className="text-blue-600 hover:underline font-semibold">+593 98 390 4993</a>.
+              o al teléfono <a href="tel:+593995298989" className="text-blue-600 hover:underline font-semibold">+593 99 529 8989</a>.
             </p>
           </section>
 

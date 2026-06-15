@@ -32,7 +32,7 @@ const documentTypes = [
 
 const badgeFor = (status?: string) => estados.find((e) => e.value === status)?.color ?? 'bg-slate-100 text-slate-600';
 const whatsappFor = (requestNumber?: string) => (
-  `https://api.whatsapp.com/send/?phone=593983904993&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma número ${requestNumber ?? ''}`)}&type=phone_number&app_absent=0`
+  `https://api.whatsapp.com/send/?phone=593995298989&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma número ${requestNumber ?? ''}`)}&type=phone_number&app_absent=0`
 );
 
 export default function SolicitudesFirmaPage() {

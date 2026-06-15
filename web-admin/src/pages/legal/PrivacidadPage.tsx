@@ -51,7 +51,7 @@ export default function PrivacidadPage() {
                 <a href="mailto:info@of1solutions.com" className="text-blue-600 hover:underline">info@of1solutions.com</a>
               </li>
               <li><strong>Teléfono:</strong>{' '}
-                <a href="tel:+593983904993" className="text-blue-600 hover:underline">+593 98 390 4993</a>
+                <a href="tel:+593995298989" className="text-blue-600 hover:underline">+593 99 529 8989</a>
               </li>
             </ul>
           </section>

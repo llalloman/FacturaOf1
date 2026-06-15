@@ -411,7 +411,7 @@ export default function BienvenidaPage() {
             ¿Tienes dudas? Nuestro equipo está disponible para ayudarte a configurar la plataforma.
           </p>
           <a
-            href="https://wa.me/593983904993?text=Hola%2C%20necesito%20ayuda%20con%20OF1%20Solutions"
+            href="https://wa.me/593995298989?text=Hola%2C%20necesito%20ayuda%20con%20OF1%20Solutions"
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl transition-colors shadow-lg"

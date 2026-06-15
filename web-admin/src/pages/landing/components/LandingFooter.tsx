@@ -68,11 +68,11 @@ export default function LandingFooter() {
                 info@of1solutions.com
               </a>
               <a
-                href="tel:+593983904993"
+                href="tel:+593995298989"
                 className="flex items-center gap-2.5 text-slate-400 hover:text-white text-sm transition-colors"
               >
                 <Phone className="w-4 h-4 text-blue-500" />
-                +593 98 390 4993
+                +593 99 529 8989
               </a>
             </div>
 

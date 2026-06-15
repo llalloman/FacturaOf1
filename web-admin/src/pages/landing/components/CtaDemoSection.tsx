@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Play, ArrowRight } from 'lucide-react';
+import { FileSignature, Play, ArrowRight } from 'lucide-react';
 
 export default function CtaDemoSection() {
   return (
@@ -36,6 +36,13 @@ export default function CtaDemoSection() {
           >
             Quiero empezar a facturar
             <ArrowRight className="w-4 h-4" />
+          </Link>
+          <Link
+            to="/solicitar-firma-electronica"
+            className="inline-flex items-center justify-center gap-2.5 px-8 py-4 border-2 border-emerald-200 text-emerald-700 font-bold text-base rounded-xl hover:bg-emerald-50 transition-all"
+          >
+            <FileSignature className="w-4 h-4" />
+            Obtener firma electrónica
           </Link>
         </div>
 
