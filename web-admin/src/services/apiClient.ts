@@ -28,6 +28,9 @@ apiClient.interceptors.request.use(
     const isPublicEndpoint =
       url.includes('/firmas/solicitudes-publicas/') ||
       url.includes('/firmas/demos-publicas/');
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
     if (token && !isPublicEndpoint) {
       config.headers.Authorization = `Bearer ${token}`;
     }
