@@ -5,6 +5,8 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from .storage import SignatureDocumentStorage
+
 
 def firma_document_upload_to(instance, filename):
     request_number = instance.request.request_number or instance.request_id
@@ -182,7 +184,7 @@ class DocumentoSolicitudFirma(models.Model):
         verbose_name=_('solicitud'),
     )
     document_type = models.CharField(_('tipo de documento'), max_length=40, choices=TipoDocumento.choices)
-    file = models.FileField(_('archivo'), upload_to=firma_document_upload_to)
+    file = models.FileField(_('archivo'), upload_to=firma_document_upload_to, storage=SignatureDocumentStorage())
     file_name = models.CharField(_('nombre de archivo'), max_length=255)
     mime_type = models.CharField(_('tipo MIME'), max_length=120, blank=True)
     status = models.CharField(_('estado'), max_length=20, choices=EstadoDocumento.choices, default=EstadoDocumento.CARGADO)

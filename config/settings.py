@@ -11,6 +11,14 @@ from datetime import timedelta
 # Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def first_configured(*names, default=''):
+    for name in names:
+        value = config(name, default='').strip()
+        if value:
+            return value
+    return default
+
 # ── Security settings ──────────────────────────────────────────────────────────
 # SECRET_KEY MUST come from environment. No insecure defaults.
 _secret = config('SECRET_KEY', default='')
@@ -142,6 +150,31 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Documentos de firma electrónica
+# Usa almacenamiento local por defecto. En producción, configura:
+# SIGNATURE_DOCUMENTS_STORAGE=s3 y las variables AWS_* o R2_* del .env.
+SIGNATURE_DOCUMENTS_STORAGE = config('SIGNATURE_DOCUMENTS_STORAGE', default='local').strip().lower()
+R2_ACCOUNT_ID = config('R2_ACCOUNT_ID', default='').strip()
+R2_BUCKET_NAME = config('R2_BUCKET_NAME', default='').strip()
+R2_PUBLIC_URL = config('R2_PUBLIC_URL', default='').strip().rstrip('/')
+
+AWS_ACCESS_KEY_ID = first_configured('AWS_ACCESS_KEY_ID', 'R2_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = first_configured('AWS_SECRET_ACCESS_KEY', 'R2_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = first_configured('AWS_STORAGE_BUCKET_NAME', 'R2_BUCKET_NAME')
+AWS_S3_ENDPOINT_URL = first_configured(
+    'AWS_S3_ENDPOINT_URL',
+    default=f'https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com' if R2_ACCOUNT_ID else '',
+)
+AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='auto').strip()
+AWS_S3_CUSTOM_DOMAIN = config('AWS_S3_CUSTOM_DOMAIN', default=R2_PUBLIC_URL).strip()
+AWS_DEFAULT_ACL = None
+AWS_QUERYSTRING_AUTH = config('AWS_QUERYSTRING_AUTH', default=True, cast=bool)
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': config('AWS_S3_CACHE_CONTROL', default='private, max-age=3600'),
+}
+if SIGNATURE_DOCUMENTS_STORAGE == 's3':
+    INSTALLED_APPS.append('storages')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
