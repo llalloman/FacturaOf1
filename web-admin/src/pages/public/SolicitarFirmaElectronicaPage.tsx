@@ -204,6 +204,10 @@ export default function SolicitarFirmaElectronicaPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (step < 3) {
+      next();
+      return;
+    }
     if (!validateStep()) return;
     setLoading(true);
     setError('');
@@ -230,7 +234,7 @@ export default function SolicitarFirmaElectronicaPage() {
   };
 
   const whatsappUrl = confirmed
-    ? `${whatsappBase}?phone=593995298989&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma número ${confirmed.requestNumber}`)}&type=phone_number&app_absent=0`
+    ? `${whatsappBase}?phone=593983904993&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma número ${confirmed.requestNumber}`)}&type=phone_number&app_absent=0`
     : '';
 
   return (
@@ -464,14 +468,14 @@ export default function SolicitarFirmaElectronicaPage() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 3 && confirmed && (
             <div className="py-12 text-center">
               <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
                 <CheckCircle2 size={34} />
               </div>
               <h2 className="text-2xl font-black text-slate-950">Solicitud registrada</h2>
-              <p className="mt-3 text-sm text-slate-600">{confirmed?.message}</p>
-              <p className="mt-4 text-3xl font-black text-blue-700">{confirmed?.requestNumber}</p>
+              <p className="mt-3 text-sm text-slate-600">{confirmed.message}</p>
+              <p className="mt-4 text-3xl font-black text-blue-700">{confirmed.requestNumber}</p>
               <a href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">
                 <MessageCircle size={18} />
                 Contactar para confirmar pago
@@ -479,21 +483,50 @@ export default function SolicitarFirmaElectronicaPage() {
             </div>
           )}
 
-          {step < 3 && (
+          {step === 3 && !confirmed && (
+            <div className="space-y-5">
+              <StepTitle title="Paso 4 - Confirmación" />
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-5">
+                <h3 className="text-base font-black text-slate-950">Confirma tu solicitud de firma electrónica</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  Al confirmar se registrará la solicitud, se cargarán los documentos y se enviará la notificación a OF1 Solutions.
+                </p>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-3">
+                <SummaryBlock title="Solicitante" rows={[
+                  ['Tipo', tipoLabels[form.request_type as TipoSolicitudFirma]],
+                  ['Nombre', `${form.first_name} ${form.last_name} ${form.second_last_name ?? ''}`],
+                  ['Identificación', `${form.identification_type}: ${form.identification}`],
+                ]} />
+                <SummaryBlock title="Contacto" rows={[
+                  ['Correo', form.email],
+                  ['Teléfono', form.phone],
+                  ['Ubicación', `${form.city}, ${form.province}`],
+                ]} />
+                <SummaryBlock title="Documentos" rows={[
+                  ['Cargados', Object.values(form.archivos ?? {}).filter(Boolean).length],
+                  ['Vigencia', form.validity],
+                  ['Contenedor', form.container_type],
+                ]} />
+              </div>
+            </div>
+          )}
+
+          {!confirmed && (
             <div className="mt-7 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-between">
-              <button type="button" onClick={previous} disabled={step === 0} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+              <button type="button" onClick={previous} disabled={step === 0 || loading} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
                 <ArrowLeft size={16} />
                 Anterior
               </button>
-              {step < 2 ? (
+              {step < 3 ? (
                 <button type="button" onClick={next} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">
-                  Siguiente
+                  {step === 2 ? 'Ir a confirmación' : 'Siguiente'}
                   <ArrowRight size={16} />
                 </button>
               ) : (
                 <button type="submit" disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                  Confirmar pedido
+                  Confirmar solicitud
                 </button>
               )}
             </div>
