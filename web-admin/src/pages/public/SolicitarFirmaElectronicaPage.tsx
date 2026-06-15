@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom';
 import {
   firmasService,
   type DocumentoPublicoFirma,
+  type PublicFinalizeResponse,
   type SolicitudFirmaPublicPayload,
   type TipoSolicitudFirma,
 } from '../../services/firmasService';
@@ -124,7 +125,11 @@ export default function SolicitarFirmaElectronicaPage() {
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const [error, setError] = useState('');
-  const [confirmed, setConfirmed] = useState<{ requestNumber: string; message: string } | null>(null);
+  const [confirmed, setConfirmed] = useState<{
+    requestNumber: string;
+    message: string;
+    emailStatus?: PublicFinalizeResponse['email_status'];
+  } | null>(null);
 
   const isCompanyRequest = form.request_type === 'MIEMBRO_EMPRESA' || form.request_type === 'REPRESENTANTE_LEGAL';
   const isMemberRequest = form.request_type === 'MIEMBRO_EMPRESA';
@@ -202,12 +207,7 @@ export default function SolicitarFirmaElectronicaPage() {
     setStep((current) => Math.max(current - 1, 0));
   };
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (step < 3) {
-      next();
-      return;
-    }
+  const confirmRequest = async () => {
     if (!validateStep()) return;
     setLoading(true);
     setError('');
@@ -222,7 +222,11 @@ export default function SolicitarFirmaElectronicaPage() {
       }
       setUploadProgress('Finalizando solicitud...');
       const finalized = await firmasService.finalizePublic(result.id, result.request_number);
-      setConfirmed({ requestNumber: finalized.request_number, message: finalized.mensaje });
+      setConfirmed({
+        requestNumber: finalized.request_number,
+        message: finalized.mensaje,
+        emailStatus: finalized.email_status,
+      });
       setStep(3);
     } catch (err) {
       const data = (err as { response?: { data?: unknown } })?.response?.data;
@@ -261,7 +265,7 @@ export default function SolicitarFirmaElectronicaPage() {
 
         <StepIndicator current={step} />
 
-        <form onSubmit={submit} className="mt-7 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mt-7 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           {error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
           {loading && uploadProgress && <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">{uploadProgress}</div>}
 
@@ -476,6 +480,13 @@ export default function SolicitarFirmaElectronicaPage() {
               <h2 className="text-2xl font-black text-slate-950">Solicitud registrada</h2>
               <p className="mt-3 text-sm text-slate-600">{confirmed.message}</p>
               <p className="mt-4 text-3xl font-black text-blue-700">{confirmed.requestNumber}</p>
+              {confirmed.emailStatus && (!confirmed.emailStatus.admin_sent || !confirmed.emailStatus.client_sent) && (
+                <div className="mx-auto mt-5 max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-800">
+                  La solicitud fue registrada, pero el servidor no confirmó todos los correos.
+                  {!confirmed.emailStatus.admin_sent && <p className="mt-1">Correo interno pendiente: {confirmed.emailStatus.admin_error || 'no confirmado por el proveedor SMTP'}.</p>}
+                  {!confirmed.emailStatus.client_sent && <p className="mt-1">Correo al cliente pendiente: {confirmed.emailStatus.client_error || 'no confirmado por el proveedor SMTP'}.</p>}
+                </div>
+              )}
               <a href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">
                 <MessageCircle size={18} />
                 Contactar para confirmar pago
@@ -520,18 +531,18 @@ export default function SolicitarFirmaElectronicaPage() {
               </button>
               {step < 3 ? (
                 <button type="button" onClick={next} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">
-                  {step === 2 ? 'Ir a confirmación' : 'Siguiente'}
+                  Siguiente
                   <ArrowRight size={16} />
                 </button>
               ) : (
-                <button type="submit" disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
+                <button type="button" onClick={confirmRequest} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                   Confirmar solicitud
                 </button>
               )}
             </div>
           )}
-        </form>
+        </div>
       </main>
     </div>
   );

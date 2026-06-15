@@ -232,12 +232,13 @@ def finalizar_solicitud_publica(request, pk):
     if request_number != solicitud.request_number:
         return Response({'detail': 'Número de solicitud inválido.'}, status=status.HTTP_403_FORBIDDEN)
 
-    notificar_solicitud_publica(request, solicitud)
+    email_status = notificar_solicitud_publica(request, solicitud)
     return Response(
         {
             'id': solicitud.id,
             'request_number': solicitud.request_number,
             'mensaje': f'Tu solicitud {solicitud.request_number} fue registrada correctamente.',
+            'email_status': email_status,
         }
     )
 
@@ -246,6 +247,12 @@ def notificar_solicitud_publica(request, solicitud):
     documents = ', '.join(solicitud.documents.values_list('document_type', flat=True)) or 'Sin documentos'
     admin_url = request.build_absolute_uri(f'/firmas-electronicas?solicitud={solicitud.id}')
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or 'info@of1solutions.com'
+    email_status = {
+        'admin_sent': False,
+        'client_sent': False,
+        'admin_error': '',
+        'client_error': '',
+    }
 
     admin_subject = f'Nueva solicitud de firma {solicitud.request_number}'
     admin_message = (
@@ -276,26 +283,32 @@ def notificar_solicitud_publica(request, solicitud):
     )
 
     try:
-        send_mail(
+        sent = send_mail(
             admin_subject,
             admin_message,
             from_email,
             ['info@of1solutions.com'],
             fail_silently=False,
         )
-    except Exception:
+        email_status['admin_sent'] = sent > 0
+    except Exception as exc:
+        email_status['admin_error'] = str(exc)
         logger.exception('No se pudo enviar correo interno de solicitud de firma %s', solicitud.request_number)
 
     try:
-        send_mail(
+        sent = send_mail(
             cliente_subject,
             cliente_message,
             from_email,
             [solicitud.email],
             fail_silently=False,
         )
-    except Exception:
+        email_status['client_sent'] = sent > 0
+    except Exception as exc:
+        email_status['client_error'] = str(exc)
         logger.exception('No se pudo enviar correo al cliente de solicitud de firma %s', solicitud.request_number)
+
+    return email_status
 
 
 @api_view(['POST'])

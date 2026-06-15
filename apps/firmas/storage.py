@@ -58,6 +58,8 @@ class SignatureDocumentStorage(Storage):
             bucket_name=required['bucket_name'],
             endpoint_url=required['endpoint_url'],
             region_name=getattr(settings, 'AWS_S3_REGION_NAME', 'auto'),
+            signature_version=getattr(settings, 'AWS_S3_SIGNATURE_VERSION', 's3v4'),
+            addressing_style=getattr(settings, 'AWS_S3_ADDRESSING_STYLE', 'path'),
             custom_domain=getattr(settings, 'AWS_S3_CUSTOM_DOMAIN', None) or None,
             default_acl=getattr(settings, 'AWS_DEFAULT_ACL', None),
             file_overwrite=False,

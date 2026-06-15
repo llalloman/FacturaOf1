@@ -112,6 +112,18 @@ export type SolicitudFirmaPublicPayload = Partial<SolicitudFirma> & {
   archivos?: Partial<Record<DocumentoPublicoFirma, File | null>>;
 };
 
+export interface PublicFinalizeResponse {
+  id: number;
+  request_number: string;
+  mensaje: string;
+  email_status?: {
+    admin_sent: boolean;
+    client_sent: boolean;
+    admin_error?: string;
+    client_error?: string;
+  };
+}
+
 const publicDocumentTypeMap: Record<DocumentoPublicoFirma, string> = {
   cedula_anverso: 'CEDULA_ANVERSO',
   cedula_reverso: 'CEDULA_REVERSO',
@@ -160,7 +172,7 @@ export const firmasService = {
     return data;
   },
 
-  createPublic: async (payload: SolicitudFirmaPublicPayload): Promise<{ id: number; request_number: string; mensaje: string }> => {
+  createPublic: async (payload: SolicitudFirmaPublicPayload): Promise<PublicFinalizeResponse> => {
     const { archivos: _archivos, ...fields } = payload;
     const { data } = await apiClient.post('/firmas/solicitudes-publicas/', fields);
     return data;
@@ -175,7 +187,7 @@ export const firmasService = {
     return data;
   },
 
-  finalizePublic: async (id: number, requestNumber: string): Promise<{ id: number; request_number: string; mensaje: string }> => {
+  finalizePublic: async (id: number, requestNumber: string): Promise<PublicFinalizeResponse> => {
     const { data } = await apiClient.post(`/firmas/solicitudes-publicas/${id}/finalizar/`, {
       request_number: requestNumber,
     });

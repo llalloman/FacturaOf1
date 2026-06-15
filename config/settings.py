@@ -168,6 +168,8 @@ AWS_S3_ENDPOINT_URL = first_configured(
 )
 AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='auto').strip()
 AWS_S3_CUSTOM_DOMAIN = config('AWS_S3_CUSTOM_DOMAIN', default=R2_PUBLIC_URL).strip()
+AWS_S3_SIGNATURE_VERSION = config('AWS_S3_SIGNATURE_VERSION', default='s3v4').strip()
+AWS_S3_ADDRESSING_STYLE = config('AWS_S3_ADDRESSING_STYLE', default='path').strip()
 AWS_DEFAULT_ACL = None
 AWS_QUERYSTRING_AUTH = config('AWS_QUERYSTRING_AUTH', default=True, cast=bool)
 AWS_S3_OBJECT_PARAMETERS = {
