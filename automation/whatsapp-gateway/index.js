@@ -1,0 +1,168 @@
+import express from "express";
+import axios from "axios";
+import qrcode from "qrcode-terminal";
+import pino from "pino";
+import {
+  makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason
+} from "@whiskeysockets/baileys";
+
+const PORT = Number(process.env.WHATSAPP_GATEWAY_PORT || 8081);
+const N8N_WEBHOOK_URL =
+  process.env.N8N_WEBHOOK_URL ||
+  "http://n8n:5678/webhook/whatsapp-inbound";
+
+const app = express();
+app.use(express.json({ limit: "10mb" }));
+
+let sock;
+let isReady = false;
+
+function normalizePhone(phone) {
+  const raw = String(phone || "").replace(/\D/g, "");
+  if (!raw) return null;
+
+  let normalized = raw;
+
+  if (normalized.startsWith("0")) {
+    normalized = `593${normalized.substring(1)}`;
+  }
+
+  if (!normalized.startsWith("593") && normalized.length === 9) {
+    normalized = `593${normalized}`;
+  }
+
+  return `${normalized}@s.whatsapp.net`;
+}
+
+async function startWhatsApp() {
+  const { state, saveCreds } = await useMultiFileAuthState("./session");
+
+  sock = makeWASocket({
+    auth: state,
+    logger: pino({ level: "silent" }),
+    printQRInTerminal: false
+  });
+
+  sock.ev.on("creds.update", saveCreds);
+
+  sock.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      console.log("======================================");
+      console.log("Escanea este QR con WhatsApp:");
+      qrcode.generate(qr, { small: true });
+      console.log("======================================");
+    }
+
+    if (connection === "open") {
+      isReady = true;
+      console.log("WhatsApp conectado correctamente.");
+    }
+
+    if (connection === "close") {
+      isReady = false;
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+      console.log("WhatsApp desconectado.", { statusCode, shouldReconnect });
+
+      if (shouldReconnect) {
+        setTimeout(startWhatsApp, 3000);
+      } else {
+        console.log(
+          "Sesión cerrada. Borra whatsapp-gateway/session y vuelve a escanear QR."
+        );
+      }
+    }
+  });
+
+  sock.ev.on("messages.upsert", async ({ messages }) => {
+    const message = messages?.[0];
+
+    if (!message || message.key.fromMe) return;
+
+    const remoteJid = message.key.remoteJid;
+
+    const text =
+      message.message?.conversation ||
+      message.message?.extendedTextMessage?.text ||
+      "";
+
+    if (!text) return;
+
+    const phone = remoteJid?.replace("@s.whatsapp.net", "");
+
+    console.log("Mensaje recibido:", { phone, text });
+
+    try {
+      await axios.post(N8N_WEBHOOK_URL, {
+        from: phone,
+        body: text,
+        channel: "whatsapp"
+      });
+    } catch (error) {
+      console.error(
+        "Error enviando mensaje a n8n:",
+        error.response?.data || error.message
+      );
+    }
+  });
+}
+
+app.get("/health", (req, res) => {
+  res.json({
+    ok: true,
+    ready: isReady
+  });
+});
+
+app.post("/sendText", async (req, res) => {
+  try {
+    if (!sock || !isReady) {
+      return res.status(503).json({
+        ok: false,
+        message: "WhatsApp no está conectado todavía."
+      });
+    }
+
+    const to = req.body.to || req.body.phone || req.body.args?.[0];
+    const message = req.body.message || req.body.text || req.body.args?.[1];
+
+    if (!to || !message) {
+      return res.status(400).json({
+        ok: false,
+        message: "Debe enviar to/phone y message/text."
+      });
+    }
+
+    const jid = String(to).includes("@")
+      ? String(to).replace("@c.us", "@s.whatsapp.net")
+      : normalizePhone(to);
+
+    await sock.sendMessage(jid, { text: message });
+
+    res.json({
+      ok: true,
+      to: jid,
+      message: "Mensaje enviado."
+    });
+  } catch (error) {
+    console.error("Error enviando WhatsApp:", error);
+    res.status(500).json({
+      ok: false,
+      message: error.message
+    });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`WhatsApp Gateway escuchando en puerto ${PORT}`);
+});
+
+startWhatsApp().catch((error) => {
+  console.error("Error iniciando WhatsApp:", error);
+  process.exit(1);
+});

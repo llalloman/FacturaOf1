@@ -61,28 +61,22 @@ services:
     networks:
       - facturaof1_automation_net
 
-  openwa:
+  whatsapp-gateway:
     build:
-      context: ./openwa
+      context: ./whatsapp-gateway
       dockerfile: Dockerfile
-    container_name: facturaof1_openwa
+    container_name: facturaof1_whatsapp_gateway
     restart: unless-stopped
-    user: root
-    shm_size: "1gb"
     ports:
-      - "${OPENWA_PORT}:8080"
+      - "8081:8081"
     environment:
-      PORT: 8080
+      WHATSAPP_GATEWAY_PORT: 8081
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/whatsapp-inbound
       TZ: ${TZ}
-      WA_USE_CHROME: "true"
-      WA_IN_DOCKER: "true"
-      WA_HEADFUL: "false"
-      WA_POPUP: "false"
-      WA_DISABLE_SPINS: "true"
-      WA_QR_TIMEOUT: "0"
-      WA_WEBHOOK: ${OPENWA_WEBHOOK_URL}
     volumes:
-      - ./openwa/session:/sessions
+      - ./whatsapp-gateway/session:/app/session
+    depends_on:
+      - n8n
     networks:
       - facturaof1_automation_net
 
