@@ -62,7 +62,9 @@ services:
       - facturaof1_automation_net
 
   openwa:
-    image: openwa/wa-automate:latest
+    build:
+      context: ./openwa
+      dockerfile: Dockerfile
     container_name: facturaof1_openwa
     restart: unless-stopped
     ports:
@@ -72,7 +74,7 @@ services:
       WEBHOOK: ${OPENWA_WEBHOOK_URL}
       TZ: ${TZ}
     volumes:
-      - ./openwa/session:/app/session
+      - ./openwa/session:/sessions
     networks:
       - facturaof1_automation_net
 
