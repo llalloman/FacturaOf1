@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ToastContainer from './components/ToastContainer';
 import ConfirmModal from './components/ConfirmModal';
 import ModuloGuard from './components/ModuloGuard';
+import WhatsAppHelpWidget from './components/WhatsAppHelpWidget';
 import { useSubscriptionStatus } from './hooks/useSubscriptionStatus';
 import { Loader2 } from 'lucide-react';
 
@@ -339,6 +340,7 @@ function App() {
         <AppRoutes />
         <ToastContainer />
         <ConfirmModal />
+        <WhatsAppHelpWidget />
       </BrowserRouter>
     </QueryClientProvider>
   );
