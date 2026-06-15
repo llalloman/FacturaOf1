@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import {
   ArrowLeft,
@@ -412,13 +412,13 @@ export default function SolicitarFirmaElectronicaPage() {
                 <SummaryBlock title="Solicitante" rows={[
                   ['Tipo', tipoLabels[form.request_type as TipoSolicitudFirma]],
                   ['Identificación', `${form.identification_type}: ${form.identification}`],
-                  ['Codigo dactilar', form.fingerprint_code],
+                  ['Código dactilar', form.fingerprint_code],
                   ['Nombre', `${form.first_name} ${form.last_name} ${form.second_last_name ?? ''}`],
                   ['Nacimiento', form.birth_date],
                   ['Nacionalidad', form.nationality],
                   ['Sexo', form.gender],
                 ]} />
-                <SummaryBlock title="Contacto y ubicacion" rows={[
+                <SummaryBlock title="Contacto y ubicación" rows={[
                   ['Teléfono', form.phone],
                   ['Teléfono 2', form.secondary_phone],
                   ['Correo', form.email],
@@ -438,12 +438,14 @@ export default function SolicitarFirmaElectronicaPage() {
               </div>
               <div className="rounded-lg border border-slate-200 p-4">
                 <h3 className="mb-3 text-sm font-bold text-slate-700">Documentos cargados</h3>
-                <div className="grid gap-2 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {documentConfig.map((doc) => (
-                    <div key={doc.key} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                      <span className="font-medium text-slate-700">{doc.label}</span>
-                      <span className="truncate pl-3 text-slate-500">{form.archivos?.[doc.key]?.name ?? (doc.required ? 'Pendiente' : 'Opcional')}</span>
-                    </div>
+                    <DocumentPreviewCard
+                      key={doc.key}
+                      label={doc.label}
+                      required={Boolean(doc.required)}
+                      file={form.archivos?.[doc.key] ?? null}
+                    />
                   ))}
                 </div>
               </div>
@@ -544,6 +546,53 @@ function FileDrop({ config, file, onFile }: { config: DocumentConfig; file: File
         )}
       </div>
     </label>
+  );
+}
+
+function DocumentPreviewCard({ label, required, file }: { label: string; required: boolean; file: File | null }) {
+  const [previewUrl, setPreviewUrl] = useState('');
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl('');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const isImage = Boolean(file?.type.startsWith('image/'));
+  const isPdf = file?.type === 'application/pdf' || file?.name.toLowerCase().endsWith('.pdf');
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-slate-800">{label}</p>
+          <p className="truncate text-xs text-slate-500">{file?.name ?? (required ? 'Pendiente' : 'Opcional')}</p>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${file ? 'bg-emerald-100 text-emerald-700' : required ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'}`}>
+          {file ? 'Cargado' : required ? 'Falta' : 'Opcional'}
+        </span>
+      </div>
+      {file && previewUrl && (
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+          {isImage ? (
+            <img src={previewUrl} alt={label} className="h-44 w-full object-contain" />
+          ) : isPdf ? (
+            <div className="flex h-44 flex-col items-center justify-center gap-3">
+              <FileUp className="text-red-500" size={32} />
+              <a href={previewUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Ver PDF
+              </a>
+            </div>
+          ) : (
+            <div className="flex h-44 items-center justify-center text-sm text-slate-500">Vista previa no disponible</div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -205,6 +205,9 @@ CORS_ALLOWED_ORIGINS = [
     "https://facturaof1.of1solutions.com",
     "https://facturaof1-back.of1solutions.com",
 ] + _cors_extra_list
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.of1solutions\.com$",
+]
 CORS_ALLOW_CREDENTIALS = True
 
 _csrf_extra = config('CSRF_TRUSTED_ORIGINS', default='')
@@ -278,8 +281,9 @@ SRI_PRODUCCION_AUTORIZACION_URL = config(
 )
 
 # File Upload Settings
-FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+# El flujo público de firmas puede subir varios documentos de hasta 15 MB.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 120 * 1024 * 1024
 
 # ── Seguridad extra en producción (DEBUG=False) ────────────────────────────────
 if not DEBUG:

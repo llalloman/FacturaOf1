@@ -157,9 +157,7 @@ export const firmasService = {
     Object.entries(archivos).forEach(([key, file]) => {
       if (file) formData.append(key, file);
     });
-    const { data } = await apiClient.post('/firmas/solicitudes-publicas/', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const { data } = await apiClient.post('/firmas/solicitudes-publicas/', formData);
     return data;
   },
 
@@ -182,9 +180,7 @@ export const firmasService = {
     const formData = new FormData();
     formData.append('document_type', documentType);
     formData.append('file', file);
-    const { data } = await apiClient.post(`/firmas/solicitudes/${id}/documentos/`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const { data } = await apiClient.post(`/firmas/solicitudes/${id}/documentos/`, formData);
     return data;
   },
 

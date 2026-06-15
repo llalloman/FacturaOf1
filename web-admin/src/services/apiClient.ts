@@ -24,7 +24,11 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
-    if (token) {
+    const url = config.url || '';
+    const isPublicEndpoint =
+      url.includes('/firmas/solicitudes-publicas/') ||
+      url.includes('/firmas/demos-publicas/');
+    if (token && !isPublicEndpoint) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
