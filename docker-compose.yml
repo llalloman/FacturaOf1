@@ -1,21 +1,4 @@
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: facturaof1-db
-    environment:
-      POSTGRES_DB: ${DOCKER_DB_NAME:-facturacion_sri}
-      POSTGRES_USER: ${DOCKER_DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DOCKER_DB_PASSWORD:-postgres}
-    ports:
-      - "${DOCKER_DB_PORT:-5432}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DOCKER_DB_USER:-postgres} -d ${DOCKER_DB_NAME:-facturacion_sri}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   redis:
     image: redis:7-alpine
     container_name: facturaof1-redis
