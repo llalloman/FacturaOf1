@@ -7,4 +7,6 @@ RUN rm -f /etc/apt/sources.list.d/google-chrome.list \
     && apt-get install -y procps \
     && rm -rf /var/lib/apt/lists/*
 
-USER node
+# Importante:
+# No volver a USER node porque OpenWA intenta escribir en node_modules al iniciar.
+USER root
