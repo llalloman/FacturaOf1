@@ -123,9 +123,7 @@ sock = makeWASocket({
     if (!message || message.key.fromMe) return;
 
     const remoteJid = message.key.remoteJid;
-
     const { text, messageType, hasMedia } = getMessagePayload(message);
-    const remoteJid = message.key.remoteJid;
 
     let phone = remoteJid;
 
@@ -135,16 +133,6 @@ sock = makeWASocket({
       phone = remoteJid.replace("@s.whatsapp.net", "");
     }
 
-    await axios.post(N8N_WEBHOOK_URL, {
-      from: phone,
-      from_jid: remoteJid,
-      remote_jid: remoteJid,
-      body: text,
-      channel: "whatsapp",
-      message_id: message.key.id || "",
-      timestamp: message.messageTimestamp || Math.floor(Date.now() / 1000),
-      message_type: "text"
-    });
     const messageId = message.key?.id || "";
     const timestamp = Number(message.messageTimestamp || Math.floor(Date.now() / 1000));
 
@@ -153,6 +141,8 @@ sock = makeWASocket({
     try {
       await axios.post(N8N_WEBHOOK_URL, {
         from: phone,
+        from_jid: remoteJid,
+        remote_jid: remoteJid,
         body: text,
         channel: "whatsapp",
         message_id: messageId,
