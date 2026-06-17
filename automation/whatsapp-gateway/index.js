@@ -125,7 +125,26 @@ sock = makeWASocket({
     const remoteJid = message.key.remoteJid;
 
     const { text, messageType, hasMedia } = getMessagePayload(message);
-    const phone = remoteJid?.replace("@s.whatsapp.net", "");
+    const remoteJid = message.key.remoteJid;
+
+    let phone = remoteJid;
+
+    // Solo quitamos @s.whatsapp.net si realmente viene como número normal.
+    // Si viene como @lid, @g.us u otro JID, lo conservamos completo.
+    if (remoteJid?.endsWith("@s.whatsapp.net")) {
+      phone = remoteJid.replace("@s.whatsapp.net", "");
+    }
+
+    await axios.post(N8N_WEBHOOK_URL, {
+      from: phone,
+      from_jid: remoteJid,
+      remote_jid: remoteJid,
+      body: text,
+      channel: "whatsapp",
+      message_id: message.key.id || "",
+      timestamp: message.messageTimestamp || Math.floor(Date.now() / 1000),
+      message_type: "text"
+    });
     const messageId = message.key?.id || "";
     const timestamp = Number(message.messageTimestamp || Math.floor(Date.now() / 1000));
 
@@ -176,9 +195,13 @@ app.post("/sendText", async (req, res) => {
       });
     }
 
-    const jid = String(to).includes("@")
-      ? String(to).replace("@c.us", "@s.whatsapp.net")
-      : normalizePhone(to);
+    let jid;
+
+    if (String(to).includes("@")) {
+      jid = String(to).replace("@c.us", "@s.whatsapp.net");
+    } else {
+      jid = normalizePhone(to);
+    }
 
     await sock.sendMessage(jid, { text: message });
 
