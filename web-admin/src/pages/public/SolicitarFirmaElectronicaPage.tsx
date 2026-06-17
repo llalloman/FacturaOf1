@@ -6,7 +6,9 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
+  CreditCard,
   FileUp,
+  Landmark,
   Loader2,
   MessageCircle,
   Send,
@@ -22,6 +24,29 @@ import {
 } from '../../services/firmasService';
 
 const whatsappBase = 'https://api.whatsapp.com/send/';
+
+const paymentAccounts = [
+  {
+    bank: 'Produbanco',
+    accountType: 'Cuenta de Ahorros',
+    accountNumber: '12005608916',
+    holder: 'Walter Gerardo Molina',
+    identification: 'CI: 1721085213',
+  },
+  {
+    bank: 'Banco Pichincha',
+    accountType: 'Cuenta de Ahorro Transaccional',
+    accountNumber: '2212779087',
+    holder: 'Walter Gerardo Molina',
+  },
+  {
+    bank: 'Banco Guayaquil',
+    accountType: 'Cuenta de Ahorros',
+    accountNumber: '0054069558',
+    holder: 'Walter Gerardo Molina',
+    identification: 'CI: 1721085213',
+  },
+];
 
 const baseForm: SolicitudFirmaPublicPayload = {
   request_type: 'PERSONA_NATURAL',
@@ -525,9 +550,10 @@ export default function SolicitarFirmaElectronicaPage() {
                   {!confirmed.emailStatus.client_sent && <p className="mt-1">Correo al cliente pendiente: {confirmed.emailStatus.client_error || 'no confirmado por el proveedor SMTP'}.</p>}
                 </div>
               )}
+              <PaymentInstructions whatsappUrl={whatsappUrl} />
               <a href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">
                 <MessageCircle size={18} />
-                Contactar para confirmar pago
+                Enviar captura o solicitar link de pago
               </a>
             </div>
           )}
@@ -585,6 +611,71 @@ export default function SolicitarFirmaElectronicaPage() {
           )}
         </div>
       </main>
+    </div>
+  );
+}
+
+function PaymentInstructions({ whatsappUrl }: { whatsappUrl: string }) {
+  return (
+    <div className="mx-auto mt-8 max-w-5xl rounded-xl border border-slate-200 bg-slate-50 p-5 text-left">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Datos para pago</p>
+          <h3 className="mt-1 text-lg font-black text-slate-950">Realiza la transferencia y envía la captura por WhatsApp</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Una vez realizado el pago, envía la captura al WhatsApp <strong className="text-slate-900">+593 995 298 989</strong> para continuar con la emisión de tu firma electrónica.
+          </p>
+        </div>
+        <a href={whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50">
+          <MessageCircle size={17} />
+          WhatsApp
+        </a>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-3">
+        {paymentAccounts.map((account) => (
+          <div key={account.accountNumber} className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-3 flex items-center gap-2 text-blue-700">
+              <Landmark size={18} />
+              <h4 className="text-sm font-black text-slate-950">{account.bank}</h4>
+            </div>
+            <dl className="space-y-2 text-sm">
+              <div>
+                <dt className="text-xs font-bold uppercase text-slate-500">Tipo de cuenta</dt>
+                <dd className="font-semibold text-slate-800">{account.accountType}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold uppercase text-slate-500">Nro. de cuenta</dt>
+                <dd className="font-black text-slate-950">{account.accountNumber}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold uppercase text-slate-500">Titular</dt>
+                <dd className="font-semibold text-slate-800">{account.holder}</dd>
+              </div>
+              {account.identification && (
+                <div>
+                  <dt className="text-xs font-bold uppercase text-slate-500">Identificación</dt>
+                  <dd className="font-semibold text-slate-800">{account.identification}</dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 rounded-lg border border-blue-100 bg-white p-4">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+            <CreditCard size={18} />
+          </div>
+          <div>
+            <h4 className="text-sm font-black text-slate-950">Pago con tarjeta de crédito</h4>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Si deseas pagar con tarjeta de crédito, solicita el link de pago al WhatsApp <strong className="text-slate-900">+593 995 298 989</strong>.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
