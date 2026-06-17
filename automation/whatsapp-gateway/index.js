@@ -112,6 +112,16 @@ async function startWhatsApp() {
     const messageId = message.key?.id || "";
     const timestamp = Number(message.messageTimestamp || Math.floor(Date.now() / 1000));
 
+    const inboundPayload = {
+      ...identity,
+      body: text,
+      channel: "whatsapp",
+      message_id: messageId,
+      message_type: messageType,
+      timestamp,
+      has_media: hasMedia
+    };
+
     console.log("Mensaje recibido:", {
       contact_key: identity.contact_key,
       phone: identity.phone,
@@ -122,15 +132,7 @@ async function startWhatsApp() {
     });
 
     try {
-      await axios.post(N8N_WEBHOOK_URL, {
-        ...identity,
-        body: text,
-        channel: "whatsapp",
-        message_id: messageId,
-        message_type: messageType,
-        timestamp,
-        has_media: hasMedia
-      });
+      await axios.post(N8N_WEBHOOK_URL, inboundPayload);
     } catch (error) {
       console.error(
         "Error enviando mensaje a n8n:",

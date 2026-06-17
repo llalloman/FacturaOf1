@@ -40,7 +40,7 @@ export function resolveOutboundJid(to) {
 export function resolveInboundIdentity(message) {
   const remoteJid = message?.key?.remoteJid || "";
   const fromJid = message?.key?.participant || remoteJid;
-  const phone = phoneFromJid(fromJid);
+  const phone = phoneFromJid(fromJid) || phoneFromJid(remoteJid);
   const contactKey = phone || fromJid || remoteJid;
 
   return {
