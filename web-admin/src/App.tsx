@@ -52,6 +52,7 @@ const MatrizPermisosPage = lazy(() => import('./pages/empresas/MatrizPermisosPag
 const CatalogoModulosPage = lazy(() => import('./pages/empresas/CatalogoModulosPage'));
 const SolicitudesFirmaPage = lazy(() => import('./pages/firmas/SolicitudesFirmaPage'));
 const PreciosFirmaPage = lazy(() => import('./pages/firmas/PreciosFirmaPage'));
+const AutomationLeadsPage = lazy(() => import('./pages/automation/AutomationLeadsPage'));
 const SolicitarDemoPage = lazy(() => import('./pages/public/SolicitarDemoPage'));
 const SolicitarFirmaElectronicaPage = lazy(() => import('./pages/public/SolicitarFirmaElectronicaPage'));
 
@@ -146,6 +147,11 @@ const appLayoutRoutes = (
     <Route path="firmas-electronicas/precios" element={
       <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
         <PreciosFirmaPage />
+      </ProtectedRoute>
+    } />
+    <Route path="automation/leads" element={
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+        <AutomationLeadsPage />
       </ProtectedRoute>
     } />
     <Route path="suscripcion" element={

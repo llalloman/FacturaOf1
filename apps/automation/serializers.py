@@ -34,6 +34,14 @@ LEAD_INTEREST_ALIASES = {
     'integration': CommercialLead.InterestType.INTEGRATION,
     'soporte': CommercialLead.InterestType.SUPPORT,
     'support': CommercialLead.InterestType.SUPPORT,
+    'pago': CommercialLead.InterestType.PAYMENT,
+    'payment': CommercialLead.InterestType.PAYMENT,
+    'pagos': CommercialLead.InterestType.PAYMENT,
+    'documento': CommercialLead.InterestType.DOCUMENTS,
+    'documentos': CommercialLead.InterestType.DOCUMENTS,
+    'documents': CommercialLead.InterestType.DOCUMENTS,
+    'humano': CommercialLead.InterestType.HUMAN,
+    'human': CommercialLead.InterestType.HUMAN,
     'otro': CommercialLead.InterestType.UNKNOWN,
     'unknown': CommercialLead.InterestType.UNKNOWN,
 }
@@ -41,8 +49,11 @@ LEAD_INTEREST_ALIASES = {
 LEAD_STATUS_ALIASES = {
     'nuevo': CommercialLead.Status.NEW,
     'new': CommercialLead.Status.NEW,
-    'responded_bot': CommercialLead.Status.CONTACTED,
-    'bot_responded': CommercialLead.Status.CONTACTED,
+    'responded_bot': CommercialLead.Status.BOT_RESPONDED,
+    'bot_responded': CommercialLead.Status.BOT_RESPONDED,
+    'bot': CommercialLead.Status.BOT_RESPONDED,
+    'in_follow_up': CommercialLead.Status.IN_FOLLOW_UP,
+    'seguimiento': CommercialLead.Status.IN_FOLLOW_UP,
     'contactado': CommercialLead.Status.CONTACTED,
     'contacted': CommercialLead.Status.CONTACTED,
     'qualified': CommercialLead.Status.QUALIFIED,
@@ -50,8 +61,12 @@ LEAD_STATUS_ALIASES = {
     'requires_human': CommercialLead.Status.REQUIRES_HUMAN,
     'requiere_humano': CommercialLead.Status.REQUIRES_HUMAN,
     'human': CommercialLead.Status.REQUIRES_HUMAN,
+    'proposal_sent': CommercialLead.Status.PROPOSAL_SENT,
+    'propuesta_enviada': CommercialLead.Status.PROPOSAL_SENT,
     'converted': CommercialLead.Status.CONVERTED,
     'convertido': CommercialLead.Status.CONVERTED,
+    'lost': CommercialLead.Status.LOST,
+    'perdido': CommercialLead.Status.LOST,
     'closed': CommercialLead.Status.CLOSED,
     'cerrado': CommercialLead.Status.CLOSED,
 }
@@ -109,7 +124,7 @@ class CommercialLeadSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'phone', 'normalized_phone', 'contact_key', 'reply_to_jid', 'from_jid',
             'remote_jid', 'push_name', 'is_lid', 'source_channel', 'name', 'company', 'email',
-            'interest_type', 'status', 'priority', 'summary', 'last_category', 'last_intent',
+            'interest_type', 'status', 'priority', 'summary', 'internal_notes', 'last_category', 'last_intent',
             'last_ai_confidence', 'last_interaction_at', 'metadata', 'created_at', 'updated_at', 'created',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -293,6 +308,60 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
         )
         interaction.created = created
         return interaction
+
+
+class WhatsAppInteractionAdminSerializer(serializers.ModelSerializer):
+    direction_display = serializers.CharField(source='get_direction_display', read_only=True)
+    message_type_display = serializers.CharField(source='get_message_type_display', read_only=True)
+
+    class Meta:
+        model = WhatsAppInteraction
+        fields = [
+            'id', 'direction', 'direction_display', 'phone', 'normalized_phone', 'contact_key',
+            'reply_to_jid', 'from_jid', 'remote_jid', 'push_name', 'is_lid', 'channel',
+            'message_body', 'message_type', 'message_type_display', 'message_id', 'category',
+            'intent', 'ai_confidence', 'ai_summary', 'requires_human', 'template_key',
+            'gateway_status', 'created_at',
+        ]
+        read_only_fields = fields
+
+
+class CommercialLeadAdminSerializer(serializers.ModelSerializer):
+    interest_type_display = serializers.CharField(source='get_interest_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    assigned_to_name = serializers.SerializerMethodField()
+    interactions_count = serializers.IntegerField(read_only=True)
+    recent_interactions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CommercialLead
+        fields = [
+            'id', 'phone', 'normalized_phone', 'contact_key', 'reply_to_jid', 'from_jid',
+            'remote_jid', 'push_name', 'is_lid', 'source_channel', 'name', 'company', 'email',
+            'interest_type', 'interest_type_display', 'status', 'status_display', 'priority',
+            'priority_display', 'summary', 'internal_notes', 'last_category', 'last_intent',
+            'last_ai_confidence', 'last_interaction_at', 'assigned_to', 'assigned_to_name',
+            'metadata', 'created_at', 'updated_at',
+            'interactions_count', 'recent_interactions',
+        ]
+        read_only_fields = [
+            'id', 'phone', 'normalized_phone', 'contact_key', 'reply_to_jid', 'from_jid',
+            'remote_jid', 'push_name', 'is_lid', 'source_channel', 'name', 'company', 'email',
+            'interest_type', 'interest_type_display', 'last_category', 'last_intent',
+            'last_ai_confidence', 'last_interaction_at', 'assigned_to_name', 'metadata',
+            'created_at', 'updated_at', 'interactions_count', 'recent_interactions',
+        ]
+
+    def get_recent_interactions(self, obj):
+        interactions = obj.interactions.all().order_by('-created_at')[:10]
+        return WhatsAppInteractionAdminSerializer(interactions, many=True).data
+
+    def get_assigned_to_name(self, obj):
+        if not obj.assigned_to:
+            return ''
+        full_name = obj.assigned_to.get_full_name()
+        return full_name or obj.assigned_to.username or obj.assigned_to.email
 
 
 class SignatureOrderAutomationSerializer(serializers.ModelSerializer):

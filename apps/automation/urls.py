@@ -1,6 +1,8 @@
 from django.urls import path
+from rest_framework.routers import DefaultRouter
 
 from .views import (
+    AdminCommercialLeadViewSet,
     AuditLogCreateView,
     AutomationHealthView,
     InteractionCreateView,
@@ -11,6 +13,9 @@ from .views import (
     WebhookEventCreateView,
 )
 
+router = DefaultRouter()
+router.register(r'admin/leads', AdminCommercialLeadViewSet, basename='automation-admin-leads')
+
 urlpatterns = [
     path('health/', AutomationHealthView.as_view(), name='automation-health'),
     path('leads/', LeadUpsertView.as_view(), name='automation-leads'),
@@ -20,4 +25,4 @@ urlpatterns = [
     path('signature-orders/<str:identifier>/status/', SignatureOrderStatusView.as_view(), name='automation-signature-order-status'),
     path('webhook-events/', WebhookEventCreateView.as_view(), name='automation-webhook-events'),
     path('audit-events/', AuditLogCreateView.as_view(), name='automation-audit-events'),
-]
+] + router.urls

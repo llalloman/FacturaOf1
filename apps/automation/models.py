@@ -12,14 +12,21 @@ class CommercialLead(models.Model):
         CHATBOT = 'chatbot', _('Chatbots')
         INTEGRATION = 'integration', _('Integraciones')
         SUPPORT = 'support', _('Soporte')
+        PAYMENT = 'payment', _('Pago')
+        DOCUMENTS = 'documents', _('Documentos')
+        HUMAN = 'human', _('Atención humana')
         UNKNOWN = 'unknown', _('No definido')
 
     class Status(models.TextChoices):
         NEW = 'new', _('Nuevo')
+        BOT_RESPONDED = 'bot_responded', _('Respondido por bot')
+        IN_FOLLOW_UP = 'in_follow_up', _('En seguimiento')
         CONTACTED = 'contacted', _('Contactado')
         QUALIFIED = 'qualified', _('Calificado')
         REQUIRES_HUMAN = 'requires_human', _('Requiere humano')
+        PROPOSAL_SENT = 'proposal_sent', _('Propuesta enviada')
         CONVERTED = 'converted', _('Convertido')
+        LOST = 'lost', _('Perdido')
         CLOSED = 'closed', _('Cerrado')
 
     class Priority(models.TextChoices):
@@ -43,6 +50,7 @@ class CommercialLead(models.Model):
     status = models.CharField(_('estado'), max_length=30, choices=Status.choices, default=Status.NEW)
     priority = models.CharField(_('prioridad'), max_length=20, choices=Priority.choices, default=Priority.MEDIUM)
     summary = models.TextField(_('resumen'), blank=True)
+    internal_notes = models.TextField(_('notas internas'), blank=True)
     last_category = models.CharField(_('última categoría'), max_length=40, blank=True)
     last_intent = models.CharField(_('última intención'), max_length=40, blank=True)
     last_ai_confidence = models.DecimalField(_('última confianza IA'), max_digits=4, decimal_places=3, null=True, blank=True)
