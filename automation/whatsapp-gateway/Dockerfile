@@ -10,7 +10,7 @@ COPY package*.json ./
 
 RUN npm install --omit=dev
 
-COPY index.js ./
+COPY index.js identity.js ./
 
 EXPOSE 8081
 
