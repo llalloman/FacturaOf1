@@ -46,17 +46,30 @@ const priorities: Array<{ value: AutomationLeadPriority; label: string; color: s
 ];
 
 const categories = [
+  ['greeting', 'Saludo'],
   ['signature', 'Firma electrónica'],
   ['erp', 'ERP FacturaOF1'],
   ['invoicing', 'Facturación electrónica'],
   ['custom_software', 'Desarrollo a medida'],
-  ['automation_ai', 'Automatización e IA'],
-  ['chatbot', 'Chatbots'],
+  ['automation_ai', 'Automatización IA'],
+  ['chatbot', 'Chatbot IA'],
   ['integration', 'Integraciones'],
   ['support', 'Soporte'],
-  ['payment', 'Pago'],
+  ['payment', 'Pagos'],
   ['documents', 'Documentos'],
   ['human', 'Atención humana'],
+  ['unknown', 'Sin clasificar'],
+];
+
+const intents = [
+  ['greeting', 'Saludo'],
+  ['sales', 'Venta'],
+  ['support', 'Soporte'],
+  ['price', 'Precio'],
+  ['status', 'Estado'],
+  ['payment', 'Pago'],
+  ['documents', 'Documentos'],
+  ['follow_up', 'Seguimiento'],
   ['unknown', 'No definido'],
 ];
 
@@ -69,6 +82,16 @@ const channels = [
 
 const statusBadge = (status?: string) => statuses.find((item) => item.value === status)?.color ?? 'bg-slate-100 text-slate-600';
 const priorityBadge = (priority?: string) => priorities.find((item) => item.value === priority)?.color ?? 'bg-slate-100 text-slate-600';
+const hasTemplateLeak = (value?: string | null) => {
+  const raw = String(value || '');
+  return raw.includes('{{') || raw.includes('$json');
+};
+const mappedLabel = (value: string | undefined | null, options: string[][], fallback: string) => {
+  if (!value || hasTemplateLeak(value)) return fallback;
+  return options.find(([optionValue]) => optionValue === value)?.[1] ?? fallback;
+};
+const categoryLabel = (value?: string | null) => mappedLabel(value, categories, 'Sin clasificar');
+const intentLabel = (value?: string | null) => mappedLabel(value, intents, 'No definido');
 
 const formatDate = (value?: string | null) => {
   if (!value) return '-';
@@ -240,7 +263,7 @@ export default function AutomationLeadsPage() {
                 <p className="mt-2 line-clamp-2 text-xs text-slate-500">{lead.summary || lead.recent_interactions?.[0]?.message_body || 'Sin resumen registrado.'}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
                   <StatusBadge value={lead.priority_display ?? lead.priority} color={priorityBadge(lead.priority)} />
-                  <span>{lead.last_category || lead.interest_type_display || lead.interest_type}</span>
+                  <span>{categoryLabel(lead.last_category || lead.interest_type)}</span>
                   <span>{lead.source_channel}</span>
                   <span>{formatDate(lead.last_interaction_at ?? lead.created_at)}</span>
                 </div>
@@ -314,8 +337,8 @@ export default function AutomationLeadsPage() {
 
               <Section title="Resumen IA">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <Info label="Categoría" value={selected.last_category || selected.interest_type_display || selected.interest_type} />
-                  <Info label="Intención" value={selected.last_intent || '-'} />
+                  <Info label="Categoría" value={categoryLabel(selected.last_category || selected.interest_type)} />
+                  <Info label="Intención" value={intentLabel(selected.last_intent)} />
                   <Info label="Confianza IA" value={selected.last_ai_confidence ? `${Number(selected.last_ai_confidence) * 100}%` : '-'} />
                   <Info label="Última interacción" value={formatDate(selected.last_interaction_at)} />
                 </div>
@@ -365,7 +388,7 @@ export default function AutomationLeadsPage() {
                       </div>
                       <p className="mt-2 whitespace-pre-wrap break-words text-slate-600">{interaction.message_body || interaction.ai_summary || 'Sin contenido.'}</p>
                       <p className="mt-2 text-xs text-slate-400">
-                        {interaction.category || 'sin categoría'} - {interaction.intent || 'sin intención'} - {interaction.message_type_display ?? interaction.message_type}
+                        {categoryLabel(interaction.category)} - {intentLabel(interaction.intent)} - {interaction.message_type_display ?? interaction.message_type}
                       </p>
                     </div>
                   ))}
