@@ -1,9 +1,13 @@
 import re
 
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from .models import (
     DocumentoSolicitudFirma,
+    FirmaPrecioElectronica,
+    FirmaPromocionElectronica,
     HistorialEstadoSolicitudFirma,
     SolicitudDemoERP,
     SolicitudFirmaElectronica,
@@ -40,6 +44,68 @@ def validate_document_file(file):
     content_type = (getattr(file, 'content_type', '') or '').lower()
     if content_type and content_type not in ALLOWED_DOCUMENT_MIME_TYPES:
         raise serializers.ValidationError('Formato no permitido. Usa PDF, JPG o PNG.')
+
+
+class FirmaPromocionElectronicaSerializer(serializers.ModelSerializer):
+    is_current = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = FirmaPromocionElectronica
+        fields = [
+            'id', 'price', 'name', 'promotional_price', 'start_date', 'end_date',
+            'active', 'is_current', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'is_current', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        start = attrs.get('start_date', getattr(self.instance, 'start_date', None))
+        end = attrs.get('end_date', getattr(self.instance, 'end_date', None))
+        price_obj = attrs.get('price', getattr(self.instance, 'price', None))
+        promotional_price = attrs.get('promotional_price', getattr(self.instance, 'promotional_price', None))
+        if start and end and end < start:
+            raise serializers.ValidationError({'end_date': 'La fecha fin no puede ser menor a la fecha de inicio.'})
+        if price_obj and promotional_price is not None and promotional_price >= price_obj.regular_price:
+            raise serializers.ValidationError({'promotional_price': 'El precio promocional debe ser menor al precio normal.'})
+        return attrs
+
+
+class FirmaPrecioElectronicaSerializer(serializers.ModelSerializer):
+    validity_display = serializers.CharField(source='get_validity_display', read_only=True)
+    active_promotion = serializers.SerializerMethodField()
+    current_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = FirmaPrecioElectronica
+        fields = [
+            'id', 'validity', 'validity_display', 'regular_price', 'current_price',
+            'active', 'order', 'active_promotion', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'validity_display', 'current_price', 'active_promotion', 'created_at', 'updated_at']
+
+    def get_active_promotion(self, obj):
+        promotion = obj.active_promotion()
+        if not promotion:
+            return None
+        return FirmaPromocionElectronicaSerializer(promotion).data
+
+
+def aplicar_precio_firma(validated_data):
+    validity = validated_data.get('validity')
+    if not validity:
+        return validated_data
+    try:
+        price = FirmaPrecioElectronica.objects.get(validity=validity, active=True)
+    except FirmaPrecioElectronica.DoesNotExist as exc:
+        raise serializers.ValidationError({'validity': 'No existe un precio activo para la vigencia seleccionada.'}) from exc
+    promotion = price.active_promotion()
+    regular_price = price.regular_price or Decimal('0.00')
+    final_price = promotion.promotional_price if promotion else regular_price
+    validated_data['price_catalog'] = price
+    validated_data['promotion_applied'] = promotion
+    validated_data['regular_price'] = regular_price
+    validated_data['sale_price'] = final_price
+    validated_data['discount_amount'] = regular_price - final_price
+    return validated_data
 
 
 class DocumentoSolicitudFirmaSerializer(serializers.ModelSerializer):
@@ -132,11 +198,12 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
             'validity', 'validity_display', 'container_type', 'wants_erp',
             'interested_plan', 'interested_plan_display', 'status', 'status_display',
             'source', 'source_display', 'provider', 'provider_display',
+            'price_catalog', 'promotion_applied', 'regular_price', 'discount_amount',
             'internal_cost', 'sale_price', 'margin', 'internal_notes',
             'provider_request_id', 'emitted_at', 'rejected_reason',
             'created_at', 'updated_at', 'documents', 'status_history',
         ]
-        read_only_fields = ['request_number', 'margin', 'created_at', 'updated_at', 'documents', 'status_history']
+        read_only_fields = ['request_number', 'price_catalog', 'promotion_applied', 'regular_price', 'discount_amount', 'margin', 'created_at', 'updated_at', 'documents', 'status_history']
 
     def validate_phone(self, value):
         value = (value or '').strip()
@@ -193,6 +260,7 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        aplicar_precio_firma(validated_data)
         instance = super().create(validated_data)
         HistorialEstadoSolicitudFirma.objects.create(
             request=instance,

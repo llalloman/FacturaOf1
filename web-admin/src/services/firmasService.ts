@@ -1,8 +1,32 @@
 import apiClient from './apiClient';
 
 export type TipoSolicitudFirma = 'PERSONA_NATURAL' | 'REPRESENTANTE_LEGAL' | 'MIEMBRO_EMPRESA';
+export type VigenciaFirma = '7_DIAS' | '15_DIAS' | '1_MES' | '1_ANIO' | '2_ANIOS' | '3_ANIOS' | '4_ANIOS' | '5_ANIOS';
 export type EstadoSolicitudFirma = 'NUEVA' | 'CONTACTADO' | 'DOCUMENTOS_PENDIENTES' | 'EN_REVISION' | 'ENVIADA_PROVEEDOR' | 'EMITIDA' | 'RECHAZADA' | 'ANULADA';
 export type PlanInteresFirma = 'BASICO' | 'PROFESIONAL' | 'EMPRESARIAL' | 'SOLO_FIRMA';
+
+
+export interface PromocionFirma {
+  id?: number;
+  price: number;
+  name: string;
+  promotional_price: string;
+  start_date: string;
+  end_date: string;
+  active: boolean;
+  is_current?: boolean;
+}
+
+export interface PrecioFirma {
+  id: number;
+  validity: VigenciaFirma;
+  validity_display: string;
+  regular_price: string;
+  current_price: string;
+  active: boolean;
+  order: number;
+  active_promotion?: PromocionFirma | null;
+}
 
 export interface SolicitudFirma {
   id?: number;
@@ -39,7 +63,7 @@ export interface SolicitudFirma {
   representative_identification?: string;
   representative_names?: string;
   representative_last_names?: string;
-  validity: string;
+  validity: VigenciaFirma;
   validity_display?: string;
   container_type?: string;
   wants_erp: boolean;
@@ -156,6 +180,40 @@ export interface SolicitudDemoERP {
 const normalizeList = <T>(data: T[] | { results?: T[] }): T[] => Array.isArray(data) ? data : (data.results ?? []);
 
 export const firmasService = {
+  listPreciosFirmaPublicos: async (): Promise<PrecioFirma[]> => {
+    const { data } = await apiClient.get('/firmas/precios-publicos/');
+    return normalizeList<PrecioFirma>(data);
+  },
+
+  listPreciosFirma: async (): Promise<PrecioFirma[]> => {
+    const { data } = await apiClient.get('/firmas/precios/');
+    return normalizeList<PrecioFirma>(data);
+  },
+
+  updatePrecioFirma: async (id: number, payload: Partial<PrecioFirma>): Promise<PrecioFirma> => {
+    const { data } = await apiClient.patch(`/firmas/precios/${id}/`, payload);
+    return data;
+  },
+
+  listPromocionesFirma: async (): Promise<PromocionFirma[]> => {
+    const { data } = await apiClient.get('/firmas/promociones/');
+    return normalizeList<PromocionFirma>(data);
+  },
+
+  createPromocionFirma: async (payload: PromocionFirma): Promise<PromocionFirma> => {
+    const { data } = await apiClient.post('/firmas/promociones/', payload);
+    return data;
+  },
+
+  updatePromocionFirma: async (id: number, payload: Partial<PromocionFirma>): Promise<PromocionFirma> => {
+    const { data } = await apiClient.patch(`/firmas/promociones/${id}/`, payload);
+    return data;
+  },
+
+  deletePromocionFirma: async (id: number): Promise<void> => {
+    await apiClient.delete(`/firmas/promociones/${id}/`);
+  },
+
   list: async (filters: SolicitudFirmaFilters = {}): Promise<SolicitudFirma[]> => {
     const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
     const { data } = await apiClient.get('/firmas/solicitudes/', { params });

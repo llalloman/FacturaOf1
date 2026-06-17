@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import DocumentoSolicitudFirma, HistorialEstadoSolicitudFirma, SolicitudDemoERP, SolicitudFirmaElectronica
+from .models import DocumentoSolicitudFirma, FirmaPrecioElectronica, FirmaPromocionElectronica, HistorialEstadoSolicitudFirma, SolicitudDemoERP, SolicitudFirmaElectronica
 
 
 class DocumentoSolicitudFirmaInline(admin.TabularInline):
@@ -44,3 +44,17 @@ class SolicitudDemoERPAdmin(admin.ModelAdmin):
     list_display = ['id', 'business_name', 'contact_name', 'phone', 'interested_plan', 'needs_signature', 'status', 'created_at']
     list_filter = ['status', 'interested_plan', 'needs_signature', 'source', 'created_at']
     search_fields = ['business_name', 'contact_name', 'email', 'phone', 'city']
+
+
+@admin.register(FirmaPrecioElectronica)
+class FirmaPrecioElectronicaAdmin(admin.ModelAdmin):
+    list_display = ('validity', 'regular_price', 'active', 'order', 'updated_at')
+    list_filter = ('active', 'validity')
+    ordering = ('order', 'regular_price')
+
+
+@admin.register(FirmaPromocionElectronica)
+class FirmaPromocionElectronicaAdmin(admin.ModelAdmin):
+    list_display = ('name', 'price', 'promotional_price', 'start_date', 'end_date', 'active')
+    list_filter = ('active', 'price')
+    ordering = ('-active', '-start_date')

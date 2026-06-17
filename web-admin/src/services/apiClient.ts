@@ -27,6 +27,7 @@ apiClient.interceptors.request.use(
     const url = config.url || '';
     const isPublicEndpoint =
       url.includes('/firmas/solicitudes-publicas/') ||
+      url.includes('/firmas/precios-publicos/') ||
       url.includes('/firmas/demos-publicas/');
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];

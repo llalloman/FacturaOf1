@@ -25,6 +25,7 @@ class SolicitudFirmaElectronica(models.Model):
         MIEMBRO_EMPRESA = 'MIEMBRO_EMPRESA', _('Miembro de Empresa')
 
     class Vigencia(models.TextChoices):
+        SIETE_DIAS = '7_DIAS', _('7 días')
         QUINCE_DIAS = '15_DIAS', _('15 días')
         UN_MES = '1_MES', _('1 mes')
         UN_ANIO = '1_ANIO', _('1 año')
@@ -118,6 +119,24 @@ class SolicitudFirmaElectronica(models.Model):
     status = models.CharField(_('estado'), max_length=30, choices=Estado.choices, default=Estado.NUEVA)
     source = models.CharField(_('origen'), max_length=30, choices=Origen.choices, default=Origen.MANUAL_ADMINISTRATIVO)
     provider = models.CharField(_('proveedor'), max_length=20, choices=Proveedor.choices, blank=True)
+    price_catalog = models.ForeignKey(
+        'firmas.FirmaPrecioElectronica',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='solicitudes',
+        verbose_name=_('precio de catálogo'),
+    )
+    promotion_applied = models.ForeignKey(
+        'firmas.FirmaPromocionElectronica',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='solicitudes',
+        verbose_name=_('promoción aplicada'),
+    )
+    regular_price = models.DecimalField(_('precio normal'), max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    discount_amount = models.DecimalField(_('descuento aplicado'), max_digits=10, decimal_places=2, default=Decimal('0.00'))
     internal_cost = models.DecimalField(_('costo interno'), max_digits=10, decimal_places=2, default=Decimal('0.00'))
     sale_price = models.DecimalField(_('precio de venta'), max_digits=10, decimal_places=2, default=Decimal('0.00'))
     margin = models.DecimalField(_('margen'), max_digits=10, decimal_places=2, default=Decimal('0.00'))
@@ -156,6 +175,69 @@ class SolicitudFirmaElectronica(models.Model):
 
     def __str__(self):
         return f'{self.request_number or self.id} - {self.full_name} - {self.get_status_display()}'
+
+
+class FirmaPrecioElectronica(models.Model):
+    validity = models.CharField(_('vigencia'), max_length=20, choices=SolicitudFirmaElectronica.Vigencia.choices, unique=True)
+    regular_price = models.DecimalField(_('precio final incluido IVA'), max_digits=10, decimal_places=2)
+    active = models.BooleanField(_('activo'), default=True)
+    order = models.PositiveSmallIntegerField(_('orden'), default=0)
+    created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('fecha de actualización'), auto_now=True)
+
+    class Meta:
+        db_table = 'electronic_signature_prices'
+        verbose_name = _('precio de firma electrónica')
+        verbose_name_plural = _('precios de firma electrónica')
+        ordering = ['order', 'regular_price']
+
+    def active_promotion(self):
+        today = timezone.localdate()
+        return (
+            self.promotions
+            .filter(active=True, start_date__lte=today, end_date__gte=today)
+            .order_by('promotional_price', 'end_date', 'id')
+            .first()
+        )
+
+    @property
+    def current_price(self):
+        promotion = self.active_promotion()
+        return promotion.promotional_price if promotion else self.regular_price
+
+    def __str__(self):
+        return f'{self.get_validity_display()} - ${self.regular_price}'
+
+
+class FirmaPromocionElectronica(models.Model):
+    price = models.ForeignKey(
+        FirmaPrecioElectronica,
+        on_delete=models.CASCADE,
+        related_name='promotions',
+        verbose_name=_('precio'),
+    )
+    name = models.CharField(_('nombre'), max_length=120)
+    promotional_price = models.DecimalField(_('precio promocional incluido IVA'), max_digits=10, decimal_places=2)
+    start_date = models.DateField(_('fecha de inicio'))
+    end_date = models.DateField(_('fecha de fin'))
+    active = models.BooleanField(_('activo'), default=True)
+    created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('fecha de actualización'), auto_now=True)
+
+    class Meta:
+        db_table = 'electronic_signature_promotions'
+        verbose_name = _('promoción de firma electrónica')
+        verbose_name_plural = _('promociones de firma electrónica')
+        ordering = ['-active', '-start_date', 'end_date']
+        indexes = [models.Index(fields=['price', 'active', 'start_date', 'end_date'])]
+
+    @property
+    def is_current(self):
+        today = timezone.localdate()
+        return self.active and self.start_date <= today <= self.end_date
+
+    def __str__(self):
+        return f'{self.name} - {self.price.get_validity_display()}'
 
 
 class DocumentoSolicitudFirma(models.Model):

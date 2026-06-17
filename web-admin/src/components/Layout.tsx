@@ -44,6 +44,7 @@ import {
   Star,
   Layers3,
   FileSignature,
+  BadgeDollarSign,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
@@ -154,6 +155,7 @@ const menuItemsSuperAdmin: MenuItem[] = [
   { icon: Shield,          label: 'Matriz de Acceso', path: '/matriz-permisos' },
   { icon: Layers3,         label: 'Catálogo de Menús', path: '/catalogo-modulos' },
   { icon: FileSignature,   label: 'Solicitudes de Firma', path: '/firmas-electronicas' },
+  { icon: BadgeDollarSign,  label: 'Precios de Firma', path: '/firmas-electronicas/precios' },
   { icon: Users,           label: 'Usuarios',         path: '/usuarios' },
 ];
 

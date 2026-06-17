@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import {
   ArrowLeft,
@@ -14,6 +15,7 @@ import { Link } from 'react-router-dom';
 import {
   firmasService,
   type DocumentoPublicoFirma,
+  type PrecioFirma,
   type PublicFinalizeResponse,
   type SolicitudFirmaPublicPayload,
   type TipoSolicitudFirma,
@@ -57,6 +59,19 @@ const baseForm: SolicitudFirmaPublicPayload = {
 };
 
 const steps = ['Datos personales', 'Documentos', 'Resumen', 'Confirmación'];
+
+const fallbackPreciosFirma: PrecioFirma[] = [
+  { id: 0, validity: '7_DIAS', validity_display: '7 días', regular_price: '8.00', current_price: '8.00', active: true, order: 1 },
+  { id: 0, validity: '15_DIAS', validity_display: '15 días', regular_price: '8.00', current_price: '8.00', active: true, order: 2 },
+  { id: 0, validity: '1_MES', validity_display: '30 días', regular_price: '9.00', current_price: '9.00', active: true, order: 3 },
+  { id: 0, validity: '1_ANIO', validity_display: '1 año', regular_price: '21.00', current_price: '21.00', active: true, order: 4 },
+  { id: 0, validity: '2_ANIOS', validity_display: '2 años', regular_price: '32.00', current_price: '32.00', active: true, order: 5 },
+  { id: 0, validity: '3_ANIOS', validity_display: '3 años', regular_price: '43.00', current_price: '43.00', active: true, order: 6 },
+  { id: 0, validity: '4_ANIOS', validity_display: '4 años', regular_price: '53.00', current_price: '53.00', active: true, order: 7 },
+  { id: 0, validity: '5_ANIOS', validity_display: '5 años', regular_price: '62.00', current_price: '62.00', active: true, order: 8 },
+];
+
+const money = (value?: string | number) => `$${Number(value ?? 0).toFixed(2)}`;
 
 const tipoLabels: Record<TipoSolicitudFirma, string> = {
   PERSONA_NATURAL: 'Persona Natural',
@@ -130,6 +145,17 @@ export default function SolicitarFirmaElectronicaPage() {
     message: string;
     emailStatus?: PublicFinalizeResponse['email_status'];
   } | null>(null);
+
+  const { data: preciosRemotos = [] } = useQuery({
+    queryKey: ['precios-firma-publicos'],
+    queryFn: firmasService.listPreciosFirmaPublicos,
+  });
+  const preciosFirma = preciosRemotos.length ? preciosRemotos : fallbackPreciosFirma;
+  const precioSeleccionado = useMemo(
+    () => preciosFirma.find((item) => item.validity === form.validity) ?? fallbackPreciosFirma.find((item) => item.validity === form.validity),
+    [form.validity, preciosFirma],
+  );
+  const tienePromocion = Boolean(precioSeleccionado?.active_promotion && Number(precioSeleccionado.current_price) < Number(precioSeleccionado.regular_price));
 
   const isCompanyRequest = form.request_type === 'MIEMBRO_EMPRESA' || form.request_type === 'REPRESENTANTE_LEGAL';
   const isMemberRequest = form.request_type === 'MIEMBRO_EMPRESA';
@@ -238,7 +264,7 @@ export default function SolicitarFirmaElectronicaPage() {
   };
 
   const whatsappUrl = confirmed
-    ? `${whatsappBase}?phone=593983904993&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma número ${confirmed.requestNumber}`)}&type=phone_number&app_absent=0`
+    ? `${whatsappBase}?phone=593995298989&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma número ${confirmed.requestNumber}`)}&type=phone_number&app_absent=0`
     : '';
 
   return (
@@ -396,15 +422,27 @@ export default function SolicitarFirmaElectronicaPage() {
                 )}
                 <Field label="Vigencia">
                   <select className={inputClass} value={form.validity} onChange={(e) => setField('validity', e.target.value)}>
-                    <option value="15_DIAS">15 dias</option>
-                    <option value="1_MES">1 mes</option>
-                    <option value="1_ANIO">1 año</option>
-                    <option value="2_ANIOS">2 años</option>
-                    <option value="3_ANIOS">3 años</option>
-                    <option value="4_ANIOS">4 años</option>
-                    <option value="5_ANIOS">5 años</option>
+                    {preciosFirma.map((precio) => (
+                      <option key={precio.validity} value={precio.validity}>{precio.validity_display}</option>
+                    ))}
                   </select>
                 </Field>
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 md:col-span-2">
+                  <p className="text-xs font-bold uppercase text-blue-700">Total a pagar</p>
+                  <div className="mt-1 flex flex-wrap items-end gap-3">
+                    {tienePromocion && (
+                      <span className="text-sm font-semibold text-red-500 line-through">
+                        {money(precioSeleccionado?.regular_price)}
+                      </span>
+                    )}
+                    <strong className="text-3xl font-black text-slate-950">
+                      {money(precioSeleccionado?.current_price)}
+                    </strong>
+                    <span className="mb-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">IVA incluido</span>
+                    {tienePromocion && <span className="mb-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">Promoción activa</span>}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">El valor final se recalcula y registra en el servidor al enviar la solicitud.</p>
+                </div>
               </div>
             </div>
           )}
@@ -516,7 +554,10 @@ export default function SolicitarFirmaElectronicaPage() {
                 ]} />
                 <SummaryBlock title="Documentos" rows={[
                   ['Cargados', Object.values(form.archivos ?? {}).filter(Boolean).length],
-                  ['Vigencia', form.validity],
+                  ['Vigencia', precioSeleccionado?.validity_display ?? form.validity],
+                  ['Precio normal', money(precioSeleccionado?.regular_price)],
+                  ['Total a pagar', money(precioSeleccionado?.current_price)],
+                  ['IVA', 'Incluido'],
                   ['Contenedor', form.container_type],
                 ]} />
               </div>

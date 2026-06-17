@@ -11,13 +11,15 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action, api_view, parser_classes, permission_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.permissions import HasModuleAccess
 
 from .models import (
     DocumentoSolicitudFirma,
+    FirmaPrecioElectronica,
+    FirmaPromocionElectronica,
     HistorialEstadoSolicitudFirma,
     SolicitudDemoERP,
     SolicitudFirmaElectronica,
@@ -25,6 +27,8 @@ from .models import (
 from .serializers import (
     CambiarEstadoFirmaSerializer,
     DocumentoSolicitudFirmaSerializer,
+    FirmaPrecioElectronicaSerializer,
+    FirmaPromocionElectronicaSerializer,
     DocumentoSolicitudFirmaUploadSerializer,
     HistorialEstadoSolicitudFirmaSerializer,
     PUBLIC_DOCUMENT_FIELDS,
@@ -47,6 +51,13 @@ def user_can_access_request(user, solicitud):
         return True
     empresa = getattr(user, 'empresa', None)
     return empresa and solicitud.company_id == empresa.id
+
+
+class IsSuperAdminOnly(BasePermission):
+    message = 'Solo SUPER_ADMIN puede administrar precios de firma.'
+
+    def has_permission(self, request, view):
+        return is_super_admin(request.user)
 
 
 class SolicitudFirmaElectronicaViewSet(viewsets.ModelViewSet):
@@ -159,6 +170,37 @@ class DocumentoSolicitudFirmaViewSet(viewsets.ReadOnlyModelViewSet):
             filename=documento.file_name or os.path.basename(documento.file.name),
             content_type=documento.mime_type or 'application/octet-stream',
         )
+
+
+class FirmaPrecioElectronicaViewSet(viewsets.ModelViewSet):
+    serializer_class = FirmaPrecioElectronicaSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdminOnly]
+    queryset = FirmaPrecioElectronica.objects.prefetch_related('promotions').all().order_by('order', 'regular_price')
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['order', 'regular_price', 'validity', 'active']
+    ordering = ['order', 'regular_price']
+
+
+class FirmaPromocionElectronicaViewSet(viewsets.ModelViewSet):
+    serializer_class = FirmaPromocionElectronicaSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdminOnly]
+    queryset = FirmaPromocionElectronica.objects.select_related('price').all().order_by('-active', '-start_date')
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['price', 'active']
+    ordering_fields = ['start_date', 'end_date', 'promotional_price', 'active']
+    ordering = ['-active', '-start_date']
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def precios_firma_publicos(request):
+    precios = (
+        FirmaPrecioElectronica.objects
+        .filter(active=True)
+        .prefetch_related('promotions')
+        .order_by('order', 'regular_price')
+    )
+    return Response(FirmaPrecioElectronicaSerializer(precios, many=True).data)
 
 
 @api_view(['POST'])
