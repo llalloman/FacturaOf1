@@ -101,6 +101,7 @@ No documentar valores reales. Solo nombres esperados:
 - `docs/architecture.md`: arquitectura objetivo y responsabilidades.
 - `docs/workflows.md`: estado actual y workflows propuestos.
 - `docs/whatsapp-gateway.md`: contrato del gateway Baileys.
+- `docs/whatsapp-contact-identity.md`: manejo correcto de `phone`, `contact_key`, `reply_to_jid` y JIDs `@lid`.
 - `docs/n8n-workflows.md`: detalle n8n del flujo `01_whatsapp_inbound` y nuevos workflows.
 - `docs/deepseek-prompts.md`: prompts y reglas para clasificacion controlada.
 - `docs/technical-plan.md`: plan tecnico consolidado para revision antes de implementar.

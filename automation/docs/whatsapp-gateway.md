@@ -63,6 +63,7 @@ Tambien acepta:
 - `phone` en lugar de `to`.
 - `text` en lugar de `message`.
 - `args[0]` y `args[1]`.
+- JIDs completos como `593999999999@s.whatsapp.net`, `279868742840481@lid` o `120363xxxxx@g.us`.
 
 Respuesta exitosa:
 
@@ -74,6 +75,8 @@ Respuesta exitosa:
 }
 ```
 
+Si `to` contiene `@`, el gateway lo usa como JID tecnico completo. Solo reemplaza `@c.us` por `@s.whatsapp.net`.
+
 ## Mensajes Entrantes
 
 El gateway escucha `messages.upsert` y descarta mensajes enviados por la propia cuenta (`fromMe`).
@@ -82,17 +85,26 @@ Payload enviado a n8n:
 
 ```json
 {
+  "phone": "593999999999",
+  "contact_key": "593999999999",
+  "from_jid": "593999999999@s.whatsapp.net",
+  "remote_jid": "593999999999@s.whatsapp.net",
+  "reply_to_jid": "593999999999@s.whatsapp.net",
   "from": "593999999999",
   "body": "mensaje del cliente",
   "channel": "whatsapp",
   "message_id": "baileys-message-id",
   "message_type": "text|image|audio|video|document|unknown",
   "timestamp": 1780000000,
-  "has_media": false
+  "has_media": false,
+  "push_name": "Cliente",
+  "is_lid": false
 }
 ```
 
-`from`, `body` y `channel` se mantienen para compatibilidad con el workflow actual. Los campos nuevos permiten idempotencia y manejo seguro de multimedia.
+`from`, `body` y `channel` se mantienen para compatibilidad con el workflow actual. Para responder, n8n debe conservar `reply_to_jid`.
+
+Si WhatsApp entrega un identificador `@lid`, `phone` se envia como `null`, `contact_key` conserva el JID completo y `reply_to_jid` debe usarse tal cual para responder.
 
 ## Normalizacion de Telefonos
 
@@ -102,6 +114,9 @@ La funcion `normalizePhone`:
 - Convierte numeros locales que empiezan con `0` a prefijo `593`.
 - Si recibe 9 digitos sin prefijo, agrega `593`.
 - Devuelve JID WhatsApp con sufijo `@s.whatsapp.net`.
+- No se debe usar para valores `@lid`; un `@lid` no es un telefono real.
+
+Ver tambien `docs/whatsapp-contact-identity.md`.
 
 ## Limitaciones Actuales
 

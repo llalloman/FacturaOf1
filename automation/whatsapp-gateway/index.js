@@ -9,6 +9,7 @@ import {
   fetchLatestBaileysVersion,
   Browsers
 } from "@whiskeysockets/baileys";
+import { resolveInboundIdentity, resolveOutboundJid } from "./identity.js";
 
 const PORT = Number(process.env.WHATSAPP_GATEWAY_PORT || 8081);
 const N8N_WEBHOOK_URL =
@@ -46,42 +47,25 @@ function getMessagePayload(message) {
   };
 }
 
-function normalizePhone(phone) {
-  const raw = String(phone || "").replace(/\D/g, "");
-  if (!raw) return null;
-
-  let normalized = raw;
-
-  if (normalized.startsWith("0")) {
-    normalized = `593${normalized.substring(1)}`;
-  }
-
-  if (!normalized.startsWith("593") && normalized.length === 9) {
-    normalized = `593${normalized}`;
-  }
-
-  return `${normalized}@s.whatsapp.net`;
-}
-
 async function startWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState("./session");
 
-const { version, isLatest } = await fetchLatestBaileysVersion();
+  const { version, isLatest } = await fetchLatestBaileysVersion();
 
-console.log("Usando versión de WhatsApp Web:", version, {
-  isLatest
-});
+  console.log("Usando versión de WhatsApp Web:", version, {
+    isLatest
+  });
 
-sock = makeWASocket({
-  version,
-  auth: state,
-  logger: pino({ level: "silent" }),
-  browser: Browsers.ubuntu("Chrome"),
-  syncFullHistory: false,
-  connectTimeoutMs: 60_000,
-  defaultQueryTimeoutMs: 60_000,
-  printQRInTerminal: false
-});
+  sock = makeWASocket({
+    version,
+    auth: state,
+    logger: pino({ level: "silent" }),
+    browser: Browsers.ubuntu("Chrome"),
+    syncFullHistory: false,
+    connectTimeoutMs: 60_000,
+    defaultQueryTimeoutMs: 60_000,
+    printQRInTerminal: false
+  });
 
   sock.ev.on("creds.update", saveCreds);
 
@@ -122,27 +106,24 @@ sock = makeWASocket({
 
     if (!message || message.key.fromMe) return;
 
-    const remoteJid = message.key.remoteJid;
+    const identity = resolveInboundIdentity(message);
     const { text, messageType, hasMedia } = getMessagePayload(message);
-
-    let phone = remoteJid;
-
-    // Solo quitamos @s.whatsapp.net si realmente viene como número normal.
-    // Si viene como @lid, @g.us u otro JID, lo conservamos completo.
-    if (remoteJid?.endsWith("@s.whatsapp.net")) {
-      phone = remoteJid.replace("@s.whatsapp.net", "");
-    }
 
     const messageId = message.key?.id || "";
     const timestamp = Number(message.messageTimestamp || Math.floor(Date.now() / 1000));
 
-    console.log("Mensaje recibido:", { phone, text, messageType, messageId });
+    console.log("Mensaje recibido:", {
+      contact_key: identity.contact_key,
+      phone: identity.phone,
+      reply_to_jid: identity.reply_to_jid,
+      text,
+      messageType,
+      messageId
+    });
 
     try {
       await axios.post(N8N_WEBHOOK_URL, {
-        from: phone,
-        from_jid: remoteJid,
-        remote_jid: remoteJid,
+        ...identity,
         body: text,
         channel: "whatsapp",
         message_id: messageId,
@@ -185,13 +166,7 @@ app.post("/sendText", async (req, res) => {
       });
     }
 
-    let jid;
-
-    if (String(to).includes("@")) {
-      jid = String(to).replace("@c.us", "@s.whatsapp.net");
-    } else {
-      jid = normalizePhone(to);
-    }
+    const jid = resolveOutboundJid(to);
 
     await sock.sendMessage(jid, { text: message });
 
@@ -209,11 +184,13 @@ app.post("/sendText", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`WhatsApp Gateway escuchando en puerto ${PORT}`);
-});
+if (process.env.WHATSAPP_GATEWAY_SKIP_START !== "true") {
+  app.listen(PORT, () => {
+    console.log(`WhatsApp Gateway escuchando en puerto ${PORT}`);
+  });
 
-startWhatsApp().catch((error) => {
-  console.error("Error iniciando WhatsApp:", error);
-  process.exit(1);
-});
+  startWhatsApp().catch((error) => {
+    console.error("Error iniciando WhatsApp:", error);
+    process.exit(1);
+  });
+}

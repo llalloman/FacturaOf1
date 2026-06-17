@@ -6,22 +6,30 @@ Agregar un nodo `Code` despues de `Edit Fields`.
 
 ```javascript
 const input = $json;
-const phone = String(input.from || input.phone || '').replace(/\D/g, '');
+const phone = String(input.phone || '').replace(/\D/g, '');
 let normalizedPhone = phone;
 if (normalizedPhone.startsWith('0')) normalizedPhone = `593${normalizedPhone.slice(1)}`;
 if (!normalizedPhone.startsWith('593') && normalizedPhone.length === 9) normalizedPhone = `593${normalizedPhone}`;
+const contactKey = String(input.contact_key || normalizedPhone || input.from_jid || input.remote_jid || input.from || '').trim();
+const replyToJid = String(input.reply_to_jid || input.remote_jid || input.from_jid || normalizedPhone || '').trim();
 
 const messageBody = String(input.body || input.message || '').trim();
 const messageType = input.message_type || (messageBody ? 'text' : 'unknown');
 const messageId = input.message_id || '';
 const idempotencyKey = messageId
-  ? `whatsapp:inbound:${normalizedPhone}:${messageId}`
-  : `whatsapp:inbound:${normalizedPhone}:${Buffer.from(`${messageBody}:${input.timestamp || ''}`).toString('base64')}`;
+  ? `whatsapp:inbound:${contactKey}:${messageId}`
+  : `whatsapp:inbound:${contactKey}:${Buffer.from(`${messageBody}:${input.timestamp || ''}`).toString('base64')}`;
 
 return [{
   json: {
     ...input,
-    phone: normalizedPhone,
+    phone: normalizedPhone || null,
+    contact_key: contactKey,
+    reply_to_jid: replyToJid,
+    from_jid: input.from_jid || '',
+    remote_jid: input.remote_jid || '',
+    push_name: input.push_name || '',
+    is_lid: Boolean(input.is_lid),
     message: messageBody,
     message_type: messageType,
     message_id: messageId,
@@ -46,6 +54,12 @@ Agregar `HTTP Request` despues de normalizar.
 {
   "direction": "INBOUND",
   "phone": "={{$json.phone}}",
+  "contact_key": "={{$json.contact_key}}",
+  "reply_to_jid": "={{$json.reply_to_jid}}",
+  "from_jid": "={{$json.from_jid}}",
+  "remote_jid": "={{$json.remote_jid}}",
+  "push_name": "={{$json.push_name}}",
+  "is_lid": "={{$json.is_lid}}",
   "channel": "whatsapp",
   "message_body": "={{$json.message}}",
   "message_type": "={{$json.message_type}}",
@@ -54,6 +68,18 @@ Agregar `HTTP Request` despues de normalizar.
   "raw_payload": "={{$json}}"
 }
 ```
+
+## Campos Que n8n Debe Conservar
+
+Los nodos `Edit Fields` pueden eliminar campos previos. Durante todo el flujo deben conservarse:
+
+- `phone`
+- `contact_key`
+- `reply_to_jid`
+- `from_jid`
+- `remote_jid`
+- `push_name`
+- `is_lid`
 
 ## Nodo: Duplicate Guard
 
@@ -111,6 +137,39 @@ Enviar plantilla `human_handoff` y notificar internamente.
 
 ## Nodo: Register Outbound Interaction
 
+Antes de enviar la respuesta, agregar o ajustar `Prepare WhatsApp Payload` con:
+
+```javascript
+const whatsappTo = String(
+  $json.reply_to_jid ||
+  $json.remote_jid ||
+  $json.from_jid ||
+  $json.phone ||
+  ''
+).trim();
+
+return [
+  {
+    json: {
+      ...$json,
+      whatsapp_to: whatsappTo,
+      whatsapp_message: $json.reply
+    }
+  }
+];
+```
+
+En `WhatsApp Gateway - Send Message`, usar este body:
+
+```javascript
+={{
+{
+  "to": $json["whatsapp_to"],
+  "message": $json["whatsapp_message"] || $json["reply"]
+}
+}}
+```
+
 Despues de `WhatsApp Gateway - Send Message`, agregar `HTTP Request`.
 
 - Method: `POST`
@@ -122,6 +181,12 @@ Despues de `WhatsApp Gateway - Send Message`, agregar `HTTP Request`.
 {
   "direction": "OUTBOUND",
   "phone": "={{$node["Normalize + Idempotency"].json.phone}}",
+  "contact_key": "={{$node["Normalize + Idempotency"].json.contact_key}}",
+  "reply_to_jid": "={{$node["Normalize + Idempotency"].json.reply_to_jid}}",
+  "from_jid": "={{$node["Normalize + Idempotency"].json.from_jid}}",
+  "remote_jid": "={{$node["Normalize + Idempotency"].json.remote_jid}}",
+  "push_name": "={{$node["Normalize + Idempotency"].json.push_name}}",
+  "is_lid": "={{$node["Normalize + Idempotency"].json.is_lid}}",
   "channel": "whatsapp",
   "message_body": "={{$node["Prepare WhatsApp Payload"].json.message}}",
   "message_type": "text",

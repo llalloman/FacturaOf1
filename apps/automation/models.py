@@ -27,8 +27,14 @@ class CommercialLead(models.Model):
         MEDIUM = 'medium', _('Media')
         HIGH = 'high', _('Alta')
 
-    phone = models.CharField(_('teléfono'), max_length=32)
-    normalized_phone = models.CharField(_('teléfono normalizado'), max_length=32)
+    phone = models.CharField(_('teléfono'), max_length=32, blank=True)
+    normalized_phone = models.CharField(_('teléfono normalizado'), max_length=32, blank=True)
+    contact_key = models.CharField(_('clave de contacto'), max_length=160, blank=True)
+    reply_to_jid = models.CharField(_('JID de respuesta'), max_length=160, blank=True)
+    from_jid = models.CharField(_('JID remitente'), max_length=160, blank=True)
+    remote_jid = models.CharField(_('JID chat'), max_length=160, blank=True)
+    push_name = models.CharField(_('nombre WhatsApp'), max_length=160, blank=True)
+    is_lid = models.BooleanField(_('es LID'), default=False)
     source_channel = models.CharField(_('canal'), max_length=30, default='whatsapp')
     name = models.CharField(_('nombre'), max_length=160, blank=True)
     company = models.CharField(_('empresa'), max_length=180, blank=True)
@@ -59,7 +65,16 @@ class CommercialLead(models.Model):
         verbose_name_plural = _('leads comerciales')
         ordering = ['-last_interaction_at', '-created_at']
         constraints = [
-            models.UniqueConstraint(fields=['normalized_phone', 'source_channel'], name='uniq_automation_lead_phone_channel'),
+            models.UniqueConstraint(
+                fields=['normalized_phone', 'source_channel'],
+                condition=~models.Q(normalized_phone=''),
+                name='uniq_automation_lead_phone_channel',
+            ),
+            models.UniqueConstraint(
+                fields=['contact_key', 'source_channel'],
+                condition=~models.Q(contact_key=''),
+                name='uniq_automation_lead_contact_key_channel',
+            ),
         ]
         indexes = [
             models.Index(fields=['interest_type', 'status']),
@@ -68,7 +83,7 @@ class CommercialLead(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.normalized_phone} - {self.interest_type}'
+        return f'{self.normalized_phone or self.contact_key} - {self.interest_type}'
 
 
 class WhatsAppInteraction(models.Model):
@@ -101,8 +116,14 @@ class WhatsAppInteraction(models.Model):
         verbose_name=_('pedido de firma'),
     )
     direction = models.CharField(_('dirección'), max_length=10, choices=Direction.choices)
-    phone = models.CharField(_('teléfono'), max_length=32)
-    normalized_phone = models.CharField(_('teléfono normalizado'), max_length=32)
+    phone = models.CharField(_('teléfono'), max_length=32, blank=True)
+    normalized_phone = models.CharField(_('teléfono normalizado'), max_length=32, blank=True)
+    contact_key = models.CharField(_('clave de contacto'), max_length=160, blank=True)
+    reply_to_jid = models.CharField(_('JID de respuesta'), max_length=160, blank=True)
+    from_jid = models.CharField(_('JID remitente'), max_length=160, blank=True)
+    remote_jid = models.CharField(_('JID chat'), max_length=160, blank=True)
+    push_name = models.CharField(_('nombre WhatsApp'), max_length=160, blank=True)
+    is_lid = models.BooleanField(_('es LID'), default=False)
     channel = models.CharField(_('canal'), max_length=30, default='whatsapp')
     message_body = models.TextField(_('mensaje'), blank=True)
     message_type = models.CharField(_('tipo de mensaje'), max_length=20, choices=MessageType.choices, default=MessageType.TEXT)
@@ -125,13 +146,14 @@ class WhatsAppInteraction(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['normalized_phone', 'channel', 'created_at']),
+            models.Index(fields=['contact_key', 'channel', 'created_at']),
             models.Index(fields=['direction', 'created_at']),
             models.Index(fields=['category', 'intent']),
             models.Index(fields=['requires_human']),
         ]
 
     def __str__(self):
-        return f'{self.direction} {self.normalized_phone} {self.created_at:%Y-%m-%d %H:%M}'
+        return f'{self.direction} {self.normalized_phone or self.contact_key} {self.created_at:%Y-%m-%d %H:%M}'
 
 
 class AutomationWebhookEvent(models.Model):

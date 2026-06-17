@@ -71,7 +71,12 @@ def normalize_choice(value, aliases, default):
     return aliases.get(key, default)
 
 def normalize_phone(value):
-    digits = ''.join(ch for ch in str(value or '') if ch.isdigit())
+    raw = str(value or '').strip()
+    if '@' in raw and not raw.endswith('@s.whatsapp.net'):
+        return ''
+    if raw.endswith('@s.whatsapp.net'):
+        raw = raw.replace('@s.whatsapp.net', '')
+    digits = ''.join(ch for ch in raw if ch.isdigit())
     if not digits:
         return ''
     if digits.startswith('0'):
@@ -87,8 +92,13 @@ def build_hash(*parts):
 
 
 class CommercialLeadSerializer(serializers.ModelSerializer):
-    phone = serializers.CharField(required=False, allow_blank=True)
-    normalized_phone = serializers.CharField(required=False, allow_blank=True)
+    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    normalized_phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    contact_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    reply_to_jid = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    from_jid = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    remote_jid = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    push_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     interest_type = serializers.CharField(required=False, allow_blank=True)
     status = serializers.CharField(required=False, allow_blank=True)
     priority = serializers.CharField(required=False, allow_blank=True)
@@ -97,19 +107,45 @@ class CommercialLeadSerializer(serializers.ModelSerializer):
     class Meta:
         model = CommercialLead
         fields = [
-            'id', 'phone', 'normalized_phone', 'source_channel', 'name', 'company', 'email',
+            'id', 'phone', 'normalized_phone', 'contact_key', 'reply_to_jid', 'from_jid',
+            'remote_jid', 'push_name', 'is_lid', 'source_channel', 'name', 'company', 'email',
             'interest_type', 'status', 'priority', 'summary', 'last_category', 'last_intent',
             'last_ai_confidence', 'last_interaction_at', 'metadata', 'created_at', 'updated_at', 'created',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'phone': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'normalized_phone': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'contact_key': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'reply_to_jid': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'from_jid': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'remote_jid': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'push_name': {'required': False, 'allow_blank': True, 'allow_null': True},
+        }
 
     def validate(self, attrs):
-        phone = attrs.get('normalized_phone') or attrs.get('phone') or self.initial_data.get('from')
+        phone = attrs.get('normalized_phone') or attrs.get('phone') or self.initial_data.get('phone')
         normalized = normalize_phone(phone)
-        if not normalized:
-            raise serializers.ValidationError({'phone': 'Debe enviar phone o normalized_phone.'})
+        contact_key = (
+            attrs.get('contact_key')
+            or self.initial_data.get('contact_key')
+            or self.initial_data.get('reply_to_jid')
+            or self.initial_data.get('from_jid')
+            or self.initial_data.get('remote_jid')
+            or self.initial_data.get('from')
+            or self.initial_data.get('to')
+            or normalized
+        )
+        if not normalized and not contact_key:
+            raise serializers.ValidationError({'contact_key': 'Debe enviar phone/normalized_phone o contact_key/JID.'})
         attrs['normalized_phone'] = normalized
-        attrs['phone'] = attrs.get('phone') or phone
+        attrs['phone'] = attrs.get('phone') or (phone if normalized else '')
+        attrs['contact_key'] = str(contact_key or '').strip()
+        attrs['reply_to_jid'] = attrs.get('reply_to_jid') or self.initial_data.get('reply_to_jid') or ''
+        attrs['from_jid'] = attrs.get('from_jid') or self.initial_data.get('from_jid') or ''
+        attrs['remote_jid'] = attrs.get('remote_jid') or self.initial_data.get('remote_jid') or ''
+        attrs['push_name'] = attrs.get('push_name') or self.initial_data.get('push_name') or ''
+        attrs['is_lid'] = bool(attrs.get('is_lid') or self.initial_data.get('is_lid') or str(attrs['contact_key']).endswith('@lid'))
         attrs['source_channel'] = attrs.get('source_channel') or self.initial_data.get('channel') or 'whatsapp'
         attrs['interest_type'] = normalize_choice(
             attrs.get('interest_type') or self.initial_data.get('category'),
@@ -129,10 +165,17 @@ class CommercialLeadSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        lookup = {
-            'normalized_phone': validated_data['normalized_phone'],
-            'source_channel': validated_data.get('source_channel', 'whatsapp'),
-        }
+        source_channel = validated_data.get('source_channel', 'whatsapp')
+        if validated_data.get('normalized_phone'):
+            lookup = {
+                'normalized_phone': validated_data['normalized_phone'],
+                'source_channel': source_channel,
+            }
+        else:
+            lookup = {
+                'contact_key': validated_data['contact_key'],
+                'source_channel': source_channel,
+            }
         defaults = dict(validated_data)
         if not defaults.get('last_interaction_at'):
             defaults['last_interaction_at'] = timezone.now()
@@ -151,6 +194,7 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
         model = WhatsAppInteraction
         fields = [
             'id', 'lead_id', 'signature_order_id', 'direction', 'phone', 'normalized_phone', 'channel',
+            'contact_key', 'reply_to_jid', 'from_jid', 'remote_jid', 'push_name', 'is_lid',
             'message_body', 'message_type', 'message_id', 'idempotency_key', 'category', 'intent',
             'ai_confidence', 'ai_summary', 'requires_human', 'template_key', 'gateway_status',
             'raw_payload', 'created_at', 'created', 'upsert_lead',
@@ -158,20 +202,41 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'lead_id', 'created_at']
         extra_kwargs = {
             'idempotency_key': {'required': False, 'allow_blank': True, 'validators': []},
-            'phone': {'required': False, 'allow_blank': True},
-            'normalized_phone': {'required': False, 'allow_blank': True},
+            'phone': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'normalized_phone': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'contact_key': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'reply_to_jid': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'from_jid': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'remote_jid': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'push_name': {'required': False, 'allow_blank': True, 'allow_null': True},
             'message_body': {'required': False, 'allow_blank': True},
             'message_id': {'required': False, 'allow_blank': True},
         }
 
     def validate(self, attrs):
         initial = self.initial_data
-        phone = attrs.get('normalized_phone') or attrs.get('phone') or initial.get('from') or initial.get('to')
+        phone = attrs.get('normalized_phone') or attrs.get('phone') or initial.get('phone')
         normalized = normalize_phone(phone)
-        if not normalized:
-            raise serializers.ValidationError({'phone': 'Debe enviar phone/from/to.'})
+        contact_key = (
+            attrs.get('contact_key')
+            or initial.get('contact_key')
+            or initial.get('reply_to_jid')
+            or initial.get('from_jid')
+            or initial.get('remote_jid')
+            or initial.get('from')
+            or initial.get('to')
+            or normalized
+        )
+        if not normalized and not contact_key:
+            raise serializers.ValidationError({'contact_key': 'Debe enviar phone/contact_key/from/to.'})
         attrs['normalized_phone'] = normalized
-        attrs['phone'] = attrs.get('phone') or phone
+        attrs['phone'] = attrs.get('phone') or (phone if normalized else '')
+        attrs['contact_key'] = str(contact_key or '').strip()
+        attrs['reply_to_jid'] = attrs.get('reply_to_jid') or initial.get('reply_to_jid') or ''
+        attrs['from_jid'] = attrs.get('from_jid') or initial.get('from_jid') or ''
+        attrs['remote_jid'] = attrs.get('remote_jid') or initial.get('remote_jid') or ''
+        attrs['push_name'] = attrs.get('push_name') or initial.get('push_name') or ''
+        attrs['is_lid'] = bool(attrs.get('is_lid') or initial.get('is_lid') or str(attrs['contact_key']).endswith('@lid'))
         attrs['channel'] = attrs.get('channel') or initial.get('channel') or 'whatsapp'
         attrs['message_body'] = attrs.get('message_body') or initial.get('body') or initial.get('message') or ''
         attrs['message_type'] = attrs.get('message_type') or initial.get('type') or 'text'
@@ -182,9 +247,10 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
 
         if not attrs.get('idempotency_key'):
             message_key = attrs.get('message_id') or build_hash(
-                attrs.get('direction'), attrs.get('normalized_phone'), attrs.get('message_body'), attrs.get('raw_payload')
+                attrs.get('direction'), attrs.get('normalized_phone') or attrs.get('contact_key'), attrs.get('message_body'), attrs.get('raw_payload')
             )
-            attrs['idempotency_key'] = f"whatsapp:{attrs.get('channel')}:{attrs.get('direction')}:{attrs.get('normalized_phone')}:{message_key}"
+            identity_key = attrs.get('normalized_phone') or attrs.get('contact_key')
+            attrs['idempotency_key'] = f"whatsapp:{attrs.get('channel')}:{attrs.get('direction')}:{identity_key}:{message_key}"
         return attrs
 
     def create(self, validated_data):
@@ -193,7 +259,14 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
         lead = None
         if upsert_lead:
             lead_defaults = {
-                'phone': validated_data['phone'],
+                'phone': validated_data.get('phone', ''),
+                'normalized_phone': validated_data.get('normalized_phone', ''),
+                'contact_key': validated_data.get('contact_key', ''),
+                'reply_to_jid': validated_data.get('reply_to_jid', ''),
+                'from_jid': validated_data.get('from_jid', ''),
+                'remote_jid': validated_data.get('remote_jid', ''),
+                'push_name': validated_data.get('push_name', ''),
+                'is_lid': validated_data.get('is_lid', False),
                 'interest_type': validated_data.get('category') or CommercialLead.InterestType.UNKNOWN,
                 'last_category': validated_data.get('category', ''),
                 'last_intent': validated_data.get('intent', ''),
@@ -204,11 +277,12 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
             if validated_data.get('requires_human'):
                 lead_defaults['status'] = CommercialLead.Status.REQUIRES_HUMAN
                 lead_defaults['priority'] = CommercialLead.Priority.HIGH
-            lead, _ = CommercialLead.objects.update_or_create(
-                normalized_phone=validated_data['normalized_phone'],
-                source_channel=validated_data.get('channel', 'whatsapp'),
-                defaults=lead_defaults,
-            )
+            source_channel = validated_data.get('channel', 'whatsapp')
+            if validated_data.get('normalized_phone'):
+                lead_lookup = {'normalized_phone': validated_data['normalized_phone'], 'source_channel': source_channel}
+            else:
+                lead_lookup = {'contact_key': validated_data['contact_key'], 'source_channel': source_channel}
+            lead, _ = CommercialLead.objects.update_or_create(defaults=lead_defaults, **lead_lookup)
         if signature_order_id:
             validated_data['signature_order_id'] = signature_order_id
         if lead:

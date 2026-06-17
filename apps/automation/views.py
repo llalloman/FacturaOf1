@@ -40,12 +40,17 @@ class InteractionCreateView(AutomationBaseMixin, generics.CreateAPIView):
 
 class LeadContextView(AutomationBaseMixin, APIView):
     def get(self, request, phone):
-        normalized = ''.join(ch for ch in str(phone or '') if ch.isdigit())
-        if normalized.startswith('0'):
-            normalized = f'593{normalized[1:]}'
-        if not normalized.startswith('593') and len(normalized) == 9:
-            normalized = f'593{normalized}'
-        lead = get_object_or_404(CommercialLead, normalized_phone=normalized, source_channel=request.query_params.get('channel', 'whatsapp'))
+        identifier = str(phone or '').strip()
+        channel = request.query_params.get('channel', 'whatsapp')
+        if '@' in identifier:
+            lead = get_object_or_404(CommercialLead, contact_key=identifier, source_channel=channel)
+        else:
+            normalized = ''.join(ch for ch in identifier if ch.isdigit())
+            if normalized.startswith('0'):
+                normalized = f'593{normalized[1:]}'
+            if not normalized.startswith('593') and len(normalized) == 9:
+                normalized = f'593{normalized}'
+            lead = get_object_or_404(CommercialLead, normalized_phone=normalized, source_channel=channel)
         interactions = WhatsAppInteraction.objects.filter(lead=lead).order_by('-created_at')[:10]
         return Response({
             'lead': CommercialLeadSerializer(lead).data,
