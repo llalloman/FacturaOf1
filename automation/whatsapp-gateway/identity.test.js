@@ -45,4 +45,15 @@ assert.equal(lidOnlyIdentity.contact_key, "279868742840481@lid");
 assert.equal(lidOnlyIdentity.reply_to_jid, "279868742840481@lid");
 assert.equal(lidOnlyIdentity.is_lid, true);
 
+const lidWithSenderPnIdentity = resolveInboundIdentity({
+  key: {
+    remoteJid: "279868742840481@lid",
+    senderPn: "593999999999@s.whatsapp.net"
+  }
+});
+assert.equal(lidWithSenderPnIdentity.phone, "593999999999");
+assert.equal(lidWithSenderPnIdentity.contact_key, "593999999999");
+assert.equal(lidWithSenderPnIdentity.reply_to_jid, "279868742840481@lid");
+assert.equal(lidWithSenderPnIdentity.is_lid, true);
+
 console.log("WhatsApp identity checks passed.");

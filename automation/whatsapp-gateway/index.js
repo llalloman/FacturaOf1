@@ -126,6 +126,7 @@ async function startWhatsApp() {
       contact_key: identity.contact_key,
       phone: identity.phone,
       reply_to_jid: identity.reply_to_jid,
+      key: message.key,
       text,
       messageType,
       messageId

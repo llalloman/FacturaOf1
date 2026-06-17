@@ -11,6 +11,14 @@ export function phoneFromJid(jid = "") {
   return String(jid).replace("@s.whatsapp.net", "");
 }
 
+function firstPhoneFromJids(...jids) {
+  for (const jid of jids) {
+    const phone = phoneFromJid(jid);
+    if (phone) return phone;
+  }
+  return null;
+}
+
 export function normalizePhone(phone) {
   const raw = String(phone || "").replace(/\D/g, "");
   if (!raw) return null;
@@ -38,9 +46,17 @@ export function resolveOutboundJid(to) {
 }
 
 export function resolveInboundIdentity(message) {
-  const remoteJid = message?.key?.remoteJid || "";
-  const fromJid = message?.key?.participant || remoteJid;
-  const phone = phoneFromJid(fromJid) || phoneFromJid(remoteJid);
+  const key = message?.key || {};
+  const remoteJid = key.remoteJid || "";
+  const fromJid = key.participant || remoteJid;
+  const phone = firstPhoneFromJids(
+    key.senderPn,
+    key.participantPn,
+    key.remoteJidAlt,
+    key.participantAlt,
+    key.remoteJid,
+    key.participant
+  );
   const contactKey = phone || fromJid || remoteJid;
 
   return {
