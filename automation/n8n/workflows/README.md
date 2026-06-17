@@ -21,18 +21,18 @@ En el canvas existente `01_whatsapp_inbound`, agrega estas piezas alrededor de l
 Todos requieren header:
 
 ```http
-X-Automation-Token: {{$env.AUTOMATION_API_TOKEN}}
+X-Automation-Token: valor configurado en una credencial HTTP Header Auth de n8n
 ```
 
 Endpoints:
 
-- `POST {{$env.FACTURAOF1_API_URL}}/api/automation/leads/`
-- `POST {{$env.FACTURAOF1_API_URL}}/api/automation/interactions/`
-- `GET {{$env.FACTURAOF1_API_URL}}/api/automation/leads/context/{{phone}}/`
-- `GET {{$env.FACTURAOF1_API_URL}}/api/automation/signature-orders/{{id_or_request_number}}/`
-- `PATCH {{$env.FACTURAOF1_API_URL}}/api/automation/signature-orders/{{id_or_request_number}}/status/`
-- `POST {{$env.FACTURAOF1_API_URL}}/api/automation/webhook-events/`
-- `POST {{$env.FACTURAOF1_API_URL}}/api/automation/audit-events/`
+- `POST {{FACTURAOF1_API_URL_CONFIGURADO_EN_NODO}}/api/automation/leads/`
+- `POST {{FACTURAOF1_API_URL_CONFIGURADO_EN_NODO}}/api/automation/interactions/`
+- `GET {{FACTURAOF1_API_URL_CONFIGURADO_EN_NODO}}/api/automation/leads/context/{{phone}}/`
+- `GET {{FACTURAOF1_API_URL_CONFIGURADO_EN_NODO}}/api/automation/signature-orders/{{id_or_request_number}}/`
+- `PATCH {{FACTURAOF1_API_URL_CONFIGURADO_EN_NODO}}/api/automation/signature-orders/{{id_or_request_number}}/status/`
+- `POST {{FACTURAOF1_API_URL_CONFIGURADO_EN_NODO}}/api/automation/webhook-events/`
+- `POST {{FACTURAOF1_API_URL_CONFIGURADO_EN_NODO}}/api/automation/audit-events/`
 
 ## Archivos
 

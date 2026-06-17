@@ -38,8 +38,8 @@ return [{
 Agregar `HTTP Request` despues de normalizar.
 
 - Method: `POST`
-- URL: `{{$env.FACTURAOF1_API_URL}}/api/automation/interactions/`
-- Header: `X-Automation-Token: {{$env.AUTOMATION_API_TOKEN}}`
+- URL: `{{FACTURAOF1_API_URL_CONFIGURADO_EN_NODO}}/api/automation/interactions/`
+- Header: `X-Automation-Token: valor configurado en una credencial HTTP Header Auth de n8n`
 - Body JSON:
 
 ```json
@@ -114,8 +114,8 @@ Enviar plantilla `human_handoff` y notificar internamente.
 Despues de `WhatsApp Gateway - Send Message`, agregar `HTTP Request`.
 
 - Method: `POST`
-- URL: `{{$env.FACTURAOF1_API_URL}}/api/automation/interactions/`
-- Header: `X-Automation-Token: {{$env.AUTOMATION_API_TOKEN}}`
+- URL: `{{FACTURAOF1_API_URL_CONFIGURADO_EN_NODO}}/api/automation/interactions/`
+- Header: `X-Automation-Token: valor configurado en una credencial HTTP Header Auth de n8n`
 - Body JSON:
 
 ```json

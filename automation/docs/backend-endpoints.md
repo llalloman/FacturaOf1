@@ -7,7 +7,7 @@ Endpoints internos agregados para que n8n registre trazabilidad en FacturaOF1.
 Usar header:
 
 ```http
-X-Automation-Token: {{$env.AUTOMATION_API_TOKEN}}
+X-Automation-Token: valor configurado en una credencial HTTP Header Auth de n8n
 ```
 
 El backend lee el valor desde `AUTOMATION_API_TOKEN`. Si no esta configurado, los endpoints responden no autorizado. Tambien debe estar disponible en n8n como variable de entorno con el mismo nombre.

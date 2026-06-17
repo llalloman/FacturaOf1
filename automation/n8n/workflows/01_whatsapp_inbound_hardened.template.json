@@ -32,13 +32,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.FACTURAOF1_API_URL}}/api/automation/interactions/",
+        "url": "http://TU_BACKEND_FACTURAOF1/api/automation/interactions/",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "X-Automation-Token",
-              "value": "={{$env.AUTOMATION_API_TOKEN}}"
+              "value": "PONER_TOKEN_EN_CREDENTIAL_NO_AQUI"
             }
           ]
         },
