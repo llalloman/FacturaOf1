@@ -1,0 +1,174 @@
+{
+  "name": "01_whatsapp_inbound_hardened_template",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-inbound",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json;\nconst phone = String(input.from || input.phone || '').replace(/\\D/g, '');\nlet normalizedPhone = phone;\nif (normalizedPhone.startsWith('0')) normalizedPhone = `593${normalizedPhone.slice(1)}`;\nif (!normalizedPhone.startsWith('593') && normalizedPhone.length === 9) normalizedPhone = `593${normalizedPhone}`;\nconst messageBody = String(input.body || input.message || '').trim();\nconst messageType = input.message_type || (messageBody ? 'text' : 'unknown');\nconst messageId = input.message_id || '';\nconst idempotencyKey = messageId ? `whatsapp:inbound:${normalizedPhone}:${messageId}` : `whatsapp:inbound:${normalizedPhone}:${Buffer.from(`${messageBody}:${input.timestamp || ''}`).toString('base64')}`;\nreturn [{ json: { ...input, phone: normalizedPhone, message: messageBody, message_type: messageType, message_id: messageId, idempotency_key: idempotencyKey, is_empty: !messageBody, is_media: Boolean(input.has_media) || !['text', 'unknown'].includes(messageType), received_at: new Date((Number(input.timestamp) || Math.floor(Date.now() / 1000)) * 1000).toISOString() } }];"
+      },
+      "id": "normalize",
+      "name": "Normalize + Idempotency",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.FACTURAOF1_API_URL}}/api/automation/interactions/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Automation-Token",
+              "value": "={{$env.AUTOMATION_API_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"direction\": \"INBOUND\",\n  \"phone\": $json.phone,\n  \"channel\": \"whatsapp\",\n  \"message_body\": $json.message,\n  \"message_type\": $json.message_type,\n  \"message_id\": $json.message_id,\n  \"idempotency_key\": $json.idempotency_key,\n  \"raw_payload\": $json\n}"
+      },
+      "id": "register-inbound",
+      "name": "Register Inbound Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.created}}",
+              "operation": "isFalse"
+            }
+          ]
+        }
+      },
+      "id": "duplicate-guard",
+      "name": "Duplicate Guard",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$node['Normalize + Idempotency'].json.is_empty || $node['Normalize + Idempotency'].json.is_media}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "empty-media-guard",
+      "name": "Empty/Media Guard",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1020,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}"
+      },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        -120
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize + Idempotency",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize + Idempotency": {
+      "main": [
+        [
+          {
+            "node": "Register Inbound Interaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Inbound Interaction": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Guard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Guard": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Empty/Media Guard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "template",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

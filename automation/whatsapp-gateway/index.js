@@ -21,6 +21,31 @@ app.use(express.json({ limit: "10mb" }));
 let sock;
 let isReady = false;
 
+
+function getMessagePayload(message) {
+  const content = message.message || {};
+  const text =
+    content.conversation ||
+    content.extendedTextMessage?.text ||
+    content.imageMessage?.caption ||
+    content.videoMessage?.caption ||
+    content.documentMessage?.caption ||
+    '';
+
+  let messageType = 'unknown';
+  if (content.conversation || content.extendedTextMessage) messageType = 'text';
+  else if (content.imageMessage) messageType = 'image';
+  else if (content.audioMessage) messageType = 'audio';
+  else if (content.videoMessage) messageType = 'video';
+  else if (content.documentMessage) messageType = 'document';
+
+  return {
+    text,
+    messageType,
+    hasMedia: ['image', 'audio', 'video', 'document'].includes(messageType)
+  };
+}
+
 function normalizePhone(phone) {
   const raw = String(phone || "").replace(/\D/g, "");
   if (!raw) return null;
@@ -99,22 +124,22 @@ sock = makeWASocket({
 
     const remoteJid = message.key.remoteJid;
 
-    const text =
-      message.message?.conversation ||
-      message.message?.extendedTextMessage?.text ||
-      "";
-
-    if (!text) return;
-
+    const { text, messageType, hasMedia } = getMessagePayload(message);
     const phone = remoteJid?.replace("@s.whatsapp.net", "");
+    const messageId = message.key?.id || "";
+    const timestamp = Number(message.messageTimestamp || Math.floor(Date.now() / 1000));
 
-    console.log("Mensaje recibido:", { phone, text });
+    console.log("Mensaje recibido:", { phone, text, messageType, messageId });
 
     try {
       await axios.post(N8N_WEBHOOK_URL, {
         from: phone,
         body: text,
-        channel: "whatsapp"
+        channel: "whatsapp",
+        message_id: messageId,
+        message_type: messageType,
+        timestamp,
+        has_media: hasMedia
       });
     } catch (error) {
       console.error(

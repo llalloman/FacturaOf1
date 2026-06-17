@@ -13,6 +13,7 @@ _RUTAS_LIBRES = [
     '/api/empresas/',
     '/api/usuarios/me/',
     '/api/health/',
+    '/api/automation/',
 ]
 
 

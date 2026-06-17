@@ -49,6 +49,7 @@ urlpatterns = [
     path('api/bancos/', include('apps.bancos.urls')),
     path('api/nomina/', include('apps.nomina.urls')),
     path('api/firmas/', include('apps.firmas.urls')),
+    path('api/automation/', include('apps.automation.urls')),
     
     # Dashboard
     path('api/dashboard/', dashboard_view, name='dashboard'),

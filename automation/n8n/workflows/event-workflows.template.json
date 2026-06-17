@@ -1,0 +1,22 @@
+{
+  "name": "of1_signature_event_workflows_template",
+  "description": "Skeleton referencial para workflows 02 a 08. Crear uno por evento en n8n y conectar webhook -> registrar evento -> preparar plantilla -> enviar WhatsApp/correo -> auditar.",
+  "events": [
+    "signature_order.created",
+    "signature_order.incomplete",
+    "payment.proof_uploaded",
+    "payment.validated",
+    "signature_order.ready_for_issuance",
+    "signature_order.issued",
+    "lead.created",
+    "lead.requires_human"
+  ],
+  "common_steps": [
+    "Webhook POST",
+    "Register Automation Webhook Event: POST /api/automation/webhook-events/",
+    "Fetch Signature Order or Lead Context when needed",
+    "Prepare controlled template",
+    "Send WhatsApp through gateway /sendText or internal email",
+    "Register outbound interaction/audit event"
+  ]
+}

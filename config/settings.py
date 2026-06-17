@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     'apps.bancos',
     'apps.nomina',
     'apps.firmas',
+    'apps.automation',
 ]
 
 MIDDLEWARE = [
@@ -183,6 +184,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Configuración comercial
 KIT_EMPRENDEDOR_PRICE = config('KIT_EMPRENDEDOR_PRICE', default='79.99')
+
+# Token interno para n8n / automation. No definir valor por defecto inseguro.
+AUTOMATION_API_TOKEN = config('AUTOMATION_API_TOKEN', default='').strip()
 
 # REST Framework
 REST_FRAMEWORK = {
