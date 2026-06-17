@@ -10,6 +10,66 @@ from apps.firmas.models import HistorialEstadoSolicitudFirma, SolicitudFirmaElec
 from .models import AutomationAuditLog, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
 
 
+LEAD_INTEREST_ALIASES = {
+    'firma_electronica': CommercialLead.InterestType.SIGNATURE,
+    'firma': CommercialLead.InterestType.SIGNATURE,
+    'signature': CommercialLead.InterestType.SIGNATURE,
+    'erp': CommercialLead.InterestType.ERP,
+    'facturaof1': CommercialLead.InterestType.ERP,
+    'facturacion_electronica': CommercialLead.InterestType.INVOICING,
+    'facturación_electrónica': CommercialLead.InterestType.INVOICING,
+    'invoicing': CommercialLead.InterestType.INVOICING,
+    'desarrollo_software': CommercialLead.InterestType.CUSTOM_SOFTWARE,
+    'software': CommercialLead.InterestType.CUSTOM_SOFTWARE,
+    'custom_software': CommercialLead.InterestType.CUSTOM_SOFTWARE,
+    'ia': CommercialLead.InterestType.AUTOMATION_AI,
+    'inteligencia_artificial': CommercialLead.InterestType.AUTOMATION_AI,
+    'automatizacion': CommercialLead.InterestType.AUTOMATION_AI,
+    'automatización': CommercialLead.InterestType.AUTOMATION_AI,
+    'automation_ai': CommercialLead.InterestType.AUTOMATION_AI,
+    'chatbot': CommercialLead.InterestType.CHATBOT,
+    'chatbots': CommercialLead.InterestType.CHATBOT,
+    'integracion': CommercialLead.InterestType.INTEGRATION,
+    'integración': CommercialLead.InterestType.INTEGRATION,
+    'integration': CommercialLead.InterestType.INTEGRATION,
+    'soporte': CommercialLead.InterestType.SUPPORT,
+    'support': CommercialLead.InterestType.SUPPORT,
+    'otro': CommercialLead.InterestType.UNKNOWN,
+    'unknown': CommercialLead.InterestType.UNKNOWN,
+}
+
+LEAD_STATUS_ALIASES = {
+    'nuevo': CommercialLead.Status.NEW,
+    'new': CommercialLead.Status.NEW,
+    'responded_bot': CommercialLead.Status.CONTACTED,
+    'bot_responded': CommercialLead.Status.CONTACTED,
+    'contactado': CommercialLead.Status.CONTACTED,
+    'contacted': CommercialLead.Status.CONTACTED,
+    'qualified': CommercialLead.Status.QUALIFIED,
+    'calificado': CommercialLead.Status.QUALIFIED,
+    'requires_human': CommercialLead.Status.REQUIRES_HUMAN,
+    'requiere_humano': CommercialLead.Status.REQUIRES_HUMAN,
+    'human': CommercialLead.Status.REQUIRES_HUMAN,
+    'converted': CommercialLead.Status.CONVERTED,
+    'convertido': CommercialLead.Status.CONVERTED,
+    'closed': CommercialLead.Status.CLOSED,
+    'cerrado': CommercialLead.Status.CLOSED,
+}
+
+LEAD_PRIORITY_ALIASES = {
+    'low': CommercialLead.Priority.LOW,
+    'baja': CommercialLead.Priority.LOW,
+    'medium': CommercialLead.Priority.MEDIUM,
+    'media': CommercialLead.Priority.MEDIUM,
+    'high': CommercialLead.Priority.HIGH,
+    'alta': CommercialLead.Priority.HIGH,
+}
+
+
+def normalize_choice(value, aliases, default):
+    key = str(value or '').strip().lower()
+    return aliases.get(key, default)
+
 def normalize_phone(value):
     digits = ''.join(ch for ch in str(value or '') if ch.isdigit())
     if not digits:
@@ -29,6 +89,9 @@ def build_hash(*parts):
 class CommercialLeadSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(required=False, allow_blank=True)
     normalized_phone = serializers.CharField(required=False, allow_blank=True)
+    interest_type = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.CharField(required=False, allow_blank=True)
+    priority = serializers.CharField(required=False, allow_blank=True)
     created = serializers.BooleanField(read_only=True)
 
     class Meta:
@@ -48,6 +111,21 @@ class CommercialLeadSerializer(serializers.ModelSerializer):
         attrs['normalized_phone'] = normalized
         attrs['phone'] = attrs.get('phone') or phone
         attrs['source_channel'] = attrs.get('source_channel') or self.initial_data.get('channel') or 'whatsapp'
+        attrs['interest_type'] = normalize_choice(
+            attrs.get('interest_type') or self.initial_data.get('category'),
+            LEAD_INTEREST_ALIASES,
+            CommercialLead.InterestType.UNKNOWN,
+        )
+        attrs['status'] = normalize_choice(
+            attrs.get('status'),
+            LEAD_STATUS_ALIASES,
+            CommercialLead.Status.NEW,
+        )
+        attrs['priority'] = normalize_choice(
+            attrs.get('priority') or self.initial_data.get('lead_priority'),
+            LEAD_PRIORITY_ALIASES,
+            CommercialLead.Priority.MEDIUM,
+        )
         return attrs
 
     def create(self, validated_data):
