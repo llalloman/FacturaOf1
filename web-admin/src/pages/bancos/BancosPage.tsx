@@ -329,6 +329,7 @@ export default function BancosPage() {
   const [extracto, setExtracto] = useState<ExtractoRow[]>([]);
   const [totalDisponible, setTotalDisponible] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [loadingExtracto, setLoadingExtracto] = useState(false);
   const [showNuevaCuenta, setShowNuevaCuenta] = useState(false);
   const [editingCuenta, setEditingCuenta] = useState<CuentaBancaria | null>(null);
@@ -343,21 +344,23 @@ export default function BancosPage() {
 
   const loadCuentas = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await getResumen();
       setCuentas(res.cuentas);
       setTotalDisponible(res.total_disponible);
-      if (!selectedCuenta && res.cuentas.length > 0) {
-        setSelectedCuenta(res.cuentas[0]);
-      } else if (selectedCuenta) {
-        setSelectedCuenta(res.cuentas.find(c => c.id === selectedCuenta.id) ?? res.cuentas[0] ?? null);
-      }
+      setSelectedCuenta(current => (
+        res.cuentas.find(cuenta => cuenta.id === current?.id)
+        ?? res.cuentas[0]
+        ?? null
+      ));
     } catch {
+      setLoadError(true);
       showToast('Error cargando cuentas', 'error');
     } finally {
       setLoading(false);
     }
-  }, [selectedCuenta, showToast]);
+  }, [showToast]);
 
   const loadExtracto = useCallback(async () => {
     if (!selectedCuenta) return;
@@ -459,6 +462,17 @@ export default function BancosPage() {
           <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Cuentas</p>
           {loading ? (
             <div className="text-center text-gray-400 py-8">Cargando…</div>
+          ) : loadError ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-red-600">No se pudieron cargar las cuentas.</p>
+              <button
+                type="button"
+                onClick={loadCuentas}
+                className="mt-2 text-sm text-indigo-600 hover:text-indigo-800"
+              >
+                Reintentar
+              </button>
+            </div>
           ) : cuentas.length === 0 ? (
             <div className="text-center text-gray-400 py-8">
               <p>No hay cuentas.</p>
