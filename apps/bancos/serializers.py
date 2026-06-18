@@ -24,6 +24,9 @@ class CuentaBancariaSerializer(serializers.ModelSerializer):
 class MovimientoBancarioSerializer(serializers.ModelSerializer):
     cuenta_label = serializers.SerializerMethodField()
     es_entrada   = serializers.BooleanField(read_only=True)
+    origen = serializers.SerializerMethodField()
+    origen_referencia = serializers.SerializerMethodField()
+    eliminable = serializers.SerializerMethodField()
 
     class Meta:
         model = MovimientoBancario
@@ -31,7 +34,25 @@ class MovimientoBancarioSerializer(serializers.ModelSerializer):
             'id', 'cuenta', 'cuenta_label', 'fecha', 'tipo',
             'descripcion', 'referencia', 'monto', 'conciliado',
             'beneficiario', 'notas', 'created_at', 'es_entrada',
+            'origen', 'origen_referencia', 'eliminable',
         ]
 
     def get_cuenta_label(self, obj):
         return str(obj.cuenta)
+
+    def get_origen(self, obj):
+        if hasattr(obj, 'pago_venta'):
+            return 'VENTA'
+        if hasattr(obj, 'pago_proveedor'):
+            return 'PAGO_PROVEEDOR'
+        return 'MANUAL'
+
+    def get_origen_referencia(self, obj):
+        if hasattr(obj, 'pago_venta'):
+            return obj.pago_venta.venta.numero_venta
+        if hasattr(obj, 'pago_proveedor'):
+            return obj.pago_proveedor.numero_pago
+        return ''
+
+    def get_eliminable(self, obj):
+        return self.get_origen(obj) == 'MANUAL'

@@ -165,9 +165,13 @@ export interface Venta {
   diferencia_vs_factura?: number | null;
   factura_detalle?: Factura | null;
   detalles?: Array<{
+    id: number;
     producto: number;
+    proveedor?: number | null;
+    bodega?: number | null;
     cantidad: number;
     precio_unitario: number;
+    costo_unitario: number;
     subtotal: number;
     iva: number;
     total: number;
@@ -176,7 +180,13 @@ export interface Venta {
       codigo_principal: string;
     };
   }>;
-  pagos?: Array<{ forma_pago: string; monto: number }>;
+  pagos?: Array<{
+    id: number;
+    forma_pago: string;
+    monto: number;
+    cuenta_bancaria?: number | null;
+    movimiento_bancario?: number | null;
+  }>;
   created_at?: string;
 }
 

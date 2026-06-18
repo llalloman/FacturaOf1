@@ -5,11 +5,11 @@ from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
 from .models import (
-    Proveedor, OrdenCompra, RecepcionCompra,
+    Proveedor, ProveedorProducto, OrdenCompra, RecepcionCompra,
     CuentaPorPagar, PagoProveedor
 )
 from .serializers import (
-    ProveedorSerializer, OrdenCompraSerializer,
+    ProveedorSerializer, ProveedorProductoSerializer, OrdenCompraSerializer,
     RecepcionCompraSerializer, CuentaPorPagarSerializer,
     PagoProveedorSerializer
 )
@@ -55,6 +55,23 @@ class ProveedorViewSet(viewsets.ModelViewSet):
                 fecha_vencimiento__lt=timezone.now().date()
             ).count()
         })
+
+
+class ProveedorProductoViewSet(viewsets.ModelViewSet):
+    serializer_class = ProveedorProductoSerializer
+    permission_classes = [IsAuthenticated, IsTenantUser, HasModuleAccess]
+    module_required = 'proveedores'
+    filterset_fields = ['proveedor', 'producto', 'activo', 'es_preferido']
+    search_fields = [
+        'proveedor__razon_social', 'producto__nombre',
+        'producto__codigo_principal', 'codigo_proveedor',
+    ]
+    ordering = ['producto__nombre', '-es_preferido']
+
+    def get_queryset(self):
+        return ProveedorProducto.objects.filter(
+            empresa=self.request.user.empresa,
+        ).select_related('proveedor', 'producto')
 
 
 class OrdenCompraViewSet(viewsets.ModelViewSet):
@@ -174,18 +191,41 @@ class RecepcionCompraViewSet(viewsets.ModelViewSet):
             detalle_orden = detalle_recep.detalle_orden
             detalle_orden.cantidad_recibida += detalle_recep.cantidad_recibida
             detalle_orden.save()
-            
-            # Crear movimiento de inventario
-            MovimientoInventario.objects.create(
+
+            producto = detalle_orden.producto
+            if producto.tipo == 'BIEN' and producto.maneja_inventario:
+                # Crear movimiento solo para bienes que controlan existencias.
+                MovimientoInventario.objects.create(
+                    empresa=recepcion.empresa,
+                    producto=producto,
+                    bodega=recepcion.bodega,
+                    tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.ENTRADA_COMPRA,
+                    cantidad=detalle_recep.cantidad_recibida,
+                    costo_unitario=detalle_recep.costo_unitario,
+                    documento_referencia=f"Recepción {recepcion.numero_recepcion}",
+                    observaciones=f"OC: {recepcion.orden_compra.numero_orden}",
+                    usuario=request.user,
+                )
+
+            from .models import ProveedorProducto
+            relacion, _ = ProveedorProducto.objects.update_or_create(
                 empresa=recepcion.empresa,
-                producto=detalle_orden.producto,
-                bodega=recepcion.bodega,
-                tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.ENTRADA_COMPRA,
-                cantidad=detalle_recep.cantidad_recibida,
-                costo_unitario=detalle_recep.costo_unitario,
-                referencia=f"Recepción {recepcion.numero_recepcion}",
-                notas=f"OC: {recepcion.orden_compra.numero_orden}"
+                proveedor=recepcion.orden_compra.proveedor,
+                producto=producto,
+                defaults={
+                    'costo_referencia': detalle_recep.costo_unitario,
+                    'activo': True,
+                },
             )
+            if not producto.proveedores_catalogo.filter(
+                empresa=recepcion.empresa,
+                es_preferido=True,
+            ).exists():
+                relacion.es_preferido = True
+                relacion.save(update_fields=['es_preferido'])
+
+            producto.costo = detalle_recep.costo_unitario
+            producto.save(update_fields=['costo'])
         
         # Actualizar estado de la orden
         orden = recepcion.orden_compra

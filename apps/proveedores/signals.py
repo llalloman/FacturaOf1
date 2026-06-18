@@ -55,12 +55,16 @@ def actualizar_inventario_recepcion(sender, instance, created, **kwargs):
         return
     
     # Evitar duplicados verificando si ya existe el movimiento
+    producto = instance.detalle_orden.producto
+    if producto.tipo != 'BIEN' or not producto.maneja_inventario:
+        return
+
     movimiento_existe = MovimientoInventario.objects.filter(
         empresa=recepcion.empresa,
         producto=instance.detalle_orden.producto,
         bodega=recepcion.bodega,
         tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.ENTRADA_COMPRA,
-        referencia=f"Recepción {recepcion.numero_recepcion} - Detalle {instance.id}"
+        documento_referencia=f"Recepción {recepcion.numero_recepcion}"
     ).exists()
     
     if movimiento_existe:

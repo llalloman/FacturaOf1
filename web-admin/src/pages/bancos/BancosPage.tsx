@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Building2, Plus, RefreshCw, CheckCircle2, Circle, ArrowDownLeft, ArrowUpRight,
-  Pencil, Power,
+  Pencil, Power, Trash2,
 } from 'lucide-react';
 import {
-  getResumen, crearCuenta, actualizarCuenta, getExtracto, crearMovimiento, conciliarMovimiento, conciliarMultiples,
+  getResumen, crearCuenta, actualizarCuenta, getExtracto, crearMovimiento, eliminarMovimiento,
+  conciliarMovimiento, conciliarMultiples,
   type CuentaBancaria, type ExtractoRow, type TipoMovimiento,
 } from '../../services/bancosService';
 import { useToast } from '../../hooks/useToast';
+import { confirmDialog } from '../../store/confirmStore';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -412,6 +414,29 @@ export default function BancosPage() {
     }
   };
 
+  const handleEliminarMovimiento = async (movimiento: ExtractoRow) => {
+    if (!movimiento.eliminable) {
+      showToast('El movimiento debe anularse desde su operación de origen.', 'error');
+      return;
+    }
+
+    const confirmed = await confirmDialog(
+      '¿Eliminar movimiento bancario?',
+      'Esta acción se registrará en la auditoría y no se puede deshacer.',
+      'danger',
+    );
+    if (!confirmed) return;
+
+    try {
+      await eliminarMovimiento(movimiento.id);
+      showToast('Movimiento eliminado.', 'success');
+      await Promise.all([loadExtracto(), loadCuentas()]);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      showToast(error.response?.data?.detail || 'No se pudo eliminar el movimiento.', 'error');
+    }
+  };
+
   const handleToggleCuenta = async (cuenta: CuentaBancaria) => {
     try {
       const updated = await actualizarCuenta(cuenta.id, { activa: !cuenta.activa });
@@ -553,6 +578,7 @@ export default function BancosPage() {
                     <th className="text-right px-3 py-2">Salida</th>
                     <th className="text-right px-3 py-2">Saldo</th>
                     <th className="px-3 py-2 w-8 text-center">Conc.</th>
+                    <th className="px-3 py-2 w-10" aria-label="Acciones"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -574,6 +600,11 @@ export default function BancosPage() {
                         <span className="text-gray-800">{row.descripcion}</span>
                         {row.referencia && <span className="text-xs text-gray-400 ml-1">({row.referencia})</span>}
                         {row.beneficiario && <p className="text-xs text-gray-400">{row.beneficiario}</p>}
+                        {row.origen !== 'MANUAL' && (
+                          <p className="text-xs text-indigo-600">
+                            {row.origen === 'VENTA' ? 'Venta' : 'Pago a proveedor'}: {row.origen_referencia}
+                          </p>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-right font-mono">
                         {row.entrada > 0 ? (
@@ -596,6 +627,25 @@ export default function BancosPage() {
                           : <Circle size={15} className="text-gray-300 mx-auto cursor-pointer hover:text-green-400" />
                         }
                       </td>
+                      <td className="px-3 py-2 text-center" onClick={event => event.stopPropagation()}>
+                        {row.eliminable ? (
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarMovimiento(row)}
+                            title="Eliminar movimiento"
+                            className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        ) : (
+                          <span
+                            title="Movimiento generado automáticamente; debe anularse desde su origen"
+                            className="text-xs text-gray-300"
+                          >
+                            —
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -608,7 +658,7 @@ export default function BancosPage() {
                     <td className="px-3 py-2 text-right font-mono text-red-600">
                       {fmt(extracto.reduce((s, r) => s + r.salida, 0))}
                     </td>
-                    <td colSpan={2}></td>
+                    <td colSpan={3}></td>
                   </tr>
                 </tfoot>
               </table>

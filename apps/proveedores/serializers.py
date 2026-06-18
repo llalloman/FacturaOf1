@@ -2,7 +2,7 @@ from rest_framework import serializers
 from decimal import Decimal
 from django.db import transaction
 from .models import (
-    Proveedor, OrdenCompra, DetalleOrdenCompra,
+    Proveedor, ProveedorProducto, OrdenCompra, DetalleOrdenCompra,
     RecepcionCompra, DetalleRecepcion,
     CuentaPorPagar, PagoProveedor
 )
@@ -49,6 +49,51 @@ class ProveedorSerializer(serializers.ModelSerializer):
         validated_data['empresa'] = self.context['request'].user.empresa
         return super().create(validated_data)
 
+
+class ProveedorProductoSerializer(serializers.ModelSerializer):
+    proveedor_nombre = serializers.CharField(source='proveedor.razon_social', read_only=True)
+    producto_nombre = serializers.CharField(source='producto.nombre', read_only=True)
+    producto_tipo = serializers.CharField(source='producto.tipo', read_only=True)
+
+    class Meta:
+        model = ProveedorProducto
+        fields = [
+            'id', 'proveedor', 'proveedor_nombre', 'producto', 'producto_nombre',
+            'producto_tipo', 'codigo_proveedor', 'costo_referencia',
+            'dias_entrega', 'es_preferido', 'activo', 'creado_en', 'actualizado_en',
+        ]
+        read_only_fields = ['creado_en', 'actualizado_en']
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        empresa = self.context['request'].user.empresa
+        proveedor = attrs.get('proveedor') or getattr(self.instance, 'proveedor', None)
+        producto = attrs.get('producto') or getattr(self.instance, 'producto', None)
+        if proveedor and proveedor.empresa_id != empresa.id:
+            raise serializers.ValidationError({'proveedor': 'El proveedor no pertenece a tu empresa.'})
+        if producto and producto.empresa_id != empresa.id:
+            raise serializers.ValidationError({'producto': 'El producto no pertenece a tu empresa.'})
+        return attrs
+
+    def create(self, validated_data):
+        validated_data['empresa'] = self.context['request'].user.empresa
+        instance = super().create(validated_data)
+        self._actualizar_preferido(instance)
+        return instance
+
+    def update(self, instance, validated_data):
+        instance = super().update(instance, validated_data)
+        self._actualizar_preferido(instance)
+        return instance
+
+    @staticmethod
+    def _actualizar_preferido(instance):
+        if instance.es_preferido:
+            ProveedorProducto.objects.filter(
+                empresa=instance.empresa,
+                producto=instance.producto,
+            ).exclude(pk=instance.pk).update(es_preferido=False)
+
 class DetalleOrdenCompraSerializer(serializers.ModelSerializer):
     """Serializer para DetalleOrdenCompra"""
     
@@ -57,7 +102,7 @@ class DetalleOrdenCompraSerializer(serializers.ModelSerializer):
         read_only=True
     )
     producto_codigo = serializers.CharField(
-        source='producto.codigo',
+        source='producto.codigo_principal',
         read_only=True
     )
     cantidad_pendiente_recibir = serializers.SerializerMethodField()
@@ -172,7 +217,7 @@ class DetalleRecepcionSerializer(serializers.ModelSerializer):
         read_only=True
     )
     producto_codigo = serializers.CharField(
-        source='detalle_orden.producto.codigo',
+        source='detalle_orden.producto.codigo_principal',
         read_only=True
     )
     cantidad_ordenada = serializers.DecimalField(

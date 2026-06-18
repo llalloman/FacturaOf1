@@ -26,6 +26,46 @@ export interface ProyeccionesData {
   dias_historial: number;
 }
 
+export interface RegularizacionVentaData {
+  venta: { id: number; numero_venta: string; estado: string };
+  pagos: Array<{
+    id: number;
+    forma_pago: string;
+    monto: number;
+    cuenta_bancaria: number | null;
+    movimiento_bancario: number | null;
+    requiere_cuenta: boolean;
+  }>;
+  detalles: Array<{
+    id: number;
+    producto: number;
+    producto_nombre: string;
+    tipo: 'BIEN' | 'SERVICIO';
+    maneja_inventario: boolean;
+    controla_stock: boolean;
+    proveedor: number | null;
+    bodega: number | null;
+    costo_unitario: number;
+    movimiento_inventario: number | null;
+    inventario_invalido: boolean;
+  }>;
+  cuentas: Array<{ id: number; banco: string; numero_cuenta: string }>;
+  proveedores: Array<{ id: number; razon_social: string; identificacion: string }>;
+  bodegas: Array<{ id: number; nombre: string; codigo: string }>;
+}
+
+export interface RegularizacionVentaPayload {
+  pagos: Array<{ id: number; cuenta_bancaria: number | null }>;
+  detalles: Array<{
+    id: number;
+    proveedor: number | null;
+    bodega: number | null;
+    costo_unitario: number;
+    regularizar_inventario: boolean;
+    retirar_inventario: boolean;
+  }>;
+}
+
 type VentaQueryParams = Record<string, string | number | boolean | undefined | null>;
 
 const fetchAllVentasPages = async (url: string, params?: VentaQueryParams): Promise<Venta[]> => {
@@ -58,6 +98,19 @@ export const ventasService = {
   getById: async (id: number) => {
     const response = await apiClient.get<Venta>(`/ventas/ventas/${id}/`);
     return response.data;
+  },
+
+  getRegularizacion: async (id: number) => {
+    const { data } = await apiClient.get<RegularizacionVentaData>(`/ventas/ventas/${id}/regularizacion/`);
+    return data;
+  },
+
+  regularizar: async ({ id, payload }: { id: number; payload: RegularizacionVentaPayload }) => {
+    const { data } = await apiClient.post<RegularizacionVentaData>(
+      `/ventas/ventas/${id}/regularizacion/`,
+      payload,
+    );
+    return data;
   },
 
   generarFactura: async ({ id, cliente_id }: { id: number; cliente_id?: number }) => {

@@ -1,6 +1,7 @@
 from decimal import Decimal
+from django.db import transaction
 from django.db.models import Sum, Q
-from rest_framework import viewsets, filters, status
+from rest_framework import viewsets, filters, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -8,6 +9,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import CuentaBancaria, MovimientoBancario
 from .serializers import CuentaBancariaSerializer, MovimientoBancarioSerializer
 from apps.core.permissions import HasModuleAccess
+from apps.core.models import AuditLog
 
 
 class CuentaBancariaViewSet(viewsets.ModelViewSet):
@@ -53,7 +55,47 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return MovimientoBancario.objects.filter(
             cuenta__empresa=self.request.user.empresa
-        ).select_related('cuenta')
+        ).select_related(
+            'cuenta',
+            'pago_venta__venta',
+            'pago_proveedor',
+        )
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        if hasattr(instance, 'pago_venta'):
+            raise serializers.ValidationError({
+                'detail': (
+                    'Este movimiento fue generado por una venta. '
+                    'Anula la operación de origen para mantener la trazabilidad.'
+                )
+            })
+        if hasattr(instance, 'pago_proveedor'):
+            raise serializers.ValidationError({
+                'detail': (
+                    'Este movimiento fue generado por un pago a proveedor. '
+                    'Anula o elimina el pago de origen para mantener la trazabilidad.'
+                )
+            })
+
+        AuditLog.objects.create(
+            empresa=instance.cuenta.empresa,
+            usuario=self.request.user,
+            accion='ELIMINAR_MOVIMIENTO_BANCARIO',
+            modulo='bancos',
+            referencia=str(instance.pk),
+            datos={
+                'cuenta_id': instance.cuenta_id,
+                'cuenta': str(instance.cuenta),
+                'fecha': instance.fecha.isoformat(),
+                'tipo': instance.tipo,
+                'descripcion': instance.descripcion,
+                'referencia': instance.referencia,
+                'monto': str(instance.monto),
+                'conciliado': instance.conciliado,
+            },
+        )
+        instance.delete()
 
     @action(detail=True, methods=['post'])
     def conciliar(self, request, pk=None):
@@ -92,6 +134,7 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
         rows = []
         ENTRADAS = {'DEPOSITO', 'TRANSFERENCIA_ENTRADA', 'NOTA_CREDITO'}
         for m in movs:
+            movimiento_data = MovimientoBancarioSerializer(m).data
             if m.tipo in ENTRADAS:
                 saldo += m.monto
             else:
@@ -107,6 +150,9 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
                 'salida':       float(m.monto) if m.tipo not in ENTRADAS else 0,
                 'saldo':        float(saldo),
                 'conciliado':   m.conciliado,
+                'origen':       movimiento_data['origen'],
+                'origen_referencia': movimiento_data['origen_referencia'],
+                'eliminable':   movimiento_data['eliminable'],
             })
         return Response({
             'cuenta': CuentaBancariaSerializer(cuenta).data,

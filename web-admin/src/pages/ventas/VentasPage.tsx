@@ -20,6 +20,7 @@ import {
   X,
   Users,
   Plus,
+  Link2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -27,6 +28,7 @@ import ExportButtons from '../../components/ui/ExportButtons';
 import { toast } from '../../store/toastStore';
 import FiscalReadinessBanner from '../../components/FiscalReadinessBanner';
 import NuevaVentaModal from './NuevaVentaModal';
+import RegularizarVentaModal from './RegularizarVentaModal';
 
 type SeccionVentas = 'ventas' | 'notas' | 'coherencia';
 
@@ -43,6 +45,7 @@ export default function VentasPage() {
   const [seccion, setSeccion] = useState<SeccionVentas>('ventas');
   const [soloInconsistentes, setSoloInconsistentes] = useState(true);
   const [nuevaVentaOpen, setNuevaVentaOpen] = useState(false);
+  const [regularizarVentaId, setRegularizarVentaId] = useState<number | null>(null);
 
   const { data: ventas = [], isLoading: isLoadingVentas } = useQuery({
     queryKey: ['ventas', dateFrom, dateTo, vista],
@@ -560,6 +563,14 @@ export default function VentasPage() {
                 <p className="text-xs text-gray-500 mt-1">{selectedVenta.factura_detalle ? `Factura: ${selectedVenta.factura_detalle.numero_factura}` : 'Nota de venta/Ticket'}</p>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRegularizarVentaId(selectedVenta.id)}
+                  className="p-2 hover:bg-emerald-50 rounded-lg text-emerald-700 transition-colors"
+                  title="Regularizar cuenta, proveedor, costo e inventario"
+                >
+                  <Link2 size={20} />
+                </button>
                 {!selectedVenta.factura_detalle && (
                   <button
                     onClick={() => {
@@ -737,6 +748,18 @@ export default function VentasPage() {
             queryClient.invalidateQueries({ queryKey: ['facturas'] });
             setSeccion('ventas');
             setVista('cerradas');
+          }}
+        />
+      )}
+
+      {regularizarVentaId !== null && (
+        <RegularizarVentaModal
+          ventaId={regularizarVentaId}
+          onClose={() => setRegularizarVentaId(null)}
+          onSaved={async () => {
+            const ventaActualizada = await ventasService.getById(regularizarVentaId);
+            setSelectedVenta(ventaActualizada);
+            setRegularizarVentaId(null);
           }}
         />
       )}

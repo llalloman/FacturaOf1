@@ -1,78 +1,69 @@
-from decimal import Decimal
-
 from django.db import transaction
 
-from apps.inventarios.models import MovimientoInventario, StockProducto
-
-
-def validar_stock_venta(caja, detalles_data):
-    """Valida stock disponible para productos inventariables."""
-    bodega = caja.bodega
-    errores = []
-
-    for detalle in detalles_data:
-        producto = detalle.get('producto')
-        cantidad = Decimal(str(detalle.get('cantidad') or 0))
-
-        if not producto or not getattr(producto, 'maneja_inventario', False):
-            continue
-
-        stock = StockProducto.objects.filter(
-            producto=producto,
-            bodega=bodega,
-        ).first()
-        disponible = stock.cantidad if stock else Decimal('0.00')
-
-        if disponible < cantidad:
-            errores.append(
-                f'{producto.nombre}: disponible {disponible}, requerido {cantidad}'
-            )
-
-    if errores:
-        raise ValueError('Stock insuficiente en bodega: ' + '; '.join(errores))
+from apps.inventarios.models import MovimientoInventario
 
 
 @transaction.atomic
-def registrar_movimientos_venta(venta, usuario=None):
-    """Genera movimientos de inventario para una venta completada."""
-    if venta.estado != venta.EstadoChoices.COMPLETADA:
-        return 0
+def registrar_inventario_venta(venta, detalle_ids=None):
+    """Crea las salidas pendientes de una venta sin duplicar movimientos."""
+    if venta.estado != 'COMPLETADA':
+        return []
 
-    referencia = f'Venta {venta.numero_venta}'
-    if MovimientoInventario.objects.filter(documento_referencia=referencia).exists():
-        return 0
-
-    bodega = venta.caja.bodega
-    creados = 0
-
-    for detalle in venta.detalles.select_related('producto').all():
+    creados = []
+    detalles = venta.detalles.select_related('producto', 'bodega').all()
+    if detalle_ids is not None:
+        detalles = detalles.filter(id__in=detalle_ids)
+    for detalle in detalles:
         producto = detalle.producto
-        if not producto.maneja_inventario:
+        if producto.tipo != 'BIEN' or not producto.maneja_inventario:
+            if detalle.bodega_id:
+                detalle.bodega = None
+                detalle.save(update_fields=['bodega'])
             continue
 
-        stock, _ = StockProducto.objects.select_for_update().get_or_create(
-            producto=producto,
-            bodega=bodega,
-            defaults={'cantidad': Decimal('0.00'), 'costo_promedio': Decimal('0.00')},
-        )
-        if stock.cantidad < detalle.cantidad:
-            raise ValueError(
-                f'Stock insuficiente para {producto.nombre}. '
-                f'Disponible: {stock.cantidad}, requerido: {detalle.cantidad}'
-            )
+        bodega = detalle.bodega or venta.caja.bodega
+        if bodega.empresa_id != venta.empresa_id:
+            raise ValueError('La bodega de salida no pertenece a la empresa de la venta.')
+        if detalle.bodega_id != bodega.id:
+            detalle.bodega = bodega
+            detalle.save(update_fields=['bodega'])
 
-        MovimientoInventario.objects.create(
+        referencia = f'Venta {venta.numero_venta} detalle {detalle.id}'
+        existente = MovimientoInventario.objects.filter(
             empresa=venta.empresa,
-            bodega=bodega,
             producto=producto,
             tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.SALIDA_VENTA,
-            cantidad=-detalle.cantidad,
-            costo_unitario=detalle.costo_unitario,
             documento_referencia=referencia,
-            venta_id=str(venta.numero_venta),
-            usuario=usuario or venta.usuario,
-            observaciones=f'Salida por venta {venta.numero_venta}',
-        )
-        creados += 1
+        ).first()
+        if existente:
+            continue
 
+        movimientos_legacy = MovimientoInventario.objects.filter(
+            empresa=venta.empresa,
+            producto=producto,
+            tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.SALIDA_VENTA,
+            venta_id=str(venta.numero_venta),
+        )
+        if movimientos_legacy.count() == 1:
+            legado = movimientos_legacy.first()
+            legado.documento_referencia = referencia
+            legado.save(update_fields=['documento_referencia'])
+            continue
+
+        movimiento, created = MovimientoInventario.objects.get_or_create(
+            empresa=venta.empresa,
+            producto=producto,
+            bodega=bodega,
+            tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.SALIDA_VENTA,
+            documento_referencia=referencia,
+            defaults={
+                'cantidad': -detalle.cantidad,
+                'costo_unitario': detalle.costo_unitario,
+                'venta_id': str(venta.numero_venta),
+                'usuario': venta.usuario,
+                'observaciones': 'Salida automática por venta',
+            },
+        )
+        if created:
+            creados.append(movimiento)
     return creados

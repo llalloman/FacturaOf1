@@ -238,6 +238,209 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
                 )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get', 'post'], url_path='regularizacion')
+    @transaction.atomic
+    def regularizacion(self, request, pk=None):
+        """Diagnostica y completa vínculos financieros, de costo e inventario."""
+        venta = self.get_object()
+        from apps.bancos.models import CuentaBancaria
+        from apps.inventarios.models import Bodega, MovimientoInventario
+        from apps.proveedores.models import Proveedor, ProveedorProducto
+        from apps.core.models import AuditLog
+
+        if request.method == 'POST':
+            if venta.estado == 'ANULADA':
+                return Response(
+                    {'detail': 'No se puede regularizar una venta anulada.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            cambios = {'pagos': [], 'detalles': []}
+            pagos_venta = {p.id: p for p in venta.pagos.select_related('movimiento_bancario')}
+            for item in request.data.get('pagos', []):
+                pago = pagos_venta.get(item.get('id'))
+                if not pago:
+                    return Response({'detail': 'Uno de los pagos no pertenece a la venta.'}, status=400)
+                if pago.forma_pago == 'CREDITO':
+                    continue
+                cuenta = CuentaBancaria.objects.filter(
+                    pk=item.get('cuenta_bancaria'),
+                    empresa=venta.empresa,
+                    activa=True,
+                ).first()
+                if not cuenta:
+                    return Response({'detail': 'Selecciona una cuenta activa de la empresa.'}, status=400)
+                if pago.movimiento_bancario_id and pago.cuenta_bancaria_id != cuenta.id:
+                    return Response(
+                        {'detail': 'El pago ya tiene movimiento bancario y no puede cambiarse de cuenta.'},
+                        status=400,
+                    )
+                if pago.cuenta_bancaria_id != cuenta.id:
+                    pago.cuenta_bancaria = cuenta
+                    pago.save(update_fields=['cuenta_bancaria'])
+                    cambios['pagos'].append({'pago_id': pago.id, 'cuenta_id': cuenta.id})
+
+            detalles_venta = {
+                d.id: d for d in venta.detalles.select_related('producto', 'proveedor', 'bodega')
+            }
+            detalles_para_stock = []
+            for item in request.data.get('detalles', []):
+                detalle = detalles_venta.get(item.get('id'))
+                if not detalle:
+                    return Response({'detail': 'Uno de los detalles no pertenece a la venta.'}, status=400)
+                producto = detalle.producto
+                campos = []
+
+                proveedor_id = item.get('proveedor')
+                proveedor = None
+                if proveedor_id:
+                    proveedor = Proveedor.objects.filter(
+                        pk=proveedor_id,
+                        empresa=venta.empresa,
+                        activo=True,
+                    ).first()
+                    if not proveedor:
+                        return Response({'detail': 'El proveedor seleccionado no es válido.'}, status=400)
+                    if detalle.proveedor_id != proveedor.id:
+                        detalle.proveedor = proveedor
+                        campos.append('proveedor')
+
+                if item.get('costo_unitario') not in (None, ''):
+                    try:
+                        costo = Decimal(str(item['costo_unitario']))
+                    except Exception:
+                        return Response({'detail': 'El costo ingresado no es válido.'}, status=400)
+                    if costo < 0:
+                        return Response({'detail': 'El costo no puede ser negativo.'}, status=400)
+                    if detalle.costo_unitario != costo:
+                        detalle.costo_unitario = costo
+                        campos.append('costo_unitario')
+                else:
+                    costo = detalle.costo_unitario
+
+                controla_stock = producto.tipo == 'BIEN' and producto.maneja_inventario
+                movimientos_detalle = MovimientoInventario.objects.filter(
+                    empresa=venta.empresa,
+                    producto=producto,
+                    tipo_movimiento='SALIDA_VENTA',
+                    venta_id=str(venta.numero_venta),
+                )
+                if controla_stock:
+                    bodega = Bodega.objects.filter(
+                        pk=item.get('bodega'),
+                        empresa=venta.empresa,
+                        activa=True,
+                    ).first()
+                    if not bodega:
+                        return Response({'detail': f'Selecciona la bodega para {producto.nombre}.'}, status=400)
+                    if detalle.bodega_id != bodega.id:
+                        detalle.bodega = bodega
+                        campos.append('bodega')
+                    if item.get('regularizar_inventario'):
+                        detalles_para_stock.append(detalle.id)
+                elif detalle.bodega_id:
+                    detalle.bodega = None
+                    campos.append('bodega')
+
+                if not controla_stock and item.get('retirar_inventario'):
+                    for movimiento in movimientos_detalle:
+                        cambios['detalles'].append({
+                            'detalle_id': detalle.id,
+                            'movimiento_invalido_retirado': movimiento.id,
+                        })
+                        movimiento.delete()
+
+                if campos:
+                    detalle.save(update_fields=list(dict.fromkeys(campos)))
+                    cambios['detalles'].append({'detalle_id': detalle.id, 'campos': campos})
+
+                if proveedor:
+                    relacion, _ = ProveedorProducto.objects.update_or_create(
+                        empresa=venta.empresa,
+                        proveedor=proveedor,
+                        producto=producto,
+                        defaults={'costo_referencia': costo, 'activo': True},
+                    )
+                    if not ProveedorProducto.objects.filter(
+                        empresa=venta.empresa,
+                        producto=producto,
+                        es_preferido=True,
+                    ).exists():
+                        relacion.es_preferido = True
+                        relacion.save(update_fields=['es_preferido'])
+
+            from apps.ventas.finance import registrar_finanzas_venta
+            registrar_finanzas_venta(venta)
+            if detalles_para_stock:
+                from apps.ventas.inventory import registrar_inventario_venta
+                registrar_inventario_venta(venta, detalles_para_stock)
+
+            AuditLog.objects.create(
+                empresa=venta.empresa,
+                usuario=request.user,
+                accion='REGULARIZAR_VENTA',
+                modulo='ventas',
+                referencia=venta.numero_venta,
+                datos=cambios,
+            )
+
+        pagos = []
+        for pago in venta.pagos.select_related('cuenta_bancaria', 'movimiento_bancario'):
+            pagos.append({
+                'id': pago.id,
+                'forma_pago': pago.forma_pago,
+                'monto': float(pago.monto),
+                'cuenta_bancaria': pago.cuenta_bancaria_id,
+                'movimiento_bancario': pago.movimiento_bancario_id,
+                'requiere_cuenta': pago.forma_pago != 'CREDITO',
+            })
+
+        detalles = []
+        for detalle in venta.detalles.select_related('producto', 'proveedor', 'bodega'):
+            controla_stock = detalle.producto.tipo == 'BIEN' and detalle.producto.maneja_inventario
+            movimiento = MovimientoInventario.objects.filter(
+                empresa=venta.empresa,
+                producto=detalle.producto,
+                tipo_movimiento='SALIDA_VENTA',
+                venta_id=str(venta.numero_venta),
+            ).first()
+            detalles.append({
+                'id': detalle.id,
+                'producto': detalle.producto_id,
+                'producto_nombre': detalle.producto.nombre,
+                'tipo': detalle.producto.tipo,
+                'maneja_inventario': detalle.producto.maneja_inventario,
+                'controla_stock': controla_stock,
+                'proveedor': detalle.proveedor_id,
+                'bodega': (
+                    detalle.bodega_id
+                    or (movimiento.bodega_id if movimiento else None)
+                    or (venta.caja.bodega_id if controla_stock else None)
+                ),
+                'costo_unitario': float(detalle.costo_unitario),
+                'movimiento_inventario': movimiento.id if movimiento else None,
+                'inventario_invalido': bool(movimiento and not controla_stock),
+            })
+
+        return Response({
+            'venta': {
+                'id': venta.id,
+                'numero_venta': venta.numero_venta,
+                'estado': venta.estado,
+            },
+            'pagos': pagos,
+            'detalles': detalles,
+            'cuentas': list(CuentaBancaria.objects.filter(
+                empresa=venta.empresa, activa=True,
+            ).values('id', 'banco', 'numero_cuenta')),
+            'proveedores': list(Proveedor.objects.filter(
+                empresa=venta.empresa, activo=True,
+            ).values('id', 'razon_social', 'identificacion')),
+            'bodegas': list(Bodega.objects.filter(
+                empresa=venta.empresa, activa=True,
+            ).values('id', 'nombre', 'codigo')),
+        })
     
     @action(detail=True, methods=['post'])
     @transaction.atomic
@@ -263,16 +466,51 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
             from apps.inventarios.models import MovimientoInventario
             
             for detalle in venta.detalles.all():
+                if detalle.producto.tipo != 'BIEN' or not detalle.producto.maneja_inventario:
+                    continue
+                salida = MovimientoInventario.objects.filter(
+                    empresa=venta.empresa,
+                    producto=detalle.producto,
+                    tipo_movimiento='SALIDA_VENTA',
+                    venta_id=str(venta.numero_venta),
+                ).first()
+                if not salida:
+                    continue
                 # Crear movimiento de reversión (AJUSTE_ENTRADA)
                 MovimientoInventario.objects.create(
-                    bodega=venta.caja.bodega,
+                    empresa=venta.empresa,
+                    bodega=salida.bodega,
                     producto=detalle.producto,
                     tipo_movimiento='AJUSTE_ENTRADA',
                     cantidad=detalle.cantidad,
                     costo_unitario=detalle.costo_unitario,
-                    referencia=f'Anulación venta {venta.numero_venta} - {motivo}',
+                    venta_id=str(venta.numero_venta),
+                    documento_referencia=f'Anulación venta {venta.numero_venta}',
+                    observaciones=motivo,
                     usuario=request.user
                 )
+
+            # Los movimientos automáticos se retiran únicamente al anular su origen.
+            from apps.core.models import AuditLog
+            for pago in venta.pagos.select_related('movimiento_bancario'):
+                movimiento = pago.movimiento_bancario
+                if not movimiento:
+                    continue
+                AuditLog.objects.create(
+                    empresa=venta.empresa,
+                    usuario=request.user,
+                    accion='ANULAR_MOVIMIENTO_BANCARIO',
+                    modulo='bancos',
+                    referencia=str(movimiento.pk),
+                    datos={
+                        'venta': venta.numero_venta,
+                        'motivo': motivo,
+                        'cuenta_id': movimiento.cuenta_id,
+                        'tipo': movimiento.tipo,
+                        'monto': str(movimiento.monto),
+                    },
+                )
+                movimiento.delete()
             
             # Anular venta
             venta.estado = 'ANULADA'
@@ -282,6 +520,7 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
             return Response(serializer.data)
             
         except Exception as e:
+            transaction.set_rollback(True)
             return Response(
                 {'error': f'Error al anular venta: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

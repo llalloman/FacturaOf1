@@ -118,6 +118,55 @@ class Proveedor(models.Model):
         return f"{self.identificacion} - {self.razon_social}"
 
 
+class ProveedorProducto(models.Model):
+    """Catálogo comercial de productos y servicios ofrecidos por un proveedor."""
+
+    empresa = models.ForeignKey(
+        'empresas.Empresa',
+        on_delete=models.CASCADE,
+        related_name='proveedores_productos',
+    )
+    proveedor = models.ForeignKey(
+        Proveedor,
+        on_delete=models.CASCADE,
+        related_name='productos_catalogo',
+    )
+    producto = models.ForeignKey(
+        'productos.Producto',
+        on_delete=models.CASCADE,
+        related_name='proveedores_catalogo',
+    )
+    codigo_proveedor = models.CharField(max_length=60, blank=True)
+    costo_referencia = models.DecimalField(
+        max_digits=12,
+        decimal_places=6,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    dias_entrega = models.PositiveIntegerField(default=0)
+    es_preferido = models.BooleanField(default=False)
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'proveedores_productos'
+        ordering = ['producto__nombre', '-es_preferido', 'proveedor__razon_social']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empresa', 'proveedor', 'producto'],
+                name='uniq_empresa_proveedor_producto',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['empresa', 'producto', 'activo']),
+            models.Index(fields=['empresa', 'proveedor', 'activo']),
+        ]
+
+    def __str__(self):
+        return f'{self.proveedor} - {self.producto}'
+
+
 class OrdenCompra(models.Model):
     """
     Órdenes de compra a proveedores

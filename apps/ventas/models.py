@@ -256,6 +256,22 @@ class DetalleVenta(models.Model):
         related_name='detalles_venta',
         verbose_name=_('producto')
     )
+    proveedor = models.ForeignKey(
+        'proveedores.Proveedor',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='detalles_venta',
+        verbose_name=_('proveedor de origen'),
+    )
+    bodega = models.ForeignKey(
+        'inventarios.Bodega',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='detalles_venta',
+        verbose_name=_('bodega de salida'),
+    )
     
     cantidad = models.DecimalField(_('cantidad'), max_digits=12, decimal_places=2)
     precio_unitario = models.DecimalField(_('precio unitario'), max_digits=12, decimal_places=6)

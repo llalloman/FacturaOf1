@@ -216,8 +216,24 @@ class VentaSerializer(serializers.ModelSerializer):
 
         for detalle_data in detalles_data:
             producto = detalle_data.get('producto')
+            relacion = None
+            if producto:
+                from apps.proveedores.models import ProveedorProducto
+                relacion = ProveedorProducto.objects.filter(
+                    empresa=caja.empresa,
+                    producto=producto,
+                    activo=True,
+                ).order_by('-es_preferido', 'id').first()
             if producto and not detalle_data.get('costo_unitario'):
-                detalle_data['costo_unitario'] = producto.costo
+                detalle_data['costo_unitario'] = (
+                    relacion.costo_referencia if relacion else producto.costo
+                )
+            if producto and producto.tipo == 'BIEN' and producto.maneja_inventario:
+                detalle_data.setdefault('bodega', caja.bodega)
+            else:
+                detalle_data['bodega'] = None
+            if relacion:
+                detalle_data.setdefault('proveedor', relacion.proveedor)
             DetalleVenta.objects.create(venta=venta, **detalle_data)
 
         for pago_data in pagos_data:
@@ -246,6 +262,8 @@ class VentaSerializer(serializers.ModelSerializer):
                 )
 
         from apps.ventas.finance import registrar_finanzas_venta
+        from apps.ventas.inventory import registrar_inventario_venta
+        registrar_inventario_venta(venta)
         registrar_finanzas_venta(venta)
 
         return venta
