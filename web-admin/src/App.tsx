@@ -142,7 +142,9 @@ const appLayoutRoutes = (
       <ModuloGuard modulo="nomina"><NominaPage /></ModuloGuard>
     } />
     <Route path="firmas-electronicas" element={
-      <ModuloGuard modulo="firmas_electronicas"><SolicitudesFirmaPage /></ModuloGuard>
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+        <SolicitudesFirmaPage />
+      </ProtectedRoute>
     } />
     <Route path="firmas-electronicas/precios" element={
       <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>

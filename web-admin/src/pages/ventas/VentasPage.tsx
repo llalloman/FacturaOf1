@@ -19,12 +19,14 @@ import {
   Printer,
   X,
   Users,
+  Plus,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ExportButtons from '../../components/ui/ExportButtons';
 import { toast } from '../../store/toastStore';
 import FiscalReadinessBanner from '../../components/FiscalReadinessBanner';
+import NuevaVentaModal from './NuevaVentaModal';
 
 type SeccionVentas = 'ventas' | 'notas' | 'coherencia';
 
@@ -40,6 +42,7 @@ export default function VentasPage() {
   const [vista, setVista] = useState<'cerradas' | 'anuladas'>('cerradas');
   const [seccion, setSeccion] = useState<SeccionVentas>('ventas');
   const [soloInconsistentes, setSoloInconsistentes] = useState(true);
+  const [nuevaVentaOpen, setNuevaVentaOpen] = useState(false);
 
   const { data: ventas = [], isLoading: isLoadingVentas } = useQuery({
     queryKey: ['ventas', dateFrom, dateTo, vista],
@@ -204,15 +207,25 @@ export default function VentasPage() {
           </h1>
           <p className="text-gray-600 mt-1">Control de ventas, notas de venta y coherencia de facturación</p>
         </div>
-        <ExportButtons
-          basePath="/ventas/ventas"
-          filename="ventas"
-          queryString={new URLSearchParams({
-            ...(dateFrom ? { fecha_desde: dateFrom } : {}),
-            ...(dateTo ? { fecha_hasta: dateTo } : {}),
-            ...(seccion === 'ventas' ? { vista } : {}),
-          }).toString()}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setNuevaVentaOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Plus size={16} />
+            Nueva venta
+          </button>
+          <ExportButtons
+            basePath="/ventas/ventas"
+            filename="ventas"
+            queryString={new URLSearchParams({
+              ...(dateFrom ? { fecha_desde: dateFrom } : {}),
+              ...(dateTo ? { fecha_hasta: dateTo } : {}),
+              ...(seccion === 'ventas' ? { vista } : {}),
+            }).toString()}
+          />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 rounded-xl border border-gray-200 bg-white p-2">
@@ -712,6 +725,20 @@ export default function VentasPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {nuevaVentaOpen && (
+        <NuevaVentaModal
+          onClose={() => setNuevaVentaOpen(false)}
+          onCreated={() => {
+            queryClient.invalidateQueries({ queryKey: ['ventas'] });
+            queryClient.invalidateQueries({ queryKey: ['ventas-notas'] });
+            queryClient.invalidateQueries({ queryKey: ['ventas-coherencia'] });
+            queryClient.invalidateQueries({ queryKey: ['facturas'] });
+            setSeccion('ventas');
+            setVista('cerradas');
+          }}
+        />
       )}
     </div>
   );

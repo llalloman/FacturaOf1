@@ -33,7 +33,6 @@ MODULOS_BASE = [
     {'codigo': 'reportes',       'label': 'Reportes',           'ruta': '/reportes',       'grupo': 'Reportes',                  'icono': 'TrendingUp',      'orden': 1},
     {'codigo': 'usuarios',       'label': 'Usuarios',           'ruta': '/usuarios',       'grupo': 'Administración',            'icono': 'Users',           'orden': 1},
     {'codigo': 'configuracion',  'label': 'Configuración',      'ruta': '/configuracion',  'grupo': 'Administración',            'icono': 'Settings',        'orden': 2},
-    {'codigo': 'firmas_electronicas', 'label': 'Solicitudes de Firma Electrónica', 'ruta': '/firmas-electronicas', 'grupo': 'Administración', 'icono': 'FileSignature', 'orden': 3},
 ]
 
 MODULOS_DISPONIBLES = [(m['codigo'], m['label']) for m in MODULOS_BASE]

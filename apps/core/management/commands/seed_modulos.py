@@ -46,7 +46,6 @@ MODULOS_PROFESIONAL = [
     'reportes',
     'configuracion',
     'usuarios',
-    'firmas_electronicas',
 ]
 
 # Mapa tipo → módulos

@@ -37,7 +37,7 @@ export interface ItemCarrito {
 }
 
 export interface PagoPOS {
-  metodo_pago: 'EFECTIVO' | 'TARJETA_CREDITO' | 'TARJETA_DEBITO' | 'TRANSFERENCIA' | 'CHEQUE';
+  metodo_pago: 'EFECTIVO' | 'TARJETA_CREDITO' | 'TARJETA_DEBITO' | 'TRANSFERENCIA' | 'CHEQUE' | 'CREDITO';
   monto: number;
 }
 

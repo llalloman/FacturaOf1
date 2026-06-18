@@ -111,6 +111,8 @@ const EXTRA_MENU_ITEMS: Array<MenuItem & { grupo: string; roles?: string[] }> = 
   { icon: CreditCard, label: 'Suscripción', path: '/suscripcion', grupo: 'Administración' },
 ];
 
+const SUPER_ADMIN_ONLY_MODULE_CODES = new Set(['firmas_electronicas']);
+
 const moduloToMenuItem = (modulo: ModuloInfo | ModuloSistema): MenuItem => ({
   icon: ('icono' in modulo && modulo.icono ? ICONOS_POR_NOMBRE[modulo.icono] : undefined)
     ?? MODULO_ICONOS[modulo.codigo]
@@ -142,7 +144,7 @@ const buildMenuGroups = (modulos: Array<ModuloInfo | ModuloSistema>, rol: string
 
 // Menú por rol (paths permitidos en el sidebar)
 const ROL_PATHS: Record<string, string[]> = {
-  ADMIN_EMPRESA: ['/', '/pos', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/contabilidad', '/bancos', '/nomina', '/firmas-electronicas', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion', '/usuarios'],
+  ADMIN_EMPRESA: ['/', '/pos', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/contabilidad', '/bancos', '/nomina', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion', '/usuarios'],
   CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/contabilidad', '/bancos', '/nomina', '/clientes', '/reportes'],
   VENDEDOR:      ['/', '/pos', '/ventas', '/pedidos', '/cotizaciones', '/clientes', '/productos'],
   CONSULTOR:     ['/', '/facturacion', '/retenciones', '/ventas', '/reportes'],
@@ -223,7 +225,8 @@ export default function Layout() {
     }
   }, [favoritesKey]);
 
-  const modulosMenu = catalogoModulos.length > 0 ? catalogoModulos : MODULOS;
+  const modulosMenu = (catalogoModulos.length > 0 ? catalogoModulos : MODULOS)
+    .filter((modulo) => rol === 'SUPER_ADMIN' || !SUPER_ADMIN_ONLY_MODULE_CODES.has(modulo.codigo));
   const allowedPaths = rol === 'ADMIN_EMPRESA'
     ? Array.from(new Set([...rolePaths, ...modulosMenu.map((m) => m.ruta)]))
     : rolePaths;

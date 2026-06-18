@@ -9,6 +9,7 @@ GET /api/dashboard/
 from calendar import monthrange
 from datetime import timedelta, time
 from decimal import Decimal
+import logging
 
 from django.db.models import Sum, Count, Q, F
 from django.utils.dateparse import parse_date
@@ -22,6 +23,8 @@ MESES = [
     '', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
     'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
 ]
+
+logger = logging.getLogger(__name__)
 
 
 def _is_super_admin(user):
@@ -386,8 +389,8 @@ def _dashboard_tenant(request):
             empresa=empresa,
             estado__in=['ABIERTO', 'EN_PREPARACION', 'LISTO'],
         ).count()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning('No se pudo calcular pedidos abiertos para dashboard: %s', exc)
 
     alertas_operativas = [
         {
@@ -458,8 +461,8 @@ def _dashboard_tenant(request):
                     'fecha_limite': str(fecha_lim),
                     'dias_restantes': (fecha_lim - hoy).days,
                 })
-    except Exception:
-        pass  # Declaraciones module may not be fully set up
+    except Exception as exc:
+        logger.warning('No se pudo calcular proximas declaraciones para dashboard: %s', exc)
 
     certificado_cargado = bool(getattr(empresa, 'certificado_digital', None) or getattr(empresa, 'certificado_data', None))
     secuenciales_configurados = False
@@ -467,13 +470,13 @@ def _dashboard_tenant(request):
     try:
         from apps.facturacion.models import Secuencial
         secuenciales_configurados = Secuencial.objects.filter(empresa=empresa, configurado=True).exists()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning('No se pudo verificar secuenciales configurados para dashboard: %s', exc)
     try:
         from apps.firmas.models import SolicitudFirmaElectronica
         firma_solicitada = SolicitudFirmaElectronica.objects.filter(company=empresa).exclude(status='ANULADA').exists()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning('No se pudo verificar solicitud de firma para dashboard: %s', exc)
 
     primer_comprobante_emitido = facturas_qs.filter(comprobante__estado='AUTORIZADO').exists()
     progreso_configuracion = [

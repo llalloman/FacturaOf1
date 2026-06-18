@@ -13,6 +13,13 @@ def _is_super_admin(user):
     return user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN'
 
 
+TENANT_BLOCKED_MODULES = {'firmas_electronicas'}
+
+
+def _tenant_visible_modules(codigos):
+    return [codigo for codigo in codigos if codigo not in TENANT_BLOCKED_MODULES]
+
+
 class PlanSuscripcionViewSet(viewsets.ModelViewSet):
     """Planes de suscripción. Lectura pública; escritura solo SUPER_ADMIN."""
     serializer_class = PlanSuscripcionSerializer
@@ -69,7 +76,7 @@ class PlanSuscripcionViewSet(viewsets.ModelViewSet):
         # PUT — bulk replace
         ser = ModuloPermisoSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        nuevos = set(ser.validated_data['modulos'])
+        nuevos = set(_tenant_visible_modules(ser.validated_data['modulos']))
         ModuloPermiso.objects.filter(plan=plan).delete()
         ModuloPermiso.objects.bulk_create([
             ModuloPermiso(plan=plan, modulo=m) for m in nuevos
@@ -477,7 +484,7 @@ def mis_modulos(request):
     """
     user = request.user
     if getattr(user, 'rol', None) == 'SUPER_ADMIN' or user.is_superuser:
-        return Response({'modulos': get_todos_modulos_codigos()})
+        return Response({'modulos': _tenant_visible_modules(get_todos_modulos_codigos())})
 
     empresa = getattr(user, 'empresa', None)
     if not empresa:
@@ -495,9 +502,9 @@ def mis_modulos(request):
 
     # Durante el período de prueba el usuario accede a todo
     if suscripcion.estado == 'PRUEBA':
-        return Response({'modulos': get_todos_modulos_codigos()})
+        return Response({'modulos': _tenant_visible_modules(get_todos_modulos_codigos())})
 
-    codigos = list(
+    codigos = _tenant_visible_modules(list(
         ModuloPermiso.objects.filter(plan=suscripcion.plan).values_list('modulo', flat=True)
-    )
+    ))
     return Response({'modulos': codigos})

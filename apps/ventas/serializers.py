@@ -1,9 +1,14 @@
 from rest_framework import serializers
 from decimal import Decimal, ROUND_HALF_UP
+from datetime import timedelta
+import logging
 from .models import Caja, AperturaCaja, Venta, DetalleVenta, PagoVenta, MovimientoCaja
 from apps.clientes.serializers import ClienteSerializer
 from apps.productos.serializers import ProductoSerializer
 from apps.facturacion.serializers import FacturaSerializer
+
+
+logger = logging.getLogger(__name__)
 
 
 class CajaSerializer(serializers.ModelSerializer):
@@ -191,11 +196,58 @@ class VentaSerializer(serializers.ModelSerializer):
                 )
                 factura = crear_factura_desde_venta(venta)
                 procesar_factura_sri(factura)
-            except Exception:
-                # La venta se guarda correctamente aunque la factura falle
-                pass
+                venta.refresh_from_db(fields=['factura'])
+            except Exception as exc:
+                # La venta queda registrada; el error se registra para gestion SRI posterior.
+                logger.exception(
+                    'No se pudo generar/procesar factura SRI para la venta %s: %s',
+                    venta.numero_venta,
+                    exc,
+                )
+
+        self._crear_cartera_si_es_credito(venta)
 
         return venta
+
+    def _crear_cartera_si_es_credito(self, venta):
+        pagos = list(venta.pagos.all())
+        monto_credito = sum(
+            (pago.monto for pago in pagos if pago.forma_pago == 'CREDITO'),
+            Decimal('0.00'),
+        )
+        if venta.tipo_venta == 'CREDITO' and monto_credito <= 0:
+            monto_credito = venta.total
+        if monto_credito <= 0:
+            return
+
+        from django.utils import timezone
+        from apps.cartera.models import CuentaPorCobrar
+
+        numero_cuenta = f'VENTA-{venta.numero_venta}'
+        fecha_emision = timezone.localdate(venta.fecha_venta)
+        fecha_vencimiento = fecha_emision + timedelta(days=30)
+        cuenta = CuentaPorCobrar.objects.filter(
+            empresa=venta.empresa,
+            numero_cuenta=numero_cuenta,
+        ).first()
+        if cuenta:
+            created = False
+        else:
+            cuenta = CuentaPorCobrar.objects.create(
+                empresa=venta.empresa,
+                numero_cuenta=numero_cuenta,
+                cliente=venta.cliente,
+                factura=venta.factura,
+                fecha_emision=fecha_emision,
+                fecha_vencimiento=fecha_vencimiento,
+                monto_total=monto_credito,
+                saldo=monto_credito,
+                notas=f'Generada automaticamente desde la venta {venta.numero_venta}.',
+            )
+            created = True
+        if not created and venta.factura_id and cuenta.factura_id != venta.factura_id:
+            cuenta.factura = venta.factura
+            cuenta.save(update_fields=['factura'])
 
 
 class VentaSyncSerializer(serializers.Serializer):

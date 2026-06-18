@@ -14,8 +14,6 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
-from apps.core.permissions import HasModuleAccess
-
 from .models import (
     DocumentoSolicitudFirma,
     FirmaPrecioElectronica,
@@ -54,7 +52,7 @@ def user_can_access_request(user, solicitud):
 
 
 class IsSuperAdminOnly(BasePermission):
-    message = 'Solo SUPER_ADMIN puede administrar precios de firma.'
+    message = 'Solo SUPER_ADMIN puede administrar firmas electrónicas.'
 
     def has_permission(self, request, view):
         return is_super_admin(request.user)
@@ -62,8 +60,7 @@ class IsSuperAdminOnly(BasePermission):
 
 class SolicitudFirmaElectronicaViewSet(viewsets.ModelViewSet):
     serializer_class = SolicitudFirmaElectronicaSerializer
-    permission_classes = [IsAuthenticated, HasModuleAccess]
-    module_required = 'firmas_electronicas'
+    permission_classes = [IsAuthenticated, IsSuperAdminOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'request_type', 'source', 'interested_plan', 'provider']
     search_fields = ['request_number', 'first_name', 'last_name', 'second_last_name', 'identification', 'ruc', 'business_name', 'email', 'phone']
@@ -133,8 +130,7 @@ class SolicitudFirmaElectronicaViewSet(viewsets.ModelViewSet):
 
 class DocumentoSolicitudFirmaViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DocumentoSolicitudFirmaSerializer
-    permission_classes = [IsAuthenticated, HasModuleAccess]
-    module_required = 'firmas_electronicas'
+    permission_classes = [IsAuthenticated, IsSuperAdminOnly]
 
     def get_queryset(self):
         qs = DocumentoSolicitudFirma.objects.select_related('request', 'request__company')
