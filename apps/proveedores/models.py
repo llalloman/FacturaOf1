@@ -671,6 +671,22 @@ class PagoProveedor(models.Model):
         max_length=20,
         choices=FormaPagoChoices.choices
     )
+    cuenta_bancaria = models.ForeignKey(
+        'bancos.CuentaBancaria',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagos_proveedores',
+        verbose_name=_('cuenta origen'),
+    )
+    movimiento_bancario = models.OneToOneField(
+        'bancos.MovimientoBancario',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pago_proveedor',
+        verbose_name=_('movimiento bancario'),
+    )
     monto = models.DecimalField(
         _('monto'),
         max_digits=12,

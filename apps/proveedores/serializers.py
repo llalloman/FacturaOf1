@@ -14,13 +14,36 @@ class ProveedorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Proveedor
         fields = [
-            'id', 'uuid', 'tipo_identificacion', 'identificacion',
+            'id', 'tipo_identificacion', 'identificacion',
             'razon_social', 'nombre_comercial', 'direccion',
             'telefono', 'celular', 'email', 'contacto_principal',
             'dias_credito', 'limite_credito', 'cuenta_contable',
             'activo', 'notas', 'creado_en', 'actualizado_en'
         ]
-        read_only_fields = ['uuid', 'creado_en', 'actualizado_en']
+        read_only_fields = ['creado_en', 'actualizado_en']
+
+    def validate_identificacion(self, value):
+        identificacion = value.strip()
+        request = self.context.get('request')
+        empresa = getattr(getattr(request, 'user', None), 'empresa', None)
+
+        if not empresa:
+            raise serializers.ValidationError(
+                'El usuario debe tener una empresa asignada para registrar proveedores.'
+            )
+
+        existentes = Proveedor.objects.filter(
+            empresa=empresa,
+            identificacion=identificacion,
+        )
+        if self.instance:
+            existentes = existentes.exclude(pk=self.instance.pk)
+        if existentes.exists():
+            raise serializers.ValidationError(
+                'Ya existe un proveedor con esta identificación.'
+            )
+
+        return identificacion
     
     def create(self, validated_data):
         validated_data['empresa'] = self.context['request'].user.empresa
@@ -318,23 +341,35 @@ class PagoProveedorSerializer(serializers.ModelSerializer):
             'id', 'uuid', 'proveedor', 'proveedor_nombre',
             'cuenta_por_pagar', 'cuenta_numero', 'numero_pago',
             'fecha_pago', 'forma_pago', 'monto', 'numero_documento',
-            'banco', 'notas', 'registrado_por', 'registrado_por_nombre',
+            'banco', 'cuenta_bancaria', 'movimiento_bancario',
+            'notas', 'registrado_por', 'registrado_por_nombre',
             'creado_en', 'actualizado_en'
         ]
         read_only_fields = [
-            'uuid', 'registrado_por', 'creado_en', 'actualizado_en'
+            'uuid', 'registrado_por', 'movimiento_bancario',
+            'creado_en', 'actualizado_en'
         ]
     
     def validate(self, data):
         """Validar que el monto no exceda el saldo"""
         cuenta = data.get('cuenta_por_pagar')
         monto = data.get('monto')
+        cuenta_bancaria = data.get('cuenta_bancaria')
+        forma_pago = data.get('forma_pago')
         
         if cuenta and monto:
             if monto > cuenta.saldo:
                 raise serializers.ValidationError({
                     'monto': f'El monto ({monto}) excede el saldo de la cuenta ({cuenta.saldo})'
                 })
+        if cuenta_bancaria:
+            empresa = getattr(self.context['request'].user, 'empresa', None)
+            if cuenta_bancaria.empresa_id != getattr(empresa, 'id', None):
+                raise serializers.ValidationError({'cuenta_bancaria': 'La cuenta bancaria no pertenece a tu empresa.'})
+            if not cuenta_bancaria.activa:
+                raise serializers.ValidationError({'cuenta_bancaria': 'La cuenta bancaria seleccionada está inactiva.'})
+        if forma_pago != 'NOTA_CREDITO' and not cuenta_bancaria:
+            raise serializers.ValidationError({'cuenta_bancaria': 'Selecciona la cuenta origen del pago.'})
         
         return data
     
@@ -356,5 +391,8 @@ class PagoProveedorSerializer(serializers.ModelSerializer):
         cuenta.monto_pagado += pago.monto
         cuenta.actualizar_estado_pago()
         cuenta.save()
+
+        from apps.proveedores.finance import registrar_movimiento_bancario_pago_proveedor
+        registrar_movimiento_bancario_pago_proveedor(pago)
         
         return pago

@@ -112,6 +112,10 @@ def revertir_pago_proveedor(sender, instance, **kwargs):
     Revertir pago en la cuenta cuando se elimina
     """
     with transaction.atomic():
+        movimiento = getattr(instance, 'movimiento_bancario', None)
+        if movimiento:
+            movimiento.delete()
+
         cuenta = instance.cuenta_por_pagar
         cuenta.monto_pagado -= instance.monto
         

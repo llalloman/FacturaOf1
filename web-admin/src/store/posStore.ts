@@ -39,6 +39,8 @@ export interface ItemCarrito {
 export interface PagoPOS {
   metodo_pago: 'EFECTIVO' | 'TARJETA_CREDITO' | 'TARJETA_DEBITO' | 'TRANSFERENCIA' | 'CHEQUE' | 'CREDITO';
   monto: number;
+  cuenta_bancaria?: number | null;
+  referencia?: string;
 }
 
 const IVA_RATES: Record<string, number> = {

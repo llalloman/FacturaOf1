@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import timedelta
 import logging
 from .models import Caja, AperturaCaja, Venta, DetalleVenta, PagoVenta, MovimientoCaja
 from apps.clientes.serializers import ClienteSerializer
@@ -45,7 +44,7 @@ class PagoVentaSerializer(serializers.ModelSerializer):
     class Meta:
         model = PagoVenta
         fields = '__all__'
-        read_only_fields = ['venta']
+        read_only_fields = ['venta', 'movimiento_bancario', 'fecha_pago']
 
     def to_internal_value(self, data):
         # Map metodo_pago → forma_pago BEFORE field validation
@@ -64,6 +63,9 @@ class VentaSerializer(serializers.ModelSerializer):
     estado_documento = serializers.SerializerMethodField()
     total_facturado = serializers.SerializerMethodField()
     diferencia_vs_factura = serializers.SerializerMethodField()
+    costo_total = serializers.SerializerMethodField()
+    utilidad_bruta = serializers.SerializerMethodField()
+    margen_bruto = serializers.SerializerMethodField()
     detalles = DetalleVentaSerializer(many=True)
     pagos = PagoVentaSerializer(many=True)
 
@@ -97,14 +99,49 @@ class VentaSerializer(serializers.ModelSerializer):
         total_factura = Decimal(str(obj.factura.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         return (total_venta - total_factura).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
+    def get_costo_total(self, obj):
+        total = sum(
+            Decimal(str(detalle.costo_unitario or 0)) * Decimal(str(detalle.cantidad or 0))
+            for detalle in obj.detalles.all()
+        )
+        return total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    def get_utilidad_bruta(self, obj):
+        costo = self.get_costo_total(obj)
+        subtotal = Decimal(str(obj.subtotal or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return (subtotal - costo).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    def get_margen_bruto(self, obj):
+        subtotal = Decimal(str(obj.subtotal or 0))
+        if subtotal <= 0:
+            return Decimal('0.00')
+        utilidad = Decimal(str(self.get_utilidad_bruta(obj)))
+        return ((utilidad / subtotal) * Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
     def validate(self, attrs):
         attrs = super().validate(attrs)
         cliente = attrs.get('cliente') or getattr(self.instance, 'cliente', None)
         genera_factura = attrs.get('genera_factura')
+        caja = attrs.get('caja') or getattr(self.instance, 'caja', None)
+        detalles = attrs.get('detalles', [])
+        pagos = attrs.get('pagos', [])
         if cliente and not cliente.activo:
             raise serializers.ValidationError({'cliente': 'No se puede usar un cliente inactivo para nuevas ventas.'})
+        if not detalles:
+            raise serializers.ValidationError({'detalles': 'Agrega al menos un producto o servicio.'})
+        if not pagos:
+            raise serializers.ValidationError({'pagos': 'Registra al menos un pago.'})
+        for index, pago in enumerate(pagos):
+            forma_pago = pago.get('forma_pago')
+            cuenta = pago.get('cuenta_bancaria')
+            if forma_pago != 'CREDITO':
+                if not cuenta:
+                    raise serializers.ValidationError({'pagos': f'El pago #{index + 1} requiere una cuenta destino.'})
+                if not cuenta.activa:
+                    raise serializers.ValidationError({'pagos': f'La cuenta destino del pago #{index + 1} está inactiva.'})
+                if caja and cuenta.empresa_id != caja.empresa_id:
+                    raise serializers.ValidationError({'pagos': f'La cuenta destino del pago #{index + 1} no pertenece a la empresa de la caja.'})
         if genera_factura and cliente:
-            detalles = attrs.get('detalles', [])
             total_estimado = sum(
                 Decimal(str(item.get('total', 0) or 0))
                 for item in detalles
@@ -178,6 +215,9 @@ class VentaSerializer(serializers.ModelSerializer):
         venta = Venta.objects.create(**validated_data)
 
         for detalle_data in detalles_data:
+            producto = detalle_data.get('producto')
+            if producto and not detalle_data.get('costo_unitario'):
+                detalle_data['costo_unitario'] = producto.costo
             DetalleVenta.objects.create(venta=venta, **detalle_data)
 
         for pago_data in pagos_data:
@@ -205,49 +245,10 @@ class VentaSerializer(serializers.ModelSerializer):
                     exc,
                 )
 
-        self._crear_cartera_si_es_credito(venta)
+        from apps.ventas.finance import registrar_finanzas_venta
+        registrar_finanzas_venta(venta)
 
         return venta
-
-    def _crear_cartera_si_es_credito(self, venta):
-        pagos = list(venta.pagos.all())
-        monto_credito = sum(
-            (pago.monto for pago in pagos if pago.forma_pago == 'CREDITO'),
-            Decimal('0.00'),
-        )
-        if venta.tipo_venta == 'CREDITO' and monto_credito <= 0:
-            monto_credito = venta.total
-        if monto_credito <= 0:
-            return
-
-        from django.utils import timezone
-        from apps.cartera.models import CuentaPorCobrar
-
-        numero_cuenta = f'VENTA-{venta.numero_venta}'
-        fecha_emision = timezone.localdate(venta.fecha_venta)
-        fecha_vencimiento = fecha_emision + timedelta(days=30)
-        cuenta = CuentaPorCobrar.objects.filter(
-            empresa=venta.empresa,
-            numero_cuenta=numero_cuenta,
-        ).first()
-        if cuenta:
-            created = False
-        else:
-            cuenta = CuentaPorCobrar.objects.create(
-                empresa=venta.empresa,
-                numero_cuenta=numero_cuenta,
-                cliente=venta.cliente,
-                factura=venta.factura,
-                fecha_emision=fecha_emision,
-                fecha_vencimiento=fecha_vencimiento,
-                monto_total=monto_credito,
-                saldo=monto_credito,
-                notas=f'Generada automaticamente desde la venta {venta.numero_venta}.',
-            )
-            created = True
-        if not created and venta.factura_id and cuenta.factura_id != venta.factura_id:
-            cuenta.factura = venta.factura
-            cuenta.save(update_fields=['factura'])
 
 
 class VentaSyncSerializer(serializers.Serializer):

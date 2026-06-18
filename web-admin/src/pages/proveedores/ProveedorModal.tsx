@@ -40,6 +40,23 @@ const ProveedorModal: React.FC<ProveedorModalProps> = ({ proveedor, onClose }) =
     mutation.mutate(formData);
   };
 
+  const getErrorMessage = () => {
+    const error = mutation.error as {
+      response?: { data?: Record<string, unknown> | string };
+    };
+    const data = error?.response?.data;
+
+    if (!data) return 'No se pudo guardar el proveedor.';
+    if (typeof data === 'string') return data;
+
+    return Object.entries(data)
+      .map(([field, value]) => {
+        const message = Array.isArray(value) ? value.join(', ') : String(value);
+        return field === 'non_field_errors' ? message : `${field}: ${message}`;
+      })
+      .join(' | ');
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -161,6 +178,15 @@ const ProveedorModal: React.FC<ProveedorModalProps> = ({ proveedor, onClose }) =
               Activo
             </label>
           </div>
+
+          {mutation.isError && (
+            <div
+              role="alert"
+              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {getErrorMessage()}
+            </div>
+          )}
 
           <div className="flex gap-4 justify-end pt-6 border-t">
             <button

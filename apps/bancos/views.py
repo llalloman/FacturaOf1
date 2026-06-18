@@ -15,10 +15,10 @@ class CuentaBancariaViewSet(viewsets.ModelViewSet):
     module_required = 'bancos'
     serializer_class = CuentaBancariaSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['activa', 'tipo_cuenta']
-    search_fields = ['nombre', 'numero_cuenta', 'banco']
-    ordering_fields = ['nombre', 'saldo_actual']
-    ordering = ['nombre']
+    filterset_fields = ['activa', 'tipo']
+    search_fields = ['numero_cuenta', 'banco', 'descripcion']
+    ordering_fields = ['banco', 'numero_cuenta', 'saldo_inicial']
+    ordering = ['banco', 'numero_cuenta']
 
     def get_queryset(self):
         return CuentaBancaria.objects.filter(empresa=self.request.user.empresa)
@@ -29,9 +29,10 @@ class CuentaBancariaViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def resumen(self, request):
         """Saldo total de todas las cuentas activas."""
-        cuentas = self.get_queryset().filter(activa=True)
-        total_disponible = sum(c.saldo_disponible for c in cuentas)
-        total_conciliado = sum(c.saldo_actual for c in cuentas)
+        cuentas = list(self.get_queryset())
+        cuentas_activas = [cuenta for cuenta in cuentas if cuenta.activa]
+        total_disponible = sum(c.saldo_disponible for c in cuentas_activas)
+        total_conciliado = sum(c.saldo_actual for c in cuentas_activas)
         return Response({
             'total_disponible': float(total_disponible),
             'total_conciliado': float(total_conciliado),

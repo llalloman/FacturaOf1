@@ -101,12 +101,13 @@ class AperturaCajaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Calcular totales
-        ventas_total = Venta.objects.filter(
+        ventas_qs = Venta.objects.filter(
             caja=apertura.caja,
             fecha_venta__gte=apertura.fecha_apertura,
             estado='COMPLETADA'
-        ).aggregate(total=Sum('total'))['total'] or 0
+        )
+        ventas_total = ventas_qs.aggregate(total=Sum('total'))['total'] or 0
+        efectivo_ventas = ventas_qs.filter(pagos__forma_pago='EFECTIVO').aggregate(total=Sum('pagos__monto'))['total'] or 0
         
         movimientos = MovimientoCaja.objects.filter(
             apertura_caja=apertura
@@ -128,7 +129,7 @@ class AperturaCajaViewSet(viewsets.ModelViewSet):
         apertura.total_ingresos = ingresos
         apertura.total_egresos = egresos
         
-        esperado = apertura.monto_apertura + ventas_total + ingresos - egresos
+        esperado = apertura.monto_apertura + efectivo_ventas + ingresos - egresos
         apertura.diferencia = apertura.monto_cierre - esperado
         
         apertura.save()
@@ -697,13 +698,29 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
         from .models import PagoVenta
         pagos_resumen = PagoVenta.objects.filter(
             venta__in=queryset
-        ).values('metodo_pago').annotate(
+        ).values('forma_pago', 'cuenta_bancaria__banco', 'cuenta_bancaria__numero_cuenta').annotate(
             total=Sum('monto')
         )
+        costo_total = Decimal('0.00')
+        subtotal_total = Decimal('0.00')
+        for venta in queryset.prefetch_related('detalles'):
+            subtotal_total += Decimal(str(venta.subtotal or 0))
+            for detalle in venta.detalles.all():
+                costo_total += Decimal(str(detalle.costo_unitario or 0)) * Decimal(str(detalle.cantidad or 0))
+        utilidad_bruta = subtotal_total - costo_total
         
         return Response({
             'totales': totales,
-            'por_metodo_pago': pagos_resumen
+            'por_metodo_pago': pagos_resumen,
+            'rentabilidad': {
+                'subtotal': subtotal_total.quantize(Decimal('0.01')),
+                'costo_total': costo_total.quantize(Decimal('0.01')),
+                'utilidad_bruta': utilidad_bruta.quantize(Decimal('0.01')),
+                'margen_bruto': (
+                    (utilidad_bruta / subtotal_total * Decimal('100')).quantize(Decimal('0.01'))
+                    if subtotal_total > 0 else Decimal('0.00')
+                ),
+            },
         })
 
 

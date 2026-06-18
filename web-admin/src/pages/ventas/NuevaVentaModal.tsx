@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, Search, Trash2, X } from 'lucide-react';
 import { posService } from '../../services/posService';
+import { getResumen, type CuentaBancaria } from '../../services/bancosService';
 import type { ClientePOS, ItemCarrito, PagoPOS, ProductoPOS } from '../../store/posStore';
 import { toast } from '../../store/toastStore';
 
@@ -38,6 +39,7 @@ export default function NuevaVentaModal({ onClose, onCreated }: NuevaVentaModalP
   const [cliente, setCliente] = useState<ClientePOS | null>(null);
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const [formaPago, setFormaPago] = useState<FormaPago>('TRANSFERENCIA');
+  const [cuentaBancariaId, setCuentaBancariaId] = useState<number | ''>('');
   const [generaFactura, setGeneraFactura] = useState(true);
 
   const { data: clientes = [], isLoading: loadingClientes } = useQuery({
@@ -55,6 +57,17 @@ export default function NuevaVentaModal({ onClose, onCreated }: NuevaVentaModalP
     queryFn: posService.getCajas,
   });
 
+  const { data: resumenBancos, isLoading: loadingCuentas } = useQuery({
+    queryKey: ['bancos-resumen-venta'],
+    queryFn: getResumen,
+  });
+
+  const cuentasActivas = useMemo(
+    () => (resumenBancos?.cuentas ?? []).filter((cuenta: CuentaBancaria) => cuenta.activa),
+    [resumenBancos]
+  );
+  const requiereCuenta = formaPago !== 'CREDITO';
+
   const subtotal = useMemo(() => round2(items.reduce((sum, item) => sum + item.subtotal, 0)), [items]);
   const descuento = useMemo(() => round2(items.reduce((sum, item) => sum + item.descuento, 0)), [items]);
   const iva = useMemo(() => round2(items.reduce((sum, item) => sum + item.iva, 0)), [items]);
@@ -67,12 +80,17 @@ export default function NuevaVentaModal({ onClose, onCreated }: NuevaVentaModalP
       if (!cliente?.id) throw new Error('Selecciona un cliente.');
       if (items.length === 0) throw new Error('Agrega al menos un producto o servicio.');
       if (total <= 0) throw new Error('El total de la venta debe ser mayor a cero.');
+      if (requiereCuenta && !cuentaBancariaId) throw new Error('Selecciona la cuenta destino del pago.');
 
       return posService.crearVenta({
         caja: caja.id,
         cliente: cliente.id,
         detalles: items,
-        pagos: [{ metodo_pago: formaPago, monto: total }],
+        pagos: [{
+          metodo_pago: formaPago,
+          monto: total,
+          cuenta_bancaria: requiereCuenta ? Number(cuentaBancariaId) : null,
+        }],
         genera_factura: generaFactura,
       });
     },
@@ -304,12 +322,32 @@ export default function NuevaVentaModal({ onClose, onCreated }: NuevaVentaModalP
                   Forma de pago
                   <select
                     value={formaPago}
-                    onChange={(event) => setFormaPago(event.target.value as FormaPago)}
+                    onChange={(event) => {
+                      setFormaPago(event.target.value as FormaPago);
+                      if (event.target.value === 'CREDITO') setCuentaBancariaId('');
+                    }}
                     className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-600"
                   >
                     {Object.entries(formaPagoLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </label>
+                {requiereCuenta && (
+                  <label className="block text-sm font-medium text-gray-700">
+                    Cuenta destino
+                    <select
+                      value={cuentaBancariaId}
+                      onChange={(event) => setCuentaBancariaId(event.target.value ? Number(event.target.value) : '')}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="">Seleccione cuenta</option>
+                      {cuentasActivas.map((cuenta) => (
+                        <option key={cuenta.id} value={cuenta.id}>
+                          {cuenta.banco} - {cuenta.numero_cuenta} ({cuenta.tipo})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <label className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
                   <input
                     type="checkbox"
@@ -319,7 +357,7 @@ export default function NuevaVentaModal({ onClose, onCreated }: NuevaVentaModalP
                   />
                   Generar factura electrónica ahora
                 </label>
-                {loadingCajas && <p className="text-xs text-gray-400">Preparando caja administrativa...</p>}
+                {(loadingCajas || loadingCuentas) && <p className="text-xs text-gray-400">Preparando datos financieros...</p>}
               </div>
 
               <div className="space-y-2 rounded-xl bg-gray-50 p-4 text-sm">

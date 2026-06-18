@@ -56,6 +56,7 @@ export const posService = {
       pagos: payload.pagos.map((p) => ({
         ...p,
         monto: Math.round(p.monto * 100) / 100,
+        cuenta_bancaria: p.cuenta_bancaria ?? null,
       })),
     };
     const { data } = await apiClient.post('/ventas/ventas/', body);

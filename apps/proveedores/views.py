@@ -335,7 +335,8 @@ class PagoProveedorViewSet(viewsets.ModelViewSet):
         return PagoProveedor.objects.filter(
             empresa=self.request.user.empresa
         ).select_related(
-            'empresa', 'proveedor', 'cuenta_por_pagar', 'registrado_por'
+            'empresa', 'proveedor', 'cuenta_por_pagar',
+            'cuenta_bancaria', 'movimiento_bancario', 'registrado_por'
         )
     
     @action(detail=False, methods=['get'])

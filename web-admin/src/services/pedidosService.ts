@@ -71,9 +71,10 @@ export interface Pedido {
 }
 
 export interface PagoPayload {
-  forma_pago: 'EFECTIVO' | 'TARJETA_DEBITO' | 'TARJETA_CREDITO' | 'TRANSFERENCIA';
+  forma_pago: 'EFECTIVO' | 'TARJETA_DEBITO' | 'TARJETA_CREDITO' | 'TRANSFERENCIA' | 'CHEQUE' | 'CREDITO';
   monto: number;
   referencia?: string;
+  cuenta_bancaria?: number | null;
 }
 
 export interface CobrarPayload {

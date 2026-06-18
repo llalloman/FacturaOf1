@@ -237,6 +237,21 @@ class PedidoViewSet(viewsets.ModelViewSet):
         except Cliente.DoesNotExist:
             return Response({'error': 'Cliente no encontrado o inactivo.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        from apps.bancos.models import CuentaBancaria
+        cuentas_por_id = {}
+        for index, pago in enumerate(pagos_data):
+            forma_pago = pago.get('forma_pago', 'EFECTIVO')
+            cuenta_id = pago.get('cuenta_bancaria') or pago.get('cuenta_bancaria_id')
+            if forma_pago == 'CREDITO':
+                continue
+            if not cuenta_id:
+                return Response({'error': f'El pago #{index + 1} requiere una cuenta destino.'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                cuenta = CuentaBancaria.objects.get(id=cuenta_id, empresa=pedido.empresa, activa=True)
+            except CuentaBancaria.DoesNotExist:
+                return Response({'error': f'La cuenta destino del pago #{index + 1} no existe o está inactiva.'}, status=status.HTTP_400_BAD_REQUEST)
+            cuentas_por_id[int(cuenta_id)] = cuenta
+
         if genera_factura:
             # Validar readiness fiscal (onboarding)
             empresa = pedido.empresa
@@ -309,11 +324,13 @@ class PedidoViewSet(viewsets.ModelViewSet):
 
         # Registrar pagos
         for p in pagos_data:
+            cuenta_id = p.get('cuenta_bancaria') or p.get('cuenta_bancaria_id')
             PagoVenta.objects.create(
                 venta=venta,
                 forma_pago=p.get('forma_pago', 'EFECTIVO'),
                 monto=p.get('monto', 0),
                 referencia=p.get('referencia', ''),
+                cuenta_bancaria=cuentas_por_id.get(int(cuenta_id)) if cuenta_id else None,
             )
 
         # Marcar pedido como pagado
@@ -339,9 +356,13 @@ class PedidoViewSet(viewsets.ModelViewSet):
                 )
                 factura = crear_factura_desde_venta(venta)
                 procesar_factura_sri(factura)
+                venta.refresh_from_db(fields=['factura'])
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error(f"Error generando factura desde pedido {pedido.id}: {e}", exc_info=True)
+
+        from apps.ventas.finance import registrar_finanzas_venta
+        registrar_finanzas_venta(venta)
 
         from apps.ventas.serializers import VentaSerializer
         return Response(VentaSerializer(venta, context={'request': request}).data, status=status.HTTP_201_CREATED)

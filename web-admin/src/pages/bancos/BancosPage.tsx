@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Building2, Plus, RefreshCw, CheckCircle2, Circle, ArrowDownLeft, ArrowUpRight,
+  Pencil, Power,
 } from 'lucide-react';
 import {
-  getResumen, crearCuenta, getExtracto, crearMovimiento, conciliarMovimiento, conciliarMultiples,
+  getResumen, crearCuenta, actualizarCuenta, getExtracto, crearMovimiento, conciliarMovimiento, conciliarMultiples,
   type CuentaBancaria, type ExtractoRow, type TipoMovimiento,
 } from '../../services/bancosService';
 import { useToast } from '../../hooks/useToast';
@@ -39,45 +40,88 @@ const TIPO_COLOR: Record<string, string> = {
 // ── Cuenta Card ───────────────────────────────────────────────────────────
 
 function CuentaCard({
-  cuenta, selected, onSelect,
+  cuenta, selected, onSelect, onEdit, onToggleActive,
 }: {
   cuenta: CuentaBancaria;
   selected: boolean;
   onSelect: () => void;
+  onEdit: () => void;
+  onToggleActive: () => void;
 }) {
   return (
-    <button
-      onClick={onSelect}
+    <div
       className={`w-full text-left rounded-xl p-4 border transition-all ${
         selected
           ? 'border-indigo-500 bg-indigo-50 shadow-md'
-          : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm'
+          : cuenta.activa
+            ? 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm'
+            : 'border-gray-200 bg-gray-50 opacity-75'
       }`}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="font-semibold text-gray-800 text-sm">{cuenta.banco}</p>
+      <div className="flex items-start justify-between gap-3">
+        <button type="button" onClick={onSelect} className="min-w-0 flex-1 text-left">
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-gray-800 text-sm truncate">{cuenta.banco}</p>
+            <span className={`text-[11px] px-2 py-0.5 rounded-full ${
+              cuenta.activa ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
+            }`}>
+              {cuenta.activa ? 'Activa' : 'Inactiva'}
+            </span>
+          </div>
           <p className="text-xs text-gray-500 font-mono">{cuenta.numero_cuenta}</p>
           <span className="text-xs text-gray-400">{cuenta.tipo}</span>
-        </div>
+        </button>
         <div className="text-right">
           <p className="text-sm font-bold text-gray-900">{fmt(cuenta.saldo_disponible)}</p>
           <p className="text-xs text-gray-400">Conciliado: {fmt(cuenta.saldo_actual)}</p>
         </div>
       </div>
-    </button>
+      <div className="flex justify-end gap-2 mt-3">
+        <button
+          type="button"
+          onClick={onEdit}
+          title="Editar cuenta"
+          className="p-1.5 rounded-lg text-gray-500 hover:text-indigo-700 hover:bg-indigo-50"
+        >
+          <Pencil size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={onToggleActive}
+          title={cuenta.activa ? 'Inactivar cuenta' : 'Activar cuenta'}
+          className={`p-1.5 rounded-lg ${
+            cuenta.activa
+              ? 'text-gray-500 hover:text-red-700 hover:bg-red-50'
+              : 'text-gray-500 hover:text-green-700 hover:bg-green-50'
+          }`}
+        >
+          <Power size={15} />
+        </button>
+      </div>
+    </div>
   );
 }
 
 // ── Nueva Cuenta Modal ────────────────────────────────────────────────────
 
-function NuevaCuentaModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+function NuevaCuentaModal({
+  cuenta, onClose, onSaved,
+}: {
+  cuenta?: CuentaBancaria | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const { showToast } = useToast();
   const [form, setForm] = useState({
-    banco: '', numero_cuenta: '', tipo: 'CORRIENTE' as CuentaBancaria['tipo'],
-    saldo_inicial: '0', descripcion: '',
+    banco: cuenta?.banco ?? '',
+    numero_cuenta: cuenta?.numero_cuenta ?? '',
+    tipo: cuenta?.tipo ?? 'CORRIENTE' as CuentaBancaria['tipo'],
+    saldo_inicial: String(cuenta?.saldo_inicial ?? '0'),
+    descripcion: cuenta?.descripcion ?? '',
+    activa: cuenta?.activa ?? true,
   });
   const [saving, setSaving] = useState(false);
+  const isEdit = Boolean(cuenta);
 
   const handleSave = async () => {
     if (!form.banco || !form.numero_cuenta) {
@@ -86,8 +130,13 @@ function NuevaCuentaModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
     }
     setSaving(true);
     try {
-      await crearCuenta({ ...form, saldo_inicial: parseFloat(form.saldo_inicial) || 0 });
-      showToast('Cuenta creada.', 'success');
+      const payload = { ...form, saldo_inicial: parseFloat(form.saldo_inicial) || 0 };
+      if (cuenta) {
+        await actualizarCuenta(cuenta.id, payload);
+      } else {
+        await crearCuenta(payload);
+      }
+      showToast(isEdit ? 'Cuenta actualizada.' : 'Cuenta creada.', 'success');
       onSaved();
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } };
@@ -101,7 +150,7 @@ function NuevaCuentaModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-5 border-b">
-          <h2 className="text-lg font-semibold text-gray-800">Nueva Cuenta Bancaria</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{isEdit ? 'Editar Cuenta Bancaria' : 'Nueva Cuenta Bancaria'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
         </div>
         <div className="p-5 space-y-4">
@@ -137,13 +186,22 @@ function NuevaCuentaModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
               <input value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
+            <label className="col-span-2 flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.activa}
+                onChange={e => setForm(f => ({ ...f, activa: e.target.checked }))}
+                className="rounded"
+              />
+              Cuenta activa
+            </label>
           </div>
         </div>
         <div className="p-5 border-t flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
           <button onClick={handleSave} disabled={saving}
             className="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-            {saving ? 'Guardando…' : 'Crear cuenta'}
+            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear cuenta'}
           </button>
         </div>
       </div>
@@ -273,6 +331,7 @@ export default function BancosPage() {
   const [loading, setLoading] = useState(false);
   const [loadingExtracto, setLoadingExtracto] = useState(false);
   const [showNuevaCuenta, setShowNuevaCuenta] = useState(false);
+  const [editingCuenta, setEditingCuenta] = useState<CuentaBancaria | null>(null);
   const [showNuevoMov, setShowNuevoMov] = useState(false);
 
   // Filtros extracto
@@ -290,6 +349,8 @@ export default function BancosPage() {
       setTotalDisponible(res.total_disponible);
       if (!selectedCuenta && res.cuentas.length > 0) {
         setSelectedCuenta(res.cuentas[0]);
+      } else if (selectedCuenta) {
+        setSelectedCuenta(res.cuentas.find(c => c.id === selectedCuenta.id) ?? res.cuentas[0] ?? null);
       }
     } catch {
       showToast('Error cargando cuentas', 'error');
@@ -348,6 +409,16 @@ export default function BancosPage() {
     }
   };
 
+  const handleToggleCuenta = async (cuenta: CuentaBancaria) => {
+    try {
+      const updated = await actualizarCuenta(cuenta.id, { activa: !cuenta.activa });
+      showToast(updated.activa ? 'Cuenta activada.' : 'Cuenta inactivada.', 'success');
+      await loadCuentas();
+    } catch {
+      showToast('No se pudo actualizar la cuenta.', 'error');
+    }
+  };
+
   const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   return (
@@ -400,6 +471,8 @@ export default function BancosPage() {
                 cuenta={c}
                 selected={selectedCuenta?.id === c.id}
                 onSelect={() => setSelectedCuenta(c)}
+                onEdit={() => setEditingCuenta(c)}
+                onToggleActive={() => handleToggleCuenta(c)}
               />
             ))
           )}
@@ -532,8 +605,17 @@ export default function BancosPage() {
 
       {showNuevaCuenta && (
         <NuevaCuentaModal
+          cuenta={null}
           onClose={() => setShowNuevaCuenta(false)}
           onSaved={() => { setShowNuevaCuenta(false); loadCuentas(); }}
+        />
+      )}
+
+      {editingCuenta && (
+        <NuevaCuentaModal
+          cuenta={editingCuenta}
+          onClose={() => setEditingCuenta(null)}
+          onSaved={() => { setEditingCuenta(null); loadCuentas(); }}
         />
       )}
 

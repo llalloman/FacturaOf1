@@ -9,9 +9,10 @@ import { pedidosService, type Pedido, type DetallePedido, type PagoPayload } fro
 import { productosService } from '../../services/productosService';
 import { cajasService } from '../../services/cajasService';
 import { clientesService } from '../../services/clientesService';
+import { getResumen, type CuentaBancaria } from '../../services/bancosService';
 import type { Producto, Cliente, Caja } from '../../types';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ESTADO_ITEM_COLOR: Record<DetallePedido['estado'], string> = {
   PENDIENTE:       'bg-gray-100  text-gray-600',
@@ -29,7 +30,16 @@ const ESTADO_PEDIDO_COLOR: Record<Pedido['estado'], string> = {
   CANCELADO:       'bg-red-100    text-red-700',
 };
 
-// Convertir código de IVA SRI a decimal
+const PAGO_LABELS: Record<PagoPayload['forma_pago'], string> = {
+  EFECTIVO: 'Efectivo',
+  TARJETA_DEBITO: 'Tarjeta debito',
+  TARJETA_CREDITO: 'Tarjeta credito',
+  TRANSFERENCIA: 'Transferencia',
+  CHEQUE: 'Cheque',
+  CREDITO: 'Credito',
+};
+
+// Convertir cÃ³digo de IVA SRI a decimal
 const getIVADecimal = (porcentajeIva: string, aplica: boolean): number => {
   if (!aplica) return 0;
   const rates: Record<string, number> = {
@@ -42,7 +52,7 @@ const getIVADecimal = (porcentajeIva: string, aplica: boolean): number => {
   return rates[porcentajeIva] ?? 0;
 };
 
-// ── Modal: Agregar producto ───────────────────────────────────────────────────
+// â”€â”€ Modal: Agregar producto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface AgregarItemModalProps {
   productos: Producto[];
@@ -72,7 +82,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
   const subtotalBruto = precioSinIva * cantidad;
   const ivaRate = seleccionado ? getIVADecimal(seleccionado.porcentaje_iva, seleccionado.aplica_iva) : 0;
 
-  // Calcular descuento según el modo
+  // Calcular descuento segÃºn el modo
   let descuentoMonto = 0;
   if (modoDescuento === 'monto') {
     descuentoMonto = Math.max(0, Number(descuento) || 0);
@@ -87,7 +97,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
   // Validar que no exceda el subtotal
   descuentoMonto = Math.min(descuentoMonto, subtotalBruto);
 
-  // Cálculos finales
+  // CÃ¡lculos finales
   const subtotalNeto = Math.max(0, subtotalBruto - descuentoMonto);
   const iva = subtotalNeto * ivaRate;
   const totalConIva = subtotalNeto + iva;
@@ -122,18 +132,18 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-800">Agregar ítem</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Agregar Ã­tem</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100"><X size={18} /></button>
         </div>
 
-        {/* Búsqueda */}
+        {/* BÃºsqueda */}
         <div className="px-5 py-3 border-b border-gray-100">
           <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
             <Search size={15} className="text-gray-400" />
             <input
               autoFocus
               className="bg-transparent flex-1 text-sm outline-none placeholder-gray-400"
-              placeholder="Buscar producto o código…"
+              placeholder="Buscar producto o cÃ³digoâ€¦"
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
             />
@@ -157,14 +167,14 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
             >
               <div>
                 <div className="text-sm font-medium text-gray-800">{p.nombre}</div>
-                <div className="text-xs text-gray-400">{p.codigo_principal} · {p.tipo}</div>
+                <div className="text-xs text-gray-400">{p.codigo_principal} Â· {p.tipo}</div>
               </div>
               <div className="text-sm font-semibold text-indigo-600">${Number(p.precio_con_iva ?? p.precio).toFixed(2)}</div>
             </button>
           ))}
         </div>
 
-        {/* Panel de selección */}
+        {/* Panel de selecciÃ³n */}
         {seleccionado && (
           <div className="border-t border-gray-200 px-5 py-4 space-y-3">
             <p className="text-sm font-semibold text-gray-700 truncate">{seleccionado.nombre}</p>
@@ -173,7 +183,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                 <label className="block text-xs text-gray-500 mb-1">Cantidad</label>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setCantidad(c => Math.max(1, c - 1))}
-                    className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 text-lg font-light">−</button>
+                    className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 text-lg font-light">âˆ’</button>
                   <span className="w-8 text-center text-sm font-semibold">{cantidad}</span>
                   <button onClick={() => setCantidad(c => c + 1)}
                     className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 text-lg font-light">+</button>
@@ -225,7 +235,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  💵 Por Monto
+                  ðŸ’µ Por Monto
                 </button>
                 <button
                   onClick={() => { setModoDescuento('porcentaje'); setDescuento('0'); setPrecioFinal(''); }}
@@ -235,7 +245,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  📊 Por Porcentaje
+                  ðŸ“Š Por Porcentaje
                 </button>
                 <button
                   onClick={() => { setModoDescuento('precio_final'); setDescuento('0'); setPrecioFinal(subtotalBruto.toFixed(2)); }}
@@ -245,12 +255,12 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  🎯 Precio Final
+                  ðŸŽ¯ Precio Final
                 </button>
               </div>
             </div>
 
-            {/* Entrada según modo */}
+            {/* Entrada segÃºn modo */}
             {modoDescuento === 'monto' && (
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Descuento en $</label>
@@ -295,7 +305,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
 
             {modoDescuento === 'precio_final' && (
               <div>
-                <label className="block text-xs text-gray-500 mb-1">¿Cuánto quieres cobrar (sin IVA)?</label>
+                <label className="block text-xs text-gray-500 mb-1">Â¿CuÃ¡nto quieres cobrar (sin IVA)?</label>
                 <input
                   type="number"
                   min="0"
@@ -306,7 +316,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                   placeholder={subtotalBruto.toFixed(2)}
                 />
                 <p className="text-xs text-gray-400 mt-1">
-                  Sistema calculará automáticamente el descuento necesario
+                  Sistema calcularÃ¡ automÃ¡ticamente el descuento necesario
                 </p>
               </div>
             )}
@@ -334,7 +344,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
   );
 }
 
-// ── Modal: Cobrar ─────────────────────────────────────────────────────────────
+// â”€â”€ Modal: Cobrar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface CobrarModalProps {
   pedido: Pedido;
@@ -350,6 +360,8 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
     clientes.find(c => c.identificacion === '9999999999999')?.id ?? (clientes[0]?.id ?? 0)
   );
   const [formaPago, setFormaPago] = useState<PagoPayload['forma_pago']>('EFECTIVO');
+  const [cuentaBancariaId, setCuentaBancariaId] = useState<number | ''>('');
+  const [cuentas, setCuentas] = useState<CuentaBancaria[]>([]);
   const [montoEfectivo, setMontoEfectivo] = useState(Number(pedido.total).toFixed(2));
   const [referencia, setReferencia] = useState('');
   const [generaFactura, setGeneraFactura] = useState(false);
@@ -357,6 +369,7 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
   const [error, setError] = useState('');
 
   const vuelto = Number(montoEfectivo) - Number(pedido.total);
+  const requiereCuenta = formaPago !== 'CREDITO';
   const clienteSeleccionado = clientes.find(c => c.id === clienteId) ?? null;
   const esConsumidorFinal = !!clienteSeleccionado && (
     clienteSeleccionado.tipo_identificacion === '07'
@@ -371,9 +384,16 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
     }
   }, [bloqueaFactura, generaFactura]);
 
+  useEffect(() => {
+    getResumen()
+      .then((res) => setCuentas(res.cuentas.filter((cuenta) => cuenta.activa)))
+      .catch(() => setCuentas([]));
+  }, []);
+
   const handleCobrar = async () => {
     if (!cajaId) { setError('Selecciona una caja.'); return; }
     if (!clienteId) { setError('Selecciona un cliente.'); return; }
+    if (requiereCuenta && !cuentaBancariaId) { setError('Selecciona la cuenta destino del pago.'); return; }
     if (generaFactura && bloqueaFactura) {
       setError('Consumidor final no puede emitir factura SRI por montos mayores a $50. Cobra el pedido sin factura o selecciona un cliente identificado.');
       return;
@@ -384,7 +404,12 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
         caja_id: cajaId,
         cliente_id: clienteId,
         genera_factura: generaFactura,
-        pagos: [{ forma_pago: formaPago, monto: Number(pedido.total), referencia }],
+        pagos: [{
+          forma_pago: formaPago,
+          monto: Number(pedido.total),
+          referencia,
+          cuenta_bancaria: requiereCuenta ? Number(cuentaBancariaId) : null,
+        }],
       });
       onCobrado();
     } catch (e: unknown) {
@@ -434,7 +459,7 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
               onChange={e => setClienteId(Number(e.target.value))}
             >
               {clientes.map(c => (
-                <option key={c.id} value={c.id}>{c.razon_social} — {c.identificacion}</option>
+                <option key={c.id} value={c.id}>{c.razon_social} â€” {c.identificacion}</option>
               ))}
             </select>
           </div>
@@ -443,26 +468,44 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Forma de pago</label>
             <div className="grid grid-cols-2 gap-2">
-              {(['EFECTIVO', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'TRANSFERENCIA'] as PagoPayload['forma_pago'][]).map(fp => (
+              {(['EFECTIVO', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'TRANSFERENCIA', 'CHEQUE', 'CREDITO'] as PagoPayload['forma_pago'][]).map(fp => (
                 <button
                   key={fp}
-                  onClick={() => setFormaPago(fp)}
+                  onClick={() => {
+                    setFormaPago(fp);
+                    setError('');
+                  }}
                   className={`py-2 px-3 rounded-xl text-sm font-medium border transition ${
                     formaPago === fp
                       ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
                       : 'border-gray-200 hover:border-gray-300 text-gray-600'
                   }`}
                 >
-                  {fp === 'EFECTIVO' ? '💵 Efectivo'
-                    : fp === 'TARJETA_DEBITO' ? '💳 Débito'
-                    : fp === 'TARJETA_CREDITO' ? '💳 Crédito'
-                    : '🏦 Transferencia'}
+                  {PAGO_LABELS[fp]}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Efectivo recibido → vuelto */}
+          {/* Efectivo recibido â†’ vuelto */}
+          {requiereCuenta && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta destino</label>
+              <select
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={cuentaBancariaId}
+                onChange={e => setCuentaBancariaId(e.target.value ? Number(e.target.value) : '')}
+              >
+                <option value="">Seleccione cuenta</option>
+                {cuentas.map(cuenta => (
+                  <option key={cuenta.id} value={cuenta.id}>
+                    {cuenta.banco} - {cuenta.numero_cuenta} ({cuenta.tipo})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {formaPago === 'EFECTIVO' && (
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -491,12 +534,12 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 value={referencia}
                 onChange={e => setReferencia(e.target.value)}
-                placeholder="Número de transacción…"
+                placeholder="NÃºmero de transacciÃ³nâ€¦"
               />
             </div>
           )}
 
-          {/* Factura electrónica */}
+          {/* Factura electrÃ³nica */}
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -505,7 +548,7 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
               onChange={e => setGeneraFactura(e.target.checked)}
               disabled={bloqueaFactura}
             />
-            <span className="text-sm text-gray-700">Generar factura electrónica SRI</span>
+            <span className="text-sm text-gray-700">Generar factura electrÃ³nica SRI</span>
           </label>
           {bloqueaFactura && (
             <p className="text-sm text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
@@ -518,7 +561,7 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
             disabled={saving}
             className="w-full py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition disabled:opacity-50"
           >
-            {saving ? 'Procesando…' : `Cobrar $${Number(pedido.total).toFixed(2)}`}
+            {saving ? 'Procesandoâ€¦' : `Cobrar $${Number(pedido.total).toFixed(2)}`}
           </button>
         </div>
       </div>
@@ -526,7 +569,7 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
   );
 }
 
-// ── Ítem de detalle ───────────────────────────────────────────────────────────
+// â”€â”€ Ãtem de detalle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface DetalleItemProps {
   item: DetallePedido;
@@ -561,7 +604,7 @@ function DetalleItem({ item, onCambiarEstado, onEliminar, pedidoCerrado }: Detal
           <span className="text-sm font-medium text-gray-800 truncate">{item.producto_nombre}</span>
           <span className="text-sm font-semibold text-gray-700 shrink-0 ml-2">${Number(item.subtotal).toFixed(2)}</span>
         </div>
-        <div className="text-xs text-gray-400 mt-0.5">x{item.cantidad} · ${Number(item.precio_unitario).toFixed(2)} c/u</div>
+        <div className="text-xs text-gray-400 mt-0.5">x{item.cantidad} Â· ${Number(item.precio_unitario).toFixed(2)} c/u</div>
         {Number(item.descuento) > 0 && (
           <div className="text-xs text-red-500 mt-0.5">Descuento: -${Number(item.descuento).toFixed(2)}</div>
         )}
@@ -614,7 +657,7 @@ function DetalleItem({ item, onCambiarEstado, onEliminar, pedidoCerrado }: Detal
   );
 }
 
-// ── Página principal ──────────────────────────────────────────────────────────
+// â”€â”€ PÃ¡gina principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function PedidoDetallePage() {
   const { id } = useParams<{ id: string }>();
@@ -695,7 +738,7 @@ export default function PedidoDetallePage() {
       <div className="p-6 text-center text-gray-500">
         <p>Pedido no encontrado.</p>
         <button onClick={() => navigate('/pedidos')} className="mt-3 text-indigo-600 hover:underline text-sm">
-          ← Volver a mesas
+          â† Volver a mesas
         </button>
       </div>
     );
@@ -729,8 +772,8 @@ export default function PedidoDetallePage() {
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
             {pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : pedido.tipo.replace('_', ' ')}
-            {pedido.zona_nombre ? ` · ${pedido.zona_nombre}` : ''}
-            {pedido.usuario_nombre ? ` · ${pedido.usuario_nombre}` : ''}
+            {pedido.zona_nombre ? ` Â· ${pedido.zona_nombre}` : ''}
+            {pedido.usuario_nombre ? ` Â· ${pedido.usuario_nombre}` : ''}
           </p>
         </div>
         <button
@@ -742,13 +785,13 @@ export default function PedidoDetallePage() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-5">
-        {/* Lista de ítems */}
+        {/* Lista de Ã­tems */}
         <div className="md:col-span-2 space-y-4">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 flex items-center gap-2">
                 <ShoppingBag size={16} className="text-indigo-600" />
-                Ítems del pedido
+                Ãtems del pedido
                 <span className="ml-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
                   {detallesActivos.length}
                 </span>
@@ -767,7 +810,7 @@ export default function PedidoDetallePage() {
               {pedido.detalles.length === 0 ? (
                 <div className="py-12 text-center text-gray-400">
                   <ShoppingBag size={40} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Sin ítems aún</p>
+                  <p className="text-sm">Sin Ã­tems aÃºn</p>
                 </div>
               ) : (
                 pedido.detalles.map(item => (

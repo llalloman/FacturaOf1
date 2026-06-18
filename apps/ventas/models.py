@@ -301,6 +301,22 @@ class PagoVenta(models.Model):
         max_length=20,
         choices=FormaPagoChoices.choices
     )
+    cuenta_bancaria = models.ForeignKey(
+        'bancos.CuentaBancaria',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagos_ventas',
+        verbose_name=_('cuenta destino'),
+    )
+    movimiento_bancario = models.OneToOneField(
+        'bancos.MovimientoBancario',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pago_venta',
+        verbose_name=_('movimiento bancario'),
+    )
     monto = models.DecimalField(_('monto'), max_digits=12, decimal_places=2)
     referencia = models.CharField(_('referencia'), max_length=100, blank=True)
     

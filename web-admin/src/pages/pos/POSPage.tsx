@@ -4,6 +4,7 @@ import { usePOSStore } from '../../store/posStore';
 import type { ClientePOS, PagoPOS } from '../../store/posStore';
 import { confirmDialog } from '../../store/confirmStore';
 import { posService } from '../../services/posService';
+import { getResumen, type CuentaBancaria } from '../../services/bancosService';
 import {
   Search, ShoppingCart, Trash2, Plus, Minus, X, CreditCard,
   Banknote, UserCheck, User, CheckCircle, Barcode, Package,
@@ -19,6 +20,8 @@ const METODOS = [
   { value: 'TARJETA_CREDITO', label: 'T. Crédito', icon: CreditCard },
   { value: 'TARJETA_DEBITO', label: 'T. Débito', icon: CreditCard },
   { value: 'TRANSFERENCIA', label: 'Transferencia', icon: CreditCard },
+  { value: 'CHEQUE', label: 'Cheque', icon: CreditCard },
+  { value: 'CREDITO', label: 'Crédito', icon: CreditCard },
 ] as const;
 const esConsumidorFinal = (cliente: ClientePOS | null) =>
   !!cliente && (
@@ -239,12 +242,25 @@ function CobroModal({
   const [pagos, setPagos] = useState<PagoPOS[]>([]);
   const [metodo, setMetodo] = useState<PagoPOS['metodo_pago']>('EFECTIVO');
   const [monto, setMonto] = useState(total.toFixed(2));
+  const [cuentaBancariaId, setCuentaBancariaId] = useState<number | ''>('');
   const [exito, setExito] = useState<string | null>(null);
+  const [formError, setFormError] = useState('');
+
+  const { data: resumenBancos } = useQuery({
+    queryKey: ['bancos-resumen-pos'],
+    queryFn: getResumen,
+  });
+  const cuentasActivas = (resumenBancos?.cuentas ?? []).filter((cuenta: CuentaBancaria) => cuenta.activa);
+  const requiereCuenta = metodo !== 'CREDITO';
 
   // Si aún no se agregaron pagos manualmente, usar el monto/método actual como pago implícito
   const pagosEfectivos: PagoPOS[] = pagos.length > 0
     ? pagos
-    : [{ metodo_pago: metodo, monto: parseFloat(monto) || 0 }];
+    : [{
+        metodo_pago: metodo,
+        monto: parseFloat(monto) || 0,
+        cuenta_bancaria: requiereCuenta ? Number(cuentaBancariaId) || null : null,
+      }];
   const totalPagado = pagosEfectivos.reduce((s, p) => s + p.monto, 0);
   // Redondear a 2 decimales para evitar errores de precisión flotante (ej: 11.200000001 - 11.20 > 0)
   const pendiente = Math.max(0, Math.round((total - totalPagado) * 100) / 100);
@@ -260,12 +276,27 @@ function CobroModal({
   const agregarPago = () => {
     const m = parseFloat(monto);
     if (isNaN(m) || m <= 0) return;
-    setPagos([...pagos, { metodo_pago: metodo, monto: m }]);
+    if (requiereCuenta && !cuentaBancariaId) {
+      setFormError('Selecciona la cuenta destino del pago.');
+      return;
+    }
+    setFormError('');
+    setPagos([...pagos, {
+      metodo_pago: metodo,
+      monto: m,
+      cuenta_bancaria: requiereCuenta ? Number(cuentaBancariaId) : null,
+    }]);
     setMonto('0');
   };
 
   const handleFinalizar = () => {
     if (!cliente || !cajaId) return;
+    const pagoSinCuenta = pagosEfectivos.find((p) => p.metodo_pago !== 'CREDITO' && !p.cuenta_bancaria);
+    if (pagoSinCuenta) {
+      setFormError('Selecciona la cuenta destino para cada pago de contado.');
+      return;
+    }
+    setFormError('');
     mutation.mutate({
       caja: cajaId,
       cliente: cliente.id,
@@ -356,7 +387,10 @@ function CobroModal({
             {METODOS.map((m) => (
               <button
                 key={m.value}
-                onClick={() => setMetodo(m.value)}
+                onClick={() => {
+                  setMetodo(m.value);
+                  setFormError('');
+                }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
                   metodo === m.value
                     ? 'border-blue-600 bg-blue-50 text-blue-700'
@@ -368,6 +402,23 @@ function CobroModal({
               </button>
             ))}
           </div>
+          {requiereCuenta && (
+            <label className="block text-sm font-medium text-gray-700">
+              Cuenta destino
+              <select
+                value={cuentaBancariaId}
+                onChange={(e) => setCuentaBancariaId(e.target.value ? Number(e.target.value) : '')}
+                className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Seleccione cuenta</option>
+                {cuentasActivas.map((cuenta) => (
+                  <option key={cuenta.id} value={cuenta.id}>
+                    {cuenta.banco} - {cuenta.numero_cuenta} ({cuenta.tipo})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="flex gap-2">
             <input
               type="number"
@@ -384,13 +435,23 @@ function CobroModal({
               + Agregar
             </button>
           </div>
+          {formError && (
+            <p className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{formError}</p>
+          )}
 
           {/* Lista de pagos */}
           {pagos.length > 0 && (
             <div className="space-y-1">
               {pagos.map((p, i) => (
                 <div key={i} className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2 text-sm">
-                  <span className="font-medium">{p.metodo_pago.replace('_', ' ')}</span>
+                  <span>
+                    <span className="font-medium">{p.metodo_pago.replace('_', ' ')}</span>
+                    {p.cuenta_bancaria && (
+                      <span className="block text-xs text-gray-500">
+                        {cuentasActivas.find((cuenta) => cuenta.id === p.cuenta_bancaria)?.banco ?? 'Cuenta'} #{p.cuenta_bancaria}
+                      </span>
+                    )}
+                  </span>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-green-700">{fmt(p.monto)}</span>
                     <button onClick={() => setPagos(pagos.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500">
