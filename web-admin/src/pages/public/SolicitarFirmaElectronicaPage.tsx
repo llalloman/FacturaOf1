@@ -6,12 +6,16 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
+  Clock3,
   CreditCard,
+  FileCheck2,
   FileUp,
   Landmark,
   Loader2,
   MessageCircle,
   Send,
+  ShieldCheck,
+  Tag,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -106,6 +110,12 @@ const tipoLabels: Record<TipoSolicitudFirma, string> = {
   REPRESENTANTE_LEGAL: 'Representante Legal',
 };
 
+const tipoDescriptions: Record<TipoSolicitudFirma, string> = {
+  PERSONA_NATURAL: 'Para cédula, RUC personal o actividad independiente.',
+  MIEMBRO_EMPRESA: 'Para colaboradores autorizados dentro de una empresa.',
+  REPRESENTANTE_LEGAL: 'Para representantes legales de compañías.',
+};
+
 const buildNaturalRuc = (identification?: string) => {
   const digits = (identification ?? '').replace(/\D/g, '');
   return digits.length === 10 ? `${digits}001` : '';
@@ -197,6 +207,9 @@ export default function SolicitarFirmaElectronicaPage() {
     if (form.request_type === 'REPRESENTANTE_LEGAL') return legalDocs;
     return naturalDocs;
   }, [form.request_type]);
+  const uploadedDocs = Object.values(form.archivos ?? {}).filter(Boolean).length;
+  const requiredDocs = documentConfig.filter((doc) => doc.required).length;
+  const uploadedRequiredDocs = documentConfig.filter((doc) => doc.required && form.archivos?.[doc.key]).length;
 
   const setField = (field: keyof SolicitudFirmaPublicPayload, value: unknown) => {
     setForm((prev) => {
@@ -349,7 +362,41 @@ export default function SolicitarFirmaElectronicaPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="mb-7">
+        <section className="mb-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="grid gap-0 lg:grid-cols-[1fr_360px]">
+            <div className="p-6 sm:p-8">
+              <p className="text-sm font-bold uppercase text-blue-600">Firma electrónica</p>
+              <h1 className="mt-2 max-w-3xl text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                Solicita tu firma electrónica sin perderte en el proceso
+              </h1>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+                Ingresa tus datos, sube documentos y revisa todo antes de confirmar. Al finalizar recibirás el número de solicitud para coordinar el pago por WhatsApp.
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <MiniTrust icon={<ShieldCheck size={18} />} title="Datos seguros" text="Documentos protegidos." />
+                <MiniTrust icon={<Clock3 size={18} />} title="Proceso guiado" text="4 pasos claros." />
+                <MiniTrust icon={<FileCheck2 size={18} />} title="Revisión final" text="Nada se envía antes de confirmar." />
+              </div>
+            </div>
+            <div className="border-t border-slate-200 bg-slate-950 p-6 text-white lg:border-l lg:border-t-0">
+              <p className="text-xs font-bold uppercase text-blue-200">Total seleccionado</p>
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                {tieneDescuento && <span className="pb-1 text-sm font-semibold text-red-200 line-through">{money(precioSeleccionado?.regular_price)}</span>}
+                <strong className="text-4xl font-black">{money(totalMostrado)}</strong>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">IVA incluido</span>
+                {couponQuote?.applied && <span className="rounded-full bg-violet-400/15 px-3 py-1 text-xs font-bold text-violet-200">Cupón aplicado</span>}
+                {!couponQuote?.applied && tienePromocion && <span className="rounded-full bg-red-400/15 px-3 py-1 text-xs font-bold text-red-200">Promoción activa</span>}
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-300">
+                Vigencia: <strong className="text-white">{precioSeleccionado?.validity_display ?? form.validity}</strong>
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-7 hidden">
           <p className="text-sm font-bold uppercase text-blue-600">Firma electrónica</p>
           <h1 className="mt-2 text-3xl font-black text-slate-950">Solicitud de firma electrónica</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
@@ -359,21 +406,15 @@ export default function SolicitarFirmaElectronicaPage() {
 
         <StepIndicator current={step} />
 
-        <div className="mt-7 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mt-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           {error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
           {loading && uploadProgress && <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">{uploadProgress}</div>}
 
           {step === 0 && (
             <div className="space-y-5">
-              <StepTitle title="Paso 1 - Datos Personales" />
+              <StepTitle title="Paso 1 - Datos personales" subtitle="Primero elige el tipo de firma. El formulario y los documentos se ajustan automáticamente." />
+              <RequestTypeCards value={form.request_type as TipoSolicitudFirma} onChange={(value) => setField('request_type', value)} />
               <div className="grid gap-4 md:grid-cols-3">
-                <Field label="Tipo de solicitud">
-                  <select className={inputClass} value={form.request_type} onChange={(e) => setField('request_type', e.target.value as TipoSolicitudFirma)}>
-                    <option value="PERSONA_NATURAL">Persona Natural</option>
-                    <option value="MIEMBRO_EMPRESA">Miembro de Empresa</option>
-                    <option value="REPRESENTANTE_LEGAL">Representante Legal</option>
-                  </select>
-                </Field>
                 <Field label="Tipo de identificación *">
                   <select className={inputClass} value={form.identification_type} onChange={(e) => setField('identification_type', e.target.value)}>
                     <option value="CEDULA">Cédula</option>
@@ -495,7 +536,7 @@ export default function SolicitarFirmaElectronicaPage() {
                     ))}
                   </select>
                 </Field>
-                <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 md:col-span-2">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 md:col-span-2">
                   <p className="text-xs font-bold uppercase text-blue-700">Total a pagar</p>
                   <div className="mt-1 flex flex-wrap items-end gap-3">
                     {tieneDescuento && (
@@ -511,8 +552,11 @@ export default function SolicitarFirmaElectronicaPage() {
                     {!couponQuote?.applied && tienePromocion && <span className="mb-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">Promoción activa</span>}
                   </div>
                 </div>
-                <div className="md:col-span-3">
-                  <p className="mb-2 text-xs font-bold uppercase text-slate-500">Cupón de descuento</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-3">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Tag size={17} className="text-blue-700" />
+                    <p className="text-sm font-black text-slate-900">Cupón de descuento</p>
+                  </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       value={couponInput}
@@ -525,7 +569,7 @@ export default function SolicitarFirmaElectronicaPage() {
                       placeholder="Ingresa tu código"
                       className={`${inputClass} uppercase sm:max-w-xs`}
                     />
-                    <button type="button" onClick={applyCoupon} disabled={couponLoading || !couponInput.trim()} className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50">
+                    <button type="button" onClick={applyCoupon} disabled={couponLoading || !couponInput.trim()} className="rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50">
                       {couponLoading ? 'Validando...' : 'Aplicar cupón'}
                     </button>
                   </div>
@@ -537,7 +581,7 @@ export default function SolicitarFirmaElectronicaPage() {
 
           {step === 1 && (
             <div className="space-y-5">
-              <StepTitle title="Paso 2 - Documentos" />
+              <StepTitle title="Paso 2 - Documentos" subtitle={`${uploadedRequiredDocs} de ${requiredDocs} documentos obligatorios cargados. En el resumen podrás revisar la vista previa.`} />
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {documentConfig.map((doc) => (
                   <FileDrop
@@ -553,7 +597,7 @@ export default function SolicitarFirmaElectronicaPage() {
 
           {step === 2 && (
             <div className="space-y-5">
-              <StepTitle title="Paso 3 - Resumen" />
+              <StepTitle title="Paso 3 - Resumen" subtitle="Revisa cuidadosamente datos, documentos y total antes de pasar a confirmar." />
               <div className="grid gap-4 lg:grid-cols-3">
                 <SummaryBlock title="Solicitante" rows={[
                   ['Tipo', tipoLabels[form.request_type as TipoSolicitudFirma]],
@@ -623,7 +667,7 @@ export default function SolicitarFirmaElectronicaPage() {
 
           {step === 3 && !confirmed && (
             <div className="space-y-5">
-              <StepTitle title="Paso 4 - Confirmación" />
+              <StepTitle title="Paso 4 - Confirmación" subtitle="Este es el último paso. Al confirmar se generará el número de solicitud." />
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-5">
                 <h3 className="text-base font-black text-slate-950">Confirma tu solicitud de firma electrónica</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-700">
@@ -642,7 +686,7 @@ export default function SolicitarFirmaElectronicaPage() {
                   ['Ubicación', `${form.city}, ${form.province}`],
                 ]} />
                 <SummaryBlock title="Documentos" rows={[
-                  ['Cargados', Object.values(form.archivos ?? {}).filter(Boolean).length],
+                  ['Cargados', uploadedDocs],
                   ['Vigencia', precioSeleccionado?.validity_display ?? form.validity],
                   ['Precio normal', money(precioSeleccionado?.regular_price)],
                   ['Cupón', form.coupon_code || 'No aplicado'],
@@ -746,18 +790,15 @@ function PaymentInstructions({ whatsappUrl }: { whatsappUrl: string }) {
 
 function StepIndicator({ current }: { current: number }) {
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {steps.map((label, index) => {
         const active = index <= current;
         return (
-          <div key={label} className="flex items-center gap-2">
+          <div key={label} className={`rounded-xl border p-3 ${active ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-white'}`}>
             <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${active ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
               {index < current ? <Check size={15} /> : index + 1}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className={`h-1 rounded-full ${active ? 'bg-blue-600' : 'bg-slate-200'}`} />
-              <p className="mt-1 truncate text-xs font-medium text-slate-500">{label}</p>
-            </div>
+            <p className={`mt-2 text-sm font-bold ${active ? 'text-blue-900' : 'text-slate-500'}`}>{label}</p>
           </div>
         );
       })}
@@ -765,8 +806,50 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
-function StepTitle({ title }: { title: string }) {
-  return <h2 className="text-lg font-bold text-slate-950">{title}</h2>;
+function StepTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div>
+      <h2 className="text-lg font-black text-slate-950">{title}</h2>
+      {subtitle && <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>}
+    </div>
+  );
+}
+
+function MiniTrust({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">{icon}</div>
+      <p className="text-sm font-black text-slate-900">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-slate-500">{text}</p>
+    </div>
+  );
+}
+
+function RequestTypeCards({ value, onChange }: { value: TipoSolicitudFirma; onChange: (value: TipoSolicitudFirma) => void }) {
+  const options: TipoSolicitudFirma[] = ['PERSONA_NATURAL', 'MIEMBRO_EMPRESA', 'REPRESENTANTE_LEGAL'];
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      {options.map((option) => {
+        const selected = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className={`rounded-2xl border p-4 text-left transition ${selected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50'}`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <strong className="text-sm font-black text-slate-950">{tipoLabels[option]}</strong>
+              <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 text-transparent'}`}>
+                <Check size={14} />
+              </span>
+            </div>
+            <p className="mt-2 text-sm leading-5 text-slate-500">{tipoDescriptions[option]}</p>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function FileDrop({ config, file, onFile }: { config: DocumentConfig; file: File | null; onFile: (file: File | null) => void }) {
