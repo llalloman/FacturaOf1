@@ -30,7 +30,6 @@ function getMessagePayload(message) {
     content.extendedTextMessage?.text ||
     content.imageMessage?.caption ||
     content.videoMessage?.caption ||
-    content.documentMessage?.caption ||
     '';
 
   let messageType = 'unknown';
@@ -104,12 +103,38 @@ async function startWhatsApp() {
   sock.ev.on("messages.upsert", async ({ messages }) => {
     const message = messages?.[0];
 
-    if (!message || message.key.fromMe) return;
+    if (!message) return;
+
+    const remoteJid = String(message.key?.remoteJid || "");
+    const fromJid = String(message.key?.participant || remoteJid);
+    const messageId = message.key?.id || "";
+
+    if (message.key?.fromMe) {
+      console.log("Ignorando mensaje propio", { remoteJid, fromJid, messageId });
+      return;
+    }
+
+    if (
+      remoteJid === "status@broadcast" ||
+      fromJid === "status@broadcast" ||
+      remoteJid.endsWith("@broadcast")
+    ) {
+      console.log("Ignorando estado/broadcast", { remoteJid, fromJid, messageId });
+      return;
+    }
+
+    if (remoteJid.endsWith("@g.us")) {
+      console.log("Ignorando grupo", { remoteJid, fromJid, messageId });
+      return;
+    }
+
+    const { text, messageType, hasMedia } = getMessagePayload(message);
+    if (!String(text).trim()) {
+      console.log("Ignorando mensaje sin texto", { remoteJid, fromJid, messageId });
+      return;
+    }
 
     const identity = resolveInboundIdentity(message);
-    const { text, messageType, hasMedia } = getMessagePayload(message);
-
-    const messageId = message.key?.id || "";
     const timestamp = Number(message.messageTimestamp || Math.floor(Date.now() / 1000));
 
     const inboundPayload = {
