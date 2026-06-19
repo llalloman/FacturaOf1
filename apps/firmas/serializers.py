@@ -90,7 +90,7 @@ class FirmaPromocionElectronicaSerializer(serializers.ModelSerializer):
 
 
 class FirmaPromocionBulkSerializer(serializers.Serializer):
-    prices = serializers.PrimaryKeyRelatedField(queryset=FirmaPrecioElectronica.objects.all(), many=True)
+    prices = serializers.PrimaryKeyRelatedField(queryset=FirmaPrecioElectronica.objects.all(), many=True, allow_empty=False)
     name = serializers.CharField(max_length=120)
     discount_type = serializers.ChoiceField(choices=FirmaPromocionElectronica.DiscountType.choices)
     discount_value = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal('0.01'))
@@ -99,6 +99,9 @@ class FirmaPromocionBulkSerializer(serializers.Serializer):
     active = serializers.BooleanField(default=True)
 
     def validate(self, attrs):
+        price_ids = [price.pk for price in attrs['prices']]
+        if len(price_ids) != len(set(price_ids)):
+            raise serializers.ValidationError({'prices': 'No repitas una vigencia en la promoción.'})
         if attrs['end_date'] < attrs['start_date']:
             raise serializers.ValidationError({'end_date': 'La fecha fin no puede ser menor a la fecha de inicio.'})
         if attrs['discount_type'] == 'PERCENTAGE' and attrs['discount_value'] >= 100:
@@ -158,8 +161,6 @@ class FirmaCuponElectronicoSerializer(serializers.ModelSerializer):
         if discount_type == 'PERCENTAGE' and discount_value is not None and discount_value >= 100:
             raise serializers.ValidationError({'discount_value': 'El porcentaje debe ser menor a 100.'})
         return attrs
-
-
 class FirmaPrecioElectronicaSerializer(serializers.ModelSerializer):
     validity_display = serializers.CharField(source='get_validity_display', read_only=True)
     active_promotion = serializers.SerializerMethodField()
@@ -178,6 +179,16 @@ class FirmaPrecioElectronicaSerializer(serializers.ModelSerializer):
         if not promotion:
             return None
         return FirmaPromocionElectronicaSerializer(promotion).data
+
+    def validate_regular_price(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('El precio debe ser mayor a cero.')
+        return value
+
+    def validate_tax_rate(self, value):
+        if value < 0 or value > 100:
+            raise serializers.ValidationError('La tarifa de IVA debe estar entre 0 y 100.')
+        return value
 
 
 def aplicar_precio_firma(validated_data):

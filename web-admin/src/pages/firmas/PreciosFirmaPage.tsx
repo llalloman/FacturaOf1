@@ -90,7 +90,7 @@ function CouponsPanel({ precios, coupons }: { precios: PrecioFirma[]; coupons: C
   const [form, setForm] = useState<CuponFirma>(blankCoupon());
   const refresh = () => qc.invalidateQueries({queryKey:['cupones-firma-admin']});
   const save = useMutation({ mutationFn: () => editing ? firmasService.updateCuponFirma(editing, form) : firmasService.createCuponFirma(form), onSuccess:()=>{toast.success(editing?'Cupón actualizado':'Cupón creado');setEditing(null);setForm(blankCoupon());refresh();}, onError:(error)=>toast.error('No se pudo guardar el cupón',errorDetail(error)) });
-  const remove = useMutation({mutationFn:firmasService.deleteCuponFirma,onSuccess:refresh});
+  const remove = useMutation({mutationFn:firmasService.deleteCuponFirma,onSuccess:refresh,onError:(error)=>toast.error('No se pudo eliminar el cupón',errorDetail(error))});
   const toggle = useMutation({mutationFn:(item:CuponFirma)=>firmasService.updateCuponFirma(item.id!,{active:!item.active}),onSuccess:refresh});
   const edit = (item:CuponFirma) => {setEditing(item.id!);setForm({...item});};
   const togglePrice = (id:number) => setForm({...form,prices:form.prices.includes(id)?form.prices.filter((item)=>item!==id):[...form.prices,id]});
