@@ -10,6 +10,9 @@ export interface PromocionFirma {
   id?: number;
   price: number;
   name: string;
+  group_key?: string;
+  discount_type: 'FINAL_PRICE' | 'PERCENTAGE';
+  discount_value: string;
   promotional_price: string;
   start_date: string;
   end_date: string;
@@ -23,9 +26,51 @@ export interface PrecioFirma {
   validity_display: string;
   regular_price: string;
   current_price: string;
+  tax_rate?: string;
   active: boolean;
   order: number;
   active_promotion?: PromocionFirma | null;
+}
+
+export interface PromocionFirmaBulkPayload {
+  prices: number[];
+  name: string;
+  discount_type: 'FINAL_PRICE' | 'PERCENTAGE';
+  discount_value: string;
+  start_date: string;
+  end_date: string;
+  active: boolean;
+}
+
+export interface CuponFirma {
+  id?: number;
+  code: string;
+  name: string;
+  discount_type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discount_value: string;
+  prices: number[];
+  start_date: string;
+  end_date: string;
+  minimum_amount: string;
+  max_total_uses: number | null;
+  max_uses_per_customer: number;
+  active: boolean;
+  is_current?: boolean;
+  usage_count?: number;
+}
+
+export interface CuponFirmaQuote {
+  valid: boolean;
+  code: string;
+  applied: boolean;
+  message: string;
+  regular_price: string;
+  final_price: string;
+  discount_amount: string;
+  subtotal_without_tax: string;
+  tax_rate: string;
+  tax_amount: string;
+  applied_source: 'coupon' | 'promotion' | 'regular';
 }
 
 export interface SolicitudFirma {
@@ -133,6 +178,7 @@ export type DocumentoPublicoFirma =
   | 'documento_adicional';
 
 export type SolicitudFirmaPublicPayload = Partial<SolicitudFirma> & {
+  coupon_code?: string;
   archivos?: Partial<Record<DocumentoPublicoFirma, File | null>>;
 };
 
@@ -205,6 +251,11 @@ export const firmasService = {
     return data;
   },
 
+  createPromocionesFirma: async (payload: PromocionFirmaBulkPayload): Promise<PromocionFirma[]> => {
+    const { data } = await apiClient.post('/firmas/promociones/crear-multiples/', payload);
+    return normalizeList<PromocionFirma>(data);
+  },
+
   updatePromocionFirma: async (id: number, payload: Partial<PromocionFirma>): Promise<PromocionFirma> => {
     const { data } = await apiClient.patch(`/firmas/promociones/${id}/`, payload);
     return data;
@@ -212,6 +263,30 @@ export const firmasService = {
 
   deletePromocionFirma: async (id: number): Promise<void> => {
     await apiClient.delete(`/firmas/promociones/${id}/`);
+  },
+
+  listCuponesFirma: async (): Promise<CuponFirma[]> => {
+    const { data } = await apiClient.get('/firmas/cupones/');
+    return normalizeList<CuponFirma>(data);
+  },
+
+  createCuponFirma: async (payload: CuponFirma): Promise<CuponFirma> => {
+    const { data } = await apiClient.post('/firmas/cupones/', payload);
+    return data;
+  },
+
+  updateCuponFirma: async (id: number, payload: Partial<CuponFirma>): Promise<CuponFirma> => {
+    const { data } = await apiClient.patch(`/firmas/cupones/${id}/`, payload);
+    return data;
+  },
+
+  deleteCuponFirma: async (id: number): Promise<void> => {
+    await apiClient.delete(`/firmas/cupones/${id}/`);
+  },
+
+  validateCuponFirma: async (payload: { code: string; validity: VigenciaFirma; identification?: string; email?: string; phone?: string }): Promise<CuponFirmaQuote> => {
+    const { data } = await apiClient.post('/firmas/cupones-publicos/validar/', payload);
+    return data;
   },
 
   list: async (filters: SolicitudFirmaFilters = {}): Promise<SolicitudFirma[]> => {
@@ -231,7 +306,8 @@ export const firmasService = {
   },
 
   createPublic: async (payload: SolicitudFirmaPublicPayload): Promise<PublicFinalizeResponse> => {
-    const { archivos: _archivos, ...fields } = payload;
+    const fields = { ...payload };
+    delete fields.archivos;
     const { data } = await apiClient.post('/firmas/solicitudes-publicas/', fields);
     return data;
   },

@@ -1,5 +1,6 @@
 import logging
 import os
+import uuid
 
 from django.conf import settings
 from django.core.mail import send_mail
@@ -16,6 +17,7 @@ from rest_framework.response import Response
 
 from .models import (
     DocumentoSolicitudFirma,
+    FirmaCuponElectronico,
     FirmaPrecioElectronica,
     FirmaPromocionElectronica,
     HistorialEstadoSolicitudFirma,
@@ -25,8 +27,10 @@ from .models import (
 from .serializers import (
     CambiarEstadoFirmaSerializer,
     DocumentoSolicitudFirmaSerializer,
+    FirmaCuponElectronicoSerializer,
     FirmaPrecioElectronicaSerializer,
     FirmaPromocionElectronicaSerializer,
+    FirmaPromocionBulkSerializer,
     DocumentoSolicitudFirmaUploadSerializer,
     HistorialEstadoSolicitudFirmaSerializer,
     PUBLIC_DOCUMENT_FIELDS,
@@ -35,6 +39,7 @@ from .serializers import (
     SolicitudFirmaElectronicaSerializer,
     validate_document_file,
 )
+from .pricing import customer_key, promotion_price, resolve_signature_price
 
 
 logger = logging.getLogger(__name__)
@@ -186,6 +191,49 @@ class FirmaPromocionElectronicaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['start_date', 'end_date', 'promotional_price', 'active']
     ordering = ['-active', '-start_date']
 
+    @action(detail=False, methods=['post'], url_path='crear-multiples')
+    @transaction.atomic
+    def crear_multiples(self, request):
+        serializer = FirmaPromocionBulkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        group_key = uuid.uuid4()
+        created = []
+        for price in data['prices']:
+            promo = FirmaPromocionElectronica.objects.create(
+                price=price,
+                name=data['name'],
+                group_key=group_key,
+                discount_type=data['discount_type'],
+                discount_value=data['discount_value'],
+                promotional_price=promotion_price(price, data['discount_type'], data['discount_value']),
+                start_date=data['start_date'],
+                end_date=data['end_date'],
+                active=data['active'],
+            )
+            created.append(promo)
+        return Response(FirmaPromocionElectronicaSerializer(created, many=True).data, status=status.HTTP_201_CREATED)
+
+
+class FirmaCuponElectronicoViewSet(viewsets.ModelViewSet):
+    serializer_class = FirmaCuponElectronicoSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdminOnly]
+    queryset = FirmaCuponElectronico.objects.prefetch_related('prices').all()
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['active', 'discount_type']
+    search_fields = ['code', 'name']
+    ordering_fields = ['start_date', 'end_date', 'code', 'active']
+    ordering = ['-active', '-start_date']
+
+    def destroy(self, request, *args, **kwargs):
+        coupon = self.get_object()
+        if coupon.uses.exists():
+            return Response(
+                {'detail': 'No se puede eliminar un cupón utilizado. Puedes desactivarlo.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return super().destroy(request, *args, **kwargs)
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -197,6 +245,29 @@ def precios_firma_publicos(request):
         .order_by('order', 'regular_price')
     )
     return Response(FirmaPrecioElectronicaSerializer(precios, many=True).data)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def validar_cupon_publico(request):
+    validity = request.data.get('validity')
+    code = request.data.get('code', '')
+    key = customer_key(request.data.get('identification'), request.data.get('email'), request.data.get('phone'))
+    quote = resolve_signature_price(validity, code, key)
+    coupon_wins = bool(quote['coupon'])
+    return Response({
+        'valid': True,
+        'code': quote['coupon_entered'].code,
+        'applied': coupon_wins,
+        'message': 'Cupón aplicado correctamente.' if coupon_wins else 'El cupón es válido, pero la promoción vigente ofrece un mejor precio.',
+        'regular_price': quote['regular_price'],
+        'final_price': quote['final_price'],
+        'discount_amount': quote['discount_amount'],
+        'subtotal_without_tax': quote['subtotal_without_tax'],
+        'tax_rate': quote['tax_rate'],
+        'tax_amount': quote['tax_amount'],
+        'applied_source': 'coupon' if coupon_wins else ('promotion' if quote['promotion'] else 'regular'),
+    })
 
 
 @api_view(['POST'])

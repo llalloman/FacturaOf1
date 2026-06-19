@@ -6,12 +6,15 @@ from rest_framework import serializers
 
 from .models import (
     DocumentoSolicitudFirma,
+    FirmaCuponElectronico,
+    FirmaCuponUso,
     FirmaPrecioElectronica,
     FirmaPromocionElectronica,
     HistorialEstadoSolicitudFirma,
     SolicitudDemoERP,
     SolicitudFirmaElectronica,
 )
+from .pricing import customer_key, promotion_price, resolve_signature_price
 
 
 PHONE_RE = re.compile(r'^(09\d{8}|\+593\d{9})$')
@@ -52,20 +55,108 @@ class FirmaPromocionElectronicaSerializer(serializers.ModelSerializer):
     class Meta:
         model = FirmaPromocionElectronica
         fields = [
-            'id', 'price', 'name', 'promotional_price', 'start_date', 'end_date',
+            'id', 'price', 'name', 'group_key', 'discount_type', 'discount_value',
+            'promotional_price', 'start_date', 'end_date',
             'active', 'is_current', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'is_current', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'group_key', 'is_current', 'created_at', 'updated_at']
+        extra_kwargs = {'promotional_price': {'required': False}}
 
     def validate(self, attrs):
         start = attrs.get('start_date', getattr(self.instance, 'start_date', None))
         end = attrs.get('end_date', getattr(self.instance, 'end_date', None))
         price_obj = attrs.get('price', getattr(self.instance, 'price', None))
-        promotional_price = attrs.get('promotional_price', getattr(self.instance, 'promotional_price', None))
+        discount_type = attrs.get('discount_type', getattr(self.instance, 'discount_type', 'FINAL_PRICE'))
+        discount_value = attrs.get('discount_value', getattr(self.instance, 'discount_value', None))
+        if 'promotional_price' in attrs and 'discount_value' not in attrs:
+            discount_type = 'FINAL_PRICE'
+            discount_value = attrs['promotional_price']
+            attrs['discount_type'] = discount_type
+            attrs['discount_value'] = discount_value
         if start and end and end < start:
             raise serializers.ValidationError({'end_date': 'La fecha fin no puede ser menor a la fecha de inicio.'})
+        if discount_value is not None and discount_value <= 0:
+            raise serializers.ValidationError({'discount_value': 'El descuento debe ser mayor a cero.'})
+        if discount_type == 'PERCENTAGE' and discount_value is not None and discount_value >= 100:
+            raise serializers.ValidationError({'discount_value': 'El porcentaje debe ser menor a 100.'})
+        if price_obj and discount_value is not None:
+            promotional_price = promotion_price(price_obj, discount_type, discount_value)
+            attrs['promotional_price'] = promotional_price
+        else:
+            promotional_price = attrs.get('promotional_price', getattr(self.instance, 'promotional_price', None))
         if price_obj and promotional_price is not None and promotional_price >= price_obj.regular_price:
             raise serializers.ValidationError({'promotional_price': 'El precio promocional debe ser menor al precio normal.'})
+        return attrs
+
+
+class FirmaPromocionBulkSerializer(serializers.Serializer):
+    prices = serializers.PrimaryKeyRelatedField(queryset=FirmaPrecioElectronica.objects.all(), many=True)
+    name = serializers.CharField(max_length=120)
+    discount_type = serializers.ChoiceField(choices=FirmaPromocionElectronica.DiscountType.choices)
+    discount_value = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal('0.01'))
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
+    active = serializers.BooleanField(default=True)
+
+    def validate(self, attrs):
+        if attrs['end_date'] < attrs['start_date']:
+            raise serializers.ValidationError({'end_date': 'La fecha fin no puede ser menor a la fecha de inicio.'})
+        if attrs['discount_type'] == 'PERCENTAGE' and attrs['discount_value'] >= 100:
+            raise serializers.ValidationError({'discount_value': 'El porcentaje debe ser menor a 100.'})
+        errors = []
+        for price in attrs['prices']:
+            final = promotion_price(price, attrs['discount_type'], attrs['discount_value'])
+            if final >= price.regular_price:
+                errors.append(price.get_validity_display())
+        if errors:
+            raise serializers.ValidationError({'prices': f'El descuento no reduce el precio de: {", ".join(errors)}.'})
+        return attrs
+
+
+class FirmaCuponElectronicoSerializer(serializers.ModelSerializer):
+    is_current = serializers.BooleanField(read_only=True)
+    usage_count = serializers.IntegerField(source='uses.count', read_only=True)
+
+    class Meta:
+        model = FirmaCuponElectronico
+        fields = [
+            'id', 'code', 'name', 'discount_type', 'discount_value', 'prices',
+            'start_date', 'end_date', 'minimum_amount', 'max_total_uses',
+            'max_uses_per_customer', 'active', 'is_current', 'usage_count',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'is_current', 'usage_count', 'created_at', 'updated_at']
+
+    def validate_code(self, value):
+        value = value.strip().upper()
+        queryset = FirmaCuponElectronico.objects.filter(code=value)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError('Ya existe un cupón con este código.')
+        return value
+
+    def validate_max_uses_per_customer(self, value):
+        if value < 1:
+            raise serializers.ValidationError('Debe permitirse al menos un uso por cliente.')
+        return value
+
+    def validate_max_total_uses(self, value):
+        if value is not None and value < 1:
+            raise serializers.ValidationError('El límite total debe ser mayor a cero.')
+        return value
+
+    def validate(self, attrs):
+        start = attrs.get('start_date', getattr(self.instance, 'start_date', None))
+        end = attrs.get('end_date', getattr(self.instance, 'end_date', None))
+        discount_type = attrs.get('discount_type', getattr(self.instance, 'discount_type', None))
+        discount_value = attrs.get('discount_value', getattr(self.instance, 'discount_value', None))
+        if start and end and end < start:
+            raise serializers.ValidationError({'end_date': 'La fecha fin no puede ser menor a la fecha de inicio.'})
+        if discount_value is not None and discount_value <= 0:
+            raise serializers.ValidationError({'discount_value': 'El descuento debe ser mayor a cero.'})
+        if discount_type == 'PERCENTAGE' and discount_value is not None and discount_value >= 100:
+            raise serializers.ValidationError({'discount_value': 'El porcentaje debe ser menor a 100.'})
         return attrs
 
 
@@ -78,7 +169,7 @@ class FirmaPrecioElectronicaSerializer(serializers.ModelSerializer):
         model = FirmaPrecioElectronica
         fields = [
             'id', 'validity', 'validity_display', 'regular_price', 'current_price',
-            'active', 'order', 'active_promotion', 'created_at', 'updated_at',
+            'tax_rate', 'active', 'order', 'active_promotion', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'validity_display', 'current_price', 'active_promotion', 'created_at', 'updated_at']
 
@@ -93,18 +184,19 @@ def aplicar_precio_firma(validated_data):
     validity = validated_data.get('validity')
     if not validity:
         return validated_data
-    try:
-        price = FirmaPrecioElectronica.objects.get(validity=validity, active=True)
-    except FirmaPrecioElectronica.DoesNotExist as exc:
-        raise serializers.ValidationError({'validity': 'No existe un precio activo para la vigencia seleccionada.'}) from exc
-    promotion = price.active_promotion()
-    regular_price = price.regular_price or Decimal('0.00')
-    final_price = promotion.promotional_price if promotion else regular_price
-    validated_data['price_catalog'] = price
-    validated_data['promotion_applied'] = promotion
-    validated_data['regular_price'] = regular_price
-    validated_data['sale_price'] = final_price
-    validated_data['discount_amount'] = regular_price - final_price
+    key = customer_key(validated_data.get('identification'), validated_data.get('email'), validated_data.get('phone'))
+    quote = resolve_signature_price(validity, validated_data.get('coupon_code', ''), key, lock_coupon=True)
+    validated_data['price_catalog'] = quote['price']
+    validated_data['promotion_applied'] = quote['promotion']
+    validated_data['coupon_applied'] = quote['coupon']
+    validated_data['coupon_code'] = quote['coupon'].code if quote['coupon'] else ''
+    validated_data['regular_price'] = quote['regular_price']
+    validated_data['sale_price'] = quote['final_price']
+    validated_data['discount_amount'] = quote['discount_amount']
+    validated_data['coupon_discount_amount'] = quote['coupon_discount_amount']
+    validated_data['tax_rate'] = quote['tax_rate']
+    validated_data['subtotal_without_tax'] = quote['subtotal_without_tax']
+    validated_data['tax_amount'] = quote['tax_amount']
     return validated_data
 
 
@@ -198,12 +290,14 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
             'validity', 'validity_display', 'container_type', 'wants_erp',
             'interested_plan', 'interested_plan_display', 'status', 'status_display',
             'source', 'source_display', 'provider', 'provider_display',
-            'price_catalog', 'promotion_applied', 'regular_price', 'discount_amount',
+            'price_catalog', 'promotion_applied', 'coupon_applied', 'coupon_code',
+            'regular_price', 'discount_amount', 'coupon_discount_amount',
+            'tax_rate', 'subtotal_without_tax', 'tax_amount',
             'internal_cost', 'sale_price', 'margin', 'internal_notes',
             'provider_request_id', 'emitted_at', 'rejected_reason',
             'created_at', 'updated_at', 'documents', 'status_history',
         ]
-        read_only_fields = ['request_number', 'price_catalog', 'promotion_applied', 'regular_price', 'discount_amount', 'margin', 'created_at', 'updated_at', 'documents', 'status_history']
+        read_only_fields = ['request_number', 'price_catalog', 'promotion_applied', 'coupon_applied', 'regular_price', 'discount_amount', 'coupon_discount_amount', 'tax_rate', 'subtotal_without_tax', 'tax_amount', 'margin', 'created_at', 'updated_at', 'documents', 'status_history']
 
     def validate_phone(self, value):
         value = (value or '').strip()
@@ -262,6 +356,13 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         aplicar_precio_firma(validated_data)
         instance = super().create(validated_data)
+        if instance.coupon_applied_id:
+            FirmaCuponUso.objects.create(
+                coupon=instance.coupon_applied,
+                request=instance,
+                customer_key=customer_key(instance.identification, instance.email, instance.phone),
+                discount_amount=instance.coupon_discount_amount,
+            )
         HistorialEstadoSolicitudFirma.objects.create(
             request=instance,
             previous_status='',
@@ -283,7 +384,7 @@ class SolicitudFirmaElectronicaPublicSerializer(SolicitudFirmaElectronicaSeriali
             'province', 'city', 'address', 'representative_identification_type',
             'representative_identification', 'representative_names',
             'representative_last_names', 'validity', 'container_type',
-            'wants_erp', 'interested_plan',
+            'wants_erp', 'interested_plan', 'coupon_code',
         ]
         read_only_fields = ['id', 'request_number']
 

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import DocumentoSolicitudFirma, FirmaPrecioElectronica, FirmaPromocionElectronica, HistorialEstadoSolicitudFirma, SolicitudDemoERP, SolicitudFirmaElectronica
+from .models import DocumentoSolicitudFirma, FirmaCuponElectronico, FirmaCuponUso, FirmaPrecioElectronica, FirmaPromocionElectronica, HistorialEstadoSolicitudFirma, SolicitudDemoERP, SolicitudFirmaElectronica
 
 
 class DocumentoSolicitudFirmaInline(admin.TabularInline):
@@ -55,6 +55,21 @@ class FirmaPrecioElectronicaAdmin(admin.ModelAdmin):
 
 @admin.register(FirmaPromocionElectronica)
 class FirmaPromocionElectronicaAdmin(admin.ModelAdmin):
-    list_display = ('name', 'price', 'promotional_price', 'start_date', 'end_date', 'active')
+    list_display = ('name', 'price', 'discount_type', 'discount_value', 'promotional_price', 'start_date', 'end_date', 'active')
     list_filter = ('active', 'price')
     ordering = ('-active', '-start_date')
+
+
+@admin.register(FirmaCuponElectronico)
+class FirmaCuponElectronicoAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'discount_type', 'discount_value', 'start_date', 'end_date', 'active')
+    list_filter = ('active', 'discount_type')
+    search_fields = ('code', 'name')
+    filter_horizontal = ('prices',)
+
+
+@admin.register(FirmaCuponUso)
+class FirmaCuponUsoAdmin(admin.ModelAdmin):
+    list_display = ('coupon', 'request', 'customer_key', 'discount_amount', 'created_at')
+    search_fields = ('coupon__code', 'request__request_number', 'customer_key')
+    readonly_fields = ('coupon', 'request', 'customer_key', 'discount_amount', 'created_at')

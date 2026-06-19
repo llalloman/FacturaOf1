@@ -16,6 +16,7 @@ import {
 import { Link } from 'react-router-dom';
 import {
   firmasService,
+  type CuponFirmaQuote,
   type DocumentoPublicoFirma,
   type PrecioFirma,
   type PublicFinalizeResponse,
@@ -80,6 +81,7 @@ const baseForm: SolicitudFirmaPublicPayload = {
   container_type: 'ARCHIVO',
   wants_erp: false,
   interested_plan: 'SOLO_FIRMA',
+  coupon_code: '',
   archivos: {},
 };
 
@@ -165,6 +167,10 @@ export default function SolicitarFirmaElectronicaPage() {
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const [error, setError] = useState('');
+  const [couponInput, setCouponInput] = useState('');
+  const [couponQuote, setCouponQuote] = useState<CuponFirmaQuote | null>(null);
+  const [couponMessage, setCouponMessage] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
   const [confirmed, setConfirmed] = useState<{
     requestNumber: string;
     message: string;
@@ -181,6 +187,8 @@ export default function SolicitarFirmaElectronicaPage() {
     [form.validity, preciosFirma],
   );
   const tienePromocion = Boolean(precioSeleccionado?.active_promotion && Number(precioSeleccionado.current_price) < Number(precioSeleccionado.regular_price));
+  const totalMostrado = couponQuote?.final_price ?? precioSeleccionado?.current_price;
+  const tieneDescuento = Number(totalMostrado ?? 0) < Number(precioSeleccionado?.regular_price ?? 0);
 
   const isCompanyRequest = form.request_type === 'MIEMBRO_EMPRESA' || form.request_type === 'REPRESENTANTE_LEGAL';
   const isMemberRequest = form.request_type === 'MIEMBRO_EMPRESA';
@@ -213,6 +221,41 @@ export default function SolicitarFirmaElectronicaPage() {
       ...prev,
       archivos: { ...(prev.archivos ?? {}), [key]: file },
     }));
+  };
+
+  const changeValidity = (validity: string) => {
+    setField('validity', validity);
+    setCouponInput('');
+    setCouponQuote(null);
+    setCouponMessage('');
+    setField('coupon_code', '');
+  };
+
+  const applyCoupon = async () => {
+    if (!couponInput.trim() || !form.validity) return;
+    setCouponLoading(true);
+    setCouponMessage('');
+    try {
+      const quote = await firmasService.validateCuponFirma({
+        code: couponInput,
+        validity: form.validity,
+        identification: form.identification,
+        email: form.email,
+        phone: form.phone,
+      });
+      setCouponQuote(quote);
+      setCouponInput(quote.code);
+      setField('coupon_code', quote.applied ? quote.code : '');
+      setCouponMessage(quote.message);
+    } catch (err) {
+      const data = (err as { response?: { data?: { coupon_code?: string[] | string } } })?.response?.data;
+      const detail = Array.isArray(data?.coupon_code) ? data.coupon_code[0] : data?.coupon_code;
+      setCouponQuote(null);
+      setField('coupon_code', '');
+      setCouponMessage(detail || 'El cupón no es válido para esta vigencia.');
+    } finally {
+      setCouponLoading(false);
+    }
   };
 
   const validateStep = () => {
@@ -446,7 +489,7 @@ export default function SolicitarFirmaElectronicaPage() {
                   </>
                 )}
                 <Field label="Vigencia">
-                  <select className={inputClass} value={form.validity} onChange={(e) => setField('validity', e.target.value)}>
+                  <select className={inputClass} value={form.validity} onChange={(e) => changeValidity(e.target.value)}>
                     {preciosFirma.map((precio) => (
                       <option key={precio.validity} value={precio.validity}>{precio.validity_display}</option>
                     ))}
@@ -455,17 +498,38 @@ export default function SolicitarFirmaElectronicaPage() {
                 <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 md:col-span-2">
                   <p className="text-xs font-bold uppercase text-blue-700">Total a pagar</p>
                   <div className="mt-1 flex flex-wrap items-end gap-3">
-                    {tienePromocion && (
+                    {tieneDescuento && (
                       <span className="text-sm font-semibold text-red-500 line-through">
                         {money(precioSeleccionado?.regular_price)}
                       </span>
                     )}
                     <strong className="text-3xl font-black text-slate-950">
-                      {money(precioSeleccionado?.current_price)}
+                      {money(totalMostrado)}
                     </strong>
                     <span className="mb-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">IVA incluido</span>
-                    {tienePromocion && <span className="mb-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">Promoción activa</span>}
+                    {couponQuote?.applied && <span className="mb-1 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">Cupón aplicado</span>}
+                    {!couponQuote?.applied && tienePromocion && <span className="mb-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">Promoción activa</span>}
                   </div>
+                </div>
+                <div className="md:col-span-3">
+                  <p className="mb-2 text-xs font-bold uppercase text-slate-500">Cupón de descuento</p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={couponInput}
+                      onChange={(e) => {
+                        setCouponInput(e.target.value.toUpperCase());
+                        setCouponQuote(null);
+                        setCouponMessage('');
+                        setField('coupon_code', '');
+                      }}
+                      placeholder="Ingresa tu código"
+                      className={`${inputClass} uppercase sm:max-w-xs`}
+                    />
+                    <button type="button" onClick={applyCoupon} disabled={couponLoading || !couponInput.trim()} className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50">
+                      {couponLoading ? 'Validando...' : 'Aplicar cupón'}
+                    </button>
+                  </div>
+                  {couponMessage && <p className={`mt-2 text-sm ${couponQuote ? 'text-emerald-700' : 'text-red-600'}`}>{couponMessage}</p>}
                 </div>
               </div>
             </div>
@@ -581,7 +645,8 @@ export default function SolicitarFirmaElectronicaPage() {
                   ['Cargados', Object.values(form.archivos ?? {}).filter(Boolean).length],
                   ['Vigencia', precioSeleccionado?.validity_display ?? form.validity],
                   ['Precio normal', money(precioSeleccionado?.regular_price)],
-                  ['Total a pagar', money(precioSeleccionado?.current_price)],
+                  ['Cupón', form.coupon_code || 'No aplicado'],
+                  ['Total a pagar', money(totalMostrado)],
                   ['IVA', 'Incluido'],
                   ['Contenedor', form.container_type],
                 ]} />
@@ -737,17 +802,13 @@ function FileDrop({ config, file, onFile }: { config: DocumentConfig; file: File
 }
 
 function DocumentPreviewCard({ label, required, file }: { label: string; required: boolean; file: File | null }) {
-  const [previewUrl, setPreviewUrl] = useState('');
+  const previewUrl = useMemo(() => file ? URL.createObjectURL(file) : '', [file]);
 
   useEffect(() => {
-    if (!file) {
-      setPreviewUrl('');
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const isImage = Boolean(file?.type.startsWith('image/'));
   const isPdf = file?.type === 'application/pdf' || file?.name.toLowerCase().endsWith('.pdf');
