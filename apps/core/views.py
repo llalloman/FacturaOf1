@@ -290,13 +290,13 @@ def _dashboard_tenant(request):
     # Stock bajo
     stock_bajo = list(
         productos_qs.filter(
-            activo=True, maneja_inventario=True,
+            activo=True, tipo=Producto.TipoChoices.BIEN, maneja_inventario=True,
             stock_actual__lte=F('stock_minimo'),
         ).order_by('stock_actual')[:5]
         .values('id', 'nombre', 'stock_actual', 'stock_minimo')
     )
     stock_bajo_count = productos_qs.filter(
-        activo=True, maneja_inventario=True,
+        activo=True, tipo=Producto.TipoChoices.BIEN, maneja_inventario=True,
         stock_actual__lte=F('stock_minimo'),
     ).count()
 

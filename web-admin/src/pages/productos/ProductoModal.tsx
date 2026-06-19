@@ -22,7 +22,7 @@ const makeEmpty = () => ({
   costo: '',
   aplica_iva: true,
   porcentaje_iva: '4', // 15%
-  maneja_inventario: true,
+  maneja_inventario: false,
   stock_actual: '',
   stock_minimo: '',
   activo: true,
@@ -89,8 +89,9 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
       precio: parseFloat(formData.precio) || 0,
       precio_con_iva_input: parseFloat(formData.precio_con_iva_input) || 0,
       costo: parseFloat(formData.costo) || 0,
-      stock_actual: parseFloat(formData.stock_actual) || 0,
-      stock_minimo: parseFloat(formData.stock_minimo) || 0,
+      maneja_inventario: formData.tipo === 'BIEN' ? formData.maneja_inventario : false,
+      stock_actual: formData.tipo === 'BIEN' && formData.maneja_inventario ? parseFloat(formData.stock_actual) || 0 : 0,
+      stock_minimo: formData.tipo === 'BIEN' && formData.maneja_inventario ? parseFloat(formData.stock_minimo) || 0 : 0,
     };
     if (imageFile) {
       const fd = new FormData();
@@ -103,7 +104,12 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
   };
 
   const set = (field: string, value: unknown) =>
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      if (field === 'tipo' && value === 'SERVICIO') {
+        return { ...prev, tipo: value as 'SERVICIO', maneja_inventario: false, stock_actual: '0', stock_minimo: '0' };
+      }
+      return { ...prev, [field]: value };
+    });
 
   const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
   const ivaRate = formData.aplica_iva ? (IVA_PCT[formData.porcentaje_iva] ?? 0) : 0;

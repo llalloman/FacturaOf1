@@ -71,4 +71,10 @@ class ProductoSerializer(serializers.ModelSerializer):
         if 'precio_minimo' in attrs and attrs['precio_minimo'] is not None:
             attrs['precio_minimo'] = Decimal(str(attrs['precio_minimo'])).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
 
+        tipo = attrs.get('tipo', getattr(self.instance, 'tipo', Producto.TipoChoices.BIEN))
+        if tipo == Producto.TipoChoices.SERVICIO:
+            attrs['maneja_inventario'] = False
+            attrs['stock_actual'] = Decimal('0.00')
+            attrs['stock_minimo'] = Decimal('0.00')
+
         return attrs
