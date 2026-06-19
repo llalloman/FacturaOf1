@@ -466,7 +466,6 @@ export default function SolicitarFirmaElectronicaPage() {
                     <span className="mb-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">IVA incluido</span>
                     {tienePromocion && <span className="mb-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">Promoción activa</span>}
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">El valor final se recalcula y registra en el servidor al enviar la solicitud.</p>
                 </div>
               </div>
             </div>
