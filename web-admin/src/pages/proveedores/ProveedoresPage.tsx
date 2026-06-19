@@ -4,12 +4,14 @@ import { proveedoresService } from '../../services/proveedoresService';
 import type { Proveedor } from '../../types';
 import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiPackage } from 'react-icons/fi';
 import ProveedorModal from './ProveedorModal';
+import ProveedorProductosPanel from './ProveedorProductosPanel';
 import { confirmDialog } from '../../store/confirmStore';
 
 const ProveedoresPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProveedor, setSelectedProveedor] = useState<Proveedor | null>(null);
+  const [activeTab, setActiveTab] = useState<'proveedores' | 'catalogo'>('proveedores');
   const queryClient = useQueryClient();
 
   const { data: proveedores, isLoading } = useQuery({
@@ -56,7 +58,7 @@ const ProveedoresPage: React.FC = () => {
           </h1>
           <p className="text-gray-600 mt-1">Gestión de proveedores y compras</p>
         </div>
-        <button
+        {activeTab === 'proveedores' && <button
           onClick={() => {
             setSelectedProveedor(null);
             setIsModalOpen(true);
@@ -64,10 +66,23 @@ const ProveedoresPage: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-700 to-sky-500 text-white rounded-lg hover:from-blue-800 hover:to-sky-600 transition-all duration-300 shadow-lg hover:shadow-xl"
         >
           <FiPlus /> Nuevo Proveedor
-        </button>
+        </button>}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="border-b border-gray-200">
+        <div className="flex gap-6" role="tablist" aria-label="Administración de proveedores">
+          <button type="button" role="tab" aria-selected={activeTab === 'proveedores'} onClick={() => setActiveTab('proveedores')}
+            className={`border-b-2 px-1 py-3 text-sm font-medium ${activeTab === 'proveedores' ? 'border-blue-700 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            Proveedores
+          </button>
+          <button type="button" role="tab" aria-selected={activeTab === 'catalogo'} onClick={() => setActiveTab('catalogo')}
+            className={`border-b-2 px-1 py-3 text-sm font-medium ${activeTab === 'catalogo' ? 'border-blue-700 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            Productos vinculados
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'proveedores' && <><div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-sky-500">
           <div className="flex items-center justify-between">
             <div>
@@ -195,7 +210,9 @@ const ProveedoresPage: React.FC = () => {
             )}
           </div>
         )}
-      </div>
+      </div></>}
+
+      {activeTab === 'catalogo' && <ProveedorProductosPanel proveedores={proveedoresArray} />}
 
       {isModalOpen && (
         <ProveedorModal

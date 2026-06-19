@@ -103,6 +103,22 @@ export interface Proveedor {
   created_at?: string;
 }
 
+export interface ProveedorProducto {
+  id: number;
+  proveedor: number;
+  proveedor_nombre: string;
+  producto: number;
+  producto_nombre: string;
+  producto_tipo: 'BIEN' | 'SERVICIO';
+  codigo_proveedor?: string;
+  costo_referencia: number | string;
+  dias_entrega: number;
+  es_preferido: boolean;
+  activo: boolean;
+  creado_en?: string;
+  actualizado_en?: string;
+}
+
 export interface Bodega {
   id: number;
   nombre: string;
