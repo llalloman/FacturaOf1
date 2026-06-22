@@ -31,6 +31,10 @@ import {
 const whatsappBase = 'https://api.whatsapp.com/send/';
 const signatureTermsVersion = 'firma-2026-06-22';
 const signaturePrivacyVersion = 'privacidad-2026-06-22';
+const maxDocumentSizeBytes = 15 * 1024 * 1024;
+const maxDocumentSizeMb = maxDocumentSizeBytes / 1024 / 1024;
+const allowedDocumentExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
+const allowedDocumentMimeTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
 
 const paymentAccounts = [
   {
@@ -109,6 +113,12 @@ const fallbackPreciosFirma: PrecioFirma[] = [
 ];
 
 const money = (value?: string | number) => `$${Number(value ?? 0).toFixed(2)}`;
+const fileSizeMb = (file: File) => (file.size / 1024 / 1024).toFixed(2);
+const getFileExtension = (fileName: string) => fileName.split('.').pop()?.toLowerCase() ?? '';
+const isAllowedDocumentFile = (file: File) => {
+  const extension = getFileExtension(file.name);
+  return allowedDocumentExtensions.includes(extension) && (!file.type || allowedDocumentMimeTypes.includes(file.type));
+};
 
 const tipoLabels: Record<TipoSolicitudFirma, string> = {
   PERSONA_NATURAL: 'Persona Natural',
@@ -236,6 +246,15 @@ export default function SolicitarFirmaElectronicaPage() {
   };
 
   const setFile = (key: DocumentoPublicoFirma, file: File | null) => {
+    setError('');
+    if (file && !isAllowedDocumentFile(file)) {
+      setError(`El archivo "${file.name}" no tiene un formato permitido. Sube un PDF, JPG o PNG.`);
+      return;
+    }
+    if (file && file.size > maxDocumentSizeBytes) {
+      setError(`El archivo "${file.name}" pesa ${fileSizeMb(file)} MB. El máximo permitido es ${maxDocumentSizeMb} MB por archivo.`);
+      return;
+    }
     setForm((prev) => ({
       ...prev,
       archivos: { ...(prev.archivos ?? {}), [key]: file },
@@ -307,6 +326,11 @@ export default function SolicitarFirmaElectronicaPage() {
         setError(`Falta cargar: ${missing.map((item) => item.label).join(', ')}.`);
         return false;
       }
+      const invalidFile = Object.values(form.archivos ?? {}).find((file) => file && (!isAllowedDocumentFile(file) || file.size > maxDocumentSizeBytes));
+      if (invalidFile) {
+        setError(`Revisa el archivo "${invalidFile.name}". Solo se permiten PDF, JPG o PNG de máximo ${maxDocumentSizeMb} MB.`);
+        return false;
+      }
     }
     if (step === 3 && (!form.accepted_terms || !form.accepted_privacy)) {
       setError('Debes aceptar los Términos y Condiciones y autorizar el tratamiento de datos personales para confirmar.');
@@ -326,6 +350,11 @@ export default function SolicitarFirmaElectronicaPage() {
 
   const confirmRequest = async () => {
     if (!validateStep()) return;
+    const oversizedFile = Object.values(form.archivos ?? {}).find((file) => file && file.size > maxDocumentSizeBytes);
+    if (oversizedFile) {
+      setError(`El archivo "${oversizedFile.name}" pesa ${fileSizeMb(oversizedFile)} MB. El máximo permitido es ${maxDocumentSizeMb} MB por archivo.`);
+      return;
+    }
     setLoading(true);
     setError('');
     setUploadProgress('Registrando solicitud...');
@@ -346,8 +375,13 @@ export default function SolicitarFirmaElectronicaPage() {
       });
       setStep(3);
     } catch (err) {
-      const data = (err as { response?: { data?: unknown } })?.response?.data;
-      setError(data ? JSON.stringify(data) : 'No se pudo enviar la solicitud. Intenta nuevamente.');
+      const response = (err as { response?: { data?: unknown; status?: number } })?.response;
+      const data = response?.data;
+      if (response?.status === 413) {
+        setError(`El archivo supera el límite permitido por el servidor. Comprime el archivo y vuelve a intentarlo. Máximo ${maxDocumentSizeMb} MB por archivo.`);
+      } else {
+        setError(data ? JSON.stringify(data) : 'No se pudo enviar la solicitud. Intenta nuevamente.');
+      }
     } finally {
       setLoading(false);
       setUploadProgress('');
@@ -954,14 +988,17 @@ function FileDrop({ config, file, onFile }: { config: DocumentConfig; file: File
         type="file"
         accept=".pdf,.jpg,.jpeg,.png"
         className="hidden"
-        onChange={(event) => onFile(event.target.files?.[0] ?? null)}
+        onChange={(event) => {
+          onFile(event.target.files?.[0] ?? null);
+          event.currentTarget.value = '';
+        }}
       />
       <div className="flex min-h-[190px] cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 text-center hover:border-blue-400 hover:bg-blue-50">
         {file ? (
           <>
             <CheckCircle2 className="mb-3 text-emerald-600" size={28} />
             <p className="max-w-full truncate text-sm font-bold text-slate-800">{file.name}</p>
-            <p className="mt-1 text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            <p className="mt-1 text-xs text-slate-500">{fileSizeMb(file)} MB</p>
           </>
         ) : (
           <>
