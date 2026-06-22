@@ -313,6 +313,8 @@ function AppRoutes() {
           {/* Legal pages — public */}
           <Route path="/terminos" element={<TerminosPage />} />
           <Route path="/privacidad" element={<PrivacidadPage />} />
+          <Route path="/terminos-y-condiciones" element={<TerminosPage />} />
+          <Route path="/politica-privacidad" element={<PrivacidadPage />} />
           <Route path="/solicitar-demo" element={<SolicitarDemoPage />} />
           <Route path="/solicitar-firma-electronica" element={<SolicitarFirmaElectronicaPage />} />
 

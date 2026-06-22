@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AutomationAuditLog, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
+from .models import AutomationAuditLog, AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
 
 
 @admin.register(CommercialLead)
@@ -33,3 +33,11 @@ class AutomationAuditLogAdmin(admin.ModelAdmin):
     list_filter = ('actor_type', 'action', 'entity_type')
     search_fields = ('action', 'entity_id', 'actor_id')
     readonly_fields = ('created_at',)
+
+
+@admin.register(AutomationPrivacyConsent)
+class AutomationPrivacyConsentAdmin(admin.ModelAdmin):
+    list_display = ('contact_key', 'phone', 'lead', 'consent_source', 'consent_status', 'privacy_notice_version', 'privacy_notice_sent_at')
+    list_filter = ('consent_source', 'consent_status', 'privacy_notice_version', 'privacy_notice_sent_at')
+    search_fields = ('contact_key', 'phone', 'lead__normalized_phone', 'lead__push_name')
+    readonly_fields = ('created_at', 'updated_at')

@@ -7,9 +7,10 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory
 
-from .models import FirmaCuponElectronico, FirmaPrecioElectronica, FirmaPromocionElectronica
+from .models import ConsentimientoFirmaElectronica, FirmaCuponElectronico, FirmaPrecioElectronica, FirmaPromocionElectronica
 from .pricing import percentage_price, resolve_signature_price, split_tax
 from .serializers import SolicitudFirmaElectronicaPublicSerializer
+from .views import crear_solicitud_publica
 
 
 class SignaturePricingTests(TestCase):
@@ -107,6 +108,7 @@ class SignaturePricingTests(TestCase):
             'phone': '0999999999', 'province': 'Pichincha', 'city': 'Quito',
             'address': 'Dirección de prueba', 'validity': '1_ANIO', 'container_type': 'ARCHIVO',
             'wants_erp': False, 'interested_plan': 'SOLO_FIRMA', 'coupon_code': coupon.code,
+            'accepted_terms': True, 'accepted_privacy': True,
         }, context={'request': request})
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
@@ -116,3 +118,44 @@ class SignaturePricingTests(TestCase):
         self.assertEqual(signature_request.subtotal_without_tax, Decimal('90.00'))
         self.assertEqual(signature_request.tax_amount, Decimal('13.50'))
         self.assertEqual(signature_request.coupon_use.coupon, coupon)
+
+    def test_public_request_requires_explicit_legal_acceptance(self):
+        request = APIRequestFactory().post('/api/firmas/solicitudes-publicas/', {})
+        request.user = AnonymousUser()
+        serializer = SolicitudFirmaElectronicaPublicSerializer(data={
+            'request_type': 'PERSONA_NATURAL', 'identification_type': 'CEDULA',
+            'first_name': 'Ana', 'last_name': 'Prueba', 'identification': '0102030405',
+            'fingerprint_code': 'V1234V1234', 'birth_date': '1990-01-01',
+            'nationality': 'ECUATORIANA', 'gender': 'MUJER', 'email': 'ana@example.com',
+            'phone': '0999999999', 'province': 'Pichincha', 'city': 'Quito',
+            'address': 'Direccion de prueba', 'validity': '1_ANIO', 'container_type': 'ARCHIVO',
+            'wants_erp': False, 'interested_plan': 'SOLO_FIRMA',
+            'accepted_terms': False, 'accepted_privacy': True,
+        }, context={'request': request})
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('accepted_terms', serializer.errors)
+
+    def test_public_endpoint_records_legal_consent_evidence(self):
+        factory = APIRequestFactory()
+        request = factory.post('/api/firmas/solicitudes-publicas/', {
+            'request_type': 'PERSONA_NATURAL', 'identification_type': 'CEDULA',
+            'first_name': 'Ana', 'last_name': 'Prueba', 'identification': '0102030405',
+            'fingerprint_code': 'V1234V1234', 'birth_date': '1990-01-01',
+            'nationality': 'ECUATORIANA', 'gender': 'MUJER', 'email': 'ana@example.com',
+            'phone': '0999999999', 'province': 'Pichincha', 'city': 'Quito',
+            'address': 'Direccion de prueba', 'validity': '1_ANIO', 'container_type': 'ARCHIVO',
+            'wants_erp': False, 'interested_plan': 'SOLO_FIRMA',
+            'accepted_terms': True, 'accepted_privacy': True,
+            'terms_version': 'firma-test', 'privacy_version': 'privacidad-test',
+        }, format='json', HTTP_USER_AGENT='FacturaOF1 test agent', REMOTE_ADDR='127.0.0.9')
+
+        response = crear_solicitud_publica(request)
+
+        self.assertEqual(response.status_code, 201)
+        consent = ConsentimientoFirmaElectronica.objects.get(request_id=response.data['id'])
+        self.assertTrue(consent.accepted_terms)
+        self.assertTrue(consent.accepted_privacy)
+        self.assertEqual(consent.terms_version, 'firma-test')
+        self.assertEqual(consent.privacy_version, 'privacidad-test')
+        self.assertEqual(consent.user_agent, 'FacturaOF1 test agent')

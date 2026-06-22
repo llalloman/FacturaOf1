@@ -617,6 +617,15 @@ export default function Layout() {
         {/* Page Content */}
         <main id="main-content" className="flex-1 overflow-auto" tabIndex={-1}>
           <Outlet />
+          <footer className="border-t border-gray-200 bg-white px-6 py-4 text-xs text-gray-500">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <span>© {new Date().getFullYear()} OF1 Solutions S.A.S.</span>
+              <div className="flex flex-wrap gap-4">
+                <Link to="/politica-privacidad" className="font-semibold hover:text-blue-700">Política de Privacidad</Link>
+                <Link to="/terminos-y-condiciones" className="font-semibold hover:text-blue-700">Términos y Condiciones</Link>
+              </div>
+            </div>
+          </footer>
         </main>
       </div>
     </div>

@@ -90,6 +90,36 @@ Payload outbound:
 }
 ```
 
+## Registrar Aviso de Privacidad
+
+```http
+POST /api/automation/privacy-consents/
+```
+
+Uso: n8n debe llamarlo una sola vez por lead/contacto y versión de política, después de enviar el aviso corto de privacidad al usuario por WhatsApp.
+
+```json
+{
+  "lead_id": 123,
+  "contact_key": "593999999999@s.whatsapp.net",
+  "phone": "593999999999",
+  "privacy_notice_version": "privacidad-2026-06-22",
+  "consent_source": "whatsapp",
+  "consent_status": "informed",
+  "metadata": {
+    "workflow": "01_whatsapp_inbound",
+    "message_id": "ABC123"
+  }
+}
+```
+
+Reglas:
+
+- Si el contacto es `@lid`, no enviar ese valor como teléfono real; usarlo en `contact_key` y dejar `phone` vacío.
+- El endpoint es idempotente por `contact_key + privacy_notice_version + consent_source`.
+- `consent_status` debe ser `informed` para WhatsApp.
+- El consentimiento explícito fuerte se mantiene solo en formularios oficiales como solicitud de firma electrónica.
+
 ## Consultar Contexto por Telefono
 
 ```http

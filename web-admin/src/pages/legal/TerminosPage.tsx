@@ -1,254 +1,138 @@
 import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import { ArrowLeft, FileText } from 'lucide-react';
+
+const sections = [
+  {
+    title: 'Objeto del servicio',
+    body: [
+      'OF1 Solutions S.A.S. facilita la recepción, revisión y gestión de solicitudes de Firma Electrónica para personas naturales, miembros de empresa y representantes legales.',
+      'La emisión final del certificado puede realizarse mediante proveedores autorizados, como Uanataca u otros prestadores relacionados con certificados electrónicos.',
+    ],
+  },
+  {
+    title: 'Proceso de solicitud',
+    body: [
+      'El solicitante debe completar el formulario, cargar documentos requeridos, revisar el resumen, aceptar los documentos legales y confirmar la solicitud.',
+      'Al confirmar, se genera un número de solicitud para seguimiento, coordinación de pago y gestión interna.',
+    ],
+  },
+  {
+    title: 'Validación de identidad',
+    body: [
+      'La solicitud puede requerir validación de identidad mediante cédula, código dactilar, selfie, RUC, nombramientos, autorizaciones u otros documentos según el tipo de solicitante.',
+      'OF1 Solutions S.A.S. y los proveedores autorizados podrán rechazar o solicitar correcciones cuando la información no sea suficiente, legible o consistente.',
+    ],
+  },
+  {
+    title: 'Responsabilidad del solicitante',
+    body: [
+      'El solicitante declara que la información ingresada es veraz, completa, actualizada y que cuenta con autorización para actuar en nombre propio o de la empresa indicada.',
+      'El solicitante es responsable por errores, omisiones, documentos falsos, información desactualizada o uso indebido del certificado emitido.',
+    ],
+  },
+  {
+    title: 'Tiempos estimados',
+    body: [
+      'Los tiempos de procesamiento dependen de la completitud de los datos, validación documental, confirmación de pago, disponibilidad del proveedor y controles de identidad.',
+      'Cualquier tiempo informado es referencial y puede variar cuando se requieran correcciones o validaciones adicionales.',
+    ],
+  },
+  {
+    title: 'Casos de rechazo',
+    body: [
+      'La solicitud puede ser rechazada por documentos ilegibles, datos inconsistentes, falta de autorización, imposibilidad de validar identidad, incumplimiento de requisitos del proveedor o requerimientos legales.',
+      'En caso de rechazo, OF1 Solutions S.A.S. informará el motivo conocido y, cuando sea posible, las acciones correctivas.',
+    ],
+  },
+  {
+    title: 'Pagos y devoluciones',
+    body: [
+      'El trámite continúa una vez confirmado el pago por los canales habilitados. Los valores pueden variar según vigencia, promociones o cupones vigentes.',
+      'Las devoluciones se evaluarán caso por caso. No aplican devoluciones cuando el certificado ya fue emitido, cuando el rechazo sea imputable a información falsa o incompleta del solicitante, o cuando el proveedor ya haya ejecutado procesos no reversibles.',
+    ],
+  },
+  {
+    title: 'Limitación de responsabilidad',
+    body: [
+      'OF1 Solutions S.A.S. no será responsable por rechazos derivados de información incorrecta, fallas de terceros, indisponibilidad de proveedores, demoras atribuibles al solicitante o decisiones de entidades certificadoras.',
+      'La responsabilidad total, cuando legalmente corresponda, se limitará al valor pagado por la solicitud específica.',
+    ],
+  },
+  {
+    title: 'Protección de datos y terceros',
+    body: [
+      'El tratamiento de datos personales se rige por la Política de Privacidad vigente y la Ley Orgánica de Protección de Datos Personales de Ecuador.',
+      'El solicitante autoriza compartir la información estrictamente necesaria con proveedores autorizados para la emisión y validación de certificados electrónicos.',
+    ],
+  },
+  {
+    title: 'Legislación aplicable',
+    body: [
+      'Estos términos se rigen por la legislación de la República del Ecuador. Cualquier controversia se procurará resolver de buena fe y, de ser necesario, ante las autoridades competentes ecuatorianas.',
+    ],
+  },
+];
 
 export default function TerminosPage() {
   return (
+    <LegalShell version="firma-2026-06-22">
+      <p className="text-sm leading-7 text-slate-600">
+        Estos Términos y Condiciones regulan la solicitud, revisión y gestión de Firma Electrónica realizada por medio
+        de FacturaOF1 y OF1 Solutions S.A.S.
+      </p>
+      <div className="mt-8 space-y-7">
+        {sections.map((section, index) => (
+          <section key={section.title}>
+            <h2 className="mb-3 flex items-center gap-2 text-base font-black text-slate-900">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">
+                {index + 1}
+              </span>
+              {section.title}
+            </h2>
+            <div className="space-y-2 text-sm leading-7 text-slate-600">
+              {section.body.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+            </div>
+          </section>
+        ))}
+      </div>
+    </LegalShell>
+  );
+}
+
+function LegalShell({ version, children }: { version: string; children: ReactNode }) {
+  return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-4">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900 text-sm font-medium transition-colors"
-          >
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-4 sm:px-6">
+          <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900">
             <ArrowLeft size={16} />
             Volver al inicio
           </Link>
           <div className="flex-1" />
-          <div className="flex items-center gap-2 text-slate-400 text-xs">
-            <FileText size={14} />
-            Versión vigente: 16 de marzo de 2026
+          <span className="hidden text-xs font-semibold text-slate-400 sm:inline">Versión: {version}</span>
+        </div>
+      </header>
+      <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+        <div className="mb-8">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+            <FileText size={16} />
+            Documento legal vigente
           </div>
+          <h1 className="text-3xl font-black text-slate-950">Términos y Condiciones</h1>
+          <p className="mt-2 text-xs font-semibold text-slate-400">Versión vigente: {version}</p>
         </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
-        {/* Título */}
-        <div className="mb-10">
-          <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1.5 rounded-full mb-4">
-            <FileText size={12} /> Documento legal vigente
+        <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          {children}
+        </article>
+        <footer className="mt-8 flex flex-col gap-3 border-t border-slate-200 pt-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} OF1 Solutions S.A.S.</p>
+          <div className="flex flex-wrap gap-4">
+            <Link to="/politica-privacidad" className="font-semibold hover:text-blue-700">Política de Privacidad</Link>
+            <Link to="/solicitar-firma-electronica" className="font-semibold hover:text-blue-700">Solicitar firma electrónica</Link>
           </div>
-          <h1 className="text-3xl font-black text-slate-900 mb-3">Términos y Condiciones de Uso</h1>
-          <p className="text-slate-500 text-sm leading-relaxed max-w-2xl">
-            Estos Términos y Condiciones regulan el uso del sistema de facturación electrónica <strong>OF1 Solutions</strong>,
-            operado por <strong>OF1 Solutions S.A.S.</strong>, con domicilio en Ecuador.
-            Al crear una cuenta o utilizar nuestros servicios, usted acepta quedar vinculado por estos términos.
-          </p>
-        </div>
-
-        <div className="space-y-8 text-slate-700 text-sm leading-relaxed">
-
-          {/* 1 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">1</span>
-              Definiciones
-            </h2>
-            <ul className="list-disc pl-6 space-y-1.5 text-slate-600">
-              <li><strong>Plataforma:</strong> el sistema SaaS de facturación electrónica OF1 Solutions accesible en línea.</li>
-              <li><strong>Usuario:</strong> toda persona natural o representante de persona jurídica que cree una cuenta en la plataforma.</li>
-              <li><strong>Empresa:</strong> la razón social registrada por el usuario para emitir documentos electrónicos.</li>
-              <li><strong>SRI:</strong> Servicio de Rentas Internas del Ecuador.</li>
-              <li><strong>Documento electrónico:</strong> facturas, notas de crédito, notas de débito, retenciones y guías de remisión emitidos con firma electrónica y autorizados por el SRI.</li>
-            </ul>
-          </section>
-
-          {/* 2 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">2</span>
-              Objeto del servicio
-            </h2>
-            <p>
-              OF1 Solutions provee un sistema SaaS (Software as a Service) que permite a contribuyentes obligados o
-              no obligados a llevar contabilidad, domiciliados en Ecuador, emitir documentos electrónicos conforme
-              al Reglamento de Comprobantes de Venta, Retención y Documentos Complementarios (RCVRDC),
-              la Resolución NAC-DGERCGC16-00000247 y demás normativa emitida por el SRI.
-            </p>
-          </section>
-
-          {/* 3 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">3</span>
-              Condiciones de uso
-            </h2>
-            <p className="mb-2">El usuario se compromete a:</p>
-            <ul className="list-disc pl-6 space-y-1.5 text-slate-600">
-              <li>Proporcionar información veraz, completa y vigente al registrarse y al configurar su empresa.</li>
-              <li>Mantener la confidencialidad de sus credenciales de acceso.</li>
-              <li>Utilizar el sistema exclusivamente para actividades lícitas y conformes a la legislación ecuatoriana.</li>
-              <li>No intentar eludir, desactivar o interferir con las medidas de seguridad de la plataforma.</li>
-              <li>No reproducir, vender, revender ni explotar con fines comerciales, sin autorización expresa, ninguna parte del servicio.</li>
-            </ul>
-          </section>
-
-          {/* 4 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">4</span>
-              Registro y cuenta
-            </h2>
-            <p className="mb-2">
-              Para acceder al servicio es necesario registrar una cuenta con datos precisos. El usuario es responsable
-              de todas las actividades realizadas bajo su cuenta. OF1 Solutions se reserva el derecho de suspender o
-              cancelar cuentas que:
-            </p>
-            <ul className="list-disc pl-6 space-y-1.5 text-slate-600">
-              <li>Presenten información falsa o errónea.</li>
-              <li>Realicen actividades que vulneren estos términos o la ley ecuatoriana.</li>
-              <li>Permanezcan inactivas por más de 12 meses consecutivos sin un plan activo.</li>
-            </ul>
-          </section>
-
-          {/* 5 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">5</span>
-              Suscripción y pagos
-            </h2>
-            <p className="mb-2">
-              OF1 Solutions puede ofrecer demostraciones guiadas o activaciones asistidas para evaluar el servicio.
-              Para emitir documentos electrónicos de forma operativa, el usuario debe contratar un plan de suscripción
-              vigente y completar la configuración requerida.
-            </p>
-            <ul className="list-disc pl-6 space-y-1.5 text-slate-600">
-              <li>Los precios publicados no incluyen IVA (12%), salvo indicación expresa.</li>
-              <li>Los pagos se procesan mediante los métodos habilitados en la plataforma.</li>
-              <li>Las suscripciones se renuevan automáticamente al vencimiento, salvo cancelación previa.</li>
-              <li>No se realizan devoluciones de períodos ya consumidos, salvo fallo técnico imputable a OF1 Solutions.</li>
-              <li>OF1 Solutions puede modificar los precios con un aviso previo de al menos 30 días a los usuarios activos.</li>
-            </ul>
-          </section>
-
-          {/* 6 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">6</span>
-              Responsabilidades del usuario ante el SRI
-            </h2>
-            <p className="mb-2">
-              El usuario es el único obligado tributario ante el SRI. OF1 Solutions actúa como proveedor tecnológico
-              y no asume responsabilidad por:
-            </p>
-            <ul className="list-disc pl-6 space-y-1.5 text-slate-600">
-              <li>Errores en la información tributaria ingresada por el usuario (RUC, porcentajes de retención, etc.).</li>
-              <li>La no autorización de documentos por parte del SRI debido a datos incorrectos.</li>
-              <li>Multas, intereses o sanciones derivadas del incumplimiento de obligaciones tributarias del usuario.</li>
-              <li>El vencimiento o revocación del certificado digital (.p12) suministrado por el usuario.</li>
-            </ul>
-          </section>
-
-          {/* 7 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">7</span>
-              Disponibilidad del servicio
-            </h2>
-            <p>
-              OF1 Solutions procura una disponibilidad del 99 % mensual. Sin embargo, no garantiza disponibilidad
-              ininterrumpida. No seremos responsables por interrupciones causadas por mantenimiento programado
-              (notificado con anticipación), fallas en los servicios del SRI, cortes de conectividad de terceros,
-              fuerza mayor o caso fortuito conforme al artículo 1755 del Código Civil ecuatoriano.
-            </p>
-          </section>
-
-          {/* 8 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">8</span>
-              Propiedad intelectual
-            </h2>
-            <p>
-              Todo el software, diseño, logotipos, textos y contenidos de la plataforma son propiedad exclusiva de
-              OF1 Solutions S.A.S. y están protegidos por la Ley de Propiedad Intelectual del Ecuador (Codificación
-              No. 2006‑013) y los tratados internacionales vigentes. Queda prohibida su reproducción total o parcial
-              sin autorización escrita.
-            </p>
-          </section>
-
-          {/* 9 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">9</span>
-              Protección de datos personales
-            </h2>
-            <p>
-              El tratamiento de datos personales se rige por la <strong>Ley Orgánica de Protección de Datos Personales</strong>
-              (LOPDP, publicada en el R.O. Suplemento 459 del 26 de mayo de 2021) y su Reglamento. Para mayor
-              detalle, consulte nuestra{' '}
-              <Link to="/privacidad" className="text-blue-600 hover:underline font-semibold">
-                Política de Privacidad
-              </Link>.
-            </p>
-          </section>
-
-          {/* 10 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">10</span>
-              Limitación de responsabilidad
-            </h2>
-            <p>
-              En la máxima medida permitida por la ley ecuatoriana, la responsabilidad total de OF1 Solutions por
-              cualquier daño relacionado con el uso del servicio no excederá el valor pagado por el usuario en los
-              3 meses anteriores al evento que originó el reclamo. En ningún caso seremos responsables por
-              daños indirectos, incidentales, lucro cesante o pérdida de datos, salvo dolo o culpa grave.
-            </p>
-          </section>
-
-          {/* 11 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">11</span>
-              Modificaciones a los términos
-            </h2>
-            <p>
-              OF1 Solutions puede actualizar estos Términos en cualquier momento. Las modificaciones sustanciales
-              serán notificadas al correo electrónico registrado con al menos 15 días de anticipación.
-              El uso continuado del servicio tras la fecha de vigencia implica la aceptación de los nuevos términos.
-            </p>
-          </section>
-
-          {/* 12 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">12</span>
-              Ley aplicable y jurisdicción
-            </h2>
-            <p>
-              Estos Términos se rigen por las leyes de la República del Ecuador. Cualquier controversia que no
-              pueda resolverse amigablemente se someterá a los jueces y tribunales competentes de la ciudad de
-              Quito, Distrito Metropolitano, con renuncia expresa a cualquier otro fuero que pudiera corresponder.
-            </p>
-          </section>
-
-          {/* 13 */}
-          <section>
-            <h2 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-black shrink-0">13</span>
-              Contacto
-            </h2>
-            <p>
-              Para consultas relacionadas con estos Términos, contáctenos en:{' '}
-              <a href="mailto:info@of1solutions.com" className="text-blue-600 hover:underline font-semibold">
-                info@of1solutions.com
-              </a>{' '}
-              o al teléfono <a href="tel:+593995298989" className="text-blue-600 hover:underline font-semibold">+593 99 529 8989</a>.
-            </p>
-          </section>
-
-        </div>
-
-        {/* Footer de la página */}
-        <div className="mt-12 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-          <p>© {new Date().getFullYear()} OF1 Solutions S.A.S. — Todos los derechos reservados.</p>
-          <div className="flex items-center gap-4">
-            <Link to="/privacidad" className="hover:text-slate-700 transition-colors">Política de privacidad</Link>
-            <Link to="/" className="hover:text-slate-700 transition-colors">Página principal</Link>
-          </div>
-        </div>
-      </div>
+        </footer>
+      </main>
     </div>
   );
 }

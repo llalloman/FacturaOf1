@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import DocumentoSolicitudFirma, FirmaCuponElectronico, FirmaCuponUso, FirmaPrecioElectronica, FirmaPromocionElectronica, HistorialEstadoSolicitudFirma, SolicitudDemoERP, SolicitudFirmaElectronica
+from .models import ConsentimientoFirmaElectronica, DocumentoSolicitudFirma, FirmaCuponElectronico, FirmaCuponUso, FirmaPrecioElectronica, FirmaPromocionElectronica, HistorialEstadoSolicitudFirma, SolicitudDemoERP, SolicitudFirmaElectronica
 
 
 class DocumentoSolicitudFirmaInline(admin.TabularInline):
@@ -16,13 +16,24 @@ class HistorialEstadoSolicitudFirmaInline(admin.TabularInline):
     can_delete = False
 
 
+class ConsentimientoFirmaElectronicaInline(admin.StackedInline):
+    model = ConsentimientoFirmaElectronica
+    extra = 0
+    max_num = 1
+    readonly_fields = [
+        'accepted_terms', 'accepted_privacy', 'accepted_at', 'ip_address',
+        'user_agent', 'terms_version', 'privacy_version', 'created_at',
+    ]
+    can_delete = False
+
+
 @admin.register(SolicitudFirmaElectronica)
 class SolicitudFirmaElectronicaAdmin(admin.ModelAdmin):
     list_display = ['id', 'full_name', 'identification', 'request_type', 'status', 'interested_plan', 'source', 'created_at']
     list_filter = ['status', 'request_type', 'source', 'provider', 'interested_plan']
     search_fields = ['first_name', 'last_name', 'identification', 'ruc', 'business_name', 'email', 'phone']
     readonly_fields = ['margin', 'created_at', 'updated_at', 'emitted_at']
-    inlines = [DocumentoSolicitudFirmaInline, HistorialEstadoSolicitudFirmaInline]
+    inlines = [ConsentimientoFirmaElectronicaInline, DocumentoSolicitudFirmaInline, HistorialEstadoSolicitudFirmaInline]
 
 
 @admin.register(DocumentoSolicitudFirma)
@@ -73,3 +84,11 @@ class FirmaCuponUsoAdmin(admin.ModelAdmin):
     list_display = ('coupon', 'request', 'customer_key', 'discount_amount', 'created_at')
     search_fields = ('coupon__code', 'request__request_number', 'customer_key')
     readonly_fields = ('coupon', 'request', 'customer_key', 'discount_amount', 'created_at')
+
+
+@admin.register(ConsentimientoFirmaElectronica)
+class ConsentimientoFirmaElectronicaAdmin(admin.ModelAdmin):
+    list_display = ('request', 'accepted_terms', 'accepted_privacy', 'terms_version', 'privacy_version', 'ip_address', 'accepted_at')
+    list_filter = ('accepted_terms', 'accepted_privacy', 'terms_version', 'privacy_version', 'accepted_at')
+    search_fields = ('request__request_number', 'request__identification', 'request__email', 'ip_address')
+    readonly_fields = ('request', 'accepted_terms', 'accepted_privacy', 'accepted_at', 'ip_address', 'user_agent', 'terms_version', 'privacy_version', 'created_at')

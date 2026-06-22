@@ -311,6 +311,36 @@ class FirmaCuponUso(models.Model):
         indexes = [models.Index(fields=['coupon', 'customer_key'])]
 
 
+class ConsentimientoFirmaElectronica(models.Model):
+    request = models.OneToOneField(
+        SolicitudFirmaElectronica,
+        on_delete=models.CASCADE,
+        related_name='legal_consent',
+        verbose_name=_('solicitud'),
+    )
+    accepted_terms = models.BooleanField(_('aceptó términos'), default=True)
+    accepted_privacy = models.BooleanField(_('aceptó privacidad'), default=True)
+    accepted_at = models.DateTimeField(_('fecha de aceptación'), default=timezone.now)
+    ip_address = models.GenericIPAddressField(_('dirección IP'), null=True, blank=True)
+    user_agent = models.TextField(_('user agent'), blank=True)
+    terms_version = models.CharField(_('versión de términos'), max_length=40)
+    privacy_version = models.CharField(_('versión de privacidad'), max_length=40)
+    created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+
+    class Meta:
+        db_table = 'electronic_signature_request_consents'
+        verbose_name = _('consentimiento de solicitud de firma')
+        verbose_name_plural = _('consentimientos de solicitudes de firma')
+        ordering = ['-accepted_at']
+        indexes = [
+            models.Index(fields=['accepted_at']),
+            models.Index(fields=['terms_version', 'privacy_version']),
+        ]
+
+    def __str__(self):
+        return f'{self.request_id} - {self.accepted_at:%Y-%m-%d %H:%M:%S}'
+
+
 class DocumentoSolicitudFirma(models.Model):
     class TipoDocumento(models.TextChoices):
         CEDULA_ANVERSO = 'CEDULA_ANVERSO', _('Anverso de cédula')

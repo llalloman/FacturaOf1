@@ -13,9 +13,9 @@ const FOOTER_LINKS = {
     { label: 'Blog', href: '#' },
   ],
   Legal: [
-    { label: 'Términos de servicio', href: '/terminos' },
-    { label: 'Política de privacidad', href: '/privacidad' },
-    { label: 'Seguridad', href: '/privacidad#seguridad' },
+    { label: 'Términos y Condiciones', href: '/terminos-y-condiciones' },
+    { label: 'Política de Privacidad', href: '/politica-privacidad' },
+    { label: 'Seguridad', href: '/politica-privacidad#seguridad' },
   ],
   Soporte: [
     { label: 'Centro de ayuda', href: '#' },

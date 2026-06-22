@@ -16,6 +16,7 @@ from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
 from .models import (
+    ConsentimientoFirmaElectronica,
     DocumentoSolicitudFirma,
     FirmaCuponElectronico,
     FirmaPrecioElectronica,
@@ -26,6 +27,7 @@ from .models import (
 )
 from .serializers import (
     CambiarEstadoFirmaSerializer,
+    ConsentimientoFirmaElectronicaSerializer,
     DocumentoSolicitudFirmaSerializer,
     FirmaCuponElectronicoSerializer,
     FirmaPrecioElectronicaSerializer,
@@ -37,12 +39,21 @@ from .serializers import (
     SolicitudDemoERPSerializer,
     SolicitudFirmaElectronicaPublicSerializer,
     SolicitudFirmaElectronicaSerializer,
+    SIGNATURE_PRIVACY_VERSION,
+    SIGNATURE_TERMS_VERSION,
     validate_document_file,
 )
 from .pricing import customer_key, promotion_price, resolve_signature_price
 
 
 logger = logging.getLogger(__name__)
+
+
+def get_client_ip(request):
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
 
 
 def is_super_admin(user):
@@ -75,7 +86,7 @@ class SolicitudFirmaElectronicaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = (
             SolicitudFirmaElectronica.objects
-            .select_related('company', 'customer')
+            .select_related('company', 'customer', 'legal_consent')
             .prefetch_related('documents', 'status_history')
         )
         user = self.request.user
@@ -171,6 +182,17 @@ class DocumentoSolicitudFirmaViewSet(viewsets.ReadOnlyModelViewSet):
             filename=documento.file_name or os.path.basename(documento.file.name),
             content_type=documento.mime_type or 'application/octet-stream',
         )
+
+
+class ConsentimientoFirmaElectronicaViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = ConsentimientoFirmaElectronicaSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdminOnly]
+    queryset = ConsentimientoFirmaElectronica.objects.select_related('request').all()
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['terms_version', 'privacy_version', 'accepted_terms', 'accepted_privacy']
+    search_fields = ['request__request_number', 'request__identification', 'request__email', 'ip_address']
+    ordering_fields = ['accepted_at', 'created_at']
+    ordering = ['-accepted_at']
 
 
 class FirmaPrecioElectronicaViewSet(viewsets.ModelViewSet):
@@ -278,6 +300,20 @@ def crear_solicitud_publica(request):
         serializer = SolicitudFirmaElectronicaPublicSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         solicitud = serializer.save()
+        ConsentimientoFirmaElectronica.objects.create(
+            request=solicitud,
+            accepted_terms=True,
+            accepted_privacy=True,
+            ip_address=get_client_ip(request),
+            user_agent=(request.META.get('HTTP_USER_AGENT') or '')[:1000],
+            terms_version=request.data.get('terms_version') or SIGNATURE_TERMS_VERSION,
+            privacy_version=request.data.get('privacy_version') or SIGNATURE_PRIVACY_VERSION,
+        )
+        logger.info(
+            'Consentimiento legal registrado para solicitud de firma %s desde IP %s',
+            solicitud.request_number,
+            get_client_ip(request),
+        )
         for field_name, document_type in PUBLIC_DOCUMENT_FIELDS.items():
             file = request.FILES.get(field_name)
             if not file:

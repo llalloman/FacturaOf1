@@ -164,6 +164,54 @@ class WhatsAppInteraction(models.Model):
         return f'{self.direction} {self.normalized_phone or self.contact_key} {self.created_at:%Y-%m-%d %H:%M}'
 
 
+class AutomationPrivacyConsent(models.Model):
+    class ConsentSource(models.TextChoices):
+        WHATSAPP = 'whatsapp', _('WhatsApp')
+        FORM = 'form', _('Formulario')
+        N8N = 'n8n', _('n8n')
+        OTHER = 'other', _('Otro')
+
+    class ConsentStatus(models.TextChoices):
+        INFORMED = 'informed', _('Informado')
+
+    lead = models.ForeignKey(
+        CommercialLead,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='privacy_consents',
+        verbose_name=_('lead'),
+    )
+    contact_key = models.CharField(_('clave de contacto'), max_length=160, db_index=True)
+    phone = models.CharField(_('teléfono'), max_length=32, blank=True)
+    privacy_notice_sent_at = models.DateTimeField(_('aviso de privacidad enviado'))
+    privacy_notice_version = models.CharField(_('versión de aviso'), max_length=60)
+    consent_source = models.CharField(_('fuente'), max_length=30, choices=ConsentSource.choices, default=ConsentSource.WHATSAPP)
+    consent_status = models.CharField(_('estado'), max_length=30, choices=ConsentStatus.choices, default=ConsentStatus.INFORMED)
+    metadata = models.JSONField(_('metadata'), default=dict, blank=True)
+    created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('fecha de actualización'), auto_now=True)
+
+    class Meta:
+        db_table = 'automation_privacy_consents'
+        verbose_name = _('consentimiento/aviso de privacidad automation')
+        verbose_name_plural = _('consentimientos/avisos de privacidad automation')
+        ordering = ['-privacy_notice_sent_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['contact_key', 'privacy_notice_version', 'consent_source'],
+                name='uniq_automation_privacy_contact_version_source',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['lead', 'privacy_notice_sent_at']),
+            models.Index(fields=['consent_source', 'consent_status']),
+        ]
+
+    def __str__(self):
+        return f'{self.contact_key} - {self.privacy_notice_version} - {self.consent_status}'
+
+
 class AutomationWebhookEvent(models.Model):
     class Status(models.TextChoices):
         PENDING = 'PENDING', _('Pendiente')

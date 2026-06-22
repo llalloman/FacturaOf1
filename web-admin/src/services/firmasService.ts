@@ -131,6 +131,21 @@ export interface SolicitudFirma {
   updated_at?: string;
   documents?: DocumentoSolicitudFirma[];
   status_history?: HistorialSolicitudFirma[];
+  legal_consent?: ConsentimientoFirma | null;
+}
+
+export interface ConsentimientoFirma {
+  id: number;
+  request: number;
+  request_number: string;
+  accepted_terms: boolean;
+  accepted_privacy: boolean;
+  accepted_at: string;
+  ip_address?: string | null;
+  user_agent: string;
+  terms_version: string;
+  privacy_version: string;
+  created_at: string;
 }
 
 export interface DocumentoSolicitudFirma {
@@ -179,6 +194,10 @@ export type DocumentoPublicoFirma =
 
 export type SolicitudFirmaPublicPayload = Partial<SolicitudFirma> & {
   coupon_code?: string;
+  accepted_terms?: boolean;
+  accepted_privacy?: boolean;
+  terms_version?: string;
+  privacy_version?: string;
   archivos?: Partial<Record<DocumentoPublicoFirma, File | null>>;
 };
 

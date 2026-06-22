@@ -29,6 +29,8 @@ import {
 } from '../../services/firmasService';
 
 const whatsappBase = 'https://api.whatsapp.com/send/';
+const signatureTermsVersion = 'firma-2026-06-22';
+const signaturePrivacyVersion = 'privacidad-2026-06-22';
 
 const paymentAccounts = [
   {
@@ -86,6 +88,10 @@ const baseForm: SolicitudFirmaPublicPayload = {
   wants_erp: false,
   interested_plan: 'SOLO_FIRMA',
   coupon_code: '',
+  accepted_terms: false,
+  accepted_privacy: false,
+  terms_version: signatureTermsVersion,
+  privacy_version: signaturePrivacyVersion,
   archivos: {},
 };
 
@@ -301,6 +307,10 @@ export default function SolicitarFirmaElectronicaPage() {
         setError(`Falta cargar: ${missing.map((item) => item.label).join(', ')}.`);
         return false;
       }
+    }
+    if (step === 3 && (!form.accepted_terms || !form.accepted_privacy)) {
+      setError('Debes aceptar los Términos y Condiciones y autorizar el tratamiento de datos personales para confirmar.');
+      return false;
     }
     return true;
   };
@@ -695,6 +705,12 @@ export default function SolicitarFirmaElectronicaPage() {
                   ['Contenedor', form.container_type],
                 ]} />
               </div>
+              <ConsentSection
+                acceptedTerms={Boolean(form.accepted_terms)}
+                acceptedPrivacy={Boolean(form.accepted_privacy)}
+                onAcceptedTerms={(value) => setField('accepted_terms', value)}
+                onAcceptedPrivacy={(value) => setField('accepted_privacy', value)}
+              />
             </div>
           )}
 
@@ -710,7 +726,7 @@ export default function SolicitarFirmaElectronicaPage() {
                   <ArrowRight size={16} />
                 </button>
               ) : (
-                <button type="button" onClick={confirmRequest} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
+                <button type="button" onClick={confirmRequest} disabled={loading || !form.accepted_terms || !form.accepted_privacy} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                   Confirmar solicitud
                 </button>
@@ -719,6 +735,7 @@ export default function SolicitarFirmaElectronicaPage() {
           )}
         </div>
       </main>
+      <PublicLegalFooter />
     </div>
   );
 }
@@ -785,6 +802,80 @@ function PaymentInstructions({ whatsappUrl }: { whatsappUrl: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ConsentSection({
+  acceptedTerms,
+  acceptedPrivacy,
+  onAcceptedTerms,
+  onAcceptedPrivacy,
+}: {
+  acceptedTerms: boolean;
+  acceptedPrivacy: boolean;
+  onAcceptedTerms: (value: boolean) => void;
+  onAcceptedPrivacy: (value: boolean) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700">
+          <ShieldCheck size={20} />
+        </div>
+        <div>
+          <h3 className="text-base font-black text-slate-950">Consentimiento y aceptación</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            Para procesar la solicitud debemos registrar tu autorización expresa y la aceptación de los documentos legales vigentes.
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 space-y-3">
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-blue-100 bg-white p-4 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={acceptedTerms}
+            onChange={(event) => onAcceptedTerms(event.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span>
+            He leído y acepto los{' '}
+            <Link to="/terminos-y-condiciones" target="_blank" className="font-bold text-blue-700 hover:underline">
+              Términos y Condiciones
+            </Link>
+            .
+          </span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-blue-100 bg-white p-4 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={acceptedPrivacy}
+            onChange={(event) => onAcceptedPrivacy(event.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span>
+            Autorizo expresamente a OF1 Solutions S.A.S. el tratamiento de mis datos personales para la gestión de mi solicitud de Firma Electrónica, validación de identidad, emisión de certificados y cumplimiento de obligaciones legales. Conozco la{' '}
+            <Link to="/politica-privacidad" target="_blank" className="font-bold text-blue-700 hover:underline">
+              Política de Privacidad
+            </Link>
+            .
+          </span>
+        </label>
+      </div>
+    </section>
+  );
+}
+
+function PublicLegalFooter() {
+  return (
+    <footer className="border-t border-slate-200 bg-white">
+      <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+        <p>© {new Date().getFullYear()} OF1 Solutions S.A.S. Todos los derechos reservados.</p>
+        <div className="flex flex-wrap items-center gap-4">
+          <Link to="/politica-privacidad" className="font-semibold text-slate-600 hover:text-blue-700">Política de Privacidad</Link>
+          <Link to="/terminos-y-condiciones" className="font-semibold text-slate-600 hover:text-blue-700">Términos y Condiciones</Link>
+        </div>
+      </div>
+    </footer>
   );
 }
 

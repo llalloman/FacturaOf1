@@ -36,37 +36,46 @@ Clasificar mensajes entrantes por WhatsApp y responder con plantillas controlada
    - Normaliza `phone`, `message`, `channel`, `received_at`.
    - Genera `conversation_key = channel + ':' + phone`.
 
-3. **Registrar Interaccion Entrante**
-   - Futuro endpoint FacturaOF1.
+3. **Consultar/Crear Lead y Aviso de Privacidad**
+   - Crear o actualizar lead con `POST /api/automation/leads/`.
+   - En primer contacto o saludo, incluir aviso corto:
+     `Al continuar esta conversación, usted autoriza el tratamiento de los datos enviados por este medio para atender su solicitud. Política de Privacidad: /politica-privacidad`
+   - Registrar el aviso una sola vez con `POST /api/automation/privacy-consents/`.
+   - Si el contacto es `@lid`, no tratarlo como teléfono real; usar `contact_key` y `reply_to_jid`.
+
+4. **Registrar Interaccion Entrante**
+   - Endpoint FacturaOF1: `POST /api/automation/interactions/`.
    - Guarda mensaje, hash/idempotency key y origen.
 
-4. **Validar Mensaje**
+5. **Validar Mensaje**
    - Si `message` esta vacio, no llamar IA.
    - Si `message_type` no es texto, usar plantilla para multimedia.
+   - No pedir cédula, código dactilar, certificados, claves ni documentos por WhatsApp.
+   - Para firma electrónica, redirigir al formulario oficial.
 
-5. **DeepSeek**
+6. **DeepSeek**
    - Clasifica y resume.
    - Respuesta estricta en JSON.
 
-6. **Parse Response**
+7. **Parse Response**
    - Maneja JSON invalido.
    - Aplica umbral de confianza.
 
-7. **Switch Category**
+8. **Switch Category**
    - Rutea por categoria.
 
-8. **Prepare Reply por Categoria**
+9. **Prepare Reply por Categoria**
    - Elige plantilla aprobada.
    - No usa texto libre de IA.
 
-9. **Prepare WhatsApp Payload**
+10. **Prepare WhatsApp Payload**
    - Payload para gateway.
 
-10. **WhatsApp Gateway - Send Message**
+11. **WhatsApp Gateway - Send Message**
     - `POST /sendText`.
 
-11. **Registrar Interaccion Saliente**
-    - Futuro endpoint FacturaOF1.
+12. **Registrar Interaccion Saliente**
+    - Endpoint FacturaOF1: `POST /api/automation/interactions/`.
 
 ### Categorias Recomendadas
 

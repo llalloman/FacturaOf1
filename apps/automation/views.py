@@ -9,10 +9,11 @@ from rest_framework.views import APIView
 
 from apps.firmas.models import SolicitudFirmaElectronica
 
-from .models import AutomationAuditLog, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
+from .models import AutomationAuditLog, AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
 from .permissions import HasAutomationToken
 from .serializers import (
     AutomationAuditLogSerializer,
+    AutomationPrivacyConsentSerializer,
     AutomationWebhookEventSerializer,
     CommercialLeadAdminSerializer,
     CommercialLeadSerializer,
@@ -98,6 +99,31 @@ class AuditLogCreateView(AutomationBaseMixin, generics.CreateAPIView):
     serializer_class = AutomationAuditLogSerializer
 
 
+class PrivacyConsentCreateView(AutomationBaseMixin, generics.CreateAPIView):
+    queryset = AutomationPrivacyConsent.objects.select_related('lead').all()
+    serializer_class = AutomationPrivacyConsentSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        consent = serializer.save()
+        status_code = status.HTTP_201_CREATED if getattr(consent, 'created', False) else status.HTTP_200_OK
+        AutomationAuditLog.objects.create(
+            actor_type=AutomationAuditLog.ActorType.N8N,
+            actor_id='privacy-consents',
+            action='automation.privacy_notice.recorded',
+            entity_type='AutomationPrivacyConsent',
+            entity_id=str(consent.id),
+            metadata={
+                'lead_id': consent.lead_id,
+                'contact_key': consent.contact_key,
+                'privacy_notice_version': consent.privacy_notice_version,
+                'created': getattr(consent, 'created', False),
+            },
+        )
+        return Response(self.get_serializer(consent).data, status=status_code)
+
+
 class AdminCommercialLeadViewSet(viewsets.ModelViewSet):
     serializer_class = CommercialLeadAdminSerializer
     permission_classes = [permissions.IsAuthenticated, IsSuperAdminOnly]
@@ -110,7 +136,7 @@ class AdminCommercialLeadViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = CommercialLead.objects.annotate(
             interactions_count=Count('interactions')
-        ).prefetch_related('interactions')
+        ).prefetch_related('interactions', 'privacy_consents')
         category = self.request.query_params.get('category', '').strip()
         requires_human = self.request.query_params.get('requires_human', '').strip().lower()
         date_from = parse_date(self.request.query_params.get('date_from', ''))

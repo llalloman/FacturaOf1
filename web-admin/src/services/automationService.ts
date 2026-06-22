@@ -73,6 +73,10 @@ export interface AutomationLead {
   updated_at: string;
   interactions_count: number;
   recent_interactions: WhatsAppInteractionAdmin[];
+  privacy_notice_sent_at?: string | null;
+  privacy_notice_version?: string;
+  privacy_consent_source?: string;
+  privacy_consent_status?: string;
 }
 
 export interface AutomationLeadFilters {

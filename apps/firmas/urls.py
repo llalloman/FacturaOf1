@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    ConsentimientoFirmaElectronicaViewSet,
     DocumentoSolicitudFirmaViewSet,
     FirmaCuponElectronicoViewSet,
     FirmaPrecioElectronicaViewSet,
@@ -17,6 +18,7 @@ from .views import (
 
 router = DefaultRouter()
 router.register(r'solicitudes', SolicitudFirmaElectronicaViewSet, basename='solicitudes-firma')
+router.register(r'consentimientos', ConsentimientoFirmaElectronicaViewSet, basename='consentimientos-firma')
 router.register(r'documentos', DocumentoSolicitudFirmaViewSet, basename='documentos-firma')
 router.register(r'precios', FirmaPrecioElectronicaViewSet, basename='precios-firma')
 router.register(r'promociones', FirmaPromocionElectronicaViewSet, basename='promociones-firma')

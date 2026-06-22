@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  ShieldCheck,
   UserRound,
 } from 'lucide-react';
 import {
@@ -122,12 +123,20 @@ const whatsappLink = (lead: AutomationLead) => {
 const userLabel = (user: Usuario) =>
   user.nombre_completo || `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email;
 
+const privacySourceLabel = (source?: string | null) => {
+  if (source === 'whatsapp') return 'WhatsApp';
+  if (source === 'form') return 'Formulario';
+  if (source === 'n8n') return 'n8n';
+  if (source === 'other') return 'Otro';
+  return '-';
+};
+
 export default function AutomationLeadsPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [filters, setFilters] = useState<AutomationLeadFilters>({ ordering: '-last_interaction_at' });
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [notesDraft, setNotesDraft] = useState('');
+  const [notesDraft, setNotesDraft] = useState<{ leadId: number | null; value: string }>({ leadId: null, value: '' });
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['automation-leads', filters],
@@ -155,7 +164,7 @@ export default function AutomationLeadsPage() {
     mutationFn: ({ id, payload }: { id: number; payload: LeadUpdatePayload }) =>
       automationService.updateLead(id, payload),
     onSuccess: (lead) => {
-      setNotesDraft(lead.internal_notes ?? '');
+      setNotesDraft({ leadId: lead.id, value: lead.internal_notes ?? '' });
       showToast('Lead actualizado', 'success');
       queryClient.invalidateQueries({ queryKey: ['automation-leads'] });
       queryClient.invalidateQueries({ queryKey: ['automation-leads-stats'] });
@@ -169,7 +178,7 @@ export default function AutomationLeadsPage() {
 
   const selectLead = (lead: AutomationLead) => {
     setSelectedId(lead.id);
-    setNotesDraft(lead.internal_notes ?? '');
+    setNotesDraft({ leadId: lead.id, value: lead.internal_notes ?? '' });
   };
 
   const updateSelected = (payload: LeadUpdatePayload) => {
@@ -177,11 +186,8 @@ export default function AutomationLeadsPage() {
     updateMutation.mutate({ id: selected.id, payload });
   };
 
-  useEffect(() => {
-    setNotesDraft(selected?.internal_notes ?? '');
-  }, [selected?.id, selected?.internal_notes]);
-
   const selectedWhatsapp = selected ? whatsappLink(selected) : '';
+  const notesValue = selected ? (notesDraft.leadId === selected.id ? notesDraft.value : selected.internal_notes ?? '') : '';
 
   return (
     <div className="space-y-5 p-6">
@@ -263,6 +269,10 @@ export default function AutomationLeadsPage() {
                 <p className="mt-2 line-clamp-2 text-xs text-slate-500">{lead.summary || lead.recent_interactions?.[0]?.message_body || 'Sin resumen registrado.'}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
                   <StatusBadge value={lead.priority_display ?? lead.priority} color={priorityBadge(lead.priority)} />
+                  <StatusBadge
+                    value={lead.privacy_notice_sent_at ? 'Privacidad informada' : 'Sin aviso legal'}
+                    color={lead.privacy_notice_sent_at ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}
+                  />
                   <span>{categoryLabel(lead.last_category || lead.interest_type)}</span>
                   <span>{lead.source_channel}</span>
                   <span>{formatDate(lead.last_interaction_at ?? lead.created_at)}</span>
@@ -345,15 +355,30 @@ export default function AutomationLeadsPage() {
                 <p className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{selected.summary || 'Sin resumen IA registrado.'}</p>
               </Section>
 
+              <Section title="Privacidad y consentimiento">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <Info label="Aviso enviado" value={selected.privacy_notice_sent_at ? 'Sí' : 'No'} />
+                  <Info label="Fecha" value={formatDate(selected.privacy_notice_sent_at)} />
+                  <Info label="Versión política" value={selected.privacy_notice_version || '-'} />
+                  <Info label="Fuente" value={privacySourceLabel(selected.privacy_consent_source || selected.source_channel)} />
+                </div>
+                {!selected.privacy_notice_sent_at && (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    <ShieldCheck size={16} className="mt-0.5 shrink-0" />
+                    <p>Este lead todavía no tiene evidencia de aviso de privacidad registrado desde automation/n8n.</p>
+                  </div>
+                )}
+              </Section>
+
               <Section title="Notas internas">
                 <div className="space-y-3">
                   <textarea
                     className="min-h-28 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={notesDraft}
-                    onChange={(event) => setNotesDraft(event.target.value)}
+                    value={notesValue}
+                    onChange={(event) => setNotesDraft({ leadId: selected.id, value: event.target.value })}
                     placeholder="Notas internas para seguimiento comercial"
                   />
-                  <button onClick={() => updateSelected({ internal_notes: notesDraft })} disabled={updateMutation.isPending} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+                  <button onClick={() => updateSelected({ internal_notes: notesValue })} disabled={updateMutation.isPending} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
                     {updateMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                     Guardar notas
                   </button>

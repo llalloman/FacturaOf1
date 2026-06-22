@@ -7,8 +7,10 @@ from rest_framework import serializers
 
 from apps.firmas.models import HistorialEstadoSolicitudFirma, SolicitudFirmaElectronica
 
-from .models import AutomationAuditLog, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
+from .models import AutomationAuditLog, AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
 
+
+AUTOMATION_PRIVACY_NOTICE_VERSION = 'privacidad-2026-06-22'
 
 LEAD_INTEREST_ALIASES = {
     'firma_electronica': CommercialLead.InterestType.SIGNATURE,
@@ -326,6 +328,77 @@ class WhatsAppInteractionAdminSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class AutomationPrivacyConsentSerializer(serializers.ModelSerializer):
+    lead_id = serializers.IntegerField(required=False, allow_null=True)
+    created = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = AutomationPrivacyConsent
+        fields = [
+            'id', 'lead_id', 'contact_key', 'phone', 'privacy_notice_sent_at',
+            'privacy_notice_version', 'consent_source', 'consent_status',
+            'metadata', 'created_at', 'updated_at', 'created',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created']
+        extra_kwargs = {
+            'contact_key': {'required': False, 'allow_blank': True},
+            'phone': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'privacy_notice_sent_at': {'required': False},
+            'privacy_notice_version': {'required': False, 'allow_blank': True},
+            'consent_source': {'required': False},
+            'consent_status': {'required': False},
+        }
+
+    def validate(self, attrs):
+        initial = self.initial_data
+        phone = attrs.get('phone') or initial.get('phone') or initial.get('normalized_phone') or ''
+        normalized = normalize_phone(phone)
+        contact_key = (
+            attrs.get('contact_key')
+            or initial.get('contact_key')
+            or initial.get('reply_to_jid')
+            or initial.get('from_jid')
+            or initial.get('remote_jid')
+            or normalized
+        )
+        lead = None
+        lead_id = attrs.pop('lead_id', None) or initial.get('lead_id')
+        if lead_id:
+            try:
+                lead = CommercialLead.objects.get(pk=lead_id)
+            except CommercialLead.DoesNotExist as exc:
+                raise serializers.ValidationError({'lead_id': 'Lead no encontrado.'}) from exc
+        elif normalized:
+            lead = CommercialLead.objects.filter(normalized_phone=normalized, source_channel=initial.get('channel') or 'whatsapp').first()
+        elif contact_key:
+            lead = CommercialLead.objects.filter(contact_key=contact_key, source_channel=initial.get('channel') or 'whatsapp').first()
+
+        if not contact_key and lead:
+            contact_key = lead.contact_key or lead.normalized_phone
+        if not contact_key:
+            raise serializers.ValidationError({'contact_key': 'Debe enviar contact_key, JID, phone o lead_id.'})
+
+        attrs['lead'] = lead
+        attrs['contact_key'] = str(contact_key or '').strip()
+        attrs['phone'] = normalized
+        attrs['privacy_notice_sent_at'] = attrs.get('privacy_notice_sent_at') or timezone.now()
+        attrs['privacy_notice_version'] = attrs.get('privacy_notice_version') or AUTOMATION_PRIVACY_NOTICE_VERSION
+        attrs['consent_source'] = attrs.get('consent_source') or initial.get('source') or AutomationPrivacyConsent.ConsentSource.WHATSAPP
+        attrs['consent_status'] = attrs.get('consent_status') or AutomationPrivacyConsent.ConsentStatus.INFORMED
+        attrs['metadata'] = attrs.get('metadata') or {}
+        return attrs
+
+    def create(self, validated_data):
+        consent, created = AutomationPrivacyConsent.objects.update_or_create(
+            contact_key=validated_data['contact_key'],
+            privacy_notice_version=validated_data['privacy_notice_version'],
+            consent_source=validated_data['consent_source'],
+            defaults=validated_data,
+        )
+        consent.created = created
+        return consent
+
+
 class CommercialLeadAdminSerializer(serializers.ModelSerializer):
     interest_type_display = serializers.CharField(source='get_interest_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -333,6 +406,10 @@ class CommercialLeadAdminSerializer(serializers.ModelSerializer):
     assigned_to_name = serializers.SerializerMethodField()
     interactions_count = serializers.IntegerField(read_only=True)
     recent_interactions = serializers.SerializerMethodField()
+    privacy_notice_sent_at = serializers.SerializerMethodField()
+    privacy_notice_version = serializers.SerializerMethodField()
+    privacy_consent_source = serializers.SerializerMethodField()
+    privacy_consent_status = serializers.SerializerMethodField()
 
     class Meta:
         model = CommercialLead
@@ -344,6 +421,8 @@ class CommercialLeadAdminSerializer(serializers.ModelSerializer):
             'last_ai_confidence', 'last_interaction_at', 'assigned_to', 'assigned_to_name',
             'metadata', 'created_at', 'updated_at',
             'interactions_count', 'recent_interactions',
+            'privacy_notice_sent_at', 'privacy_notice_version',
+            'privacy_consent_source', 'privacy_consent_status',
         ]
         read_only_fields = [
             'id', 'phone', 'normalized_phone', 'contact_key', 'reply_to_jid', 'from_jid',
@@ -351,6 +430,8 @@ class CommercialLeadAdminSerializer(serializers.ModelSerializer):
             'interest_type', 'interest_type_display', 'last_category', 'last_intent',
             'last_ai_confidence', 'last_interaction_at', 'assigned_to_name', 'metadata',
             'created_at', 'updated_at', 'interactions_count', 'recent_interactions',
+            'privacy_notice_sent_at', 'privacy_notice_version',
+            'privacy_consent_source', 'privacy_consent_status',
         ]
 
     def get_recent_interactions(self, obj):
@@ -362,6 +443,29 @@ class CommercialLeadAdminSerializer(serializers.ModelSerializer):
             return ''
         full_name = obj.assigned_to.get_full_name()
         return full_name or obj.assigned_to.username or obj.assigned_to.email
+
+    def _latest_privacy_consent(self, obj):
+        prefetched = getattr(obj, '_prefetched_objects_cache', {}).get('privacy_consents')
+        if prefetched is not None:
+            return sorted(prefetched, key=lambda item: item.privacy_notice_sent_at, reverse=True)[0] if prefetched else None
+        return obj.privacy_consents.order_by('-privacy_notice_sent_at').first()
+
+    def get_privacy_notice_sent_at(self, obj):
+        consent = self._latest_privacy_consent(obj)
+        return consent.privacy_notice_sent_at if consent else None
+
+    def get_privacy_notice_version(self, obj):
+        consent = self._latest_privacy_consent(obj)
+        return consent.privacy_notice_version if consent else ''
+
+    def get_privacy_consent_source(self, obj):
+        consent = self._latest_privacy_consent(obj)
+        return consent.consent_source if consent else ''
+
+    def get_privacy_consent_status(self, obj):
+        consent = self._latest_privacy_consent(obj)
+        return consent.consent_status if consent else ''
+
 
 
 class SignatureOrderAutomationSerializer(serializers.ModelSerializer):

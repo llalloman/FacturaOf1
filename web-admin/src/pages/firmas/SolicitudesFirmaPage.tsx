@@ -328,6 +328,24 @@ export default function SolicitudesFirmaPage() {
                 </div>
               </Section>
 
+              <Section title="Consentimiento legal">
+                {selected.legal_consent ? (
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <Info label="Términos aceptados" value={selected.legal_consent.accepted_terms ? 'Sí' : 'No'} />
+                    <Info label="Privacidad aceptada" value={selected.legal_consent.accepted_privacy ? 'Sí' : 'No'} />
+                    <Info label="Fecha de aceptación" value={new Date(selected.legal_consent.accepted_at).toLocaleString('es-EC')} />
+                    <Info label="Versión términos" value={selected.legal_consent.terms_version} />
+                    <Info label="Versión privacidad" value={selected.legal_consent.privacy_version} />
+                    <Info label="Dirección IP" value={selected.legal_consent.ip_address || '-'} />
+                    <div className="md:col-span-2 xl:col-span-3">
+                      <Info label="User Agent" value={selected.legal_consent.user_agent || '-'} />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-amber-600">Esta solicitud no tiene evidencia legal registrada. Puede corresponder a datos creados antes de esta implementación.</p>
+                )}
+              </Section>
+
               <Section title="Historial">
                 <div className="space-y-2">
                   {(selected.status_history ?? []).map((item) => (

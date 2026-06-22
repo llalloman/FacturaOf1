@@ -5,6 +5,7 @@ from decimal import Decimal
 from rest_framework import serializers
 
 from .models import (
+    ConsentimientoFirmaElectronica,
     DocumentoSolicitudFirma,
     FirmaCuponElectronico,
     FirmaCuponUso,
@@ -17,6 +18,8 @@ from .models import (
 from .pricing import customer_key, promotion_price, resolve_signature_price
 
 
+SIGNATURE_TERMS_VERSION = 'firma-2026-06-22'
+SIGNATURE_PRIVACY_VERSION = 'privacidad-2026-06-22'
 PHONE_RE = re.compile(r'^(09\d{8}|\+593\d{9})$')
 MAX_DOCUMENT_SIZE = 15 * 1024 * 1024
 ALLOWED_DOCUMENT_MIME_TYPES = {
@@ -275,6 +278,19 @@ class HistorialEstadoSolicitudFirmaSerializer(serializers.ModelSerializer):
         return getattr(user, 'email', '') or str(user)
 
 
+class ConsentimientoFirmaElectronicaSerializer(serializers.ModelSerializer):
+    request_number = serializers.CharField(source='request.request_number', read_only=True)
+
+    class Meta:
+        model = ConsentimientoFirmaElectronica
+        fields = [
+            'id', 'request', 'request_number', 'accepted_terms', 'accepted_privacy',
+            'accepted_at', 'ip_address', 'user_agent', 'terms_version',
+            'privacy_version', 'created_at',
+        ]
+        read_only_fields = fields
+
+
 class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
     request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
@@ -286,6 +302,7 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
     interested_plan_display = serializers.CharField(source='get_interested_plan_display', read_only=True)
     documents = DocumentoSolicitudFirmaSerializer(many=True, read_only=True)
     status_history = HistorialEstadoSolicitudFirmaSerializer(many=True, read_only=True)
+    legal_consent = ConsentimientoFirmaElectronicaSerializer(read_only=True)
 
     class Meta:
         model = SolicitudFirmaElectronica
@@ -306,9 +323,9 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
             'tax_rate', 'subtotal_without_tax', 'tax_amount',
             'internal_cost', 'sale_price', 'margin', 'internal_notes',
             'provider_request_id', 'emitted_at', 'rejected_reason',
-            'created_at', 'updated_at', 'documents', 'status_history',
+            'created_at', 'updated_at', 'documents', 'status_history', 'legal_consent',
         ]
-        read_only_fields = ['request_number', 'price_catalog', 'promotion_applied', 'coupon_applied', 'regular_price', 'discount_amount', 'coupon_discount_amount', 'tax_rate', 'subtotal_without_tax', 'tax_amount', 'margin', 'created_at', 'updated_at', 'documents', 'status_history']
+        read_only_fields = ['request_number', 'price_catalog', 'promotion_applied', 'coupon_applied', 'regular_price', 'discount_amount', 'coupon_discount_amount', 'tax_rate', 'subtotal_without_tax', 'tax_amount', 'margin', 'created_at', 'updated_at', 'documents', 'status_history', 'legal_consent']
 
     def validate_phone(self, value):
         value = (value or '').strip()
@@ -385,6 +402,11 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
 
 
 class SolicitudFirmaElectronicaPublicSerializer(SolicitudFirmaElectronicaSerializer):
+    accepted_terms = serializers.BooleanField(write_only=True, required=True)
+    accepted_privacy = serializers.BooleanField(write_only=True, required=True)
+    terms_version = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    privacy_version = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
     class Meta(SolicitudFirmaElectronicaSerializer.Meta):
         fields = [
             'id', 'request_number', 'request_type', 'identification_type',
@@ -396,11 +418,23 @@ class SolicitudFirmaElectronicaPublicSerializer(SolicitudFirmaElectronicaSeriali
             'representative_identification', 'representative_names',
             'representative_last_names', 'validity', 'container_type',
             'wants_erp', 'interested_plan', 'coupon_code',
+            'accepted_terms', 'accepted_privacy', 'terms_version', 'privacy_version',
         ]
         read_only_fields = ['id', 'request_number']
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs.get('accepted_terms') is not True:
+            raise serializers.ValidationError({'accepted_terms': 'Debes aceptar los Términos y Condiciones.'})
+        if attrs.get('accepted_privacy') is not True:
+            raise serializers.ValidationError({'accepted_privacy': 'Debes autorizar el tratamiento de datos personales.'})
+        return attrs
+
     def create(self, validated_data):
-        validated_data['source'] = SolicitudFirmaElectronica.Origen.LANDING
+        validated_data.pop('accepted_terms', None)
+        validated_data.pop('accepted_privacy', None)
+        validated_data.pop('terms_version', None)
+        validated_data.pop('privacy_version', None        validated_data['source'] = SolicitudFirmaElectronica.Origen.LANDING
         validated_data['status'] = SolicitudFirmaElectronica.Estado.NUEVA
         validated_data['provider'] = SolicitudFirmaElectronica.Proveedor.UANATACA
         return super().create(validated_data)
