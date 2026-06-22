@@ -434,7 +434,8 @@ class SolicitudFirmaElectronicaPublicSerializer(SolicitudFirmaElectronicaSeriali
         validated_data.pop('accepted_terms', None)
         validated_data.pop('accepted_privacy', None)
         validated_data.pop('terms_version', None)
-        validated_data.pop('privacy_version', None        validated_data['source'] = SolicitudFirmaElectronica.Origen.LANDING
+        validated_data.pop('privacy_version', None)
+        validated_data['source'] = SolicitudFirmaElectronica.Origen.LANDING
         validated_data['status'] = SolicitudFirmaElectronica.Estado.NUEVA
         validated_data['provider'] = SolicitudFirmaElectronica.Proveedor.UANATACA
         return super().create(validated_data)
