@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import filters, serializers, status, viewsets
 from rest_framework.decorators import action
@@ -389,10 +389,11 @@ class RolPagoViewSet(viewsets.ModelViewSet):
             total_ingresos=Sum('total_ingresos'),
             total_descuentos=Sum('total_descuentos'),
             total_liquido=Sum('liquido_a_pagar'),
-            total_aporte_patronal=Sum('aporte_patronal'),
-            total_decimo_tercero=Sum('decimo_tercero'),
-            total_decimo_cuarto=Sum('decimo_cuarto'),
-            total_vacaciones=Sum('vacaciones'),
+            total_aporte_patronal=Sum('aporte_patronal', filter=Q(empleado__afiliado_iess=True)),
+            total_decimo_tercero=Sum('decimo_tercero', filter=Q(empleado__afiliado_iess=True)),
+            total_decimo_cuarto=Sum('decimo_cuarto', filter=Q(empleado__afiliado_iess=True)),
+            total_fondos_reserva=Sum('fondos_reserva', filter=Q(empleado__afiliado_iess=True)),
+            total_vacaciones=Sum('vacaciones', filter=Q(empleado__afiliado_iess=True)),
         )
         return Response({
             'anio': anio,
@@ -404,6 +405,7 @@ class RolPagoViewSet(viewsets.ModelViewSet):
             'total_aporte_patronal': float(agg['total_aporte_patronal'] or 0),
             'total_decimo_tercero': float(agg['total_decimo_tercero'] or 0),
             'total_decimo_cuarto': float(agg['total_decimo_cuarto'] or 0),
+            'total_fondos_reserva': float(agg['total_fondos_reserva'] or 0),
             'total_vacaciones': float(agg['total_vacaciones'] or 0),
         })
 

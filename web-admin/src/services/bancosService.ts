@@ -71,7 +71,11 @@ export interface ResumenBancos {
 // ── Cuentas ───────────────────────────────────────────────────────────────
 
 export const getCuentas = () =>
-  apiClient.get<CuentaBancaria[]>('/bancos/cuentas/').then(r => r.data);
+  apiClient.get<CuentaBancaria[] | { results?: CuentaBancaria[]; cuentas?: CuentaBancaria[] }>('/bancos/cuentas/').then(r => {
+    const data = r.data;
+    if (Array.isArray(data)) return data;
+    return data.results ?? data.cuentas ?? [];
+  });
 
 export const getResumen = () =>
   apiClient.get<ResumenBancos>('/bancos/cuentas/resumen/').then(r => r.data);

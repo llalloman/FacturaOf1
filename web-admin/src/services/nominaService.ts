@@ -140,6 +140,7 @@ export interface ResumenNomina {
   total_aporte_patronal: number;
   total_decimo_tercero: number;
   total_decimo_cuarto: number;
+  total_fondos_reserva?: number;
   total_vacaciones: number;
 }
 
