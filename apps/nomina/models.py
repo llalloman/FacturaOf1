@@ -174,6 +174,8 @@ class ConceptoEmpleadoNomina(models.Model):
     valor = models.DecimalField(_('valor'), max_digits=10, decimal_places=2)
     fecha_inicio = models.DateField(_('fecha inicio'), null=True, blank=True)
     fecha_fin = models.DateField(_('fecha fin'), null=True, blank=True)
+    permanente = models.BooleanField(_('recurrencia permanente'), default=True)
+    meses_duracion = models.PositiveSmallIntegerField(_('meses de duración'), null=True, blank=True)
     activo = models.BooleanField(_('activo'), default=True)
     notas = models.TextField(_('notas'), blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

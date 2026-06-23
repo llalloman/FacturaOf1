@@ -1,3 +1,6 @@
+from calendar import monthrange
+from datetime import date
+
 from django.db import transaction
 from rest_framework import serializers
 from .models import (
@@ -51,6 +54,16 @@ class RubroNominaSerializer(serializers.ModelSerializer):
         return value.strip().upper().replace(' ', '_')
 
 
+def calcular_fecha_fin_recurrencia(fecha_inicio, meses_duracion):
+    if not fecha_inicio or not meses_duracion:
+        return None
+    month_index = fecha_inicio.month - 1 + int(meses_duracion) - 1
+    year = fecha_inicio.year + month_index // 12
+    month = month_index % 12 + 1
+    last_day = monthrange(year, month)[1]
+    return date(year, month, last_day)
+
+
 class ConceptoEmpleadoNominaSerializer(serializers.ModelSerializer):
     empleado_nombre = serializers.CharField(source='empleado.nombre_completo', read_only=True)
     rubro_nombre = serializers.CharField(source='rubro.nombre', read_only=True)
@@ -60,8 +73,8 @@ class ConceptoEmpleadoNominaSerializer(serializers.ModelSerializer):
         model = ConceptoEmpleadoNomina
         fields = [
             'id', 'empleado', 'empleado_nombre', 'rubro', 'rubro_nombre', 'rubro_tipo',
-            'descripcion', 'valor', 'fecha_inicio', 'fecha_fin', 'activo', 'notas',
-            'created_at', 'updated_at',
+            'descripcion', 'valor', 'fecha_inicio', 'fecha_fin', 'permanente',
+            'meses_duracion', 'activo', 'notas', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
 
@@ -76,7 +89,29 @@ class ConceptoEmpleadoNominaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'rubro': 'El rubro no pertenece a la empresa.'})
         if rubro and not rubro.es_recurrente:
             raise serializers.ValidationError({'rubro': 'Este rubro no está habilitado como recurrente.'})
+        permanente = data.get('permanente', getattr(self.instance, 'permanente', True))
+        meses_duracion = data.get('meses_duracion', getattr(self.instance, 'meses_duracion', None))
+        if not permanente and not meses_duracion:
+            raise serializers.ValidationError({'meses_duracion': 'Indica cuántos meses durará la recurrencia o marca permanente.'})
         return data
+
+    def _apply_recurrencia(self, validated_data):
+        permanente = validated_data.get('permanente', getattr(self.instance, 'permanente', True))
+        if permanente:
+            validated_data['meses_duracion'] = None
+            validated_data['fecha_fin'] = None
+            return validated_data
+        fecha_inicio = validated_data.get('fecha_inicio', getattr(self.instance, 'fecha_inicio', None))
+        meses_duracion = validated_data.get('meses_duracion', getattr(self.instance, 'meses_duracion', None))
+        validated_data['fecha_fin'] = calcular_fecha_fin_recurrencia(fecha_inicio, meses_duracion)
+        return validated_data
+
+    def create(self, validated_data):
+        return super().create(self._apply_recurrencia(validated_data))
+
+    def update(self, instance, validated_data):
+        self.instance = instance
+        return super().update(instance, self._apply_recurrencia(validated_data))
 
 
 class DetalleRolPagoSerializer(serializers.ModelSerializer):
@@ -171,7 +206,9 @@ class RolPagoCreateSerializer(serializers.ModelSerializer):
             return
         rol.detalles.all().delete()
         for index, detalle_data in enumerate(detalles_data):
-            DetalleRolPago.objects.create(rol=rol, orden=detalle_data.get('orden') or index + 1, **detalle_data)
+            detalle_data = dict(detalle_data)
+            orden = detalle_data.pop('orden', None) or index + 1
+            DetalleRolPago.objects.create(rol=rol, orden=orden, **detalle_data)
         rol.save()
 
     @transaction.atomic

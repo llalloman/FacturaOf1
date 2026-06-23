@@ -110,6 +110,8 @@ export interface ConceptoEmpleadoNomina {
   valor: number;
   fecha_inicio: string | null;
   fecha_fin: string | null;
+  permanente: boolean;
+  meses_duracion: number | null;
   activo: boolean;
   notas: string;
 }
