@@ -34,7 +34,7 @@ export interface MovimientoBancario {
   notas: string;
   created_at: string;
   es_entrada: boolean;
-  origen: 'MANUAL' | 'VENTA' | 'PAGO_PROVEEDOR';
+  origen: 'MANUAL' | 'VENTA' | 'PAGO_PROVEEDOR' | 'NOMINA';
   origen_referencia: string;
   eliminable: boolean;
 }
@@ -46,11 +46,12 @@ export interface ExtractoRow {
   descripcion: string;
   referencia: string;
   beneficiario: string;
+  notas: string;
   entrada: number;
   salida: number;
   saldo: number;
   conciliado: boolean;
-  origen: 'MANUAL' | 'VENTA' | 'PAGO_PROVEEDOR';
+  origen: 'MANUAL' | 'VENTA' | 'PAGO_PROVEEDOR' | 'NOMINA';
   origen_referencia: string;
   eliminable: boolean;
 }
@@ -88,6 +89,9 @@ export const getMovimientos = (params: Record<string, string> = {}) =>
 
 export const crearMovimiento = (data: Partial<MovimientoBancario>) =>
   apiClient.post<MovimientoBancario>('/bancos/movimientos/', data).then(r => r.data);
+
+export const actualizarMovimiento = (id: number, data: Partial<MovimientoBancario>) =>
+  apiClient.patch<MovimientoBancario>(`/bancos/movimientos/${id}/`, data).then(r => r.data);
 
 export const eliminarMovimiento = (id: number) =>
   apiClient.delete(`/bancos/movimientos/${id}/`);

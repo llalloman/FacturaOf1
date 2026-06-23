@@ -1,4 +1,4 @@
-from rest_framework import viewsets, filters, status
+from rest_framework import viewsets, filters, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -191,7 +191,7 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        queryset = Venta.objects.select_related('caja', 'cliente', 'usuario', 'factura')
+        queryset = Venta.objects.select_related('caja', 'cliente', 'usuario', 'factura', 'factura__comprobante')
         queryset = queryset.prefetch_related('detalles__producto', 'pagos')
 
         if not user.is_superuser and getattr(user, 'rol', None) != 'SUPER_ADMIN':
@@ -238,6 +238,158 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
                 )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    @action(detail=True, methods=['post'], url_path='actualizar-fecha')
+    @transaction.atomic
+    def actualizar_fecha(self, request, pk=None):
+        """Actualiza la fecha de venta y sincroniza pagos/movimientos bancarios vinculados."""
+        venta = self.get_object()
+        if venta.estado == 'ANULADA':
+            return Response({'detail': 'No se puede cambiar la fecha de una venta anulada.'}, status=400)
+
+        fecha_venta = request.data.get('fecha_venta')
+        if not fecha_venta:
+            return Response({'detail': 'Se requiere fecha_venta.'}, status=400)
+
+        field = serializers.DateTimeField()
+        try:
+            nueva_fecha = field.to_internal_value(fecha_venta)
+        except serializers.ValidationError:
+            return Response({'detail': 'La fecha de venta no es válida.'}, status=400)
+
+        fecha_anterior = venta.fecha_venta
+        venta.fecha_venta = nueva_fecha
+        venta.save(update_fields=['fecha_venta', 'fecha_modificacion'])
+
+        fecha_movimiento = timezone.localdate(nueva_fecha)
+        pagos_actualizados = []
+        movimientos_actualizados = []
+        for pago in venta.pagos.select_related('movimiento_bancario').all():
+            pago.fecha_pago = nueva_fecha
+            pago.save(update_fields=['fecha_pago'])
+            pagos_actualizados.append(pago.id)
+            if pago.movimiento_bancario_id:
+                movimiento = pago.movimiento_bancario
+                movimiento.fecha = fecha_movimiento
+                movimiento.save(update_fields=['fecha'])
+                movimientos_actualizados.append(movimiento.id)
+
+        factura_actualizada = None
+        if venta.factura_id:
+            comp = getattr(venta.factura, 'comprobante', None)
+            if comp and comp.estado == 'BORRADOR':
+                comp.fecha_emision = nueva_fecha
+                comp.save(update_fields=['fecha_emision'])
+                factura_actualizada = venta.factura_id
+
+        from apps.core.models import AuditLog
+        AuditLog.objects.create(
+            empresa=venta.empresa,
+            usuario=request.user,
+            accion='ACTUALIZAR_FECHA_VENTA',
+            modulo='ventas',
+            referencia=venta.numero_venta,
+            datos={
+                'fecha_anterior': fecha_anterior.isoformat() if fecha_anterior else None,
+                'fecha_nueva': nueva_fecha.isoformat(),
+                'pagos': pagos_actualizados,
+                'movimientos_bancarios': movimientos_actualizados,
+                'factura_actualizada': factura_actualizada,
+            },
+        )
+
+        venta.refresh_from_db()
+        return Response(self.get_serializer(venta).data)
+
+    @action(detail=True, methods=['get'], url_path='facturas-disponibles')
+    def facturas_disponibles(self, request, pk=None):
+        """Lista facturas de la empresa que aún no están vinculadas a una venta."""
+        venta = self.get_object()
+        from apps.facturacion.models import Factura
+        from apps.facturacion.serializers import FacturaSerializer
+
+        qs = Factura.objects.filter(
+            comprobante__empresa=venta.empresa,
+            venta__isnull=True,
+        ).select_related('comprobante', 'cliente')
+
+        search = (request.query_params.get('search') or '').strip()
+        if search:
+            qs = qs.filter(
+                Q(comprobante__numero_comprobante__icontains=search)
+                | Q(cliente__razon_social__icontains=search)
+                | Q(cliente__identificacion__icontains=search)
+            )
+
+        qs = qs.order_by('-comprobante__fecha_emision')[:25]
+        return Response(FacturaSerializer(qs, many=True, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='vincular-factura')
+    @transaction.atomic
+    def vincular_factura(self, request, pk=None):
+        """Vincula una factura existente a una venta no facturada."""
+        venta = self.get_object()
+        if venta.estado == 'ANULADA':
+            return Response({'detail': 'No se puede vincular factura a una venta anulada.'}, status=400)
+        if venta.factura_id:
+            return Response({'detail': 'Esta venta ya tiene una factura vinculada.'}, status=400)
+
+        factura_id = request.data.get('factura') or request.data.get('factura_id')
+        if not factura_id:
+            return Response({'detail': 'Se requiere factura.'}, status=400)
+
+        from apps.facturacion.models import Factura
+        try:
+            factura = Factura.objects.select_related('comprobante', 'cliente').get(
+                pk=factura_id,
+                comprobante__empresa=venta.empresa,
+            )
+        except Factura.DoesNotExist:
+            return Response({'detail': 'Factura no encontrada para esta empresa.'}, status=404)
+
+        if hasattr(factura, 'venta') and factura.venta is not None:
+            return Response({'detail': 'La factura ya está vinculada a otra venta.'}, status=400)
+
+        total_venta = Decimal(str(venta.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_factura = Decimal(str(factura.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        if abs(total_venta - total_factura) > Decimal('0.01'):
+            return Response({
+                'detail': 'El total de la factura no coincide con el total de la venta.',
+                'total_venta': total_venta,
+                'total_factura': total_factura,
+            }, status=400)
+
+        comp = factura.comprobante
+        fecha_factura_actualizada = False
+        if comp.estado == 'BORRADOR' and comp.fecha_emision != venta.fecha_venta:
+            comp.fecha_emision = venta.fecha_venta
+            comp.save(update_fields=['fecha_emision'])
+            fecha_factura_actualizada = True
+
+        venta.factura = factura
+        venta.genera_factura = True
+        venta.save(update_fields=['factura', 'genera_factura'])
+
+        from apps.ventas.finance import crear_cartera_credito_venta
+        crear_cartera_credito_venta(venta)
+
+        from apps.core.models import AuditLog
+        AuditLog.objects.create(
+            empresa=venta.empresa,
+            usuario=request.user,
+            accion='VINCULAR_FACTURA_VENTA',
+            modulo='ventas',
+            referencia=venta.numero_venta,
+            datos={
+                'factura_id': factura.id,
+                'numero_factura': comp.numero_comprobante,
+                'fecha_factura_actualizada': fecha_factura_actualizada,
+            },
+        )
+
+        venta.refresh_from_db()
+        return Response(self.get_serializer(venta).data)
 
     @action(detail=True, methods=['get', 'post'], url_path='regularizacion')
     @transaction.atomic
@@ -435,8 +587,9 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
                 empresa=venta.empresa, activa=True,
             ).values('id', 'banco', 'numero_cuenta')),
             'proveedores': list(Proveedor.objects.filter(
-                empresa=venta.empresa, activo=True,
-            ).values('id', 'razon_social', 'identificacion')),
+                empresa_id=venta.empresa_id,
+                activo=True,
+            ).order_by('razon_social').values('id', 'razon_social', 'identificacion', 'empresa_id')),
             'bodegas': list(Bodega.objects.filter(
                 empresa=venta.empresa, activa=True,
             ).values('id', 'nombre', 'codigo')),

@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import type { CoherenciaFacturacionResponse, Venta } from '../types';
+import type { CoherenciaFacturacionResponse, Factura, Venta } from '../types';
 
 export interface ProyeccionDia {
   fecha: string;
@@ -50,7 +50,7 @@ export interface RegularizacionVentaData {
     inventario_invalido: boolean;
   }>;
   cuentas: Array<{ id: number; banco: string; numero_cuenta: string }>;
-  proveedores: Array<{ id: number; razon_social: string; identificacion: string }>;
+  proveedores: Array<{ id: number; razon_social: string; identificacion: string; empresa_id?: number }>;
   bodegas: Array<{ id: number; nombre: string; codigo: string }>;
 }
 
@@ -116,6 +116,21 @@ export const ventasService = {
   generarFactura: async ({ id, cliente_id }: { id: number; cliente_id?: number }) => {
     const body = cliente_id ? { cliente_id } : {};
     const { data } = await apiClient.post(`/ventas/ventas/${id}/generar_factura/`, body);
+    return data;
+  },
+
+  actualizarFecha: async ({ id, fecha_venta }: { id: number; fecha_venta: string }) => {
+    const { data } = await apiClient.post<Venta>(`/ventas/ventas/${id}/actualizar-fecha/`, { fecha_venta });
+    return data;
+  },
+
+  getFacturasDisponibles: async (id: number, search = '') => {
+    const { data } = await apiClient.get<Factura[]>(`/ventas/ventas/${id}/facturas-disponibles/`, { params: { search } });
+    return data;
+  },
+
+  vincularFactura: async ({ id, factura }: { id: number; factura: number }) => {
+    const { data } = await apiClient.post<Venta>(`/ventas/ventas/${id}/vincular-factura/`, { factura });
     return data;
   },
 

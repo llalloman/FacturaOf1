@@ -4,7 +4,7 @@ import {
   Pencil, Power, Trash2,
 } from 'lucide-react';
 import {
-  getResumen, crearCuenta, actualizarCuenta, getExtracto, crearMovimiento, eliminarMovimiento,
+  getResumen, crearCuenta, actualizarCuenta, getExtracto, crearMovimiento, actualizarMovimiento, eliminarMovimiento,
   conciliarMovimiento, conciliarMultiples,
   type CuentaBancaria, type ExtractoRow, type TipoMovimiento,
 } from '../../services/bancosService';
@@ -214,23 +214,26 @@ function NuevaCuentaModal({
 // ── Nuevo Movimiento Modal ────────────────────────────────────────────────
 
 function NuevoMovimientoModal({
-  cuentas, defaultCuentaId, onClose, onSaved,
+  cuentas, defaultCuentaId, movimiento, onClose, onSaved,
 }: {
   cuentas: CuentaBancaria[];
   defaultCuentaId?: number;
+  movimiento?: ExtractoRow | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { showToast } = useToast();
+  const isEdit = Boolean(movimiento);
   const [form, setForm] = useState({
     cuenta: String(defaultCuentaId || ''),
-    fecha: new Date().toISOString().slice(0, 10),
-    tipo: 'DEPOSITO' as TipoMovimiento,
-    descripcion: '',
-    referencia: '',
-    monto: '',
-    beneficiario: '',
-    notas: '',
+    fecha: movimiento?.fecha || new Date().toISOString().slice(0, 10),
+    tipo: (movimiento?.tipo || 'DEPOSITO') as TipoMovimiento,
+    descripcion: movimiento?.descripcion || '',
+    referencia: movimiento?.referencia || '',
+    monto: movimiento ? String(movimiento.entrada || movimiento.salida || '') : '',
+    beneficiario: movimiento?.beneficiario || '',
+    notas: movimiento?.notas || '',
+    conciliado: movimiento?.conciliado ?? false,
   });
   const [saving, setSaving] = useState(false);
 
@@ -241,8 +244,17 @@ function NuevoMovimientoModal({
     }
     setSaving(true);
     try {
-      await crearMovimiento({ ...form, cuenta: parseInt(form.cuenta), monto: parseFloat(form.monto) });
-      showToast('Movimiento registrado.', 'success');
+      const payload = {
+        ...form,
+        cuenta: parseInt(form.cuenta),
+        monto: parseFloat(form.monto),
+      };
+      if (movimiento) {
+        await actualizarMovimiento(movimiento.id, payload);
+      } else {
+        await crearMovimiento(payload);
+      }
+      showToast(isEdit ? 'Movimiento actualizado.' : 'Movimiento registrado.', 'success');
       onSaved();
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } };
@@ -256,10 +268,15 @@ function NuevoMovimientoModal({
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
         <div className="flex items-center justify-between p-5 border-b">
-          <h2 className="text-lg font-semibold text-gray-800">Nuevo Movimiento</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{isEdit ? 'Editar Movimiento' : 'Nuevo Movimiento'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
         </div>
         <div className="p-5 space-y-4">
+          {movimiento?.origen !== 'MANUAL' && (
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+              Movimiento vinculado a {movimiento?.origen}: {movimiento?.origen_referencia}. El borrado se mantiene bloqueado para conservar trazabilidad.
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Cuenta *</label>
@@ -291,6 +308,15 @@ function NuevoMovimientoModal({
                 onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
+            <label className="col-span-2 flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.conciliado}
+                onChange={e => setForm(f => ({ ...f, conciliado: e.target.checked }))}
+                className="rounded"
+              />
+              Conciliado
+            </label>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Descripción *</label>
               <input value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
@@ -308,13 +334,19 @@ function NuevoMovimientoModal({
               <input value={form.beneficiario} onChange={e => setForm(f => ({ ...f, beneficiario: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Notas</label>
+              <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
+                rows={2}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
           </div>
         </div>
         <div className="p-5 border-t flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
           <button onClick={handleSave} disabled={saving}
             className="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-            {saving ? 'Guardando…' : 'Registrar'}
+            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Registrar'}
           </button>
         </div>
       </div>
@@ -336,6 +368,7 @@ export default function BancosPage() {
   const [showNuevaCuenta, setShowNuevaCuenta] = useState(false);
   const [editingCuenta, setEditingCuenta] = useState<CuentaBancaria | null>(null);
   const [showNuevoMov, setShowNuevoMov] = useState(false);
+  const [editingMovimiento, setEditingMovimiento] = useState<ExtractoRow | null>(null);
 
   // Filtros extracto
   const [filAnio, setFilAnio] = useState(String(new Date().getFullYear()));
@@ -602,7 +635,7 @@ export default function BancosPage() {
                         {row.beneficiario && <p className="text-xs text-gray-400">{row.beneficiario}</p>}
                         {row.origen !== 'MANUAL' && (
                           <p className="text-xs text-indigo-600">
-                            {row.origen === 'VENTA' ? 'Venta' : 'Pago a proveedor'}: {row.origen_referencia}
+                            {row.origen === 'VENTA' ? 'Venta' : row.origen === 'PAGO_PROVEEDOR' ? 'Pago a proveedor' : 'Nómina'}: {row.origen_referencia}
                           </p>
                         )}
                       </td>
@@ -628,6 +661,14 @@ export default function BancosPage() {
                         }
                       </td>
                       <td className="px-3 py-2 text-center" onClick={event => event.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingMovimiento(row)}
+                          title="Editar movimiento"
+                          className="rounded p-1.5 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600"
+                        >
+                          <Pencil size={15} />
+                        </button>
                         {row.eliminable ? (
                           <button
                             type="button"
@@ -689,6 +730,16 @@ export default function BancosPage() {
           defaultCuentaId={selectedCuenta?.id}
           onClose={() => setShowNuevoMov(false)}
           onSaved={() => { setShowNuevoMov(false); loadExtracto(); loadCuentas(); }}
+        />
+      )}
+
+      {editingMovimiento && (
+        <NuevoMovimientoModal
+          cuentas={cuentas}
+          defaultCuentaId={selectedCuenta?.id}
+          movimiento={editingMovimiento}
+          onClose={() => setEditingMovimiento(null)}
+          onSaved={() => { setEditingMovimiento(null); loadExtracto(); loadCuentas(); }}
         />
       )}
     </div>

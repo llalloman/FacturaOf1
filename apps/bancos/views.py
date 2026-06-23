@@ -59,6 +59,49 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
             'cuenta',
             'pago_venta__venta',
             'pago_proveedor',
+            'pago_nomina__rol__empleado',
+        )
+
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        campos_sensibles = {'cuenta', 'tipo', 'monto'}
+        if instance.conciliado and campos_sensibles.intersection(serializer.validated_data.keys()):
+            raise serializers.ValidationError({
+                'detail': 'No se puede cambiar cuenta, tipo o monto de un movimiento conciliado. Desconcílialo primero.'
+            })
+
+        antes = {
+            'cuenta_id': instance.cuenta_id,
+            'fecha': instance.fecha.isoformat(),
+            'tipo': instance.tipo,
+            'descripcion': instance.descripcion,
+            'referencia': instance.referencia,
+            'monto': str(instance.monto),
+            'conciliado': instance.conciliado,
+            'beneficiario': instance.beneficiario,
+            'notas': instance.notas,
+        }
+        updated = serializer.save()
+        despues = {
+            'cuenta_id': updated.cuenta_id,
+            'fecha': updated.fecha.isoformat(),
+            'tipo': updated.tipo,
+            'descripcion': updated.descripcion,
+            'referencia': updated.referencia,
+            'monto': str(updated.monto),
+            'conciliado': updated.conciliado,
+            'beneficiario': updated.beneficiario,
+            'notas': updated.notas,
+        }
+        AuditLog.objects.create(
+            empresa=updated.cuenta.empresa,
+            usuario=self.request.user,
+            accion='EDITAR_MOVIMIENTO_BANCARIO',
+            modulo='bancos',
+            referencia=str(updated.pk),
+            datos={'antes': antes, 'despues': despues},
         )
 
     @transaction.atomic
@@ -75,6 +118,13 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
                 'detail': (
                     'Este movimiento fue generado por un pago a proveedor. '
                     'Anula o elimina el pago de origen para mantener la trazabilidad.'
+                )
+            })
+        if hasattr(instance, 'pago_nomina'):
+            raise serializers.ValidationError({
+                'detail': (
+                    'Este movimiento fue generado por un pago de nómina. '
+                    'Anula o revisa el rol de pago de origen para mantener la trazabilidad.'
                 )
             })
 
@@ -146,6 +196,7 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
                 'descripcion':  m.descripcion,
                 'referencia':   m.referencia,
                 'beneficiario': m.beneficiario,
+                'notas':        m.notas,
                 'entrada':      float(m.monto) if m.tipo in ENTRADAS else 0,
                 'salida':       float(m.monto) if m.tipo not in ENTRADAS else 0,
                 'saldo':        float(saldo),

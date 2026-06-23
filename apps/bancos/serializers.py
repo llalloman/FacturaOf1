@@ -37,6 +37,19 @@ class MovimientoBancarioSerializer(serializers.ModelSerializer):
             'origen', 'origen_referencia', 'eliminable',
         ]
 
+
+    def validate_cuenta(self, cuenta):
+        request = self.context.get('request')
+        if request and not request.user.is_superuser and getattr(request.user, 'empresa_id', None):
+            if cuenta.empresa_id != request.user.empresa_id:
+                raise serializers.ValidationError('La cuenta no pertenece a tu empresa.')
+        return cuenta
+
+    def validate_monto(self, monto):
+        if monto <= 0:
+            raise serializers.ValidationError('El monto debe ser mayor a cero.')
+        return monto
+
     def get_cuenta_label(self, obj):
         return str(obj.cuenta)
 
@@ -45,6 +58,8 @@ class MovimientoBancarioSerializer(serializers.ModelSerializer):
             return 'VENTA'
         if hasattr(obj, 'pago_proveedor'):
             return 'PAGO_PROVEEDOR'
+        if hasattr(obj, 'pago_nomina'):
+            return 'NOMINA'
         return 'MANUAL'
 
     def get_origen_referencia(self, obj):
@@ -52,6 +67,9 @@ class MovimientoBancarioSerializer(serializers.ModelSerializer):
             return obj.pago_venta.venta.numero_venta
         if hasattr(obj, 'pago_proveedor'):
             return obj.pago_proveedor.numero_pago
+        if hasattr(obj, 'pago_nomina'):
+            rol = obj.pago_nomina.rol
+            return f'Rol {rol.mes}/{rol.anio} - {rol.empleado.nombre_completo}'
         return ''
 
     def get_eliminable(self, obj):

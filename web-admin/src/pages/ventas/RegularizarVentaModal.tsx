@@ -175,7 +175,9 @@ function RegularizacionForm({
                       >
                         <option value="">Sin asignar</option>
                         {data.proveedores.map(proveedor => (
-                          <option key={proveedor.id} value={proveedor.id}>{proveedor.razon_social}</option>
+                          <option key={proveedor.id} value={proveedor.id}>
+                            {proveedor.razon_social}{proveedor.identificacion ? ` - ${proveedor.identificacion}` : ''}
+                          </option>
                         ))}
                       </select>
                     </label>

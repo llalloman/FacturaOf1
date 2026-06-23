@@ -21,6 +21,7 @@ import {
   Users,
   Plus,
   Link2,
+  Pencil,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -46,6 +47,8 @@ export default function VentasPage() {
   const [soloInconsistentes, setSoloInconsistentes] = useState(true);
   const [nuevaVentaOpen, setNuevaVentaOpen] = useState(false);
   const [regularizarVentaId, setRegularizarVentaId] = useState<number | null>(null);
+  const [editingFechaVenta, setEditingFechaVenta] = useState<Venta | null>(null);
+  const [linkingFacturaVenta, setLinkingFacturaVenta] = useState<Venta | null>(null);
 
   const { data: ventas = [], isLoading: isLoadingVentas } = useQuery({
     queryKey: ['ventas', dateFrom, dateTo, vista],
@@ -93,13 +96,45 @@ export default function VentasPage() {
     ? clientes.find((c) => c.id === clienteIdOverride)
     : null;
 
+  const invalidateVentas = () => {
+    queryClient.invalidateQueries({ queryKey: ['ventas'] });
+    queryClient.invalidateQueries({ queryKey: ['ventas-notas'] });
+    queryClient.invalidateQueries({ queryKey: ['ventas-coherencia'] });
+    queryClient.invalidateQueries({ queryKey: ['facturas'] });
+  };
+
+  const actualizarFechaMutation = useMutation({
+    mutationFn: ventasService.actualizarFecha,
+    onSuccess: (ventaActualizada) => {
+      invalidateVentas();
+      setSelectedVenta(current => current?.id === ventaActualizada.id ? ventaActualizada : current);
+      setEditingFechaVenta(null);
+      toast.success('Fecha de venta actualizada.');
+    },
+    onError: (error: unknown) => {
+      const data = (error as { response?: { data?: { detail?: string } } })?.response?.data;
+      toast.error(data?.detail || 'No se pudo actualizar la fecha.');
+    },
+  });
+
+  const vincularFacturaMutation = useMutation({
+    mutationFn: ventasService.vincularFactura,
+    onSuccess: (ventaActualizada) => {
+      invalidateVentas();
+      setSelectedVenta(current => current?.id === ventaActualizada.id ? ventaActualizada : current);
+      setLinkingFacturaVenta(null);
+      toast.success('Factura vinculada a la venta.');
+    },
+    onError: (error: unknown) => {
+      const data = (error as { response?: { data?: { detail?: string; error?: string } } })?.response?.data;
+      toast.error(data?.detail || data?.error || 'No se pudo vincular la factura.');
+    },
+  });
+
   const facturarMutation = useMutation({
     mutationFn: ventasService.generarFactura,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['ventas'] });
-      queryClient.invalidateQueries({ queryKey: ['ventas-notas'] });
-      queryClient.invalidateQueries({ queryKey: ['ventas-coherencia'] });
-      queryClient.invalidateQueries({ queryKey: ['facturas'] });
+      invalidateVentas();
       const sri = data?.sri;
       if (sri?.success) {
         toast.success(sri?.mensaje || 'Factura generada y enviada al SRI');
@@ -434,6 +469,15 @@ export default function VentasPage() {
                         >
                           <Eye size={18} />
                         </button>
+                        {venta.estado === 'COMPLETADA' && (
+                          <button
+                            onClick={() => setEditingFechaVenta(venta)}
+                            className="p-2 text-slate-700 hover:bg-slate-50 rounded-lg transition-colors"
+                            title="Editar fecha de venta"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                        )}
                         {!venta.factura_detalle && venta.estado === 'COMPLETADA' && (
                           <button
                             onClick={() => { setVentaToFacturar(venta); setClienteIdOverride(null); setClienteSearch(''); }}
@@ -442,6 +486,16 @@ export default function VentasPage() {
                             title="Generar factura desde esta nota de venta"
                           >
                             <ReceiptText size={18} />
+                          </button>
+                        )}
+                        {!venta.factura_detalle && venta.estado === 'COMPLETADA' && (
+                          <button
+                            onClick={() => setLinkingFacturaVenta(venta)}
+                            disabled={vincularFacturaMutation.isPending}
+                            className="p-2 text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Vincular factura existente"
+                          >
+                            <Link2 size={18} />
                           </button>
                         )}
                       </td>
@@ -732,6 +786,12 @@ export default function VentasPage() {
               </div>
             </div>
             <div className="p-6 pt-3 border-t flex gap-3 sticky bottom-0 bg-white">
+              {selectedVenta.estado === 'COMPLETADA' && (
+                <button onClick={() => setEditingFechaVenta(selectedVenta)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors">Fecha</button>
+              )}
+              {!selectedVenta.factura_detalle && selectedVenta.estado === 'COMPLETADA' && (
+                <button onClick={() => setLinkingFacturaVenta(selectedVenta)} className="px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg font-medium transition-colors">Vincular factura</button>
+              )}
               <button onClick={() => setSelectedVenta(null)} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors">Cerrar</button>
             </div>
           </div>
@@ -752,6 +812,24 @@ export default function VentasPage() {
         />
       )}
 
+      {editingFechaVenta && (
+        <EditarFechaVentaModal
+          venta={editingFechaVenta}
+          saving={actualizarFechaMutation.isPending}
+          onClose={() => setEditingFechaVenta(null)}
+          onSave={(fecha_venta) => actualizarFechaMutation.mutate({ id: editingFechaVenta.id, fecha_venta })}
+        />
+      )}
+
+      {linkingFacturaVenta && (
+        <VincularFacturaModal
+          venta={linkingFacturaVenta}
+          saving={vincularFacturaMutation.isPending}
+          onClose={() => setLinkingFacturaVenta(null)}
+          onSave={(factura) => vincularFacturaMutation.mutate({ id: linkingFacturaVenta.id, factura })}
+        />
+      )}
+
       {regularizarVentaId !== null && (
         <RegularizarVentaModal
           ventaId={regularizarVentaId}
@@ -763,6 +841,133 @@ export default function VentasPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+
+function toLocalInput(value: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+}
+
+function EditarFechaVentaModal({
+  venta, saving, onClose, onSave,
+}: {
+  venta: Venta;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (fecha: string) => void;
+}) {
+  const [fecha, setFecha] = useState(toLocalInput(venta.fecha_venta));
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+        <div className="p-6 border-b flex justify-between items-start">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Editar fecha de venta</h3>
+            <p className="text-sm text-gray-500">{venta.numero_venta}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+        <div className="p-6 space-y-3">
+          <label className="block text-sm font-medium text-gray-700">
+            Fecha de venta
+            <input
+              type="datetime-local"
+              value={fecha}
+              onChange={(event) => setFecha(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-600"
+            />
+          </label>
+          <p className="text-xs text-gray-500">También se actualizarán los pagos y movimientos bancarios vinculados a esta venta.</p>
+        </div>
+        <div className="p-6 border-t flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700">Cancelar</button>
+          <button onClick={() => onSave(fecha)} disabled={saving || !fecha} className="px-4 py-2 rounded-lg bg-blue-600 text-sm font-semibold text-white disabled:opacity-50">
+            {saving ? 'Guardando...' : 'Guardar fecha'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VincularFacturaModal({
+  venta, saving, onClose, onSave,
+}: {
+  venta: Venta;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (factura: number) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [selectedFactura, setSelectedFactura] = useState<number | null>(null);
+  const { data: facturas = [], isLoading } = useQuery({
+    queryKey: ['ventas-facturas-disponibles', venta.id, search],
+    queryFn: () => ventasService.getFacturasDisponibles(venta.id, search),
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[88vh] flex flex-col">
+        <div className="p-6 border-b flex justify-between items-start">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Vincular factura existente</h3>
+            <p className="text-sm text-gray-500">{venta.numero_venta} - total ${Number(venta.total || 0).toFixed(2)}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+        <div className="p-6 space-y-4 overflow-y-auto">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar por número, cliente o identificación"
+              className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-600"
+            />
+          </div>
+          {isLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Buscando facturas...</p>
+          ) : facturas.length === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-400">No hay facturas disponibles para vincular.</p>
+          ) : (
+            <div className="divide-y divide-gray-100 rounded-lg border border-gray-100">
+              {facturas.map((factura) => {
+                const totalOk = Math.abs(Number(factura.total || 0) - Number(venta.total || 0)) <= 0.01;
+                return (
+                  <button
+                    key={factura.id}
+                    type="button"
+                    onClick={() => setSelectedFactura(factura.id)}
+                    className={`w-full px-4 py-3 text-left text-sm hover:bg-indigo-50 ${selectedFactura === factura.id ? 'bg-indigo-50' : ''}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-mono font-semibold text-gray-800">{factura.numero_factura}</p>
+                        <p className="text-xs text-gray-500">{factura.cliente_nombre} - {factura.estado}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-semibold ${totalOk ? 'text-gray-900' : 'text-red-600'}`}>${Number(factura.total || 0).toFixed(2)}</p>
+                        {!totalOk && <p className="text-xs text-red-500">Total distinto</p>}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="p-6 border-t flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700">Cancelar</button>
+          <button onClick={() => selectedFactura && onSave(selectedFactura)} disabled={saving || !selectedFactura} className="px-4 py-2 rounded-lg bg-indigo-600 text-sm font-semibold text-white disabled:opacity-50">
+            {saving ? 'Vinculando...' : 'Vincular factura'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

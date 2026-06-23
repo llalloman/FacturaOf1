@@ -17,6 +17,11 @@ const IVA_RATES: Record<string, number> = {
 };
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
+const nowLocalInput = () => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 16);
+};
 const calcIva = (subtotal: number, porcentaje: string) => round2(subtotal * (IVA_RATES[porcentaje] ?? 0.12));
 
 const formaPagoLabels: Record<FormaPago, string> = {
@@ -41,6 +46,7 @@ export default function NuevaVentaModal({ onClose, onCreated }: NuevaVentaModalP
   const [formaPago, setFormaPago] = useState<FormaPago>('TRANSFERENCIA');
   const [cuentaBancariaId, setCuentaBancariaId] = useState<number | ''>('');
   const [generaFactura, setGeneraFactura] = useState(true);
+  const [fechaVenta, setFechaVenta] = useState(nowLocalInput());
 
   const { data: clientes = [], isLoading: loadingClientes } = useQuery({
     queryKey: ['clientes-pos', clienteSearch],
@@ -92,6 +98,7 @@ export default function NuevaVentaModal({ onClose, onCreated }: NuevaVentaModalP
           cuenta_bancaria: requiereCuenta ? Number(cuentaBancariaId) : null,
         }],
         genera_factura: generaFactura,
+        fecha_venta: fechaVenta,
       });
     },
     onSuccess: () => {
@@ -318,6 +325,15 @@ export default function NuevaVentaModal({ onClose, onCreated }: NuevaVentaModalP
 
             <section className="grid gap-4 rounded-xl border border-gray-200 p-4 md:grid-cols-[1fr_0.8fr]">
               <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Fecha de venta
+                  <input
+                    type="datetime-local"
+                    value={fechaVenta}
+                    onChange={(event) => setFechaVenta(event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-600"
+                  />
+                </label>
                 <label className="block text-sm font-medium text-gray-700">
                   Forma de pago
                   <select

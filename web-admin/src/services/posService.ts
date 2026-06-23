@@ -39,11 +39,13 @@ export const posService = {
     detalles: ItemCarrito[];
     pagos: PagoPOS[];
     genera_factura?: boolean;
+    fecha_venta?: string;
   }) => {
     const body = {
       caja: payload.caja,
       cliente: payload.cliente,
       genera_factura: payload.genera_factura ?? true,
+      fecha_venta: payload.fecha_venta,
       detalles: payload.detalles.map((d) => ({
         producto: d.producto_id,
         cantidad: d.cantidad,

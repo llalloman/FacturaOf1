@@ -73,7 +73,7 @@ class VentaSerializer(serializers.ModelSerializer):
         model = Venta
         fields = '__all__'
         read_only_fields = [
-            'empresa', 'fecha_venta', 'usuario', 'numero_venta',
+            'empresa', 'usuario', 'numero_venta',
             'apertura_caja', 'subtotal', 'subtotal_0', 'subtotal_12',
             'subtotal_15', 'iva', 'total', 'descuento',
         ]
@@ -237,6 +237,7 @@ class VentaSerializer(serializers.ModelSerializer):
             DetalleVenta.objects.create(venta=venta, **detalle_data)
 
         for pago_data in pagos_data:
+            pago_data.setdefault('fecha_pago', venta.fecha_venta)
             PagoVenta.objects.create(venta=venta, **pago_data)
 
         # ── Auto-generar factura electrónica si se solicitó ───────────────
