@@ -161,13 +161,14 @@ class PagoRolSerializer(serializers.ModelSerializer):
 
 class RolPagoSerializer(serializers.ModelSerializer):
     empleado_nombre = serializers.SerializerMethodField()
+    empleado_afiliado_iess = serializers.BooleanField(source='empleado.afiliado_iess', read_only=True)
     detalles = DetalleRolPagoSerializer(many=True, read_only=True)
     pago_nomina = PagoRolSerializer(read_only=True)
 
     class Meta:
         model = RolPago
         fields = [
-            'id', 'empleado', 'empleado_nombre', 'anio', 'mes', 'estado',
+            'id', 'empleado', 'empleado_nombre', 'empleado_afiliado_iess', 'anio', 'mes', 'estado',
             'sueldo_base', 'horas_extra_25', 'horas_extra_100',
             'comisiones', 'bonos', 'otros_ingresos',
             'aporte_patronal', 'decimo_tercero', 'decimo_cuarto',

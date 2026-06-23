@@ -72,6 +72,7 @@ export interface RolPago {
   id: number;
   empleado: number;
   empleado_nombre: string;
+  empleado_afiliado_iess: boolean;
   anio: number;
   mes: number;
   estado: EstadoRol;
@@ -168,6 +169,9 @@ export const aprobarRol = (id: number) =>
 
 export const marcarPagadoRol = (id: number, data: { cuenta_bancaria?: number | null; fecha_pago?: string; referencia?: string; notas?: string } = {}) =>
   apiClient.post(`/nomina/roles/${id}/marcar_pagado/`, data).then(r => r.data);
+
+export const enviarRolEmail = (id: number) =>
+  apiClient.post<{ detail: string }>(`/nomina/roles/${id}/enviar_email/`).then(r => r.data);
 
 export const getResumenNomina = (anio?: string, mes?: string) =>
   apiClient.get<ResumenNomina>('/nomina/roles/resumen/', { params: { anio, mes } }).then(r => r.data);

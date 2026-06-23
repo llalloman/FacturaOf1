@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
+from django.conf import settings
+from django.core.mail import EmailMessage
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
@@ -68,6 +70,62 @@ def ensure_default_rubros(empresa):
 
 def periodo_fecha(anio, mes):
     return date(int(anio), int(mes), 1)
+
+
+MESES_NOMINA = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+
+def money_text(value):
+    return f"${Decimal(value or 0):,.2f}"
+
+
+def construir_texto_rol_pago(rol):
+    detalles = list(rol.detalles.select_related('rubro').all())
+    ingresos = [d for d in detalles if d.tipo == RubroNomina.TipoChoices.INGRESO]
+    descuentos = [d for d in detalles if d.tipo == RubroNomina.TipoChoices.DESCUENTO]
+    empresa = rol.empresa
+    empleado = rol.empleado
+    periodo = f"{MESES_NOMINA[rol.mes]} {rol.anio}" if 0 < int(rol.mes) < len(MESES_NOMINA) else f"{rol.mes}/{rol.anio}"
+
+    lines = [
+        f"Rol de pago - {periodo}",
+        '',
+        f"Empresa: {getattr(empresa, 'razon_social', '') or empresa}",
+        f"Empleado: {empleado.nombre_completo}",
+        f"Identificación: {empleado.cedula}",
+        f"Cargo: {empleado.cargo or '-'}",
+        f"Estado: {rol.estado}",
+        '',
+        'INGRESOS',
+    ]
+    if ingresos:
+        for detalle in ingresos:
+            lines.append(f"- {detalle.descripcion}: {money_text(detalle.valor_total)}")
+    else:
+        lines.append('- Sin ingresos registrados')
+
+    lines.extend(['', 'DESCUENTOS'])
+    lines.append(f"- Aporte personal IESS: {money_text(rol.aporte_personal)}")
+    if descuentos:
+        for detalle in descuentos:
+            lines.append(f"- {detalle.descripcion}: {money_text(detalle.valor_total)}")
+
+    lines.extend([
+        '',
+        f"Total ingresos: {money_text(rol.total_ingresos)}",
+        f"Total descuentos: {money_text(rol.total_descuentos)}",
+        f"Líquido a pagar: {money_text(rol.liquido_a_pagar)}",
+    ])
+    try:
+        pago_nomina = rol.pago_nomina
+    except PagoRol.DoesNotExist:
+        pago_nomina = None
+    if pago_nomina:
+        lines.extend(['', f"Pago registrado: {pago_nomina.fecha_pago}"])
+    if rol.notas:
+        lines.extend(['', f"Notas: {rol.notas}"])
+    lines.extend(['', 'Este correo fue generado desde FacturaOF1.'])
+    return '\n'.join(lines)
 
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
@@ -293,6 +351,28 @@ class RolPagoViewSet(viewsets.ModelViewSet):
         rol.estado = RolPago.EstadoChoices.PAGADO
         rol.save()
         return Response(RolPagoSerializer(rol).data)
+
+    @action(detail=True, methods=['post'])
+    def enviar_email(self, request, pk=None):
+        rol = self.get_object()
+        destino = (rol.empleado.email or '').strip()
+        if not destino:
+            return Response({'detail': 'El empleado no tiene email registrado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        periodo = f"{MESES_NOMINA[rol.mes]} {rol.anio}" if 0 < int(rol.mes) < len(MESES_NOMINA) else f"{rol.mes}/{rol.anio}"
+        subject = f"Rol de pago {periodo} - {rol.empleado.nombre_completo}"
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or getattr(settings, 'EMAIL_HOST_USER', '') or None
+        message = EmailMessage(
+            subject=subject,
+            body=construir_texto_rol_pago(rol),
+            from_email=from_email,
+            to=[destino],
+        )
+        try:
+            message.send(fail_silently=False)
+        except Exception as exc:
+            return Response({'detail': f'No se pudo enviar el rol: {exc}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'detail': f'Rol enviado a {destino}.'})
 
     @action(detail=False, methods=['get'])
     def resumen(self, request):

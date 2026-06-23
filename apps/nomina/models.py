@@ -306,10 +306,16 @@ class RolPago(models.Model):
         descuentos_clasificados = self.impuesto_renta + self.anticipos
         self.otros_descuentos = money(total_descuentos_manuales - descuentos_clasificados)
 
-        self.decimo_tercero = money(base_iess * parametro.decimo_tercero_factor)
-        self.decimo_cuarto = money(parametro.sbu / Decimal('12'))
-        self.vacaciones = money(base_iess * parametro.vacaciones_factor)
-        self.fondos_reserva = money(base_iess * parametro.fondo_reserva_factor)
+        if self.empleado.afiliado_iess:
+            self.decimo_tercero = money(base_iess * parametro.decimo_tercero_factor)
+            self.decimo_cuarto = money(parametro.sbu / Decimal('12'))
+            self.vacaciones = money(base_iess * parametro.vacaciones_factor)
+            self.fondos_reserva = money(base_iess * parametro.fondo_reserva_factor)
+        else:
+            self.decimo_tercero = ZERO
+            self.decimo_cuarto = ZERO
+            self.vacaciones = ZERO
+            self.fondos_reserva = ZERO
 
         self.total_ingresos = total_ingresos
         self.total_descuentos = money(self.aporte_personal + total_descuentos_manuales)
@@ -329,12 +335,17 @@ class RolPago(models.Model):
         if self.empleado.afiliado_iess:
             self.aporte_personal = money(self.sueldo_base * parametro.aporte_personal_iess)
             self.aporte_patronal = money(self.sueldo_base * parametro.aporte_patronal_iess)
+            self.decimo_tercero = money(self.sueldo_base * parametro.decimo_tercero_factor)
+            self.decimo_cuarto = money(parametro.sbu / Decimal('12'))
+            self.vacaciones = money(self.sueldo_base * parametro.vacaciones_factor)
+            self.fondos_reserva = money(self.sueldo_base * parametro.fondo_reserva_factor)
         else:
             self.aporte_personal = ZERO
             self.aporte_patronal = ZERO
-        self.decimo_tercero = money(self.sueldo_base * parametro.decimo_tercero_factor)
-        self.decimo_cuarto = money(parametro.sbu / Decimal('12'))
-        self.vacaciones = money(self.sueldo_base * parametro.vacaciones_factor)
+            self.decimo_tercero = ZERO
+            self.decimo_cuarto = ZERO
+            self.vacaciones = ZERO
+            self.fondos_reserva = ZERO
         self.total_descuentos = money(
             self.aporte_personal + self.impuesto_renta + self.anticipos + self.otros_descuentos
         )
