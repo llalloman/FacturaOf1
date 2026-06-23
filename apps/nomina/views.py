@@ -21,6 +21,7 @@ from .models import (
     RolPago,
     RubroNomina,
 )
+from .services.rol_pdf_service import generar_rol_pago_pdf
 from .serializers import (
     ConceptoEmpleadoNominaSerializer,
     DetalleRolPagoSerializer,
@@ -364,15 +365,26 @@ class RolPagoViewSet(viewsets.ModelViewSet):
         from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or getattr(settings, 'EMAIL_HOST_USER', '') or None
         message = EmailMessage(
             subject=subject,
-            body=construir_texto_rol_pago(rol),
+            body=(
+                f'Estimado/a {rol.empleado.nombre_completo},\n\n'
+                f'Adjunto encontrará su rol de pago correspondiente a {periodo}.\n\n'
+                f'Saludos,\n{rol.empresa.razon_social}'
+            ),
             from_email=from_email,
             to=[destino],
         )
         try:
+            pdf_bytes = generar_rol_pago_pdf(rol)
+            filename = f'rol_pago_{rol.anio}_{rol.mes:02d}_{rol.empleado.cedula or rol.id}.pdf'
+            message.attach(filename, pdf_bytes, 'application/pdf')
+        except Exception as exc:
+            return Response({'detail': f'No se pudo generar el PDF del rol: {exc}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        try:
             message.send(fail_silently=False)
         except Exception as exc:
             return Response({'detail': f'No se pudo enviar el rol: {exc}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response({'detail': f'Rol enviado a {destino}.'})
+        return Response({'detail': f'Rol enviado a {destino} con PDF adjunto.'})
 
     @action(detail=False, methods=['get'])
     def resumen(self, request):
