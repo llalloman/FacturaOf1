@@ -238,6 +238,7 @@ class VentaSerializer(serializers.ModelSerializer):
 
         for pago_data in pagos_data:
             pago_data.setdefault('fecha_pago', venta.fecha_venta)
+            pago_data['estado_pago'] = PagoVenta.EstadoPagoChoices.PENDIENTE
             PagoVenta.objects.create(venta=venta, **pago_data)
 
         # ── Auto-generar factura electrónica si se solicitó ───────────────

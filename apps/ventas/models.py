@@ -296,7 +296,7 @@ class PagoVenta(models.Model):
     """
     Pagos de una venta (puede ser múltiples formas de pago)
     """
-    
+
     class FormaPagoChoices(models.TextChoices):
         EFECTIVO = 'EFECTIVO', _('Efectivo')
         TARJETA_DEBITO = 'TARJETA_DEBITO', _('Tarjeta Débito')
@@ -304,6 +304,10 @@ class PagoVenta(models.Model):
         TRANSFERENCIA = 'TRANSFERENCIA', _('Transferencia')
         CHEQUE = 'CHEQUE', _('Cheque')
         CREDITO = 'CREDITO', _('Crédito')
+
+    class EstadoPagoChoices(models.TextChoices):
+        PENDIENTE = 'PENDIENTE', _('Pendiente')
+        PAGADO = 'PAGADO', _('Pagado')
     
     venta = models.ForeignKey(
         Venta,
@@ -335,7 +339,13 @@ class PagoVenta(models.Model):
     )
     monto = models.DecimalField(_('monto'), max_digits=12, decimal_places=2)
     referencia = models.CharField(_('referencia'), max_length=100, blank=True)
-    
+    estado_pago = models.CharField(
+        _('estado pago'),
+        max_length=20,
+        choices=EstadoPagoChoices.choices,
+        default=EstadoPagoChoices.PENDIENTE,
+    )
+
     fecha_pago = models.DateTimeField(_('fecha pago'), default=timezone.now)
     
     class Meta:

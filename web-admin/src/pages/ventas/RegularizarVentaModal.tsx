@@ -131,8 +131,8 @@ function RegularizacionForm({
                       ))}
                     </select>
                   ) : <span className="text-sm text-gray-500">Genera cuenta por cobrar</span>}
-                  <span className={`text-xs font-medium ${pago.movimiento_bancario ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {pago.movimiento_bancario ? 'Vinculado' : pago.requiere_cuenta ? 'Pendiente' : 'Crédito'}
+                  <span className={`text-xs font-medium ${pago.estado_pago === 'PAGADO' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {pago.estado_pago === 'PAGADO' ? 'Pagado' : pago.requiere_cuenta ? 'Pago pendiente' : 'Crédito pendiente'}
                   </span>
                 </div>
               );

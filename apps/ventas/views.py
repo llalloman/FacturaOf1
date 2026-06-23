@@ -7,7 +7,7 @@ from django.db.models import Sum, Count, Q
 from django.db import transaction
 from django.utils import timezone
 from decimal import Decimal, ROUND_HALF_UP
-from .models import Caja, AperturaCaja, Venta, MovimientoCaja
+from .models import Caja, AperturaCaja, Venta, PagoVenta, MovimientoCaja
 from .serializers import (
     CajaSerializer, AperturaCajaSerializer, VentaSerializer,
     VentaSyncSerializer, MovimientoCajaSerializer
@@ -239,6 +239,77 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+
+    @action(detail=True, methods=['post'], url_path='marcar-pago')
+    @transaction.atomic
+    def marcar_pago(self, request, pk=None):
+        """Marca un pago de la venta como pagado y crea el movimiento bancario."""
+        venta = self.get_object()
+        if venta.estado == 'ANULADA':
+            return Response({'detail': 'No se puede registrar pago de una venta anulada.'}, status=400)
+
+        pago_id = request.data.get('pago') or request.data.get('pago_id')
+        if not pago_id:
+            return Response({'detail': 'Se requiere pago.'}, status=400)
+
+        try:
+            pago = venta.pagos.select_related('cuenta_bancaria', 'movimiento_bancario', 'venta__cliente').get(pk=pago_id)
+        except PagoVenta.DoesNotExist:
+            return Response({'detail': 'El pago no pertenece a esta venta.'}, status=404)
+
+        if pago.estado_pago == PagoVenta.EstadoPagoChoices.PAGADO and pago.movimiento_bancario_id:
+            return Response({'detail': 'Este pago ya está marcado como pagado.'}, status=400)
+
+        cuenta = pago.cuenta_bancaria
+        cuenta_id = request.data.get('cuenta_bancaria')
+        if cuenta_id:
+            from apps.bancos.models import CuentaBancaria
+            cuenta = CuentaBancaria.objects.filter(pk=cuenta_id, empresa=venta.empresa, activa=True).first()
+            if not cuenta:
+                return Response({'detail': 'Cuenta bancaria no encontrada o inactiva.'}, status=404)
+
+        fecha_pago = request.data.get('fecha_pago')
+        if fecha_pago:
+            field = serializers.DateTimeField()
+            try:
+                fecha_pago = field.to_internal_value(fecha_pago)
+            except serializers.ValidationError:
+                return Response({'detail': 'La fecha de pago no es válida.'}, status=400)
+        else:
+            fecha_pago = timezone.now()
+
+        referencia = (request.data.get('referencia') or '').strip()
+        try:
+            from apps.ventas.finance import confirmar_pago_venta
+            movimiento = confirmar_pago_venta(
+                pago,
+                cuenta=cuenta,
+                fecha_pago=fecha_pago,
+                referencia=referencia,
+                usuario=request.user,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=400)
+
+        from apps.core.models import AuditLog
+        AuditLog.objects.create(
+            empresa=venta.empresa,
+            usuario=request.user,
+            accion='MARCAR_PAGO_VENTA',
+            modulo='ventas',
+            referencia=venta.numero_venta,
+            datos={
+                'pago_id': pago.id,
+                'cuenta_id': cuenta.id if cuenta else None,
+                'movimiento_bancario_id': movimiento.id if movimiento else None,
+                'fecha_pago': pago.fecha_pago.isoformat() if pago.fecha_pago else None,
+                'referencia': pago.referencia,
+            },
+        )
+
+        venta.refresh_from_db()
+        return Response(self.get_serializer(venta).data)
 
     @action(detail=True, methods=['post'], url_path='actualizar-fecha')
     @transaction.atomic
@@ -545,6 +616,9 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
                 'monto': float(pago.monto),
                 'cuenta_bancaria': pago.cuenta_bancaria_id,
                 'movimiento_bancario': pago.movimiento_bancario_id,
+                'estado_pago': pago.estado_pago,
+                'fecha_pago': pago.fecha_pago,
+                'referencia': pago.referencia,
                 'requiere_cuenta': pago.forma_pago != 'CREDITO',
             })
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ventasService } from '../../services/ventasService';
 import { clientesService } from '../../services/clientesService';
+import { getResumen, type CuentaBancaria } from '../../services/bancosService';
 import type { Cliente, CoherenciaFacturacionItem, Venta } from '../../types';
 import {
   ShoppingCart,
@@ -49,6 +50,7 @@ export default function VentasPage() {
   const [regularizarVentaId, setRegularizarVentaId] = useState<number | null>(null);
   const [editingFechaVenta, setEditingFechaVenta] = useState<Venta | null>(null);
   const [linkingFacturaVenta, setLinkingFacturaVenta] = useState<Venta | null>(null);
+  const [payingVenta, setPayingVenta] = useState<{ venta: Venta; pago: NonNullable<Venta['pagos']>[number] } | null>(null);
 
   const { data: ventas = [], isLoading: isLoadingVentas } = useQuery({
     queryKey: ['ventas', dateFrom, dateTo, vista],
@@ -80,6 +82,14 @@ export default function VentasPage() {
       }),
     enabled: seccion === 'coherencia',
   });
+
+  const { data: resumenBancos } = useQuery({
+    queryKey: ['bancos-resumen-ventas-pagos'],
+    queryFn: getResumen,
+    enabled: payingVenta !== null,
+  });
+
+  const cuentasActivas = (resumenBancos?.cuentas ?? []).filter((cuenta: CuentaBancaria) => cuenta.activa);
 
   const { data: clientes = [] } = useQuery<Cliente[]>({
     queryKey: ['clientes'],
@@ -128,6 +138,22 @@ export default function VentasPage() {
     onError: (error: unknown) => {
       const data = (error as { response?: { data?: { detail?: string; error?: string } } })?.response?.data;
       toast.error(data?.detail || data?.error || 'No se pudo vincular la factura.');
+    },
+  });
+
+  const marcarPagoMutation = useMutation({
+    mutationFn: ventasService.marcarPago,
+    onSuccess: (ventaActualizada) => {
+      invalidateVentas();
+      queryClient.invalidateQueries({ queryKey: ['bancos'] });
+      queryClient.invalidateQueries({ queryKey: ['bancos-resumen-ventas-pagos'] });
+      setSelectedVenta(current => current?.id === ventaActualizada.id ? ventaActualizada : current);
+      setPayingVenta(null);
+      toast.success('Pago marcado como pagado y registrado en bancos.');
+    },
+    onError: (error: unknown) => {
+      const data = (error as { response?: { data?: { detail?: string } } })?.response?.data;
+      toast.error(data?.detail || 'No se pudo marcar el pago.');
     },
   });
 
@@ -437,9 +463,9 @@ export default function VentasPage() {
                       </td>
                       <td className="px-6 py-4">
                         {(venta.pagos ?? []).map((p, i) => (
-                          <span key={i} className={`px-2 py-1 rounded-full text-xs font-semibold mr-1 ${metodoPagoColor[p.forma_pago] || 'bg-gray-100 text-gray-700'}`}>
+                          <span key={i} className={`px-2 py-1 rounded-full text-xs font-semibold mr-1 ${p.estado_pago === 'PAGADO' ? 'bg-emerald-100 text-emerald-700' : metodoPagoColor[p.forma_pago] || 'bg-gray-100 text-gray-700'}`}>
                             <CreditCard size={10} className="inline mr-1" />
-                            {metodoPagoMap[p.forma_pago] || p.forma_pago}
+                            {metodoPagoMap[p.forma_pago] || p.forma_pago} · {p.estado_pago === 'PAGADO' ? 'Pagado' : 'Pendiente'}
                           </span>
                         ))}
                       </td>
@@ -760,6 +786,37 @@ export default function VentasPage() {
                 </div>
               )}
 
+              {selectedVenta.pagos && selectedVenta.pagos.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-3">Estado de pagos</h3>
+                  <div className="divide-y rounded-lg border border-gray-100 bg-white">
+                    {selectedVenta.pagos.map((pago) => (
+                      <div key={pago.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                        <div>
+                          <p className="font-medium text-gray-800">{metodoPagoMap[pago.forma_pago] || pago.forma_pago}</p>
+                          <p className="text-xs text-gray-500">
+                            ${Number(pago.monto || 0).toFixed(2)}{pago.referencia ? ` · Ref. ${pago.referencia}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${pago.estado_pago === 'PAGADO' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {pago.estado_pago === 'PAGADO' ? 'Pagado' : 'Pendiente'}
+                          </span>
+                          {pago.estado_pago !== 'PAGADO' && selectedVenta.estado === 'COMPLETADA' && (
+                            <button
+                              onClick={() => setPayingVenta({ venta: selectedVenta, pago })}
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                            >
+                              Marcar pagado
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="border-t-2 pt-4 space-y-2 bg-blue-50 p-4 rounded-lg">
                 {Number(selectedVenta.subtotal || 0) > 0 && (
                   <div className="flex justify-between text-sm">
@@ -827,6 +884,21 @@ export default function VentasPage() {
           saving={vincularFacturaMutation.isPending}
           onClose={() => setLinkingFacturaVenta(null)}
           onSave={(factura) => vincularFacturaMutation.mutate({ id: linkingFacturaVenta.id, factura })}
+        />
+      )}
+
+      {payingVenta && (
+        <MarcarPagoVentaModal
+          venta={payingVenta.venta}
+          pago={payingVenta.pago}
+          cuentas={cuentasActivas}
+          saving={marcarPagoMutation.isPending}
+          onClose={() => setPayingVenta(null)}
+          onSave={(payload) => marcarPagoMutation.mutate({
+            id: payingVenta.venta.id,
+            pago: payingVenta.pago.id,
+            ...payload,
+          })}
         />
       )}
 
@@ -965,6 +1037,83 @@ function VincularFacturaModal({
           <button onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700">Cancelar</button>
           <button onClick={() => selectedFactura && onSave(selectedFactura)} disabled={saving || !selectedFactura} className="px-4 py-2 rounded-lg bg-indigo-600 text-sm font-semibold text-white disabled:opacity-50">
             {saving ? 'Vinculando...' : 'Vincular factura'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function MarcarPagoVentaModal({
+  venta, pago, cuentas, saving, onClose, onSave,
+}: {
+  venta: Venta;
+  pago: NonNullable<Venta['pagos']>[number];
+  cuentas: CuentaBancaria[];
+  saving: boolean;
+  onClose: () => void;
+  onSave: (payload: { cuenta_bancaria?: number | null; fecha_pago: string; referencia: string }) => void;
+}) {
+  const [cuenta, setCuenta] = useState<string>(pago.cuenta_bancaria ? String(pago.cuenta_bancaria) : '');
+  const [fecha, setFecha] = useState(toLocalInput(new Date().toISOString()));
+  const [referencia, setReferencia] = useState(pago.referencia || '');
+  const requiereCuenta = pago.forma_pago !== 'CREDITO';
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+        <div className="p-6 border-b flex justify-between items-start">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Marcar pago como pagado</h3>
+            <p className="text-sm text-gray-500">{venta.numero_venta} · ${Number(pago.monto || 0).toFixed(2)}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          {requiereCuenta && (
+            <label className="block text-sm font-medium text-gray-700">
+              Cuenta bancaria
+              <select
+                value={cuenta}
+                onChange={(event) => setCuenta(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="">Seleccione cuenta</option>
+                {cuentas.map((item) => (
+                  <option key={item.id} value={item.id}>{item.banco} - {item.numero_cuenta}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="block text-sm font-medium text-gray-700">
+            Fecha de pago
+            <input
+              type="datetime-local"
+              value={fecha}
+              onChange={(event) => setFecha(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-600"
+            />
+          </label>
+          <label className="block text-sm font-medium text-gray-700">
+            Referencia
+            <input
+              value={referencia}
+              onChange={(event) => setReferencia(event.target.value)}
+              placeholder="Nro. transferencia, voucher, cheque..."
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-600"
+            />
+          </label>
+          <p className="text-xs text-gray-500">Al confirmar se creará el movimiento bancario en la cuenta seleccionada.</p>
+        </div>
+        <div className="p-6 border-t flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700">Cancelar</button>
+          <button
+            onClick={() => onSave({ cuenta_bancaria: cuenta ? Number(cuenta) : null, fecha_pago: fecha, referencia })}
+            disabled={saving || !fecha || (requiereCuenta && !cuenta)}
+            className="px-4 py-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? 'Registrando...' : 'Confirmar pago'}
           </button>
         </div>
       </div>

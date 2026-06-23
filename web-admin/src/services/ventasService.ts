@@ -34,6 +34,9 @@ export interface RegularizacionVentaData {
     monto: number;
     cuenta_bancaria: number | null;
     movimiento_bancario: number | null;
+    estado_pago: 'PENDIENTE' | 'PAGADO';
+    fecha_pago: string;
+    referencia: string;
     requiere_cuenta: boolean;
   }>;
   detalles: Array<{
@@ -131,6 +134,24 @@ export const ventasService = {
 
   vincularFactura: async ({ id, factura }: { id: number; factura: number }) => {
     const { data } = await apiClient.post<Venta>(`/ventas/ventas/${id}/vincular-factura/`, { factura });
+    return data;
+  },
+
+  marcarPago: async ({
+    id, pago, cuenta_bancaria, fecha_pago, referencia,
+  }: {
+    id: number;
+    pago: number;
+    cuenta_bancaria?: number | null;
+    fecha_pago?: string;
+    referencia?: string;
+  }) => {
+    const { data } = await apiClient.post<Venta>(`/ventas/ventas/${id}/marcar-pago/`, {
+      pago,
+      cuenta_bancaria,
+      fecha_pago,
+      referencia,
+    });
     return data;
   },
 

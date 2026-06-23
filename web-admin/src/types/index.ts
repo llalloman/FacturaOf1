@@ -202,6 +202,9 @@ export interface Venta {
     monto: number;
     cuenta_bancaria?: number | null;
     movimiento_bancario?: number | null;
+    estado_pago?: 'PENDIENTE' | 'PAGADO';
+    fecha_pago?: string;
+    referencia?: string;
   }>;
   created_at?: string;
 }
