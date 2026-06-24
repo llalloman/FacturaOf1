@@ -891,7 +891,7 @@ function PayPhonePaymentModal({ payment, onClose }: { payment: PayPhoneFirmaPaym
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6">
-      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Pago seguro PayPhone</p>
@@ -903,7 +903,7 @@ function PayPhonePaymentModal({ payment, onClose }: { payment: PayPhoneFirmaPaym
           </button>
         </div>
 
-        <div className="grid gap-5 p-5 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid gap-5 p-5 lg:grid-cols-[0.8fr_1.4fr]">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <h4 className="text-sm font-black text-slate-950">Detalle del cobro</h4>
             <dl className="mt-4 space-y-3 text-sm">
@@ -931,7 +931,7 @@ function PayPhonePaymentModal({ payment, onClose }: { payment: PayPhoneFirmaPaym
             </p>
           </div>
 
-          <div className="min-h-[380px] rounded-xl border border-slate-200 bg-white p-4">
+          <div className="min-h-[440px] rounded-xl border border-slate-200 bg-white p-4">
             {sdkError ? (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{sdkError}</div>
             ) : (
