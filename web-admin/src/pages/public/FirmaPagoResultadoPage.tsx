@@ -18,7 +18,9 @@ export default function FirmaPagoResultadoPage({ status }: { status: 'success' |
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <Link to="/" className="text-lg font-black text-slate-950">FacturaOF1</Link>
+          <Link to="/" className="inline-flex items-center gap-3">
+            <img src="/logo-of1-1.png" alt="FacturaOF1 ERP" className="h-10 w-auto object-contain" />
+          </Link>
           <Link to="/solicitar-firma-electronica" className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
             Nueva solicitud
           </Link>

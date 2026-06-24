@@ -1,12 +1,17 @@
+import logging
 import uuid
 from decimal import Decimal, ROUND_HALF_UP
 
 import requests
 from django.conf import settings
+from django.core.mail import send_mail
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.firmas.models import FirmaPagoElectronico
+
+
+logger = logging.getLogger(__name__)
 
 
 class PayPhoneConfigurationError(Exception):
@@ -78,6 +83,34 @@ def _calculate_processing_fee(base_amount):
     fee = _money(base * percent)
     fee_tax = _money(fee * tax_rate)
     return fee, fee_tax, _money(base + fee + fee_tax)
+
+
+def _notify_paid_signature(payment):
+    recipient = _setting('PAYPHONE_SIGNATURE_PAYMENT_NOTIFICATION_EMAIL', 'info@of1solutions.com')
+    if not recipient:
+        return
+    solicitud = payment.request
+    subject = f'Pago confirmado PayPhone - {solicitud.request_number}'
+    message = (
+        f'La solicitud {solicitud.request_number} fue pagada mediante el botón de pagos PayPhone.\n\n'
+        f'Solicitante: {solicitud.full_name}\n'
+        f'Identificación: {solicitud.identification}\n'
+        f'Correo: {solicitud.email}\n'
+        f'Teléfono: {solicitud.phone}\n'
+        f'Vigencia: {solicitud.get_validity_display()}\n\n'
+        f'Valor firma: ${payment.base_amount}\n'
+        f'Recargo PayPhone: ${payment.processing_fee}\n'
+        f'IVA recargo: ${payment.processing_fee_tax}\n'
+        f'Total cobrado: ${payment.amount} {payment.currency}\n\n'
+        f'Transacción cliente: {payment.client_transaction_id}\n'
+        f'Transacción PayPhone: {payment.provider_transaction_id}\n'
+        f'Código autorización: {payment.authorization_code or "No informado"}\n'
+    )
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or 'info@of1solutions.com'
+    try:
+        send_mail(subject, message, from_email, [recipient], fail_silently=False)
+    except Exception as exc:  # No debe revertir un pago confirmado.
+        logger.warning('No se pudo enviar correo de pago PayPhone confirmado. payment_id=%s error=%s', payment.id, exc)
 
 
 def _payphone_settings():
@@ -227,6 +260,7 @@ def confirmar_pago_payphone_firma(provider_transaction_id, client_transaction_id
     except ValueError:
         data = {'raw': response.text}
 
+    previous_status = payment.status
     payment.raw_response = data
     payment.provider_transaction_id = str(provider_transaction_id)
     if not response.ok:
@@ -250,4 +284,6 @@ def confirmar_pago_payphone_firma(provider_transaction_id, client_transaction_id
         payment.error_message = data.get('message') or data.get('error') or 'PayPhone no aprobó la transacción.'
     payment.authorization_code = auth_code
     payment.save(update_fields=['status', 'provider_transaction_id', 'authorization_code', 'raw_response', 'error_message', 'paid_at', 'updated_at'])
+    if previous_status != FirmaPagoElectronico.Estado.PAID and payment.status == FirmaPagoElectronico.Estado.PAID:
+        _notify_paid_signature(payment)
     return payment
