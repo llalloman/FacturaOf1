@@ -18,7 +18,7 @@ import {
   Tag,
   X,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   firmasService,
   type CuponFirmaQuote,
@@ -26,6 +26,7 @@ import {
   type PayPhoneFirmaPaymentResponse,
   type PrecioFirma,
   type PublicFinalizeResponse,
+  type PublicSignatureLookupResponse,
   type SolicitudFirmaPublicPayload,
   type TipoSolicitudFirma,
 } from '../../services/firmasService';
@@ -239,6 +240,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export default function SolicitarFirmaElectronicaPage() {
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState<SolicitudFirmaPublicPayload>(baseForm);
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -251,12 +253,76 @@ export default function SolicitarFirmaElectronicaPage() {
   const [payphoneLoading, setPayphoneLoading] = useState(false);
   const [payphoneModalOpen, setPayphoneModalOpen] = useState(false);
   const [payphonePayment, setPayphonePayment] = useState<PayPhoneFirmaPaymentResponse | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [recoveredLookup, setRecoveredLookup] = useState<PublicSignatureLookupResponse | null>(null);
   const [confirmed, setConfirmed] = useState<{
     id: number;
     requestNumber: string;
     message: string;
     emailStatus?: PublicFinalizeResponse['email_status'];
   } | null>(null);
+
+  useEffect(() => {
+    const requestNumber = searchParams.get('request');
+    const transaction = searchParams.get('transaction');
+    if (!requestNumber || !transaction || confirmed || lookupLoading) return;
+    setLookupLoading(true);
+    setError('');
+    firmasService.getPublicPaymentRequest(requestNumber, transaction)
+      .then((result) => {
+        const solicitud = result.solicitud;
+        setRecoveredLookup(result);
+        setForm((prev) => ({
+          ...prev,
+          request_type: solicitud.request_type,
+          identification_type: solicitud.identification_type,
+          first_name: solicitud.first_name,
+          last_name: solicitud.last_name,
+          second_last_name: solicitud.second_last_name ?? '',
+          identification: solicitud.identification,
+          fingerprint_code: solicitud.fingerprint_code ?? '',
+          birth_date: solicitud.birth_date ?? '',
+          nationality: solicitud.nationality ?? 'ECUATORIANA',
+          gender: solicitud.gender ?? '',
+          has_ruc: Boolean(solicitud.has_ruc),
+          ruc: solicitud.ruc ?? '',
+          business_name: solicitud.business_name ?? '',
+          company_unit: solicitud.company_unit ?? '',
+          applicant_position: solicitud.applicant_position ?? '',
+          request_reason: solicitud.request_reason ?? '',
+          email: solicitud.email,
+          secondary_email: solicitud.secondary_email ?? '',
+          phone: solicitud.phone,
+          secondary_phone: solicitud.secondary_phone ?? '',
+          province: solicitud.province,
+          city: solicitud.city,
+          address: solicitud.address,
+          representative_identification_type: solicitud.representative_identification_type ?? 'CEDULA',
+          representative_identification: solicitud.representative_identification ?? '',
+          representative_names: solicitud.representative_names ?? '',
+          representative_last_names: solicitud.representative_last_names ?? '',
+          validity: solicitud.validity,
+          container_type: solicitud.container_type ?? 'ARCHIVO',
+          wants_erp: Boolean(solicitud.wants_erp),
+          interested_plan: solicitud.interested_plan,
+          coupon_code: '',
+          accepted_terms: true,
+          accepted_privacy: true,
+          archivos: {},
+        }));
+        setConfirmed({
+          id: Number(solicitud.id),
+          requestNumber: solicitud.request_number ?? requestNumber,
+          message: 'Esta solicitud ya fue registrada. Puedes revisar la información, ver los datos de transferencia o reintentar el pago con tarjeta.',
+        });
+        setStep(3);
+      })
+      .catch((err) => {
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+        setError(detail || 'No pudimos recuperar la solicitud. Si el pago fue debitado, contáctanos por WhatsApp.');
+      })
+      .finally(() => setLookupLoading(false));
+  }, [searchParams, confirmed, lookupLoading]);
 
   const { data: preciosRemotos = [] } = useQuery({
     queryKey: ['precios-firma-publicos'],
@@ -529,6 +595,12 @@ export default function SolicitarFirmaElectronicaPage() {
 
         <div className="mt-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           {error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+          {lookupLoading && (
+            <div className="mb-5 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">
+              <Loader2 size={16} className="animate-spin" />
+              Cargando información de la solicitud...
+            </div>
+          )}
           {loading && uploadProgress && <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">{uploadProgress}</div>}
 
           {step === 0 && (
@@ -778,6 +850,7 @@ export default function SolicitarFirmaElectronicaPage() {
                   {!confirmed.emailStatus.client_sent && <p className="mt-1">Correo al cliente pendiente: {confirmed.emailStatus.client_error || 'no confirmado por el proveedor SMTP'}.</p>}
                 </div>
               )}
+              {recoveredLookup && <RecoveredSignatureReview lookup={recoveredLookup} />}
               <PaymentInstructions whatsappUrl={whatsappUrl} onPayCard={payWithPayPhone} payingCard={payphoneLoading} />
               <a href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">
                 <MessageCircle size={18} />
@@ -857,6 +930,73 @@ export default function SolicitarFirmaElectronicaPage() {
   );
 }
 
+
+
+function RecoveredSignatureReview({ lookup }: { lookup: PublicSignatureLookupResponse }) {
+  const solicitud = lookup.solicitud;
+  const docs = solicitud.documents ?? [];
+  return (
+    <div className="mx-auto mt-8 max-w-5xl rounded-xl border border-blue-100 bg-white p-5 text-left">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Información registrada</p>
+          <h3 className="mt-1 text-lg font-black text-slate-950">Revisa los datos de tu solicitud</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Estos son los datos ingresados previamente. Si necesitas corregir algo, contáctanos por WhatsApp con tu número de solicitud.</p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{solicitud.status_display || solicitud.status}</span>
+      </div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+        <SummaryBlock title="Solicitante" rows={[
+          ['Tipo', solicitud.request_type_display || tipoLabels[solicitud.request_type as TipoSolicitudFirma]],
+          ['Nombre', solicitud.full_name || `${solicitud.first_name} ${solicitud.last_name} ${solicitud.second_last_name ?? ''}`.trim()],
+          ['Identificación', `${solicitud.identification_type}: ${solicitud.identification}`],
+          ['Vigencia', solicitud.validity_display || solicitud.validity],
+        ]} />
+        <SummaryBlock title="Contacto" rows={[
+          ['Correo', solicitud.email],
+          ['Teléfono', solicitud.phone],
+          ['Teléfono 2', solicitud.secondary_phone],
+          ['Ubicación', `${solicitud.city}, ${solicitud.province}`],
+          ['Dirección', solicitud.address],
+        ]} />
+        <SummaryBlock title="Pago" rows={[
+          ['Valor firma', money(lookup.payment.base_amount || solicitud.sale_price)],
+          ['Recargo PayPhone', money(lookup.payment.processing_fee)],
+          ['IVA recargo', money(lookup.payment.processing_fee_tax)],
+          ['Total tarjeta', money(lookup.payment.amount)],
+          ['Estado pago', lookup.payment.status],
+        ]} />
+      </div>
+      {(solicitud.business_name || solicitud.ruc || solicitud.representative_names || docs.length > 0) && (
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <SummaryBlock title="Empresa" rows={[
+            ['RUC', solicitud.ruc],
+            ['Empresa', solicitud.business_name],
+            ['Unidad', solicitud.company_unit],
+            ['Cargo', solicitud.applicant_position],
+            ['Motivo', solicitud.request_reason],
+            ['Representante', `${solicitud.representative_names ?? ''} ${solicitud.representative_last_names ?? ''}`.trim()],
+          ]} />
+          <div className="rounded-lg border border-slate-200 p-4">
+            <h3 className="mb-3 text-sm font-bold text-slate-700">Documentos registrados</h3>
+            {docs.length ? (
+              <div className="space-y-2">
+                {docs.map((doc, index) => (
+                  <div key={`${doc.document_type}-${index}`} className="rounded-lg bg-slate-50 px-3 py-2">
+                    <p className="text-xs font-bold uppercase text-slate-500">{doc.document_type_display}</p>
+                    <p className="break-words text-sm font-semibold text-slate-800">{doc.file_name || 'Archivo registrado'}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No hay documentos registrados.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PayPhonePaymentModal({ payment, onClose }: { payment: PayPhoneFirmaPaymentResponse; onClose: () => void }) {
   const [sdkError, setSdkError] = useState('');

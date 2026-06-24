@@ -398,6 +398,83 @@ def finalizar_solicitud_publica(request, pk):
     )
 
 
+
+
+def _public_signature_summary(solicitud):
+    return {
+        'id': solicitud.id,
+        'request_number': solicitud.request_number,
+        'request_type': solicitud.request_type,
+        'request_type_display': solicitud.get_request_type_display(),
+        'identification_type': solicitud.identification_type,
+        'identification': solicitud.identification,
+        'full_name': solicitud.full_name,
+        'first_name': solicitud.first_name,
+        'last_name': solicitud.last_name,
+        'second_last_name': solicitud.second_last_name,
+        'email': solicitud.email,
+        'phone': solicitud.phone,
+        'secondary_phone': solicitud.secondary_phone,
+        'province': solicitud.province,
+        'city': solicitud.city,
+        'address': solicitud.address,
+        'ruc': solicitud.ruc,
+        'business_name': solicitud.business_name,
+        'company_unit': solicitud.company_unit,
+        'applicant_position': solicitud.applicant_position,
+        'request_reason': solicitud.request_reason,
+        'representative_names': solicitud.representative_names,
+        'representative_last_names': solicitud.representative_last_names,
+        'validity': solicitud.validity,
+        'validity_display': solicitud.get_validity_display(),
+        'container_type': solicitud.container_type,
+        'sale_price': str(solicitud.sale_price),
+        'subtotal_without_tax': str(solicitud.subtotal_without_tax),
+        'tax_amount': str(solicitud.tax_amount),
+        'status': solicitud.status,
+        'status_display': solicitud.get_status_display(),
+        'documents': [
+            {
+                'document_type': doc.document_type,
+                'document_type_display': doc.get_document_type_display(),
+                'file_name': doc.file_name,
+                'created_at': doc.created_at,
+            }
+            for doc in solicitud.documents.all()
+        ],
+    }
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def consultar_solicitud_publica_pago(request):
+    request_number = request.query_params.get('request_number', '').strip()
+    transaction = request.query_params.get('transaction', '').strip()
+    if not request_number or not transaction:
+        return Response({'detail': 'Número de solicitud y transacción requeridos.'}, status=status.HTTP_400_BAD_REQUEST)
+    solicitud = get_object_or_404(
+        SolicitudFirmaElectronica.objects.prefetch_related('documents'),
+        request_number=request_number,
+    )
+    payment = get_object_or_404(
+        FirmaPagoElectronico,
+        request=solicitud,
+        client_transaction_id=transaction,
+        provider=FirmaPagoElectronico.Provider.PAYPHONE,
+    )
+    return Response({
+        'solicitud': _public_signature_summary(solicitud),
+        'payment': {
+            'status': payment.status,
+            'amount': str(payment.amount),
+            'base_amount': str(payment.base_amount),
+            'processing_fee': str(payment.processing_fee),
+            'processing_fee_tax': str(payment.processing_fee_tax),
+            'currency': payment.currency,
+            'client_transaction_id': payment.client_transaction_id,
+        },
+    })
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def crear_pago_payphone_firma_publico(request, pk):

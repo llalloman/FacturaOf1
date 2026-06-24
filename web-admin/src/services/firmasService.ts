@@ -240,6 +240,25 @@ export interface PayPhoneFirmaPaymentResponse {
   box_config?: PayPhoneBoxConfig;
 }
 
+export interface PublicSignatureLookupResponse {
+  solicitud: SolicitudFirma & {
+    request_type_display?: string;
+    validity_display?: string;
+    status_display?: string;
+    full_name?: string;
+    documents?: Array<{ document_type: string; document_type_display: string; file_name?: string; created_at?: string }>;
+  };
+  payment: {
+    status: string;
+    amount: string;
+    base_amount: string;
+    processing_fee: string;
+    processing_fee_tax: string;
+    currency: string;
+    client_transaction_id: string;
+  };
+}
+
 export interface PublicFinalizeResponse {
   id: number;
   request_number: string;
@@ -382,6 +401,13 @@ export const firmasService = {
   finalizePublic: async (id: number, requestNumber: string): Promise<PublicFinalizeResponse> => {
     const { data } = await apiClient.post(`/firmas/solicitudes-publicas/${id}/finalizar/`, {
       request_number: requestNumber,
+    });
+    return data;
+  },
+
+  getPublicPaymentRequest: async (requestNumber: string, transaction: string): Promise<PublicSignatureLookupResponse> => {
+    const { data } = await apiClient.get('/firmas/solicitudes-publicas/consulta-pago/', {
+      params: { request_number: requestNumber, transaction },
     });
     return data;
   },

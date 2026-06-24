@@ -67,7 +67,7 @@ export default function FirmaPagoResultadoPage({ status }: { status: 'success' |
               Contactar por WhatsApp
             </a>
             {!isSuccess && (
-              <Link to="/solicitar-firma-electronica" className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-5 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50">
+              <Link to={`/solicitar-firma-electronica?request=${encodeURIComponent(requestNumber)}&transaction=${encodeURIComponent(transaction)}`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-5 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50">
                 <CreditCard size={18} />
                 Intentar nuevamente
               </Link>
