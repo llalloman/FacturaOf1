@@ -438,7 +438,8 @@ def _public_signature_summary(solicitud):
                 'document_type': doc.document_type,
                 'document_type_display': doc.get_document_type_display(),
                 'file_name': doc.file_name,
-                'created_at': doc.created_at,
+                'uploaded_at': doc.uploaded_at,
+                'created_at': doc.uploaded_at,
             }
             for doc in solicitud.documents.all()
         ],
