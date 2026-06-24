@@ -190,6 +190,51 @@ class SolicitudFirmaElectronica(models.Model):
         return f'{self.request_number or self.id} - {self.full_name} - {self.get_status_display()}'
 
 
+class FirmaPagoElectronico(models.Model):
+    class Provider(models.TextChoices):
+        PAYPHONE = 'PAYPHONE', _('PayPhone')
+
+    class Estado(models.TextChoices):
+        PENDING = 'PENDING', _('Pendiente')
+        REDIRECTED = 'REDIRECTED', _('Redirigido')
+        PAID = 'PAID', _('Pagado')
+        FAILED = 'FAILED', _('Fallido')
+        CANCELLED = 'CANCELLED', _('Cancelado')
+
+    request = models.ForeignKey(
+        SolicitudFirmaElectronica,
+        on_delete=models.CASCADE,
+        related_name='payments',
+        verbose_name=_('solicitud'),
+    )
+    provider = models.CharField(_('proveedor'), max_length=30, choices=Provider.choices, default=Provider.PAYPHONE)
+    status = models.CharField(_('estado'), max_length=20, choices=Estado.choices, default=Estado.PENDING)
+    amount = models.DecimalField(_('monto'), max_digits=10, decimal_places=2)
+    currency = models.CharField(_('moneda'), max_length=3, default='USD')
+    client_transaction_id = models.CharField(_('transacción cliente'), max_length=80, unique=True)
+    provider_transaction_id = models.CharField(_('transacción proveedor'), max_length=120, blank=True)
+    payment_url = models.URLField(_('url de pago'), max_length=1000, blank=True)
+    raw_request = models.JSONField(_('request proveedor'), default=dict, blank=True)
+    raw_response = models.JSONField(_('response proveedor'), default=dict, blank=True)
+    error_message = models.TextField(_('error'), blank=True)
+    paid_at = models.DateTimeField(_('fecha pago'), null=True, blank=True)
+    created_at = models.DateTimeField(_('fecha creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('fecha actualización'), auto_now=True)
+
+    class Meta:
+        db_table = 'electronic_signature_payments'
+        verbose_name = _('pago de firma electrónica')
+        verbose_name_plural = _('pagos de firma electrónica')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['request', 'provider', 'status']),
+            models.Index(fields=['client_transaction_id']),
+        ]
+
+    def __str__(self):
+        return f'{self.provider} {self.client_transaction_id} - {self.status}'
+
+
 class FirmaPrecioElectronica(models.Model):
     validity = models.CharField(_('vigencia'), max_length=20, choices=SolicitudFirmaElectronica.Vigencia.choices, unique=True)
     regular_price = models.DecimalField(_('precio final incluido IVA'), max_digits=10, decimal_places=2)

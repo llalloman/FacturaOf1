@@ -197,7 +197,9 @@ export default function SolicitarFirmaElectronicaPage() {
   const [couponQuote, setCouponQuote] = useState<CuponFirmaQuote | null>(null);
   const [couponMessage, setCouponMessage] = useState('');
   const [couponLoading, setCouponLoading] = useState(false);
+  const [payphoneLoading, setPayphoneLoading] = useState(false);
   const [confirmed, setConfirmed] = useState<{
+    id: number;
     requestNumber: string;
     message: string;
     emailStatus?: PublicFinalizeResponse['email_status'];
@@ -348,6 +350,26 @@ export default function SolicitarFirmaElectronicaPage() {
     setStep((current) => Math.max(current - 1, 0));
   };
 
+
+  const payWithPayPhone = async () => {
+    if (!confirmed) return;
+    setPayphoneLoading(true);
+    setError('');
+    try {
+      const payment = await firmasService.createPayPhoneFirmaPayment(confirmed.id, confirmed.requestNumber);
+      if (!payment.payment_url) {
+        setError('PayPhone no devolvió un enlace de pago. Intenta nuevamente o contáctanos por WhatsApp.');
+        return;
+      }
+      window.location.href = payment.payment_url;
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || 'No se pudo generar el pago con tarjeta. Intenta nuevamente o contáctanos por WhatsApp.');
+    } finally {
+      setPayphoneLoading(false);
+    }
+  };
+
   const confirmRequest = async () => {
     if (!validateStep()) return;
     const oversizedFile = Object.values(form.archivos ?? {}).find((file) => file && file.size > maxDocumentSizeBytes);
@@ -369,6 +391,7 @@ export default function SolicitarFirmaElectronicaPage() {
       setUploadProgress('Finalizando solicitud...');
       const finalized = await firmasService.finalizePublic(result.id, result.request_number);
       setConfirmed({
+        id: finalized.id,
         requestNumber: finalized.request_number,
         message: finalized.mensaje,
         emailStatus: finalized.email_status,
@@ -701,7 +724,7 @@ export default function SolicitarFirmaElectronicaPage() {
                   {!confirmed.emailStatus.client_sent && <p className="mt-1">Correo al cliente pendiente: {confirmed.emailStatus.client_error || 'no confirmado por el proveedor SMTP'}.</p>}
                 </div>
               )}
-              <PaymentInstructions whatsappUrl={whatsappUrl} />
+              <PaymentInstructions whatsappUrl={whatsappUrl} onPayCard={payWithPayPhone} payingCard={payphoneLoading} />
               <a href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">
                 <MessageCircle size={18} />
                 Enviar captura o solicitar link de pago
@@ -774,7 +797,7 @@ export default function SolicitarFirmaElectronicaPage() {
   );
 }
 
-function PaymentInstructions({ whatsappUrl }: { whatsappUrl: string }) {
+function PaymentInstructions({ whatsappUrl, onPayCard, payingCard }: { whatsappUrl: string; onPayCard: () => void; payingCard: boolean }) {
   return (
     <div className="mx-auto mt-8 max-w-5xl rounded-xl border border-slate-200 bg-slate-50 p-5 text-left">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -823,16 +846,22 @@ function PaymentInstructions({ whatsappUrl }: { whatsappUrl: string }) {
       </div>
 
       <div className="mt-5 rounded-lg border border-blue-100 bg-white p-4">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
-            <CreditCard size={18} />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+              <CreditCard size={18} />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-slate-950">Pago con tarjeta</h4>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Paga de forma segura con PayPhone usando tarjeta de crédito, débito o cuenta PayPhone.
+              </p>
+            </div>
           </div>
-          <div>
-            <h4 className="text-sm font-black text-slate-950">Pago con tarjeta de crédito</h4>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              Si deseas pagar con tarjeta de crédito, solicita el link de pago al WhatsApp <strong className="text-slate-900">+593 995 298 989</strong>.
-            </p>
-          </div>
+          <button type="button" onClick={onPayCard} disabled={payingCard} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+            {payingCard ? <Loader2 size={17} className="animate-spin" /> : <CreditCard size={17} />}
+            {payingCard ? 'Generando pago...' : 'Pagar con tarjeta'}
+          </button>
         </div>
       </div>
     </div>

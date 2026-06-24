@@ -8,6 +8,7 @@ from django.db import transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.shortcuts import redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action, api_view, parser_classes, permission_classes
@@ -44,6 +45,11 @@ from .serializers import (
     validate_document_file,
 )
 from .pricing import customer_key, promotion_price, resolve_signature_price
+from .services.payphone_service import (
+    PayPhoneConfigurationError,
+    PayPhoneProviderError,
+    crear_pago_payphone_firma,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -386,6 +392,67 @@ def finalizar_solicitud_publica(request, pk):
             'email_status': email_status,
         }
     )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def crear_pago_payphone_firma_publico(request, pk):
+    solicitud = get_object_or_404(SolicitudFirmaElectronica, pk=pk)
+    request_number = request.data.get('request_number')
+    if request_number != solicitud.request_number:
+        return Response({'detail': 'Número de solicitud inválido.'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        payment = crear_pago_payphone_firma(solicitud, request)
+    except PayPhoneConfigurationError as exc:
+        return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except PayPhoneProviderError as exc:
+        return Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    return Response({
+        'id': payment.id,
+        'provider': payment.provider,
+        'status': payment.status,
+        'amount': str(payment.amount),
+        'currency': payment.currency,
+        'client_transaction_id': payment.client_transaction_id,
+        'payment_url': payment.payment_url,
+    })
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def payphone_firma_callback_publico(request):
+    data = request.data if request.method == 'POST' else request.query_params
+    client_transaction_id = data.get('clientTransactionId') or data.get('client_transaction_id') or data.get('reference')
+    if not client_transaction_id:
+        return Response({'detail': 'clientTransactionId requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+    payment = get_object_or_404(FirmaPagoElectronico, client_transaction_id=client_transaction_id, provider=FirmaPagoElectronico.Provider.PAYPHONE)
+    payment.raw_response = dict(data)
+    provider_status = str(data.get('status') or data.get('state') or data.get('transactionStatus') or '').upper()
+    if provider_status in {'APPROVED', 'PAID', 'SUCCESS', 'OK', '1'}:
+        payment.status = FirmaPagoElectronico.Estado.PAID
+        payment.paid_at = timezone.now()
+    elif provider_status in {'CANCELLED', 'CANCELED', 'VOID'}:
+        payment.status = FirmaPagoElectronico.Estado.CANCELLED
+    elif provider_status in {'FAILED', 'REJECTED', 'ERROR', 'DECLINED'}:
+        payment.status = FirmaPagoElectronico.Estado.FAILED
+    payment.provider_transaction_id = str(data.get('transactionId') or data.get('id') or payment.provider_transaction_id or '')
+    payment.save(update_fields=['status', 'provider_transaction_id', 'raw_response', 'paid_at', 'updated_at'])
+    return Response({'detail': 'Callback registrado.', 'status': payment.status})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def payphone_firma_retorno_publico(request):
+    frontend_url = getattr(settings, 'PAYPHONE_SIGNATURE_SUCCESS_URL', '') or '/solicitar-firma-electronica?payment=success'
+    return redirect(frontend_url)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def payphone_firma_cancelado_publico(request):
+    frontend_url = getattr(settings, 'PAYPHONE_SIGNATURE_CANCEL_URL', '') or '/solicitar-firma-electronica?payment=cancelled'
+    return redirect(frontend_url)
 
 
 def notificar_solicitud_publica(request, solicitud):

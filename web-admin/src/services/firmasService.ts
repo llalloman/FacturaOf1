@@ -201,6 +201,17 @@ export type SolicitudFirmaPublicPayload = Partial<SolicitudFirma> & {
   archivos?: Partial<Record<DocumentoPublicoFirma, File | null>>;
 };
 
+
+export interface PayPhoneFirmaPaymentResponse {
+  id: number;
+  provider: 'PAYPHONE';
+  status: string;
+  amount: string;
+  currency: string;
+  client_transaction_id: string;
+  payment_url: string;
+}
+
 export interface PublicFinalizeResponse {
   id: number;
   request_number: string;
@@ -342,6 +353,14 @@ export const firmasService = {
 
   finalizePublic: async (id: number, requestNumber: string): Promise<PublicFinalizeResponse> => {
     const { data } = await apiClient.post(`/firmas/solicitudes-publicas/${id}/finalizar/`, {
+      request_number: requestNumber,
+    });
+    return data;
+  },
+
+
+  createPayPhoneFirmaPayment: async (id: number, requestNumber: string): Promise<PayPhoneFirmaPaymentResponse> => {
+    const { data } = await apiClient.post(`/firmas/solicitudes-publicas/${id}/payphone/`, {
       request_number: requestNumber,
     });
     return data;
