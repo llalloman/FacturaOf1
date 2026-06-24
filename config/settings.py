@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     'apps.cotizaciones',
     'apps.contabilidad',
     'apps.bancos',
+    'apps.pagos',
     'apps.nomina',
     'apps.firmas',
     'apps.automation',
@@ -203,6 +204,9 @@ PAYPHONE_SIGNATURE_CANCEL_URL = config('PAYPHONE_SIGNATURE_CANCEL_URL', default=
 PAYPHONE_SIGNATURE_FAILED_URL = config('PAYPHONE_SIGNATURE_FAILED_URL', default='').strip()
 PAYPHONE_SIGNATURE_PAYMENT_NOTIFICATION_EMAIL = config('PAYPHONE_SIGNATURE_PAYMENT_NOTIFICATION_EMAIL', default='info@of1solutions.com').strip()
 PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='').strip().rstrip('/')
+
+# Empresa destino para aplicar pagos públicos cuando la solicitud no tiene tenant asociado.
+PAYMENTS_DEFAULT_COMPANY_ID = config('PAYMENTS_DEFAULT_COMPANY_ID', default='').strip()
 
 # REST Framework
 REST_FRAMEWORK = {

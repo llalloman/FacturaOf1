@@ -284,6 +284,13 @@ def confirmar_pago_payphone_firma(provider_transaction_id, client_transaction_id
         payment.error_message = data.get('message') or data.get('error') or 'PayPhone no aprobó la transacción.'
     payment.authorization_code = auth_code
     payment.save(update_fields=['status', 'provider_transaction_id', 'authorization_code', 'raw_response', 'error_message', 'paid_at', 'updated_at'])
-    if previous_status != FirmaPagoElectronico.Estado.PAID and payment.status == FirmaPagoElectronico.Estado.PAID:
-        _notify_paid_signature(payment)
+    if payment.status == FirmaPagoElectronico.Estado.PAID:
+        if previous_status != FirmaPagoElectronico.Estado.PAID:
+            _notify_paid_signature(payment)
+        try:
+            from apps.pagos.services import registrar_pago_firma_payphone
+
+            registrar_pago_firma_payphone(payment)
+        except Exception as exc:  # No debe revertir un pago confirmado en PayPhone.
+            logger.exception('No se pudo registrar/aplicar pago online de firma. payment_id=%s error=%s', payment.id, exc)
     return payment

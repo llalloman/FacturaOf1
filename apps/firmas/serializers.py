@@ -14,6 +14,7 @@ from .models import (
     HistorialEstadoSolicitudFirma,
     SolicitudDemoERP,
     SolicitudFirmaElectronica,
+    FirmaPagoElectronico,
 )
 from .pricing import customer_key, promotion_price, resolve_signature_price
 
@@ -291,6 +292,60 @@ class ConsentimientoFirmaElectronicaSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+
+
+class FirmaPagoElectronicoResumenSerializer(serializers.ModelSerializer):
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    pago_online_id = serializers.SerializerMethodField()
+    venta_id = serializers.SerializerMethodField()
+    venta_numero = serializers.SerializerMethodField()
+    movimiento_bancario_id = serializers.SerializerMethodField()
+    application_error = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FirmaPagoElectronico
+        fields = [
+            'id', 'provider', 'status', 'status_display', 'amount', 'base_amount',
+            'processing_fee', 'processing_fee_tax', 'currency', 'client_transaction_id',
+            'provider_transaction_id', 'authorization_code', 'paid_at', 'created_at',
+            'pago_online_id', 'venta_id', 'venta_numero', 'movimiento_bancario_id',
+            'application_error',
+        ]
+
+    def _pago_online(self, obj):
+        if hasattr(obj, '_cached_pago_online'):
+            return obj._cached_pago_online
+        try:
+            from apps.pagos.models import PagoOnline
+            pago = PagoOnline.objects.select_related('venta', 'movimiento_bancario').filter(
+                client_transaction_id=obj.client_transaction_id,
+            ).first()
+        except Exception:
+            pago = None
+        obj._cached_pago_online = pago
+        return pago
+
+    def get_pago_online_id(self, obj):
+        pago = self._pago_online(obj)
+        return pago.id if pago else None
+
+    def get_venta_id(self, obj):
+        pago = self._pago_online(obj)
+        return pago.venta_id if pago else None
+
+    def get_venta_numero(self, obj):
+        pago = self._pago_online(obj)
+        return getattr(pago.venta, 'numero_venta', '') if pago and pago.venta_id else ''
+
+    def get_movimiento_bancario_id(self, obj):
+        pago = self._pago_online(obj)
+        return pago.movimiento_bancario_id if pago else None
+
+    def get_application_error(self, obj):
+        pago = self._pago_online(obj)
+        return pago.application_error if pago else ''
+
+
 class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
     request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
@@ -303,6 +358,7 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
     documents = DocumentoSolicitudFirmaSerializer(many=True, read_only=True)
     status_history = HistorialEstadoSolicitudFirmaSerializer(many=True, read_only=True)
     legal_consent = ConsentimientoFirmaElectronicaSerializer(read_only=True)
+    payments = FirmaPagoElectronicoResumenSerializer(many=True, read_only=True)
 
     class Meta:
         model = SolicitudFirmaElectronica
@@ -323,9 +379,9 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
             'tax_rate', 'subtotal_without_tax', 'tax_amount',
             'internal_cost', 'sale_price', 'margin', 'internal_notes',
             'provider_request_id', 'emitted_at', 'rejected_reason',
-            'created_at', 'updated_at', 'documents', 'status_history', 'legal_consent',
+            'created_at', 'updated_at', 'documents', 'status_history', 'legal_consent', 'payments',
         ]
-        read_only_fields = ['request_number', 'price_catalog', 'promotion_applied', 'coupon_applied', 'regular_price', 'discount_amount', 'coupon_discount_amount', 'tax_rate', 'subtotal_without_tax', 'tax_amount', 'margin', 'created_at', 'updated_at', 'documents', 'status_history', 'legal_consent']
+        read_only_fields = ['request_number', 'price_catalog', 'promotion_applied', 'coupon_applied', 'regular_price', 'discount_amount', 'coupon_discount_amount', 'tax_rate', 'subtotal_without_tax', 'tax_amount', 'margin', 'created_at', 'updated_at', 'documents', 'status_history', 'legal_consent', 'payments']
 
     def validate_phone(self, value):
         value = (value or '').strip()

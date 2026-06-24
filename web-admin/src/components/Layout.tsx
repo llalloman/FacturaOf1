@@ -109,6 +109,7 @@ const EXTRA_MENU_ITEMS: Array<MenuItem & { grupo: string; roles?: string[] }> = 
   { icon: Users, label: 'Usuarios', path: '/usuarios', grupo: 'Administración', roles: ['ADMIN_EMPRESA'] },
   { icon: Settings, label: 'Configuración', path: '/configuracion', grupo: 'Administración', roles: ['ADMIN_EMPRESA'] },
   { icon: CreditCard, label: 'Suscripción', path: '/suscripcion', grupo: 'Administración' },
+  { icon: CreditCard, label: 'Pagos Online', path: '/pagos-online', grupo: 'Administración', roles: ['ADMIN_EMPRESA'] },
 ];
 
 const SUPER_ADMIN_ONLY_MODULE_CODES = new Set(['firmas_electronicas']);
@@ -144,7 +145,7 @@ const buildMenuGroups = (modulos: Array<ModuloInfo | ModuloSistema>, rol: string
 
 // Menú por rol (paths permitidos en el sidebar)
 const ROL_PATHS: Record<string, string[]> = {
-  ADMIN_EMPRESA: ['/', '/pos', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/contabilidad', '/bancos', '/nomina', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion', '/usuarios'],
+  ADMIN_EMPRESA: ['/', '/pos', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/contabilidad', '/bancos', '/nomina', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion', '/pagos-online', '/usuarios'],
   CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/contabilidad', '/bancos', '/nomina', '/clientes', '/reportes'],
   VENDEDOR:      ['/', '/pos', '/ventas', '/pedidos', '/cotizaciones', '/clientes', '/productos'],
   CONSULTOR:     ['/', '/facturacion', '/retenciones', '/ventas', '/reportes'],
@@ -160,6 +161,7 @@ const menuItemsSuperAdmin: MenuItem[] = [
   { icon: FileSignature,   label: 'Solicitudes de Firma', path: '/firmas-electronicas' },
   { icon: BadgeDollarSign,  label: 'Precios de Firma', path: '/firmas-electronicas/precios' },
   { icon: Bot,              label: 'Leads WhatsApp', path: '/automation/leads' },
+  { icon: CreditCard,       label: 'Pagos Online', path: '/pagos-online' },
   { icon: Users,           label: 'Usuarios',         path: '/usuarios' },
 ];
 

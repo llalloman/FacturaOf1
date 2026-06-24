@@ -53,6 +53,7 @@ const CatalogoModulosPage = lazy(() => import('./pages/empresas/CatalogoModulosP
 const SolicitudesFirmaPage = lazy(() => import('./pages/firmas/SolicitudesFirmaPage'));
 const PreciosFirmaPage = lazy(() => import('./pages/firmas/PreciosFirmaPage'));
 const AutomationLeadsPage = lazy(() => import('./pages/automation/AutomationLeadsPage'));
+const PagosOnlinePage = lazy(() => import('./pages/pagos/PagosOnlinePage'));
 const SolicitarDemoPage = lazy(() => import('./pages/public/SolicitarDemoPage'));
 const SolicitarFirmaElectronicaPage = lazy(() => import('./pages/public/SolicitarFirmaElectronicaPage'));
 const FirmaPagoResultadoPage = lazy(() => import('./pages/public/FirmaPagoResultadoPage'));
@@ -155,6 +156,11 @@ const appLayoutRoutes = (
     <Route path="automation/leads" element={
       <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
         <AutomationLeadsPage />
+      </ProtectedRoute>
+    } />
+    <Route path="pagos-online" element={
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN_EMPRESA']}>
+        <PagosOnlinePage />
       </ProtectedRoute>
     } />
     <Route path="suscripcion" element={

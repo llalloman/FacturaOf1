@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore';
 import { confirmDialog } from '../../store/confirmStore';
@@ -7,6 +7,9 @@ import { usuariosService } from '../../services/usuariosService';
 import { cajasService } from '../../services/cajasService';
 import { bodegasService } from '../../services/bodegasService';
 import { secuencialesService } from '../../services/secuencialesService';
+import { getCuentas } from '../../services/bancosService';
+import { productosService } from '../../services/productosService';
+import { pagosService, defaultPagoConfiguracion, type PagoConfiguracion } from '../../services/pagosService';
 import type { Empresa, Usuario, Caja, Bodega, Secuencial } from '../../types';
 import {
   Building2,
@@ -20,9 +23,10 @@ import {
   Hash,
   Lock,
   AlertTriangle,
+  CreditCard,
 } from 'lucide-react';
 
-type Tab = 'empresa' | 'usuarios' | 'cajas' | 'facturacion';
+type Tab = 'empresa' | 'usuarios' | 'cajas' | 'facturacion' | 'pagos';
 
 // ─── Tab Empresa ───────────────────────────────────────────────────────────────
 function EmpresaTab() {
@@ -810,12 +814,156 @@ function FacturacionTab() {
   );
 }
 
+
+
+// ─── Tab Pagos Online ────────────────────────────────────────────────────────
+function PagosTab() {
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.rol === 'SUPER_ADMIN';
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState<string>('');
+  const [form, setForm] = useState<PagoConfiguracion>(defaultPagoConfiguracion);
+  const [saved, setSaved] = useState(false);
+
+  const { data: empresas = [] } = useQuery({
+    queryKey: ['empresas-pagos-config'],
+    queryFn: empresasService.getAll,
+    enabled: isSuperAdmin,
+  });
+  const effectiveEmpresa = isSuperAdmin ? selectedEmpresaId : undefined;
+  const { data: config, isLoading } = useQuery({
+    queryKey: ['pagos-configuracion', effectiveEmpresa],
+    queryFn: () => pagosService.getConfiguracion(effectiveEmpresa),
+    enabled: !isSuperAdmin || !!effectiveEmpresa,
+  });
+  const { data: cuentas = [] } = useQuery({ queryKey: ['cuentas-pagos-config'], queryFn: getCuentas });
+  const { data: cajas = [] } = useQuery({ queryKey: ['cajas-pagos-config'], queryFn: cajasService.getAll });
+  const { data: usuarios = [] } = useQuery({ queryKey: ['usuarios-pagos-config'], queryFn: usuariosService.getAll });
+  const { data: productos = [] } = useQuery({
+    queryKey: ['productos-servicio-pagos-config'],
+    queryFn: () => productosService.getAll({ include_inactive: true, page_size: 500 }),
+  });
+
+  useEffect(() => {
+    if (config) {
+      setForm({ ...defaultPagoConfiguracion, ...config });
+      return;
+    }
+    setForm({ ...defaultPagoConfiguracion, empresa: effectiveEmpresa ? Number(effectiveEmpresa) : undefined });
+  }, [config, effectiveEmpresa]);
+
+  const servicios = productos.filter((producto) => producto.tipo === 'SERVICIO');
+  const set = (field: keyof PagoConfiguracion, value: unknown) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  const saveMutation = useMutation({
+    mutationFn: () => pagosService.saveConfiguracion(form),
+    onSuccess: (data) => {
+      setForm({ ...defaultPagoConfiguracion, ...data });
+      queryClient.invalidateQueries({ queryKey: ['pagos-configuracion'] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    },
+  });
+
+  const selectClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500';
+
+  if (isSuperAdmin && !selectedEmpresaId) {
+    return (
+      <div className="max-w-2xl rounded-xl border border-gray-200 bg-white p-5">
+        <h3 className="mb-3 flex items-center gap-2 font-semibold text-gray-800"><CreditCard size={18} className="text-blue-600" /> Configuración de pagos por empresa</h3>
+        <label className="text-sm font-medium text-gray-700">Empresa
+          <select value={selectedEmpresaId} onChange={(e) => setSelectedEmpresaId(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500">
+            <option value="">Selecciona una empresa</option>
+            {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.razon_social} - {empresa.ruc}</option>)}
+          </select>
+        </label>
+      </div>
+    );
+  }
+
+  if (isLoading) return <div className="flex justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" /></div>;
+
+  return (
+    <div className="max-w-4xl space-y-5">
+      {isSuperAdmin && (
+        <label className="block max-w-md text-sm font-medium text-gray-700">Empresa
+          <select value={selectedEmpresaId} onChange={(e) => setSelectedEmpresaId(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500">
+            {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.razon_social} - {empresa.ruc}</option>)}
+          </select>
+        </label>
+      )}
+      {saved && <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-4 text-green-700"><CheckCircle size={20} /><span className="font-medium">Configuración de pagos guardada</span></div>}
+      {saveMutation.isError && <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700"><XCircle size={20} /><span className="font-medium">No se pudo guardar la configuración</span></div>}
+
+      <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+        <h3 className="flex items-center gap-2 font-semibold text-gray-800"><CreditCard size={18} className="text-blue-600" /> Aplicación automática de pagos</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="text-sm font-medium text-gray-700">Cuenta PayPhone
+            <select value={form.cuenta_payphone ?? ''} onChange={(e) => set('cuenta_payphone', e.target.value ? Number(e.target.value) : null)} className={`${selectClass} mt-1`}>
+              <option value="">Selecciona cuenta destino</option>
+              {cuentas.map((cuenta) => <option key={cuenta.id} value={cuenta.id}>{cuenta.banco} - {cuenta.numero_cuenta}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700">Caja ventas online
+            <select value={form.caja_ventas ?? ''} onChange={(e) => set('caja_ventas', e.target.value ? Number(e.target.value) : null)} className={`${selectClass} mt-1`}>
+              <option value="">Selecciona caja</option>
+              {cajas.map((caja) => <option key={caja.id} value={caja.id}>{caja.codigo} - {caja.nombre}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700">Usuario ventas online
+            <select value={form.usuario_ventas ?? ''} onChange={(e) => set('usuario_ventas', e.target.value ? Number(e.target.value) : null)} className={`${selectClass} mt-1`}>
+              <option value="">Selecciona usuario</option>
+              {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo || `${usuario.first_name} ${usuario.last_name}`.trim() || usuario.email}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700">Producto firma electrónica
+            <select value={form.producto_firma ?? ''} onChange={(e) => set('producto_firma', e.target.value ? Number(e.target.value) : null)} className={`${selectClass} mt-1`}>
+              <option value="">Auto/Firma electrónica</option>
+              {servicios.map((producto) => <option key={producto.id} value={producto.id}>{producto.codigo_principal} - {producto.nombre}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700">Producto recargo PayPhone
+            <select value={form.producto_recargo_payphone ?? ''} onChange={(e) => set('producto_recargo_payphone', e.target.value ? Number(e.target.value) : null)} className={`${selectClass} mt-1`}>
+              <option value="">Auto/Recargo PayPhone</option>
+              {servicios.map((producto) => <option key={producto.id} value={producto.id}>{producto.codigo_principal} - {producto.nombre}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700">Producto suscripción ERP
+            <select value={form.producto_suscripcion ?? ''} onChange={(e) => set('producto_suscripcion', e.target.value ? Number(e.target.value) : null)} className={`${selectClass} mt-1`}>
+              <option value="">Selecciona producto</option>
+              {servicios.map((producto) => <option key={producto.id} value={producto.id}>{producto.codigo_principal} - {producto.nombre}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700">% recargo tarjeta
+            <input value={form.fee_percent} onChange={(e) => set('fee_percent', e.target.value)} className={`${selectClass} mt-1`} />
+          </label>
+          <label className="text-sm font-medium text-gray-700">IVA sobre recargo
+            <input value={form.fee_tax_rate} onChange={(e) => set('fee_tax_rate', e.target.value)} className={`${selectClass} mt-1`} />
+          </label>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm text-gray-700"><input type="checkbox" checked={form.auto_generar_venta_firmas} onChange={(e) => set('auto_generar_venta_firmas', e.target.checked)} className="h-4 w-4 rounded text-blue-600" /> Generar venta por firmas</label>
+          <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm text-gray-700"><input type="checkbox" checked={form.auto_generar_venta_suscripciones} onChange={(e) => set('auto_generar_venta_suscripciones', e.target.checked)} className="h-4 w-4 rounded text-blue-600" /> Generar venta por suscripciones</label>
+          <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm text-gray-700"><input type="checkbox" checked={form.activo} onChange={(e) => set('activo', e.target.checked)} className="h-4 w-4 rounded text-blue-600" /> Configuración activa</label>
+        </div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          Para que un pago aprobado cree venta y movimiento bancario, deben estar configurados cuenta, caja y usuario. Los productos de firma y recargo pueden seleccionarse aquí o se crearán automáticamente como servicios si no existen.
+        </div>
+        <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+          <Save size={16} /> {saveMutation.isPending ? 'Guardando...' : 'Guardar configuración de pagos'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Configuración Page ────────────────────────────────────────────────────────
 const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'empresa', label: 'Empresa', icon: Building2 },
   { key: 'usuarios', label: 'Usuarios', icon: Users },
   { key: 'cajas', label: 'Cajas', icon: Monitor },
   { key: 'facturacion', label: 'Facturación', icon: Hash },
+  { key: 'pagos', label: 'Pagos', icon: CreditCard },
 ];
 
 export default function ConfiguracionPage() {
@@ -854,6 +1002,7 @@ export default function ConfiguracionPage() {
           {activeTab === 'usuarios' && <UsuariosTab />}
           {activeTab === 'cajas' && <CajasTab />}
           {activeTab === 'facturacion' && <FacturacionTab />}
+          {activeTab === 'pagos' && <PagosTab />}
         </div>
       </div>
     </div>

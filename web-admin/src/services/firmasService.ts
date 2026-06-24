@@ -73,6 +73,29 @@ export interface CuponFirmaQuote {
   applied_source: 'coupon' | 'promotion' | 'regular';
 }
 
+
+export interface FirmaPagoElectronicoResumen {
+  id: number;
+  provider: 'PAYPHONE';
+  status: string;
+  status_display?: string;
+  amount: string;
+  base_amount: string;
+  processing_fee: string;
+  processing_fee_tax: string;
+  currency: string;
+  client_transaction_id: string;
+  provider_transaction_id?: string;
+  authorization_code?: string;
+  paid_at?: string | null;
+  created_at?: string;
+  pago_online_id?: number | null;
+  venta_id?: number | null;
+  venta_numero?: string;
+  movimiento_bancario_id?: number | null;
+  application_error?: string;
+}
+
 export interface SolicitudFirma {
   id?: number;
   request_number?: string;
@@ -132,6 +155,7 @@ export interface SolicitudFirma {
   documents?: DocumentoSolicitudFirma[];
   status_history?: HistorialSolicitudFirma[];
   legal_consent?: ConsentimientoFirma | null;
+  payments?: FirmaPagoElectronicoResumen[];
 }
 
 export interface ConsentimientoFirma {

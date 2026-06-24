@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Eye, FileSignature, Loader2, MessageCircle, RefreshCw, Save, Upload } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CreditCard, Download, Eye, FileSignature, Loader2, MessageCircle, RefreshCw, Save, Upload } from 'lucide-react';
 import { firmasService, type DocumentoSolicitudFirma, type EstadoSolicitudFirma, type SolicitudFirma, type SolicitudFirmaFilters } from '../../services/firmasService';
 import { useToast } from '../../hooks/useToast';
 
@@ -267,6 +267,49 @@ export default function SolicitudesFirmaPage() {
                 <MoneyInput label="Precio venta" value={selected.sale_price} onBlur={(value) => updateSelected({ sale_price: value })} />
                 <Info label="Margen" value={`$${Number(selected.margin ?? 0).toFixed(2)}`} />
               </div>
+
+              <Section title="Pagos">
+                {(selected.payments ?? []).length > 0 ? (
+                  <div className="space-y-3">
+                    {(selected.payments ?? []).map((payment) => {
+                      const recargo = Number(payment.processing_fee || 0) + Number(payment.processing_fee_tax || 0);
+                      return (
+                        <div key={payment.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">{payment.provider} - {payment.status_display ?? payment.status}</p>
+                              <p className="break-all text-xs text-slate-500">{payment.client_transaction_id}</p>
+                            </div>
+                            <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${payment.status === 'PAID' ? 'bg-emerald-50 text-emerald-700' : payment.status === 'FAILED' ? 'bg-red-50 text-red-700' : payment.status === 'CANCELLED' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700'}`}>{payment.status_display ?? payment.status}</span>
+                          </div>
+                          <div className="mt-3 grid gap-3 md:grid-cols-4">
+                            <Info label="Valor firma" value={`$${Number(payment.base_amount || 0).toFixed(2)}`} />
+                            <Info label="Recargo tarjeta" value={`$${recargo.toFixed(2)}`} />
+                            <Info label="Total cobrado" value={`$${Number(payment.amount || 0).toFixed(2)} ${payment.currency}`} />
+                            <Info label="Pagado" value={payment.paid_at ? new Date(payment.paid_at).toLocaleString('es-EC') : '-'} />
+                            <Info label="Venta" value={payment.venta_numero || (payment.venta_id ? `#${payment.venta_id}` : '-')} />
+                            <Info label="Movimiento banco" value={payment.movimiento_bancario_id ? `#${payment.movimiento_bancario_id}` : '-'} />
+                            <Info label="Autorización" value={payment.authorization_code || '-'} />
+                            <Info label="Pago interno" value={payment.pago_online_id ? `#${payment.pago_online_id}` : '-'} />
+                          </div>
+                          {payment.application_error && (
+                            <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                              <div><p className="font-semibold">Pago aprobado pendiente de aplicar</p><p>{payment.application_error}</p></div>
+                            </div>
+                          )}
+                          {payment.status === 'PAID' && payment.venta_id && (
+                            <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-emerald-700"><CheckCircle2 size={16} /> Venta y movimiento bancario vinculados</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-500"><CreditCard size={16} /> Sin pagos PayPhone registrados para esta solicitud.</div>
+                )}
+              </Section>
+
 
               <Section title="Cambiar estado">
                 <div className="grid gap-3 md:grid-cols-[1fr_1.2fr_auto]">
