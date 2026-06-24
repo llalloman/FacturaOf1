@@ -202,14 +202,42 @@ export type SolicitudFirmaPublicPayload = Partial<SolicitudFirma> & {
 };
 
 
+export interface PayPhoneBoxConfig {
+  token: string;
+  clientTransactionId: string;
+  amount: number;
+  amountWithTax?: number;
+  amountWithoutTax?: number;
+  tax?: number;
+  service?: number;
+  tip?: number;
+  currency: string;
+  storeId: string;
+  reference?: string;
+  lang?: string;
+  defaultMethod?: 'card' | 'payphone';
+  timeZone?: number;
+  optionalParameter?: string;
+  phoneNumber?: string;
+  email?: string;
+  documentId?: string;
+  identificationType?: number;
+  responseUrl?: string;
+  cancellationUrl?: string;
+}
+
 export interface PayPhoneFirmaPaymentResponse {
   id: number;
   provider: 'PAYPHONE';
   status: string;
   amount: string;
+  base_amount: string;
+  processing_fee: string;
+  processing_fee_tax: string;
   currency: string;
   client_transaction_id: string;
-  payment_url: string;
+  payment_url?: string;
+  box_config?: PayPhoneBoxConfig;
 }
 
 export interface PublicFinalizeResponse {
@@ -361,6 +389,13 @@ export const firmasService = {
 
   createPayPhoneFirmaPayment: async (id: number, requestNumber: string): Promise<PayPhoneFirmaPaymentResponse> => {
     const { data } = await apiClient.post(`/firmas/solicitudes-publicas/${id}/payphone/`, {
+      request_number: requestNumber,
+    });
+    return data;
+  },
+
+  createPayPhoneFirmaBoxPayment: async (id: number, requestNumber: string): Promise<PayPhoneFirmaPaymentResponse> => {
+    const { data } = await apiClient.post(`/firmas/solicitudes-publicas/${id}/payphone/cajita/`, {
       request_number: requestNumber,
     });
     return data;

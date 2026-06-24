@@ -16,17 +16,68 @@ import {
   Send,
   ShieldCheck,
   Tag,
+  X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   firmasService,
   type CuponFirmaQuote,
   type DocumentoPublicoFirma,
+  type PayPhoneFirmaPaymentResponse,
   type PrecioFirma,
   type PublicFinalizeResponse,
   type SolicitudFirmaPublicPayload,
   type TipoSolicitudFirma,
 } from '../../services/firmasService';
+
+
+declare global {
+  interface Window {
+    PPaymentButtonBox?: new (config: Record<string, unknown>) => { render: (containerId: string) => void };
+  }
+}
+
+const payphoneScriptUrl = 'https://cdn.payphonetodoesposible.com/box/v2.0/payphone-payment-box.js';
+const payphoneCssUrl = 'https://cdn.payphonetodoesposible.com/box/v2.0/payphone-payment-box.css';
+let payphoneAssetsPromise: Promise<void> | null = null;
+
+const loadPayPhoneAssets = () => {
+  if (window.PPaymentButtonBox) return Promise.resolve();
+  if (payphoneAssetsPromise) return payphoneAssetsPromise;
+  payphoneAssetsPromise = new Promise((resolve, reject) => {
+    if (!document.querySelector(`link[href="${payphoneCssUrl}"]`)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = payphoneCssUrl;
+      document.head.appendChild(link);
+    }
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${payphoneScriptUrl}"]`);
+    const waitForSdk = () => {
+      let attempts = 0;
+      const timer = window.setInterval(() => {
+        attempts += 1;
+        if (window.PPaymentButtonBox) {
+          window.clearInterval(timer);
+          resolve();
+        } else if (attempts > 80) {
+          window.clearInterval(timer);
+          reject(new Error('No se pudo cargar la cajita de pagos PayPhone.'));
+        }
+      }, 100);
+    };
+    if (existing) {
+      waitForSdk();
+      return;
+    }
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = payphoneScriptUrl;
+    script.onload = waitForSdk;
+    script.onerror = () => reject(new Error('No se pudo cargar el SDK de PayPhone.'));
+    document.head.appendChild(script);
+  });
+  return payphoneAssetsPromise;
+};
 
 const whatsappBase = 'https://api.whatsapp.com/send/';
 const signatureTermsVersion = 'firma-2026-06-22';
@@ -198,6 +249,8 @@ export default function SolicitarFirmaElectronicaPage() {
   const [couponMessage, setCouponMessage] = useState('');
   const [couponLoading, setCouponLoading] = useState(false);
   const [payphoneLoading, setPayphoneLoading] = useState(false);
+  const [payphoneModalOpen, setPayphoneModalOpen] = useState(false);
+  const [payphonePayment, setPayphonePayment] = useState<PayPhoneFirmaPaymentResponse | null>(null);
   const [confirmed, setConfirmed] = useState<{
     id: number;
     requestNumber: string;
@@ -356,15 +409,16 @@ export default function SolicitarFirmaElectronicaPage() {
     setPayphoneLoading(true);
     setError('');
     try {
-      const payment = await firmasService.createPayPhoneFirmaPayment(confirmed.id, confirmed.requestNumber);
-      if (!payment.payment_url) {
-        setError('PayPhone no devolvió un enlace de pago. Intenta nuevamente o contáctanos por WhatsApp.');
+      const payment = await firmasService.createPayPhoneFirmaBoxPayment(confirmed.id, confirmed.requestNumber);
+      if (!payment.box_config) {
+        setError('PayPhone no devolvió la configuración de la cajita. Intenta nuevamente o contáctanos por WhatsApp.');
         return;
       }
-      window.location.href = payment.payment_url;
+      setPayphonePayment(payment);
+      setPayphoneModalOpen(true);
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(detail || 'No se pudo generar el pago con tarjeta. Intenta nuevamente o contáctanos por WhatsApp.');
+      setError(detail || 'No se pudo abrir el pago con tarjeta. Intenta nuevamente o contáctanos por WhatsApp.');
     } finally {
       setPayphoneLoading(false);
     }
@@ -792,7 +846,104 @@ export default function SolicitarFirmaElectronicaPage() {
           )}
         </div>
       </main>
+      {payphoneModalOpen && payphonePayment && (
+        <PayPhonePaymentModal
+          payment={payphonePayment}
+          onClose={() => setPayphoneModalOpen(false)}
+        />
+      )}
       <PublicLegalFooter />
+    </div>
+  );
+}
+
+
+function PayPhonePaymentModal({ payment, onClose }: { payment: PayPhoneFirmaPaymentResponse; onClose: () => void }) {
+  const [sdkError, setSdkError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const renderBox = async () => {
+      setSdkError('');
+      try {
+        await loadPayPhoneAssets();
+        if (cancelled) return;
+        const container = document.getElementById('payphone-signature-box');
+        if (container) container.innerHTML = '';
+        if (!window.PPaymentButtonBox || !payment.box_config) {
+          setSdkError('No se pudo inicializar la cajita de pagos PayPhone.');
+          return;
+        }
+        const ppb = new window.PPaymentButtonBox({
+          ...payment.box_config,
+          backgroundColor: '#2563eb',
+        });
+        ppb.render('payphone-signature-box');
+      } catch (err) {
+        setSdkError((err as Error)?.message || 'No se pudo cargar PayPhone.');
+      }
+    };
+    renderBox();
+    return () => {
+      cancelled = true;
+    };
+  }, [payment]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Pago seguro PayPhone</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">Paga tu firma electrónica con tarjeta</h3>
+            <p className="mt-1 text-sm text-slate-500">Al completar el pago, PayPhone confirmará la transacción y te enviaremos a la pantalla de resultado.</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid gap-5 p-5 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <h4 className="text-sm font-black text-slate-950">Detalle del cobro</h4>
+            <dl className="mt-4 space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Valor firma</dt>
+                <dd className="font-bold text-slate-900">{money(payment.base_amount)}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Recargo transacción PayPhone 5%</dt>
+                <dd className="font-bold text-slate-900">{money(payment.processing_fee)}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">IVA del recargo</dt>
+                <dd className="font-bold text-slate-900">{money(payment.processing_fee_tax)}</dd>
+              </div>
+              <div className="border-t border-slate-200 pt-3">
+                <div className="flex justify-between gap-4">
+                  <dt className="font-black text-slate-950">Total con tarjeta</dt>
+                  <dd className="text-xl font-black text-blue-700">{money(payment.amount)}</dd>
+                </div>
+              </div>
+            </dl>
+            <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+              El recargo corresponde al costo transaccional de PayPhone y se suma únicamente cuando eliges pagar con tarjeta o cuenta PayPhone.
+            </p>
+          </div>
+
+          <div className="min-h-[380px] rounded-xl border border-slate-200 bg-white p-4">
+            {sdkError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{sdkError}</div>
+            ) : (
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600">
+                <Loader2 size={16} className="animate-spin text-blue-600" />
+                Cargando cajita de pagos...
+              </div>
+            )}
+            <div id="payphone-signature-box" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

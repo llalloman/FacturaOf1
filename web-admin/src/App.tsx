@@ -55,6 +55,7 @@ const PreciosFirmaPage = lazy(() => import('./pages/firmas/PreciosFirmaPage'));
 const AutomationLeadsPage = lazy(() => import('./pages/automation/AutomationLeadsPage'));
 const SolicitarDemoPage = lazy(() => import('./pages/public/SolicitarDemoPage'));
 const SolicitarFirmaElectronicaPage = lazy(() => import('./pages/public/SolicitarFirmaElectronicaPage'));
+const FirmaPagoResultadoPage = lazy(() => import('./pages/public/FirmaPagoResultadoPage'));
 
 /** Spinner global usado mientras se verifica el estado de suscripción */
 function AppLoader() {
@@ -317,6 +318,9 @@ function AppRoutes() {
           <Route path="/politica-privacidad" element={<PrivacidadPage />} />
           <Route path="/solicitar-demo" element={<SolicitarDemoPage />} />
           <Route path="/solicitar-firma-electronica" element={<SolicitarFirmaElectronicaPage />} />
+          <Route path="/solicitar-firma-electronica/pago-confirmado" element={<FirmaPagoResultadoPage status="success" />} />
+          <Route path="/solicitar-firma-electronica/pago-cancelado" element={<FirmaPagoResultadoPage status="cancelled" />} />
+          <Route path="/solicitar-firma-electronica/pago-error" element={<FirmaPagoResultadoPage status="error" />} />
 
           {/* POS - pantalla completa, sin el Layout del admin */}
           <Route
