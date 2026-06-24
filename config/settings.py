@@ -189,6 +189,16 @@ KIT_EMPRENDEDOR_PRICE = config('KIT_EMPRENDEDOR_PRICE', default='79.99')
 # Token interno para n8n / automation. No definir valor por defecto inseguro.
 AUTOMATION_API_TOKEN = config('AUTOMATION_API_TOKEN', default='').strip()
 
+# PayPhone - botón de pagos para solicitudes públicas de firma electrónica.
+PAYPHONE_TOKEN = config('PAYPHONE_TOKEN', default='').strip()
+PAYPHONE_STORE_ID = config('PAYPHONE_STORE_ID', default='').strip()
+PAYPHONE_PREPARE_URL = config('PAYPHONE_PREPARE_URL', default='').strip()
+PAYPHONE_CURRENCY = config('PAYPHONE_CURRENCY', default='USD').strip()
+PAYPHONE_TIMEOUT_SECONDS = config('PAYPHONE_TIMEOUT_SECONDS', default=20, cast=int)
+PAYPHONE_SIGNATURE_SUCCESS_URL = config('PAYPHONE_SIGNATURE_SUCCESS_URL', default='').strip()
+PAYPHONE_SIGNATURE_CANCEL_URL = config('PAYPHONE_SIGNATURE_CANCEL_URL', default='').strip()
+PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='').strip().rstrip('/')
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
