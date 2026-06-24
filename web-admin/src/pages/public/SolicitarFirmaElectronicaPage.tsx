@@ -254,6 +254,7 @@ export default function SolicitarFirmaElectronicaPage() {
   const [payphoneModalOpen, setPayphoneModalOpen] = useState(false);
   const [payphonePayment, setPayphonePayment] = useState<PayPhoneFirmaPaymentResponse | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupForm, setLookupForm] = useState({ requestNumber: '', verification: '' });
   const [recoveredLookup, setRecoveredLookup] = useState<PublicSignatureLookupResponse | null>(null);
   const [confirmed, setConfirmed] = useState<{
     id: number;
@@ -262,67 +263,82 @@ export default function SolicitarFirmaElectronicaPage() {
     emailStatus?: PublicFinalizeResponse['email_status'];
   } | null>(null);
 
+  const applyRecoveredLookup = (result: PublicSignatureLookupResponse, fallbackRequestNumber?: string) => {
+    const solicitud = result.solicitud;
+    setRecoveredLookup(result);
+    setForm((prev) => ({
+      ...prev,
+      request_type: solicitud.request_type,
+      identification_type: solicitud.identification_type,
+      first_name: solicitud.first_name,
+      last_name: solicitud.last_name,
+      second_last_name: solicitud.second_last_name ?? '',
+      identification: solicitud.identification,
+      fingerprint_code: solicitud.fingerprint_code ?? '',
+      birth_date: solicitud.birth_date ?? '',
+      nationality: solicitud.nationality ?? 'ECUATORIANA',
+      gender: solicitud.gender ?? '',
+      has_ruc: Boolean(solicitud.has_ruc),
+      ruc: solicitud.ruc ?? '',
+      business_name: solicitud.business_name ?? '',
+      company_unit: solicitud.company_unit ?? '',
+      applicant_position: solicitud.applicant_position ?? '',
+      request_reason: solicitud.request_reason ?? '',
+      email: solicitud.email,
+      secondary_email: solicitud.secondary_email ?? '',
+      phone: solicitud.phone,
+      secondary_phone: solicitud.secondary_phone ?? '',
+      province: solicitud.province,
+      city: solicitud.city,
+      address: solicitud.address,
+      representative_identification_type: solicitud.representative_identification_type ?? 'CEDULA',
+      representative_identification: solicitud.representative_identification ?? '',
+      representative_names: solicitud.representative_names ?? '',
+      representative_last_names: solicitud.representative_last_names ?? '',
+      validity: solicitud.validity,
+      container_type: solicitud.container_type ?? 'ARCHIVO',
+      wants_erp: Boolean(solicitud.wants_erp),
+      interested_plan: solicitud.interested_plan,
+      coupon_code: '',
+      accepted_terms: true,
+      accepted_privacy: true,
+      archivos: {},
+    }));
+    setConfirmed({
+      id: Number(solicitud.id),
+      requestNumber: solicitud.request_number ?? fallbackRequestNumber ?? '',
+      message: 'Esta solicitud ya fue registrada. Puedes revisar la información, ver los datos de transferencia o reintentar el pago con tarjeta.',
+    });
+    setStep(3);
+  };
+
+  const loadPublicSignature = async (params: { requestNumber: string; transaction?: string; verification?: string }) => {
+    const requestNumber = params.requestNumber.trim();
+    const transaction = params.transaction?.trim();
+    const verification = params.verification?.trim();
+    if (!requestNumber || (!transaction && !verification)) {
+      setError('Ingresa el número de solicitud y la cédula, correo o teléfono registrado.');
+      return;
+    }
+    setLookupLoading(true);
+    setError('');
+    try {
+      const result = await firmasService.getPublicPaymentRequest({ requestNumber, transaction, verification });
+      applyRecoveredLookup(result, requestNumber);
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || 'No pudimos recuperar la solicitud. Revisa los datos ingresados o contáctanos por WhatsApp.');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
   useEffect(() => {
     const requestNumber = searchParams.get('request');
     const transaction = searchParams.get('transaction');
-    if (!requestNumber || !transaction || confirmed || lookupLoading) return;
-    setLookupLoading(true);
-    setError('');
-    firmasService.getPublicPaymentRequest(requestNumber, transaction)
-      .then((result) => {
-        const solicitud = result.solicitud;
-        setRecoveredLookup(result);
-        setForm((prev) => ({
-          ...prev,
-          request_type: solicitud.request_type,
-          identification_type: solicitud.identification_type,
-          first_name: solicitud.first_name,
-          last_name: solicitud.last_name,
-          second_last_name: solicitud.second_last_name ?? '',
-          identification: solicitud.identification,
-          fingerprint_code: solicitud.fingerprint_code ?? '',
-          birth_date: solicitud.birth_date ?? '',
-          nationality: solicitud.nationality ?? 'ECUATORIANA',
-          gender: solicitud.gender ?? '',
-          has_ruc: Boolean(solicitud.has_ruc),
-          ruc: solicitud.ruc ?? '',
-          business_name: solicitud.business_name ?? '',
-          company_unit: solicitud.company_unit ?? '',
-          applicant_position: solicitud.applicant_position ?? '',
-          request_reason: solicitud.request_reason ?? '',
-          email: solicitud.email,
-          secondary_email: solicitud.secondary_email ?? '',
-          phone: solicitud.phone,
-          secondary_phone: solicitud.secondary_phone ?? '',
-          province: solicitud.province,
-          city: solicitud.city,
-          address: solicitud.address,
-          representative_identification_type: solicitud.representative_identification_type ?? 'CEDULA',
-          representative_identification: solicitud.representative_identification ?? '',
-          representative_names: solicitud.representative_names ?? '',
-          representative_last_names: solicitud.representative_last_names ?? '',
-          validity: solicitud.validity,
-          container_type: solicitud.container_type ?? 'ARCHIVO',
-          wants_erp: Boolean(solicitud.wants_erp),
-          interested_plan: solicitud.interested_plan,
-          coupon_code: '',
-          accepted_terms: true,
-          accepted_privacy: true,
-          archivos: {},
-        }));
-        setConfirmed({
-          id: Number(solicitud.id),
-          requestNumber: solicitud.request_number ?? requestNumber,
-          message: 'Esta solicitud ya fue registrada. Puedes revisar la información, ver los datos de transferencia o reintentar el pago con tarjeta.',
-        });
-        setStep(3);
-      })
-      .catch((err) => {
-        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-        setError(detail || 'No pudimos recuperar la solicitud. Si el pago fue debitado, contáctanos por WhatsApp.');
-      })
-      .finally(() => setLookupLoading(false));
-  }, [searchParams, confirmed, lookupLoading]);
+    if (!requestNumber || !transaction || confirmed) return;
+    void loadPublicSignature({ requestNumber, transaction });
+  }, [searchParams, confirmed]);
 
   const { data: preciosRemotos = [] } = useQuery({
     queryKey: ['precios-firma-publicos'],
@@ -590,6 +606,45 @@ export default function SolicitarFirmaElectronicaPage() {
             Completa los datos y documentos requeridos. Al finalizar recibirás un número de solicitud para confirmar el pago por WhatsApp.
           </p>
         </section>
+
+        {!confirmed && (
+          <section className="mb-7 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
+            <div className="grid gap-4 lg:grid-cols-[1fr_1.3fr_auto] lg:items-end">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Ya tengo una solicitud</p>
+                <h2 className="mt-1 text-base font-black text-slate-950">Consultar solicitud registrada</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-600">Usa el código de solicitud junto con tu cédula, RUC, pasaporte, correo o teléfono registrado.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Código de solicitud">
+                  <input
+                    className={inputClass}
+                    placeholder="FE-2026-000001"
+                    value={lookupForm.requestNumber}
+                    onChange={(event) => setLookupForm((prev) => ({ ...prev, requestNumber: event.target.value }))}
+                  />
+                </Field>
+                <Field label="Dato de verificación">
+                  <input
+                    className={inputClass}
+                    placeholder="Cédula, correo o teléfono"
+                    value={lookupForm.verification}
+                    onChange={(event) => setLookupForm((prev) => ({ ...prev, verification: event.target.value }))}
+                  />
+                </Field>
+              </div>
+              <button
+                type="button"
+                disabled={lookupLoading}
+                onClick={() => loadPublicSignature({ requestNumber: lookupForm.requestNumber, verification: lookupForm.verification })}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {lookupLoading ? <Loader2 size={16} className="animate-spin" /> : <FileCheck2 size={16} />}
+                Consultar
+              </button>
+            </div>
+          </section>
+        )}
 
         <StepIndicator current={step} />
 
@@ -960,11 +1015,11 @@ function RecoveredSignatureReview({ lookup }: { lookup: PublicSignatureLookupRes
           ['Dirección', solicitud.address],
         ]} />
         <SummaryBlock title="Pago" rows={[
-          ['Valor firma', money(lookup.payment.base_amount || solicitud.sale_price)],
-          ['Recargo PayPhone', money(lookup.payment.processing_fee)],
-          ['IVA recargo', money(lookup.payment.processing_fee_tax)],
-          ['Total tarjeta', money(lookup.payment.amount)],
-          ['Estado pago', lookup.payment.status],
+          ['Valor firma', money(lookup.payment?.base_amount || solicitud.sale_price)],
+          ['Recargo PayPhone', money(lookup.payment?.processing_fee)],
+          ['IVA recargo', money(lookup.payment?.processing_fee_tax)],
+          ['Total tarjeta', lookup.payment ? money(lookup.payment.amount) : 'Se calculará al pagar con tarjeta'],
+          ['Estado pago', lookup.payment?.status || 'Sin pago PayPhone registrado'],
         ]} />
       </div>
       {(solicitud.business_name || solicitud.ruc || solicitud.representative_names || docs.length > 0) && (

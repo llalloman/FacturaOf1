@@ -256,7 +256,7 @@ export interface PublicSignatureLookupResponse {
     processing_fee_tax: string;
     currency: string;
     client_transaction_id: string;
-  };
+  } | null;
 }
 
 export interface PublicFinalizeResponse {
@@ -405,9 +405,13 @@ export const firmasService = {
     return data;
   },
 
-  getPublicPaymentRequest: async (requestNumber: string, transaction: string): Promise<PublicSignatureLookupResponse> => {
+  getPublicPaymentRequest: async (params: { requestNumber: string; transaction?: string; verification?: string }): Promise<PublicSignatureLookupResponse> => {
     const { data } = await apiClient.get('/firmas/solicitudes-publicas/consulta-pago/', {
-      params: { request_number: requestNumber, transaction },
+      params: {
+        request_number: params.requestNumber,
+        transaction: params.transaction,
+        verification: params.verification,
+      },
     });
     return data;
   },

@@ -450,21 +450,44 @@ def _public_signature_summary(solicitud):
 def consultar_solicitud_publica_pago(request):
     request_number = request.query_params.get('request_number', '').strip()
     transaction = request.query_params.get('transaction', '').strip()
-    if not request_number or not transaction:
-        return Response({'detail': 'Número de solicitud y transacción requeridos.'}, status=status.HTTP_400_BAD_REQUEST)
+    verification = request.query_params.get('verification', '').strip().lower()
+    if not request_number:
+        return Response({'detail': 'Número de solicitud requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+
     solicitud = get_object_or_404(
-        SolicitudFirmaElectronica.objects.prefetch_related('documents'),
+        SolicitudFirmaElectronica.objects.prefetch_related('documents', 'payments'),
         request_number=request_number,
     )
-    payment = get_object_or_404(
-        FirmaPagoElectronico,
-        request=solicitud,
-        client_transaction_id=transaction,
-        provider=FirmaPagoElectronico.Provider.PAYPHONE,
-    )
-    return Response({
-        'solicitud': _public_signature_summary(solicitud),
-        'payment': {
+
+    payment = None
+    if transaction:
+        payment = get_object_or_404(
+            FirmaPagoElectronico,
+            request=solicitud,
+            client_transaction_id=transaction,
+            provider=FirmaPagoElectronico.Provider.PAYPHONE,
+        )
+    else:
+        if not verification:
+            return Response({'detail': 'Ingresa la cédula, RUC, pasaporte, correo o teléfono asociado a la solicitud.'}, status=status.HTTP_400_BAD_REQUEST)
+        verification_digits = ''.join(ch for ch in verification if ch.isdigit())
+        matches_identity = verification_digits and verification_digits in {
+            ''.join(ch for ch in (solicitud.identification or '') if ch.isdigit()),
+            ''.join(ch for ch in (solicitud.ruc or '') if ch.isdigit()),
+            ''.join(ch for ch in (solicitud.phone or '') if ch.isdigit()),
+            ''.join(ch for ch in (solicitud.secondary_phone or '') if ch.isdigit()),
+        }
+        matches_email = verification in {
+            (solicitud.email or '').strip().lower(),
+            (solicitud.secondary_email or '').strip().lower(),
+        }
+        if not matches_identity and not matches_email:
+            return Response({'detail': 'Los datos ingresados no coinciden con la solicitud.'}, status=status.HTTP_403_FORBIDDEN)
+        payment = solicitud.payments.filter(provider=FirmaPagoElectronico.Provider.PAYPHONE).order_by('-created_at').first()
+
+    payment_payload = None
+    if payment:
+        payment_payload = {
             'status': payment.status,
             'amount': str(payment.amount),
             'base_amount': str(payment.base_amount),
@@ -472,8 +495,13 @@ def consultar_solicitud_publica_pago(request):
             'processing_fee_tax': str(payment.processing_fee_tax),
             'currency': payment.currency,
             'client_transaction_id': payment.client_transaction_id,
-        },
+        }
+
+    return Response({
+        'solicitud': _public_signature_summary(solicitud),
+        'payment': payment_payload,
     })
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
