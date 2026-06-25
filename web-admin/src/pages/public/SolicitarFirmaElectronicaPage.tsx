@@ -189,8 +189,40 @@ const buildNaturalRuc = (identification?: string) => {
   return digits.length === 10 ? `${digits}001` : '';
 };
 
+const ecuadorLocations: Record<string, string[]> = {
+  AZUAY: ['CUENCA', 'GIRON', 'GUALACEO', 'NABON', 'PAUTE', 'PUCARA', 'SAN FERNANDO', 'SANTA ISABEL', 'SIGSIG', 'OÑA', 'CHORDELEG', 'EL PAN', 'SEVILLA DE ORO', 'GUACHAPALA', 'CAMILO PONCE ENRIQUEZ'],
+  BOLIVAR: ['GUARANDA', 'CHILLANES', 'CHIMBO', 'ECHEANDIA', 'SAN MIGUEL', 'CALUMA', 'LAS NAVES'],
+  CAÑAR: ['AZOGUES', 'BIBLIAN', 'CAÑAR', 'LA TRONCAL', 'EL TAMBO', 'DELEG', 'SUSCAL'],
+  CARCHI: ['TULCAN', 'BOLIVAR', 'ESPEJO', 'MIRA', 'MONTUFAR', 'SAN PEDRO DE HUACA'],
+  CHIMBORAZO: ['RIOBAMBA', 'ALAUSI', 'COLTA', 'CHAMBO', 'CHUNCHI', 'GUAMOTE', 'GUANO', 'PALLATANGA', 'PENIPE', 'CUMANDA'],
+  COTOPAXI: ['LATACUNGA', 'LA MANA', 'PANGUA', 'PUJILI', 'SALCEDO', 'SAQUISILI', 'SIGCHOS'],
+  'EL ORO': ['MACHALA', 'ARENILLAS', 'ATAHUALPA', 'BALSAS', 'CHILLA', 'EL GUABO', 'HUAQUILLAS', 'MARCABELI', 'PASAJE', 'PIÑAS', 'PORTOVELO', 'SANTA ROSA', 'ZARUMA', 'LAS LAJAS'],
+  ESMERALDAS: ['ESMERALDAS', 'ELOY ALFARO', 'MUISNE', 'QUININDE', 'SAN LORENZO', 'ATACAMES', 'RIOVERDE', 'LA CONCORDIA'],
+  GALAPAGOS: ['SAN CRISTOBAL', 'ISABELA', 'SANTA CRUZ'],
+  GUAYAS: ['GUAYAQUIL', 'ALFREDO BAQUERIZO MORENO', 'BALAO', 'BALZAR', 'COLIMES', 'DAULE', 'DURAN', 'EL EMPALME', 'EL TRIUNFO', 'MILAGRO', 'NARANJAL', 'NARANJITO', 'PALESTINA', 'PEDRO CARBO', 'SAMBORONDON', 'SANTA LUCIA', 'SALITRE', 'SAN JACINTO DE YAGUACHI', 'PLAYAS', 'SIMON BOLIVAR', 'CORONEL MARCELINO MARIDUEÑA', 'LOMAS DE SARGENTILLO', 'NOBOL', 'GENERAL ANTONIO ELIZALDE', 'ISIDRO AYORA'],
+  IMBABURA: ['IBARRA', 'ANTONIO ANTE', 'COTACACHI', 'OTAVALO', 'PIMAMPIRO', 'SAN MIGUEL DE URCUQUI'],
+  LOJA: ['LOJA', 'CALVAS', 'CATAMAYO', 'CELICA', 'CHAGUARPAMBA', 'ESPINDOLA', 'GONZANAMA', 'MACARA', 'PALTAS', 'PUYANGO', 'SARAGURO', 'SOZORANGA', 'ZAPOTILLO', 'PINDAL', 'QUILANGA', 'OLMEDO'],
+  'LOS RIOS': ['BABAHOYO', 'BABA', 'MONTALVO', 'PUEBLOVIEJO', 'QUEVEDO', 'URDANETA', 'VENTANAS', 'VINCES', 'PALENQUE', 'BUENA FE', 'VALENCIA', 'MOCACHE', 'QUINSALOMA'],
+  MANABI: ['PORTOVIEJO', 'BOLIVAR', 'CHONE', 'EL CARMEN', 'FLAVIO ALFARO', 'JIPIJAPA', 'JUNIN', 'MANTA', 'MONTECRISTI', 'PAJAN', 'PICHINCHA', 'ROCAFUERTE', 'SANTA ANA', 'SUCRE', 'TOSAGUA', '24 DE MAYO', 'PEDERNALES', 'OLMEDO', 'PUERTO LOPEZ', 'JAMA', 'JARAMIJO', 'SAN VICENTE'],
+  'MORONA SANTIAGO': ['MORONA', 'GUALAQUIZA', 'LIMON INDANZA', 'PALORA', 'SANTIAGO', 'SUCUA', 'HUAMBOYA', 'SAN JUAN BOSCO', 'TAISHA', 'LOGROÑO', 'PABLO SEXTO', 'TIWINTZA'],
+  NAPO: ['TENA', 'ARCHIDONA', 'EL CHACO', 'QUIJOS', 'CARLOS JULIO AROSEMENA TOLA'],
+  ORELLANA: ['ORELLANA', 'AGUARICO', 'LA JOYA DE LOS SACHAS', 'LORETO'],
+  PASTAZA: ['PASTAZA', 'MERA', 'SANTA CLARA', 'ARAJUNO'],
+  PICHINCHA: ['QUITO', 'CAYAMBE', 'MEJIA', 'PEDRO MONCAYO', 'RUMIÑAHUI', 'SAN MIGUEL DE LOS BANCOS', 'PEDRO VICENTE MALDONADO', 'PUERTO QUITO'],
+  'SANTA ELENA': ['SANTA ELENA', 'LA LIBERTAD', 'SALINAS'],
+  'SANTO DOMINGO DE LOS TSACHILAS': ['SANTO DOMINGO', 'LA CONCORDIA'],
+  SUCUMBIOS: ['LAGO AGRIO', 'GONZALO PIZARRO', 'PUTUMAYO', 'SHUSHUFINDI', 'SUCUMBIOS', 'CASCALES', 'CUYABENO'],
+  TUNGURAHUA: ['AMBATO', 'BAÑOS DE AGUA SANTA', 'CEVALLOS', 'MOCHA', 'PATATE', 'QUERO', 'SAN PEDRO DE PELILEO', 'SANTIAGO DE PILLARO', 'TISALEO'],
+  'ZAMORA CHINCHIPE': ['ZAMORA', 'CHINCHIPE', 'NANGARITZA', 'YACUAMBI', 'YANTZAZA', 'EL PANGUI', 'CENTINELA DEL CONDOR', 'PALANDA', 'PAQUISHA'],
+};
+const provinceOptions = Object.keys(ecuadorLocations);
+const normalizeUpper = (value: unknown) => typeof value === 'string' ? value.toUpperCase() : value;
+const onlyDigits = (value: unknown) => String(value ?? '').replace(/\D/g, '');
+const isIdentificationField = (field: keyof SolicitudFirmaPublicPayload) => ['identification', 'ruc', 'representative_identification'].includes(String(field));
+const isPhoneField = (field: keyof SolicitudFirmaPublicPayload) => ['phone', 'secondary_phone'].includes(String(field));
 const inputClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100';
 const labelClass = 'mb-1.5 block text-xs font-semibold uppercase text-slate-500';
+const fieldInputClass = (invalid?: boolean) => `${inputClass} ${invalid ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-100' : ''}`;
 
 type DocumentConfig = {
   key: DocumentoPublicoFirma;
@@ -230,11 +262,12 @@ const legalDocs: DocumentConfig[] = [
   { key: 'documento_adicional', label: 'Documento adicional', helper: 'PDF, JPG o PNG.', required: false },
 ];
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, invalid }: { label: string; children: ReactNode; invalid?: boolean }) {
   return (
     <label className="block">
       <span className={labelClass}>{label}</span>
       {children}
+      {invalid && <span className="mt-1 block text-xs font-semibold text-red-600">Campo obligatorio</span>}
     </label>
   );
 }
@@ -246,6 +279,7 @@ export default function SolicitarFirmaElectronicaPage() {
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const [error, setError] = useState('');
+  const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set());
   const [couponInput, setCouponInput] = useState('');
   const [couponQuote, setCouponQuote] = useState<CuponFirmaQuote | null>(null);
   const [couponMessage, setCouponMessage] = useState('');
@@ -355,6 +389,8 @@ export default function SolicitarFirmaElectronicaPage() {
 
   const isCompanyRequest = form.request_type === 'MIEMBRO_EMPRESA' || form.request_type === 'REPRESENTANTE_LEGAL';
   const isMemberRequest = form.request_type === 'MIEMBRO_EMPRESA';
+  const cantonesDisponibles = form.province ? (ecuadorLocations[form.province] ?? []) : [];
+  const invalid = (field: keyof SolicitudFirmaPublicPayload) => invalidFields.has(String(field));
   const documentConfig = useMemo(() => {
     if (form.request_type === 'MIEMBRO_EMPRESA') return companyDocs;
     if (form.request_type === 'REPRESENTANTE_LEGAL') return legalDocs;
@@ -365,18 +401,41 @@ export default function SolicitarFirmaElectronicaPage() {
   const uploadedRequiredDocs = documentConfig.filter((doc) => doc.required && form.archivos?.[doc.key]).length;
 
   const setField = (field: keyof SolicitudFirmaPublicPayload, value: unknown) => {
+    setInvalidFields((current) => {
+      if (!current.has(String(field))) return current;
+      const nextInvalid = new Set(current);
+      nextInvalid.delete(String(field));
+      return nextInvalid;
+    });
     setForm((prev) => {
-      const next = { ...prev, [field]: value };
+      let normalized = normalizeUpper(value);
+      if (isIdentificationField(field) || isPhoneField(field)) normalized = onlyDigits(value);
+      const next = { ...prev, [field]: normalized };
       if (field === 'request_type') {
         next.archivos = {};
         next.has_ruc = value !== 'PERSONA_NATURAL';
         next.ruc = value === 'PERSONA_NATURAL' ? '' : next.ruc;
+        next.identification_type = value === 'PERSONA_NATURAL' && next.identification_type === 'RUC' ? 'CEDULA' : next.identification_type;
+        next.business_name = value === 'PERSONA_NATURAL' ? '' : next.business_name;
+        next.company_unit = value === 'PERSONA_NATURAL' ? '' : next.company_unit;
+        next.applicant_position = value === 'PERSONA_NATURAL' ? '' : next.applicant_position;
+        next.request_reason = value === 'PERSONA_NATURAL' ? '' : next.request_reason;
       }
       if (field === 'identification' && next.request_type === 'PERSONA_NATURAL' && next.has_ruc) {
-        next.ruc = buildNaturalRuc(String(value));
+        next.ruc = buildNaturalRuc(String(normalized));
       }
       if (field === 'has_ruc' && next.request_type === 'PERSONA_NATURAL') {
         next.ruc = value ? buildNaturalRuc(next.identification) : '';
+        next.business_name = '';
+        next.company_unit = '';
+        next.applicant_position = '';
+        next.request_reason = '';
+      }
+      if (field === 'identification_type' && normalized !== 'PASAPORTE' && next.gender === 'OTRO') {
+        next.gender = '';
+      }
+      if (field === 'province') {
+        next.city = '';
       }
       return next;
     });
@@ -435,25 +494,29 @@ export default function SolicitarFirmaElectronicaPage() {
 
   const validateStep = () => {
     setError('');
+    setInvalidFields(new Set());
     if (step === 0) {
-      const required = [
-        form.identification_type, form.first_name, form.last_name, form.identification,
-        form.fingerprint_code, form.birth_date, form.nationality, form.gender,
-        form.email, form.phone, form.province, form.city, form.address,
+      const requiredFields: Array<keyof SolicitudFirmaPublicPayload> = [
+        'identification_type', 'first_name', 'last_name', 'identification',
+        'fingerprint_code', 'birth_date', 'nationality', 'gender',
+        'email', 'phone', 'province', 'city', 'address',
       ];
-      if (isCompanyRequest) required.push(form.ruc, form.business_name, form.applicant_position);
+      if (isCompanyRequest) requiredFields.push('ruc', 'business_name', 'applicant_position');
+      if (form.request_type === 'PERSONA_NATURAL' && form.has_ruc) requiredFields.push('ruc');
       if (isMemberRequest) {
-        required.push(
-          form.company_unit,
-          form.request_reason,
-          form.representative_identification_type,
-          form.representative_identification,
-          form.representative_names,
-          form.representative_last_names,
+        requiredFields.push(
+          'company_unit',
+          'request_reason',
+          'representative_identification_type',
+          'representative_identification',
+          'representative_names',
+          'representative_last_names',
         );
       }
-      if (required.some((value) => !value)) {
-        setError('Completa los campos obligatorios para continuar.');
+      const missing = requiredFields.filter((field) => !form[field]);
+      if (missing.length) {
+        setInvalidFields(new Set(missing.map(String)));
+        setError('Completa los campos obligatorios marcados en rojo para continuar.');
         return false;
       }
     }
@@ -515,6 +578,7 @@ export default function SolicitarFirmaElectronicaPage() {
     }
     setLoading(true);
     setError('');
+    setInvalidFields(new Set());
     setUploadProgress('Registrando solicitud...');
     try {
       const result = await firmasService.createPublic(form);
@@ -539,6 +603,9 @@ export default function SolicitarFirmaElectronicaPage() {
       if (response?.status === 413) {
         setError(`El archivo supera el límite permitido por el servidor. Comprime el archivo y vuelve a intentarlo. Máximo ${maxDocumentSizeMb} MB por archivo.`);
       } else {
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+          setInvalidFields(new Set(Object.keys(data)));
+        }
         setError(data ? JSON.stringify(data) : 'No se pudo enviar la solicitud. Intenta nuevamente.');
       }
     } finally {
@@ -621,7 +688,7 @@ export default function SolicitarFirmaElectronicaPage() {
                     className={inputClass}
                     placeholder="FE-2026-000001"
                     value={lookupForm.requestNumber}
-                    onChange={(event) => setLookupForm((prev) => ({ ...prev, requestNumber: event.target.value }))}
+                    onChange={(event) => setLookupForm((prev) => ({ ...prev, requestNumber: event.target.value.toUpperCase() }))}
                   />
                 </Field>
                 <Field label="Dato de verificación">
@@ -629,7 +696,7 @@ export default function SolicitarFirmaElectronicaPage() {
                     className={inputClass}
                     placeholder="Cédula, correo o teléfono"
                     value={lookupForm.verification}
-                    onChange={(event) => setLookupForm((prev) => ({ ...prev, verification: event.target.value }))}
+                    onChange={(event) => setLookupForm((prev) => ({ ...prev, verification: event.target.value.toUpperCase() }))}
                   />
                 </Field>
               </div>
@@ -663,50 +730,50 @@ export default function SolicitarFirmaElectronicaPage() {
               <StepTitle title="Paso 1 - Datos personales" subtitle="Primero elige el tipo de firma. El formulario y los documentos se ajustan automáticamente." />
               <RequestTypeCards value={form.request_type as TipoSolicitudFirma} onChange={(value) => setField('request_type', value)} />
               <div className="grid gap-4 md:grid-cols-3">
-                <Field label="Tipo de identificación *">
-                  <select className={inputClass} value={form.identification_type} onChange={(e) => setField('identification_type', e.target.value)}>
+                <Field label="Tipo de identificación *" invalid={invalid('identification_type')}>
+                  <select className={fieldInputClass(invalid('identification_type'))} value={form.identification_type} onChange={(e) => setField('identification_type', e.target.value)}>
                     <option value="CEDULA">Cédula</option>
                     <option value="PASAPORTE">Pasaporte</option>
-                    <option value="RUC">RUC</option>
+                    {isCompanyRequest && <option value="RUC">RUC</option>}
                   </select>
                 </Field>
-                <Field label="Identificación *">
-                  <input className={inputClass} value={form.identification ?? ''} onChange={(e) => setField('identification', e.target.value)} />
+                <Field label="Identificación *" invalid={invalid('identification')}>
+                  <input className={fieldInputClass(invalid('identification'))} value={form.identification ?? ''} onChange={(e) => setField('identification', e.target.value)} inputMode={form.identification_type === 'PASAPORTE' ? 'text' : 'numeric'} maxLength={form.identification_type === 'PASAPORTE' ? 20 : form.identification_type === 'RUC' ? 13 : 10} />
                 </Field>
-                <Field label="Codigo dactilar *">
-                  <input className={inputClass} placeholder="EXXXXXIXXXX" value={form.fingerprint_code ?? ''} onChange={(e) => setField('fingerprint_code', e.target.value)} />
+                <Field label="Codigo dactilar *" invalid={invalid('fingerprint_code')}>
+                  <input className={fieldInputClass(invalid('fingerprint_code'))} placeholder="EXXXXXIXXXX" value={form.fingerprint_code ?? ''} onChange={(e) => setField('fingerprint_code', e.target.value)} />
                 </Field>
-                <Field label="Nombres *">
-                  <input className={inputClass} value={form.first_name ?? ''} onChange={(e) => setField('first_name', e.target.value)} />
+                <Field label="Nombres *" invalid={invalid('first_name')}>
+                  <input className={fieldInputClass(invalid('first_name'))} value={form.first_name ?? ''} onChange={(e) => setField('first_name', e.target.value)} />
                 </Field>
-                <Field label="1er Apellido *">
-                  <input className={inputClass} value={form.last_name ?? ''} onChange={(e) => setField('last_name', e.target.value)} />
+                <Field label="1er Apellido *" invalid={invalid('last_name')}>
+                  <input className={fieldInputClass(invalid('last_name'))} value={form.last_name ?? ''} onChange={(e) => setField('last_name', e.target.value)} />
                 </Field>
                 <Field label="2do Apellido">
                   <input className={inputClass} value={form.second_last_name ?? ''} onChange={(e) => setField('second_last_name', e.target.value)} />
                 </Field>
-                <Field label="Fecha de nacimiento *">
-                  <input type="date" className={inputClass} value={form.birth_date ?? ''} onChange={(e) => setField('birth_date', e.target.value)} />
+                <Field label="Fecha de nacimiento *" invalid={invalid('birth_date')}>
+                  <input type="date" className={fieldInputClass(invalid('birth_date'))} value={form.birth_date ?? ''} onChange={(e) => setField('birth_date', e.target.value)} />
                 </Field>
-                <Field label="Nacionalidad *">
-                  <input className={inputClass} value={form.nationality ?? ''} onChange={(e) => setField('nationality', e.target.value)} />
+                <Field label="Nacionalidad *" invalid={invalid('nationality')}>
+                  <input className={fieldInputClass(invalid('nationality'))} value={form.nationality ?? ''} onChange={(e) => setField('nationality', e.target.value)} />
                 </Field>
-                <Field label="Sexo *">
-                  <select className={inputClass} value={form.gender ?? ''} onChange={(e) => setField('gender', e.target.value)}>
-                    <option value="">Seleccione...</option>
-                    <option value="HOMBRE">Hombre</option>
-                    <option value="MUJER">Mujer</option>
-                    <option value="OTRO">Otro</option>
+                <Field label="Sexo *" invalid={invalid('gender')}>
+                  <select className={fieldInputClass(invalid('gender'))} value={form.gender ?? ''} onChange={(e) => setField('gender', e.target.value)}>
+                    <option value="">SELECCIONE...</option>
+                    <option value="HOMBRE">HOMBRE</option>
+                    <option value="MUJER">MUJER</option>
+                    {form.identification_type === 'PASAPORTE' && <option value="OTRO">OTRO</option>}
                   </select>
                 </Field>
-                <Field label="Teléfono *">
-                  <input className={inputClass} placeholder="09xxxxxxxx" value={form.phone ?? ''} onChange={(e) => setField('phone', e.target.value)} />
+                <Field label="Teléfono *" invalid={invalid('phone')}>
+                  <input className={fieldInputClass(invalid('phone'))} placeholder="09XXXXXXXX" value={form.phone ?? ''} onChange={(e) => setField('phone', e.target.value)} inputMode="tel" />
                 </Field>
                 <Field label="Teléfono 2">
-                  <input className={inputClass} placeholder="09xxxxxxxx" value={form.secondary_phone ?? ''} onChange={(e) => setField('secondary_phone', e.target.value)} />
+                  <input className={inputClass} placeholder="09XXXXXXXX" value={form.secondary_phone ?? ''} onChange={(e) => setField('secondary_phone', e.target.value)} inputMode="tel" />
                 </Field>
-                <Field label="Correo electronico *">
-                  <input type="email" className={inputClass} value={form.email ?? ''} onChange={(e) => setField('email', e.target.value)} />
+                <Field label="Correo electronico *" invalid={invalid('email')}>
+                  <input type="email" className={fieldInputClass(invalid('email'))} value={form.email ?? ''} onChange={(e) => setField('email', e.target.value)} />
                 </Field>
                 <Field label="Correo electronico 2">
                   <input type="email" className={inputClass} value={form.secondary_email ?? ''} onChange={(e) => setField('secondary_email', e.target.value)} />
@@ -720,60 +787,69 @@ export default function SolicitarFirmaElectronicaPage() {
                     </div>
                   </div>
                 )}
-                {(isCompanyRequest || form.has_ruc) && (
+                {form.request_type === 'PERSONA_NATURAL' && form.has_ruc && (
+                  <Field label="Nro. RUC *" invalid={invalid('ruc')}>
+                    <input className={fieldInputClass(invalid('ruc'))} value={form.ruc ?? ''} readOnly />
+                    <p className="mt-1 text-xs text-slate-500">Se genera automaticamente con la cedula seguida de 001.</p>
+                  </Field>
+                )}
+                {isCompanyRequest && (
                   <>
-                    <Field label="Nro. RUC *">
-                      <input className={inputClass} value={form.ruc ?? ''} onChange={(e) => setField('ruc', e.target.value)} />
-                      {!isCompanyRequest && (
-                        <p className="mt-1 text-xs text-slate-500">Se autocompleta con la cédula seguida de 001.</p>
-                      )}
+                    <Field label="Nro. RUC *" invalid={invalid('ruc')}>
+                      <input className={fieldInputClass(invalid('ruc'))} value={form.ruc ?? ''} onChange={(e) => setField('ruc', e.target.value)} inputMode="numeric" maxLength={13} />
                     </Field>
-                    <Field label="Nombre empresa *">
-                      <input className={inputClass} value={form.business_name ?? ''} onChange={(e) => setField('business_name', e.target.value)} />
+                    <Field label="Nombre empresa *" invalid={invalid('business_name')}>
+                      <input className={fieldInputClass(invalid('business_name'))} value={form.business_name ?? ''} onChange={(e) => setField('business_name', e.target.value)} />
                     </Field>
                   </>
                 )}
                 {isCompanyRequest && (
-                  <Field label={form.request_type === 'REPRESENTANTE_LEGAL' ? 'Cargo *' : 'Cargo *'}>
-                    <input className={inputClass} value={form.applicant_position ?? ''} onChange={(e) => setField('applicant_position', e.target.value)} />
+                  <Field label={form.request_type === 'REPRESENTANTE_LEGAL' ? 'Cargo *' : 'Cargo *'} invalid={invalid('applicant_position')}>
+                    <input className={fieldInputClass(invalid('applicant_position'))} value={form.applicant_position ?? ''} onChange={(e) => setField('applicant_position', e.target.value)} />
                   </Field>
                 )}
                 {isMemberRequest && (
                   <>
-                    <Field label="Unidad *">
-                      <input className={inputClass} value={form.company_unit ?? ''} onChange={(e) => setField('company_unit', e.target.value)} />
+                    <Field label="Unidad *" invalid={invalid('company_unit')}>
+                      <input className={fieldInputClass(invalid('company_unit'))} value={form.company_unit ?? ''} onChange={(e) => setField('company_unit', e.target.value)} />
                     </Field>
-                    <Field label="Motivo *">
-                      <input className={inputClass} value={form.request_reason ?? ''} onChange={(e) => setField('request_reason', e.target.value)} />
+                    <Field label="Motivo *" invalid={invalid('request_reason')}>
+                      <input className={fieldInputClass(invalid('request_reason'))} value={form.request_reason ?? ''} onChange={(e) => setField('request_reason', e.target.value)} />
                     </Field>
                   </>
                 )}
-                <Field label="Provincia *">
-                  <input className={inputClass} value={form.province ?? ''} onChange={(e) => setField('province', e.target.value)} />
+                <Field label="Provincia *" invalid={invalid('province')}>
+                  <select className={fieldInputClass(invalid('province'))} value={form.province ?? ''} onChange={(e) => setField('province', e.target.value)}>
+                    <option value="">SELECCIONE PROVINCIA</option>
+                    {provinceOptions.map((province) => <option key={province} value={province}>{province}</option>)}
+                  </select>
                 </Field>
-                <Field label="Cantón *">
-                  <input className={inputClass} value={form.city ?? ''} onChange={(e) => setField('city', e.target.value)} />
+                <Field label="Cantón *" invalid={invalid('city')}>
+                  <select className={fieldInputClass(invalid('city'))} value={form.city ?? ''} onChange={(e) => setField('city', e.target.value)} disabled={!form.province}>
+                    <option value="">SELECCIONE CANTON</option>
+                    {cantonesDisponibles.map((city) => <option key={city} value={city}>{city}</option>)}
+                  </select>
                 </Field>
-                <Field label="Dirección *">
-                  <input className={inputClass} value={form.address ?? ''} onChange={(e) => setField('address', e.target.value)} />
+                <Field label="Dirección *" invalid={invalid('address')}>
+                  <input className={fieldInputClass(invalid('address'))} value={form.address ?? ''} onChange={(e) => setField('address', e.target.value)} />
                 </Field>
                 {isMemberRequest && (
                   <>
-                    <Field label="Tipo identificación representante legal *">
-                      <select className={inputClass} value={form.representative_identification_type ?? 'CEDULA'} onChange={(e) => setField('representative_identification_type', e.target.value)}>
+                    <Field label="Tipo identificación representante legal *" invalid={invalid('representative_identification_type')}>
+                      <select className={fieldInputClass(invalid('representative_identification_type'))} value={form.representative_identification_type ?? 'CEDULA'} onChange={(e) => setField('representative_identification_type', e.target.value)}>
                         <option value="CEDULA">Cédula</option>
                         <option value="PASAPORTE">Pasaporte</option>
                         <option value="RUC">RUC</option>
                       </select>
                     </Field>
-                    <Field label="Identificación representante legal *">
-                      <input className={inputClass} value={form.representative_identification ?? ''} onChange={(e) => setField('representative_identification', e.target.value)} />
+                    <Field label="Identificación representante legal *" invalid={invalid('representative_identification')}>
+                      <input className={fieldInputClass(invalid('representative_identification'))} value={form.representative_identification ?? ''} onChange={(e) => setField('representative_identification', e.target.value)} />
                     </Field>
-                    <Field label="Nombres representante legal *">
-                      <input className={inputClass} value={form.representative_names ?? ''} onChange={(e) => setField('representative_names', e.target.value)} />
+                    <Field label="Nombres representante legal *" invalid={invalid('representative_names')}>
+                      <input className={fieldInputClass(invalid('representative_names'))} value={form.representative_names ?? ''} onChange={(e) => setField('representative_names', e.target.value)} />
                     </Field>
-                    <Field label="Apellidos representante legal *">
-                      <input className={inputClass} value={form.representative_last_names ?? ''} onChange={(e) => setField('representative_last_names', e.target.value)} />
+                    <Field label="Apellidos representante legal *" invalid={invalid('representative_last_names')}>
+                      <input className={fieldInputClass(invalid('representative_last_names'))} value={form.representative_last_names ?? ''} onChange={(e) => setField('representative_last_names', e.target.value)} />
                     </Field>
                   </>
                 )}
@@ -865,14 +941,18 @@ export default function SolicitarFirmaElectronicaPage() {
                   ['Cantón', form.city],
                   ['Dirección', form.address],
                 ]} />
-                <SummaryBlock title="Empresa" rows={[
-                  ['RUC', form.ruc],
-                  ['Empresa', form.business_name],
-                  ['Unidad', form.company_unit],
-                  ['Cargo', form.applicant_position],
-                  ['Motivo', form.request_reason],
-                  ['Representante', `${form.representative_names ?? ''} ${form.representative_last_names ?? ''}`.trim()],
-                ]} />
+                {(isCompanyRequest || form.has_ruc) && (
+                  <SummaryBlock title={isCompanyRequest ? 'Empresa' : 'RUC personal'} rows={isCompanyRequest ? [
+                    ['RUC', form.ruc],
+                    ['Empresa', form.business_name],
+                    ['Unidad', form.company_unit],
+                    ['Cargo', form.applicant_position],
+                    ['Motivo', form.request_reason],
+                    ['Representante', `${form.representative_names ?? ''} ${form.representative_last_names ?? ''}`.trim()],
+                  ] : [
+                    ['RUC', form.ruc],
+                  ]} />
+                )}
               </div>
               <div className="rounded-lg border border-slate-200 p-4">
                 <h3 className="mb-3 text-sm font-bold text-slate-700">Documentos cargados</h3>
