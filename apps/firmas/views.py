@@ -545,6 +545,7 @@ def crear_cajita_payphone_firma_publico(request, pk):
         return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     box_config = dict(payment.raw_request)
+    box_config['token'] = getattr(settings, 'PAYPHONE_TOKEN', '')
     return Response({
         'id': payment.id,
         'provider': payment.provider,
