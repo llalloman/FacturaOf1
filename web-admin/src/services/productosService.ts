@@ -2,8 +2,11 @@ import apiClient from './apiClient';
 import type { Producto } from '../types';
 
 export const productosService = {
-  getAll: async (params?: Record<string, unknown>): Promise<Producto[]> => {
-    const { data } = await apiClient.get('/productos/productos/', { params });
+  getAll: async (params?: Record<string, unknown>, empresaId?: number | string): Promise<Producto[]> => {
+    const { data } = await apiClient.get('/productos/productos/', {
+      params,
+      headers: empresaId ? { 'X-Empresa-ID': String(empresaId) } : undefined,
+    });
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
@@ -12,8 +15,10 @@ export const productosService = {
     return data;
   },
 
-  create: async (producto: Omit<Producto, 'id'>): Promise<Producto> => {
-    const { data } = await apiClient.post('/productos/productos/', producto);
+  create: async (producto: Omit<Producto, 'id'>, empresaId?: number | string): Promise<Producto> => {
+    const { data } = await apiClient.post('/productos/productos/', producto, {
+      headers: empresaId ? { 'X-Empresa-ID': String(empresaId) } : undefined,
+    });
     return data;
   },
 

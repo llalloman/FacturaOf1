@@ -142,7 +142,12 @@ def _get_or_create_service_product(empresa, code, name, price, aplica_iva=True):
 
 
 def producto_firma(config, solicitud):
+    from apps.firmas.models import FirmaPrecioElectronica
+
     price_catalog = getattr(solicitud, 'price_catalog', None)
+    if not price_catalog and getattr(solicitud, 'validity', None):
+        price_catalog = FirmaPrecioElectronica.objects.filter(validity=solicitud.validity).first()
+
     if price_catalog and getattr(price_catalog, 'producto_erp_id', None):
         producto = price_catalog.producto_erp
         if producto.empresa_id != config.empresa_id:
@@ -151,7 +156,7 @@ def producto_firma(config, solicitud):
             raise PagoOnlineApplicationError('El producto ERP de la vigencia de firma está inactivo.')
         return producto
     raise PagoOnlineApplicationError(
-        'Configura el producto ERP en el precio/vigencia de firma antes de aplicar el pago.'
+        'Configura el producto ERP en la vigencia de firma antes de aplicar el pago.'
     )
 
 def _apertura_caja(config):

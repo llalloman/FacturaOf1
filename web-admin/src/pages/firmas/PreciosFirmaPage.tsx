@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Edit2,
   Percent,
+  PlusCircle,
   RefreshCw,
   Save,
   Sparkles,
@@ -20,6 +21,8 @@ import {
 } from '../../services/firmasService';
 import { toast } from '../../store/toastStore';
 import { productosService } from '../../services/productosService';
+import { empresasService } from '../../services/empresasService';
+import { useAuthStore } from '../../store/authStore';
 import type { Producto } from '../../types';
 
 const money = (value?: string | number) => `$${Number(value ?? 0).toFixed(2)}`;
@@ -42,7 +45,7 @@ function MetricCard({ title, value, detail }: { title: string; value: string | n
   );
 }
 
-function PriceEditor({ precio, productos }: { precio: PrecioFirma; productos: Producto[] }) {
+function PriceEditor({ precio, productos, empresaId }: { precio: PrecioFirma; productos: Producto[]; empresaId?: number | string }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({
     regular_price: precio.regular_price,
@@ -59,6 +62,39 @@ function PriceEditor({ precio, productos }: { precio: PrecioFirma; productos: Pr
       qc.invalidateQueries({ queryKey: ['precios-firma-publicos'] });
     },
     onError: () => toast.error('No se pudo actualizar el precio'),
+  });
+  const createAndAssignProduct = useMutation({
+    mutationFn: async () => {
+      if (!empresaId) throw new Error('Selecciona una empresa antes de crear el producto.');
+      const producto = await productosService.create({
+        codigo_principal: `FIRMA-${precio.validity}`.slice(0, 25),
+        codigo_auxiliar: '',
+        tipo: 'SERVICIO',
+        nombre: `Firma electronica ${precio.validity_display}`,
+        descripcion: `Servicio de firma electronica ${precio.validity_display}`,
+        precio: 0,
+        precio_minimo: 0,
+        costo: 0,
+        aplica_iva: true,
+        porcentaje_iva: '4',
+        maneja_inventario: false,
+        stock_actual: 0,
+        stock_minimo: 0,
+        activo: true,
+        modo_precio: 'CON_IVA',
+        precio_con_iva_input: Number(form.regular_price || precio.regular_price || 0),
+      } as Omit<Producto, 'id'> & { modo_precio: 'CON_IVA'; precio_con_iva_input: number }, empresaId);
+      await firmasService.updatePrecioFirma(precio.id, { ...form, producto_erp: producto.id });
+      return producto;
+    },
+    onSuccess: (producto) => {
+      setForm((current) => ({ ...current, producto_erp: String(producto.id) }));
+      toast.success('Producto creado y asignado');
+      qc.invalidateQueries({ queryKey: ['productos-servicio-firma-precios'] });
+      qc.invalidateQueries({ queryKey: ['precios-firma-admin'] });
+      qc.invalidateQueries({ queryKey: ['precios-firma-publicos'] });
+    },
+    onError: (error) => toast.error('No se pudo crear el producto', errorDetail(error)),
   });
 
   const hasPromotion = Boolean(precio.active_promotion && Number(precio.current_price) < Number(precio.regular_price));
@@ -92,13 +128,35 @@ function PriceEditor({ precio, productos }: { precio: PrecioFirma; productos: Pr
         <div className="col-span-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
           Base sin IVA: <strong>{money(base)}</strong>
         </div>
-        <label className="col-span-3">
-          <span className={labelClass}>Producto ERP para venta</span>
-          <select value={form.producto_erp} onChange={(e) => setForm({ ...form, producto_erp: e.target.value })} className={`${inputClass} mt-1`}>
-            <option value="">Selecciona producto/servicio</option>
-            {productos.map((producto) => <option key={producto.id} value={producto.id}>{producto.codigo_principal} - {producto.nombre}</option>)}
-          </select>
-        </label>
+        <div className="col-span-3">
+          <div className="flex items-end gap-2">
+            <label className="flex-1">
+              <span className={labelClass}>Producto ERP para venta</span>
+              <select value={form.producto_erp} onChange={(e) => setForm({ ...form, producto_erp: e.target.value })} className={`${inputClass} mt-1`}>
+                <option value="">Selecciona producto/servicio</option>
+                {productos.map((producto) => <option key={producto.id} value={producto.id}>{producto.codigo_principal} - {producto.nombre}</option>)}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => createAndAssignProduct.mutate()}
+              disabled={createAndAssignProduct.isPending || !empresaId}
+              className="mb-0.5 inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+            >
+              <PlusCircle size={16} /> {createAndAssignProduct.isPending ? 'Creando...' : 'Crear servicio'}
+            </button>
+          </div>
+          {!empresaId && (
+            <p className="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">
+              Selecciona la empresa destino para cargar o crear productos ERP.
+            </p>
+          )}
+          {empresaId && !form.producto_erp && (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+              Sin producto ERP, los pagos aprobados de esta vigencia no podran generar venta automaticamente.
+            </p>
+          )}
+        </div>
       </div>
 
       <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -341,11 +399,20 @@ function CouponsPanel({ precios, coupons }: { precios: PrecioFirma[]; coupons: C
 
 export default function PreciosFirmaPage() {
   const qc = useQueryClient();
+  const user = useAuthStore((state) => state.user);
+  const isSuperAdmin = user?.rol === 'SUPER_ADMIN';
   const [tab, setTab] = useState<'prices' | 'promotions' | 'coupons'>('prices');
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState<string>(user?.empresa_id ? String(user.empresa_id) : '');
   const { data: precios = [], isLoading } = useQuery({ queryKey: ['precios-firma-admin'], queryFn: firmasService.listPreciosFirma });
   const { data: promociones = [] } = useQuery({ queryKey: ['promociones-firma-admin'], queryFn: firmasService.listPromocionesFirma });
   const { data: coupons = [] } = useQuery({ queryKey: ['cupones-firma-admin'], queryFn: firmasService.listCuponesFirma });
-  const { data: productos = [] } = useQuery({ queryKey: ['productos-servicio-firma-precios'], queryFn: () => productosService.getAll({ include_inactive: true, page_size: 500 }) });
+  const empresaDestino = isSuperAdmin ? selectedEmpresaId : user?.empresa_id;
+  const { data: empresas = [] } = useQuery({ queryKey: ['empresas-firma-productos'], queryFn: empresasService.getAll, enabled: isSuperAdmin });
+  const { data: productos = [] } = useQuery({
+    queryKey: ['productos-servicio-firma-precios', empresaDestino],
+    queryFn: () => productosService.getAll({ include_inactive: true, page_size: 500 }, empresaDestino),
+    enabled: Boolean(empresaDestino),
+  });
   const activePromos = promociones.filter((item) => item.active).length;
   const activeCoupons = coupons.filter((item) => item.active).length;
   const visiblePrices = precios.filter((item) => item.active).length;
@@ -367,9 +434,20 @@ export default function PreciosFirmaPage() {
           <div>
             <p className="text-sm font-bold uppercase text-blue-700">Superadministración</p>
             <h1 className="mt-1 text-2xl font-black text-slate-950">Precios, promociones y cupones</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Gestiona los valores que se aplican a las solicitudes de firma electrónica. Los descuentos se recalculan en servidor al registrar la solicitud.</p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Gestiona los valores que se aplican a las solicitudes de firma electrónica. Los productos ERP se asignan por empresa para que PayPhone pueda generar venta, pago y movimiento bancario.</p>
           </div>
-          <button onClick={refresh} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><RefreshCw size={16} />Actualizar</button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {isSuperAdmin && (
+              <label className="min-w-[280px] text-xs font-bold uppercase text-slate-500">
+                Empresa para productos ERP
+                <select value={selectedEmpresaId} onChange={(event) => setSelectedEmpresaId(event.target.value)} className={`${inputClass} mt-1 normal-case`}>
+                  <option value="">Selecciona empresa</option>
+                  {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.razon_social} - {empresa.ruc}</option>)}
+                </select>
+              </label>
+            )}
+            <button onClick={refresh} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><RefreshCw size={16} />Actualizar</button>
+          </div>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <MetricCard title="Vigencias visibles" value={`${visiblePrices}/${precios.length}`} detail="Disponibles en el formulario público" />
@@ -389,7 +467,12 @@ export default function PreciosFirmaPage() {
         })}
       </nav>
 
-      {tab === 'prices' && (isLoading ? <p className="rounded-xl border bg-white py-10 text-center text-slate-500">Cargando precios...</p> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{precios.map((price) => <PriceEditor key={price.id} precio={price} productos={productos.filter((producto) => producto.tipo === 'SERVICIO')} />)}</div>)}
+      {tab === 'prices' && !empresaDestino && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-800">
+          Selecciona la empresa destino para configurar los productos ERP de cada vigencia.
+        </div>
+      )}
+      {tab === 'prices' && empresaDestino && (isLoading ? <p className="rounded-xl border bg-white py-10 text-center text-slate-500">Cargando precios...</p> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{precios.map((price) => <PriceEditor key={price.id} precio={price} productos={productos.filter((producto) => producto.tipo === 'SERVICIO')} empresaId={empresaDestino} />)}</div>)}
       {tab === 'promotions' && <PromotionsPanel precios={precios} promociones={promociones} />}
       {tab === 'coupons' && <CouponsPanel precios={precios} coupons={coupons} />}
     </div>
