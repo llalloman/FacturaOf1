@@ -25,6 +25,11 @@ class PagoConfiguracionViewSet(viewsets.ModelViewSet):
             return (qs.filter(empresa_id=empresa_id) if empresa_id else qs).order_by("empresa__razon_social", "id")
         return qs.filter(empresa=self.request.user.empresa).order_by("empresa__razon_social", "id")
 
+    def create(self, request, *args, **kwargs):
+        if self._is_super_admin() and not request.data.get('empresa'):
+            return Response({'empresa': ['Este campo es requerido.']}, status=status.HTTP_400_BAD_REQUEST)
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         if self._is_super_admin():
             serializer.save()

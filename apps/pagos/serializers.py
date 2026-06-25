@@ -1,9 +1,12 @@
 from rest_framework import serializers
 
+from apps.empresas.models import Empresa
 from apps.pagos.models import PagoConfiguracion, PagoOnline
 
 
 class PagoConfiguracionSerializer(serializers.ModelSerializer):
+    empresa = serializers.PrimaryKeyRelatedField(queryset=Empresa.objects.all(), required=False)
+
     class Meta:
         model = PagoConfiguracion
         fields = '__all__'
