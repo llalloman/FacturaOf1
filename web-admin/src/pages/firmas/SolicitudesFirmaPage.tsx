@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, CreditCard, Download, Eye, FileSignature, Landmark, Loader2, MessageCircle, RefreshCw, Save, Upload, X } from 'lucide-react';
 import { firmasService, type DocumentoSolicitudFirma, type EstadoSolicitudFirma, type SolicitudFirma, type SolicitudFirmaFilters } from '../../services/firmasService';
-import { getCuentas, type CuentaBancaria } from '../../services/bancosService';
+import type { CuentaBancaria } from '../../services/bancosService';
 import { useToast } from '../../hooks/useToast';
 
 const estados: Array<{ value: EstadoSolicitudFirma; label: string; color: string }> = [
@@ -52,8 +52,8 @@ export default function SolicitudesFirmaPage() {
     queryFn: () => firmasService.list(filters),
   });
   const { data: cuentas = [] } = useQuery({
-    queryKey: ['cuentas-bancarias-firmas'],
-    queryFn: getCuentas,
+    queryKey: ['cuentas-pago-transferencia-firmas'],
+    queryFn: firmasService.listTransferPaymentAccounts,
   });
 
   const selected = useMemo(

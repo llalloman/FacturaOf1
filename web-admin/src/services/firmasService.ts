@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import type { CuentaBancaria } from './bancosService';
 
 export type TipoSolicitudFirma = 'PERSONA_NATURAL' | 'REPRESENTANTE_LEGAL' | 'MIEMBRO_EMPRESA';
 export type VigenciaFirma = '7_DIAS' | '15_DIAS' | '1_MES' | '1_ANIO' | '2_ANIOS' | '3_ANIOS' | '4_ANIOS' | '5_ANIOS';
@@ -404,6 +405,11 @@ export const firmasService = {
     const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
     const { data } = await apiClient.get('/firmas/solicitudes/', { params });
     return normalizeList<SolicitudFirma>(data);
+  },
+
+  listTransferPaymentAccounts: async (): Promise<CuentaBancaria[]> => {
+    const { data } = await apiClient.get('/firmas/cuentas-pago-transferencia/');
+    return normalizeList<CuentaBancaria>(data);
   },
 
   get: async (id: number): Promise<SolicitudFirma> => {

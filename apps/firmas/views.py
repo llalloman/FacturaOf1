@@ -56,6 +56,7 @@ from .services.payphone_service import (
     crear_pago_payphone_firma_box,
 )
 from apps.pagos.services import PagoOnlineApplicationError, empresa_para_solicitud_firma, registrar_pago_firma_transferencia
+from apps.bancos.serializers import CuentaBancariaSerializer
 
 
 logger = logging.getLogger(__name__)
@@ -235,6 +236,19 @@ class ConsentimientoFirmaElectronicaViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['request__request_number', 'request__identification', 'request__email', 'ip_address']
     ordering_fields = ['accepted_at', 'created_at']
     ordering = ['-accepted_at']
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsSuperAdminOnly])
+def cuentas_pago_transferencia_firma(request):
+    from apps.bancos.models import CuentaBancaria
+    from apps.pagos.services import _default_empresa
+
+    empresa = _default_empresa()
+    if not empresa:
+        return Response({'detail': 'Configura PAYMENTS_DEFAULT_COMPANY_ID para listar cuentas de pago de firmas.'}, status=status.HTTP_400_BAD_REQUEST)
+    cuentas = CuentaBancaria.objects.filter(empresa=empresa, activa=True).order_by('banco', 'numero_cuenta')
+    return Response(CuentaBancariaSerializer(cuentas, many=True).data)
 
 
 class FirmaPrecioElectronicaViewSet(viewsets.ModelViewSet):
