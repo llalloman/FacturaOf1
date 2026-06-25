@@ -34,8 +34,16 @@ class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
         ('activo', 'Activo'),
     ]
 
-    def get_queryset(self):
+    def _get_empresa_contexto(self):
         empresa = getattr(self.request, 'tenant', None) or getattr(self.request.user, 'empresa', None)
+        empresa_id = self.request.headers.get('X-Empresa-ID')
+        if not empresa and empresa_id and getattr(self.request.user, 'es_super_admin', False):
+            from apps.empresas.models import Empresa
+            empresa = Empresa.objects.filter(id=empresa_id).first()
+        return empresa
+
+    def get_queryset(self):
+        empresa = self._get_empresa_contexto()
         if empresa:
             queryset = Producto.objects.filter(empresa=empresa)
             include_inactive = str(self.request.query_params.get('include_inactive', '')).lower() in ('1', 'true', 'yes')
@@ -45,7 +53,7 @@ class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
         return Producto.objects.none()
 
     def perform_create(self, serializer):
-        empresa = getattr(self.request, 'tenant', None) or getattr(self.request.user, 'empresa', None)
+        empresa = self._get_empresa_contexto()
         if not empresa:
             from rest_framework.exceptions import ValidationError
             raise ValidationError({'empresa': 'Selecciona una empresa para crear el producto.'})

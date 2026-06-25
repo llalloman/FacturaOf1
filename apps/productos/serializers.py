@@ -38,6 +38,11 @@ class ProductoSerializer(serializers.ModelSerializer):
         empresa = None
         if request:
             empresa = getattr(request, 'tenant', None) or getattr(getattr(request, 'user', None), 'empresa', None)
+            user = getattr(request, 'user', None)
+            empresa_id = request.headers.get('X-Empresa-ID')
+            if not empresa and empresa_id and getattr(user, 'es_super_admin', False):
+                from apps.empresas.models import Empresa
+                empresa = Empresa.objects.filter(id=empresa_id).first()
         instance = self.instance
 
         if instance:

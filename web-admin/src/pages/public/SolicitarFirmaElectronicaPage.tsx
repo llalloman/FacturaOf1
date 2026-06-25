@@ -165,6 +165,17 @@ const fallbackPreciosFirma: PrecioFirma[] = [
 ];
 
 const money = (value?: string | number) => `$${Number(value ?? 0).toFixed(2)}`;
+const paidPaymentStatuses = new Set(['PAID', 'APPROVED', 'PAGADO']);
+const isPaymentPaid = (status?: string | null) => paidPaymentStatuses.has(String(status ?? '').toUpperCase());
+const paymentStatusLabel = (payment?: PublicSignatureLookupResponse['payment']) => {
+  if (!payment) return 'Pendiente de pago';
+  if (isPaymentPaid(payment.status)) return payment.status_display || 'Pagado';
+  return payment.status_display || payment.status || 'Pendiente de pago';
+};
+const paymentMethodLabel = (payment?: PublicSignatureLookupResponse['payment']) => {
+  if (!payment) return 'Pendiente';
+  return payment.payment_method_display || payment.provider_display || payment.provider || 'PayPhone / tarjeta';
+};
 const fileSizeMb = (file: File) => (file.size / 1024 / 1024).toFixed(2);
 const getFileExtension = (fileName: string) => fileName.split('.').pop()?.toLowerCase() ?? '';
 const isAllowedDocumentFile = (file: File) => {
@@ -617,6 +628,8 @@ export default function SolicitarFirmaElectronicaPage() {
   const whatsappUrl = confirmed
     ? `${whatsappBase}?phone=593995298989&text=${encodeURIComponent(`Hola, he realizado la solicitud de firma número ${confirmed.requestNumber}`)}&type=phone_number&app_absent=0`
     : '';
+  const recoveredPaymentPaid = isPaymentPaid(recoveredLookup?.payment?.status);
+  const shouldShowPaymentOptions = !recoveredLookup || !recoveredPaymentPaid;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -986,11 +999,32 @@ export default function SolicitarFirmaElectronicaPage() {
                 </div>
               )}
               {recoveredLookup && <RecoveredSignatureReview lookup={recoveredLookup} />}
-              <PaymentInstructions whatsappUrl={whatsappUrl} onPayCard={payWithPayPhone} payingCard={payphoneLoading} />
-              <a href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">
-                <MessageCircle size={18} />
-                Enviar captura o solicitar link de pago
-              </a>
+              {recoveredLookup && recoveredPaymentPaid && (
+                <div className="mx-auto mt-6 max-w-5xl rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-left">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                      <CheckCircle2 size={22} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Pago registrado</p>
+                      <h3 className="mt-1 text-lg font-black text-slate-950">Tu solicitud ya consta como pagada</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-700">
+                        Forma de pago: <strong>{paymentMethodLabel(recoveredLookup.payment)}</strong>
+                        {recoveredLookup.payment?.authorization_code ? ` · Autorización: ${recoveredLookup.payment.authorization_code}` : ''}.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {shouldShowPaymentOptions && (
+                <>
+                  <PaymentInstructions whatsappUrl={whatsappUrl} onPayCard={payWithPayPhone} payingCard={payphoneLoading} />
+                  <a href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">
+                    <MessageCircle size={18} />
+                    Enviar captura o solicitar link de pago
+                  </a>
+                </>
+              )}
             </div>
           )}
 
@@ -1070,6 +1104,7 @@ export default function SolicitarFirmaElectronicaPage() {
 function RecoveredSignatureReview({ lookup }: { lookup: PublicSignatureLookupResponse }) {
   const solicitud = lookup.solicitud;
   const docs = solicitud.documents ?? [];
+  const paid = isPaymentPaid(lookup.payment?.status);
   return (
     <div className="mx-auto mt-8 max-w-5xl rounded-xl border border-blue-100 bg-white p-5 text-left">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -1096,10 +1131,12 @@ function RecoveredSignatureReview({ lookup }: { lookup: PublicSignatureLookupRes
         ]} />
         <SummaryBlock title="Pago" rows={[
           ['Valor firma', money(lookup.payment?.base_amount || solicitud.sale_price)],
-          ['Recargo PayPhone', money(lookup.payment?.processing_fee)],
-          ['IVA recargo', money(lookup.payment?.processing_fee_tax)],
+          ['Estado pago', paymentStatusLabel(lookup.payment)],
+          ['Forma de pago', paymentMethodLabel(lookup.payment)],
+          ['Recargo transacción', lookup.payment ? money(lookup.payment.processing_fee) : 'Se mostrará al pagar con tarjeta'],
+          ['IVA recargo', lookup.payment ? money(lookup.payment.processing_fee_tax) : 'Se mostrará al pagar con tarjeta'],
           ['Total tarjeta', lookup.payment ? money(lookup.payment.amount) : 'Se calculará al pagar con tarjeta'],
-          ['Estado pago', lookup.payment?.status || 'Sin pago PayPhone registrado'],
+          ['Autorización', paid ? lookup.payment?.authorization_code || lookup.payment?.provider_transaction_id || 'Registrada' : 'Pendiente'],
         ]} />
       </div>
       {(solicitud.business_name || solicitud.ruc || solicitud.representative_names || docs.length > 0) && (

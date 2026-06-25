@@ -275,12 +275,20 @@ export interface PublicSignatureLookupResponse {
   };
   payment: {
     status: string;
+    status_display?: string;
+    provider?: string;
+    provider_display?: string;
+    payment_method?: string;
+    payment_method_display?: string;
     amount: string;
     base_amount: string;
     processing_fee: string;
     processing_fee_tax: string;
     currency: string;
     client_transaction_id: string;
+    provider_transaction_id?: string;
+    authorization_code?: string;
+    paid_at?: string;
   } | null;
 }
 

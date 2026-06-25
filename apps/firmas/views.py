@@ -484,18 +484,30 @@ def consultar_solicitud_publica_pago(request):
         }
         if not matches_identity and not matches_email:
             return Response({'detail': 'Los datos ingresados no coinciden con la solicitud.'}, status=status.HTTP_403_FORBIDDEN)
-        payment = solicitud.payments.filter(provider=FirmaPagoElectronico.Provider.PAYPHONE).order_by('-created_at').first()
+        payments = solicitud.payments.filter(provider=FirmaPagoElectronico.Provider.PAYPHONE)
+        payment = (
+            payments.filter(status=FirmaPagoElectronico.Estado.PAID).order_by('-paid_at', '-created_at').first()
+            or payments.order_by('-created_at').first()
+        )
 
     payment_payload = None
     if payment:
         payment_payload = {
             'status': payment.status,
+            'status_display': payment.get_status_display(),
+            'provider': payment.provider,
+            'provider_display': payment.get_provider_display(),
+            'payment_method': payment.provider,
+            'payment_method_display': payment.get_provider_display(),
             'amount': str(payment.amount),
             'base_amount': str(payment.base_amount),
             'processing_fee': str(payment.processing_fee),
             'processing_fee_tax': str(payment.processing_fee_tax),
             'currency': payment.currency,
             'client_transaction_id': payment.client_transaction_id,
+            'provider_transaction_id': payment.provider_transaction_id,
+            'authorization_code': payment.authorization_code,
+            'paid_at': payment.paid_at,
         }
 
     return Response({
