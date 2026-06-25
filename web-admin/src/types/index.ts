@@ -460,6 +460,7 @@ export interface PlanSuscripcion {
   tipo: 'FREE' | 'BASICO' | 'PROFESIONAL' | 'EMPRESARIAL' | 'ILIMITADO';
   periodo: 'MENSUAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
   precio: number;
+  producto_erp?: number | null;
   facturas_mensuales: number;
   usuarios_permitidos: number;
   empresas_permitidas: number;

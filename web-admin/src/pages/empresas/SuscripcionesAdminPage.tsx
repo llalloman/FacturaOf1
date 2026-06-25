@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { suscripcionesService, type ResumenEmpresaSuscripcion } from '../../services/suscripcionesService';
+import { productosService } from '../../services/productosService';
 import type { PlanSuscripcion, Suscripcion } from '../../types';
 import { confirmDialog } from '../../store/confirmStore';
 import { toast } from '../../store/toastStore';
@@ -227,6 +228,7 @@ function ModalPlan({ plan, onClose }: { plan?: PlanSuscripcion; onClose: () => v
     tipo: plan?.tipo ?? 'BASICO',
     periodo: plan?.periodo ?? 'ANUAL',
     precio: plan?.precio?.toString() ?? '0',
+    producto_erp: plan?.producto_erp ? String(plan.producto_erp) : '',
     facturas_mensuales: plan?.facturas_mensuales?.toString() ?? '50',
     usuarios_permitidos: plan?.usuarios_permitidos?.toString() ?? '3',
     soporte_prioritario: plan?.soporte_prioritario ?? false,
@@ -236,10 +238,24 @@ function ModalPlan({ plan, onClose }: { plan?: PlanSuscripcion; onClose: () => v
     descripcion: plan?.descripcion ?? '',
   });
 
+  const { data: productos = [] } = useQuery({
+    queryKey: ['productos-servicio-planes'],
+    queryFn: () => productosService.getAll({ include_inactive: true, page_size: 500 }),
+  });
+  const servicios = productos.filter((producto) => producto.tipo === 'SERVICIO');
+
+  const buildPayload = () => ({
+    ...form,
+    precio: Number(form.precio),
+    producto_erp: form.producto_erp ? Number(form.producto_erp) : null,
+    facturas_mensuales: Number(form.facturas_mensuales),
+    usuarios_permitidos: Number(form.usuarios_permitidos),
+  });
+
   const mutation = useMutation({
     mutationFn: () => isEdit
-      ? suscripcionesService.updatePlan(plan!.id, { ...form, precio: Number(form.precio), facturas_mensuales: Number(form.facturas_mensuales), usuarios_permitidos: Number(form.usuarios_permitidos) })
-      : suscripcionesService.createPlan({ ...form, precio: Number(form.precio), facturas_mensuales: Number(form.facturas_mensuales), usuarios_permitidos: Number(form.usuarios_permitidos) }),
+      ? suscripcionesService.updatePlan(plan!.id, buildPayload())
+      : suscripcionesService.createPlan(buildPayload()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['planes-admin'] });
       qc.invalidateQueries({ queryKey: ['planes-suscripcion'] });
@@ -296,6 +312,15 @@ function ModalPlan({ plan, onClose }: { plan?: PlanSuscripcion; onClose: () => v
               <input type="number" min={0} step={0.01} value={form.precio} onChange={e => set('precio', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Producto ERP para venta</label>
+              <select value={form.producto_erp} onChange={e => set('producto_erp', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                <option value="">Selecciona producto/servicio</option>
+                {servicios.map((producto) => <option key={producto.id} value={producto.id}>{producto.codigo_principal} - {producto.nombre}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Facturas por período</label>
               <input type="number" min={0} value={form.facturas_mensuales} onChange={e => set('facturas_mensuales', e.target.value)}

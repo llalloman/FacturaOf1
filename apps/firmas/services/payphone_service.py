@@ -217,6 +217,8 @@ def crear_pago_payphone_firma_box(solicitud, request):
     payload['responseUrl'] = _absolute_url(request, response_path)
     payload['cancellationUrl'] = _absolute_url(request, cancel_path)
 
+    raw_request = dict(payload)
+    raw_request.pop('token', None)
     payment = FirmaPagoElectronico.objects.create(
         request=solicitud,
         provider=FirmaPagoElectronico.Provider.PAYPHONE,
@@ -227,7 +229,7 @@ def crear_pago_payphone_firma_box(solicitud, request):
         processing_fee_tax=fee_tax,
         currency=currency,
         client_transaction_id=client_transaction_id,
-        raw_request=payload,
+        raw_request=raw_request,
     )
     return payment
 

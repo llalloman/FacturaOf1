@@ -7,7 +7,7 @@ class PlanSuscripcionSerializer(serializers.ModelSerializer):
         model = PlanSuscripcion
         fields = [
             'id', 'nombre', 'codigo', 'tipo', 'periodo',
-            'precio', 'facturas_mensuales', 'usuarios_permitidos',
+            'precio', 'producto_erp', 'facturas_mensuales', 'usuarios_permitidos',
             'empresas_permitidas', 'soporte_prioritario', 'api_access',
             'reportes_avanzados', 'activo', 'descripcion',
         ]

@@ -1,5 +1,4 @@
 from decimal import Decimal
-
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -36,32 +35,6 @@ class PagoConfiguracion(models.Model):
         related_name='configuraciones_pagos_online',
         verbose_name=_('usuario para ventas online'),
     )
-    producto_firma = models.ForeignKey(
-        'productos.Producto',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='configuraciones_pago_firma',
-        verbose_name=_('producto firma electrónica'),
-    )
-    producto_recargo_payphone = models.ForeignKey(
-        'productos.Producto',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='configuraciones_recargo_payphone',
-        verbose_name=_('producto recargo PayPhone'),
-    )
-    producto_suscripcion = models.ForeignKey(
-        'productos.Producto',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='configuraciones_pago_suscripcion',
-        verbose_name=_('producto suscripción ERP'),
-    )
-    fee_percent = models.DecimalField(_('porcentaje recargo tarjeta'), max_digits=5, decimal_places=2, default=Decimal('5.00'))
-    fee_tax_rate = models.DecimalField(_('IVA recargo tarjeta'), max_digits=5, decimal_places=2, default=Decimal('15.00'))
     auto_generar_venta_firmas = models.BooleanField(_('generar venta por firmas pagadas'), default=True)
     auto_generar_venta_suscripciones = models.BooleanField(_('generar venta por suscripciones pagadas'), default=True)
     activo = models.BooleanField(_('activo'), default=True)

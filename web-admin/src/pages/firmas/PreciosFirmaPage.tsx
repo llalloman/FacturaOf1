@@ -19,6 +19,8 @@ import {
   type PromocionFirmaBulkPayload,
 } from '../../services/firmasService';
 import { toast } from '../../store/toastStore';
+import { productosService } from '../../services/productosService';
+import type { Producto } from '../../types';
 
 const money = (value?: string | number) => `$${Number(value ?? 0).toFixed(2)}`;
 const today = new Date().toISOString().slice(0, 10);
@@ -40,16 +42,17 @@ function MetricCard({ title, value, detail }: { title: string; value: string | n
   );
 }
 
-function PriceEditor({ precio }: { precio: PrecioFirma }) {
+function PriceEditor({ precio, productos }: { precio: PrecioFirma; productos: Producto[] }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({
     regular_price: precio.regular_price,
     tax_rate: precio.tax_rate ?? '15.00',
     active: precio.active,
     order: precio.order,
+    producto_erp: precio.producto_erp ? String(precio.producto_erp) : '',
   });
   const update = useMutation({
-    mutationFn: () => firmasService.updatePrecioFirma(precio.id, form),
+    mutationFn: () => firmasService.updatePrecioFirma(precio.id, { ...form, producto_erp: form.producto_erp ? Number(form.producto_erp) : null }),
     onSuccess: () => {
       toast.success('Precio actualizado');
       qc.invalidateQueries({ queryKey: ['precios-firma-admin'] });
@@ -89,6 +92,13 @@ function PriceEditor({ precio }: { precio: PrecioFirma }) {
         <div className="col-span-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
           Base sin IVA: <strong>{money(base)}</strong>
         </div>
+        <label className="col-span-3">
+          <span className={labelClass}>Producto ERP para venta</span>
+          <select value={form.producto_erp} onChange={(e) => setForm({ ...form, producto_erp: e.target.value })} className={`${inputClass} mt-1`}>
+            <option value="">Selecciona producto/servicio</option>
+            {productos.map((producto) => <option key={producto.id} value={producto.id}>{producto.codigo_principal} - {producto.nombre}</option>)}
+          </select>
+        </label>
       </div>
 
       <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -335,6 +345,7 @@ export default function PreciosFirmaPage() {
   const { data: precios = [], isLoading } = useQuery({ queryKey: ['precios-firma-admin'], queryFn: firmasService.listPreciosFirma });
   const { data: promociones = [] } = useQuery({ queryKey: ['promociones-firma-admin'], queryFn: firmasService.listPromocionesFirma });
   const { data: coupons = [] } = useQuery({ queryKey: ['cupones-firma-admin'], queryFn: firmasService.listCuponesFirma });
+  const { data: productos = [] } = useQuery({ queryKey: ['productos-servicio-firma-precios'], queryFn: () => productosService.getAll({ include_inactive: true, page_size: 500 }) });
   const activePromos = promociones.filter((item) => item.active).length;
   const activeCoupons = coupons.filter((item) => item.active).length;
   const visiblePrices = precios.filter((item) => item.active).length;
@@ -378,7 +389,7 @@ export default function PreciosFirmaPage() {
         })}
       </nav>
 
-      {tab === 'prices' && (isLoading ? <p className="rounded-xl border bg-white py-10 text-center text-slate-500">Cargando precios...</p> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{precios.map((price) => <PriceEditor key={price.id} precio={price} />)}</div>)}
+      {tab === 'prices' && (isLoading ? <p className="rounded-xl border bg-white py-10 text-center text-slate-500">Cargando precios...</p> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{precios.map((price) => <PriceEditor key={price.id} precio={price} productos={productos.filter((producto) => producto.tipo === 'SERVICIO')} />)}</div>)}
       {tab === 'promotions' && <PromotionsPanel precios={precios} promociones={promociones} />}
       {tab === 'coupons' && <CouponsPanel precios={precios} coupons={coupons} />}
     </div>

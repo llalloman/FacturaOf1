@@ -174,7 +174,7 @@ class FirmaPrecioElectronicaSerializer(serializers.ModelSerializer):
         model = FirmaPrecioElectronica
         fields = [
             'id', 'validity', 'validity_display', 'regular_price', 'current_price',
-            'tax_rate', 'active', 'order', 'active_promotion', 'created_at', 'updated_at',
+            'tax_rate', 'producto_erp', 'active', 'order', 'active_promotion', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'validity_display', 'current_price', 'active_promotion', 'created_at', 'updated_at']
 

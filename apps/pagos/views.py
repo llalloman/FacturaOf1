@@ -19,7 +19,6 @@ class PagoConfiguracionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = PagoConfiguracion.objects.select_related(
             'empresa', 'cuenta_payphone', 'caja_ventas', 'usuario_ventas',
-            'producto_firma', 'producto_recargo_payphone', 'producto_suscripcion',
         )
         if self._is_super_admin():
             empresa_id = self.request.query_params.get('empresa')

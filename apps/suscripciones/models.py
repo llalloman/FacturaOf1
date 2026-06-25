@@ -138,6 +138,14 @@ class PlanSuscripcion(models.Model):
     
     # Características del plan
     precio = models.DecimalField(_('precio'), max_digits=10, decimal_places=2)
+    producto_erp = models.ForeignKey(
+        'productos.Producto',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planes_suscripcion',
+        verbose_name=_('producto ERP'),
+    )
     facturas_mensuales = models.IntegerField(
         _('facturas mensuales'),
         help_text=_('Número de facturas permitidas por mes (0 = ilimitado)')

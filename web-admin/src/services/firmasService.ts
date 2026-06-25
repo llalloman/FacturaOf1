@@ -27,6 +27,7 @@ export interface PrecioFirma {
   regular_price: string;
   current_price: string;
   tax_rate?: string;
+  producto_erp?: number | null;
   active: boolean;
   order: number;
   active_promotion?: PromocionFirma | null;

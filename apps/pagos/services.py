@@ -28,6 +28,12 @@ def calcular_recargo_tarjeta(base_amount, fee_percent=None, fee_tax_rate=None):
     return fee, fee_tax, money(base + fee + fee_tax)
 
 
+def _sanitize_provider_payload(payload):
+    data = dict(payload or {})
+    data.pop('token', None)
+    return data
+
+
 def _default_empresa():
     empresa_id = str(getattr(settings, 'PAYMENTS_DEFAULT_COMPANY_ID', '') or '').strip()
     if not empresa_id:
@@ -54,9 +60,6 @@ def obtener_configuracion(empresa):
         'cuenta_payphone',
         'caja_ventas',
         'usuario_ventas',
-        'producto_firma',
-        'producto_recargo_payphone',
-        'producto_suscripcion',
     ).first()
     if not config:
         raise PagoOnlineApplicationError('No existe configuración de pagos online para la empresa destino.')
@@ -139,29 +142,17 @@ def _get_or_create_service_product(empresa, code, name, price, aplica_iva=True):
 
 
 def producto_firma(config, solicitud):
-    if config.producto_firma_id:
-        return config.producto_firma
-    price = solicitud.subtotal_without_tax or solicitud.sale_price or Decimal('0.00')
-    return _get_or_create_service_product(
-        config.empresa,
-        'FIRMA-ELECTRONICA',
-        'Firma electrónica',
-        price,
-        aplica_iva=True,
+    price_catalog = getattr(solicitud, 'price_catalog', None)
+    if price_catalog and getattr(price_catalog, 'producto_erp_id', None):
+        producto = price_catalog.producto_erp
+        if producto.empresa_id != config.empresa_id:
+            raise PagoOnlineApplicationError('El producto ERP de la vigencia de firma no pertenece a la empresa destino.')
+        if not producto.activo:
+            raise PagoOnlineApplicationError('El producto ERP de la vigencia de firma está inactivo.')
+        return producto
+    raise PagoOnlineApplicationError(
+        'Configura el producto ERP en el precio/vigencia de firma antes de aplicar el pago.'
     )
-
-
-def producto_recargo(config, pago_online):
-    if config.producto_recargo_payphone_id:
-        return config.producto_recargo_payphone
-    return _get_or_create_service_product(
-        config.empresa,
-        'RECARGO-PAYPHONE',
-        'Recargo transacción PayPhone',
-        pago_online.processing_fee or Decimal('0.00'),
-        aplica_iva=True,
-    )
-
 
 def _apertura_caja(config):
     from apps.ventas.models import AperturaCaja
@@ -247,15 +238,6 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment):
             firma_payment.base_amount,
         )
     ]
-    if money(pago_online.processing_fee) > 0 or money(pago_online.processing_fee_tax) > 0:
-        recargo_product = producto_recargo(config, pago_online)
-        lineas.append(_linea(
-            recargo_product,
-            Decimal('1.00'),
-            pago_online.processing_fee,
-            pago_online.processing_fee_tax,
-            money(pago_online.processing_fee) + money(pago_online.processing_fee_tax),
-        ))
 
     subtotal = money(sum((linea['subtotal'] for linea in lineas), Decimal('0.00')))
     iva = money(sum((linea['iva'] for linea in lineas), Decimal('0.00')))
@@ -279,7 +261,10 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment):
         iva=iva,
         total=total,
         genera_factura=False,
-        observaciones=f'Venta generada por pago online de firma {solicitud.request_number}.',
+        observaciones=(
+            f'Venta generada por pago online de firma {solicitud.request_number}. '
+            f'Recargo PayPhone registrado en PagoOnline: ${pago_online.processing_fee} + IVA ${pago_online.processing_fee_tax}.'
+        ),
         fecha_venta=firma_payment.paid_at or pago_online.confirmed_at or timezone.now(),
     )
     for linea in lineas:
@@ -289,7 +274,7 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment):
         venta=venta,
         forma_pago=PagoVenta.FormaPagoChoices.TARJETA_CREDITO,
         cuenta_bancaria=config.cuenta_payphone,
-        monto=total,
+        monto=pago_online.total_amount,
         referencia=pago_online.client_transaction_id,
         estado_pago=PagoVenta.EstadoPagoChoices.PENDIENTE,
         fecha_pago=firma_payment.paid_at or pago_online.confirmed_at or timezone.now(),
@@ -331,7 +316,7 @@ def registrar_pago_firma_payphone(firma_payment):
             'total_amount': firma_payment.amount,
             'provider_transaction_id': firma_payment.provider_transaction_id or '',
             'authorization_code': firma_payment.authorization_code or '',
-            'raw_request': firma_payment.raw_request or {},
+            'raw_request': _sanitize_provider_payload(firma_payment.raw_request),
             'raw_response': firma_payment.raw_response or {},
             'error_message': firma_payment.error_message or '',
             'confirmed_at': firma_payment.paid_at,

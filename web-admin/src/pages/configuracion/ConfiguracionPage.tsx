@@ -8,7 +8,6 @@ import { cajasService } from '../../services/cajasService';
 import { bodegasService } from '../../services/bodegasService';
 import { secuencialesService } from '../../services/secuencialesService';
 import { getCuentas } from '../../services/bancosService';
-import { productosService } from '../../services/productosService';
 import { pagosService, defaultPagoConfiguracion, type PagoConfiguracion } from '../../services/pagosService';
 import type { Empresa, Usuario, Caja, Bodega, Secuencial } from '../../types';
 import {
@@ -839,10 +838,6 @@ function PagosTab() {
   const { data: cuentas = [] } = useQuery({ queryKey: ['cuentas-pagos-config'], queryFn: getCuentas });
   const { data: cajas = [] } = useQuery({ queryKey: ['cajas-pagos-config'], queryFn: cajasService.getAll });
   const { data: usuarios = [] } = useQuery({ queryKey: ['usuarios-pagos-config'], queryFn: usuariosService.getAll });
-  const { data: productos = [] } = useQuery({
-    queryKey: ['productos-servicio-pagos-config'],
-    queryFn: () => productosService.getAll({ include_inactive: true, page_size: 500 }),
-  });
 
   useEffect(() => {
     if (config) {
@@ -852,7 +847,6 @@ function PagosTab() {
     setForm({ ...defaultPagoConfiguracion, empresa: effectiveEmpresa ? Number(effectiveEmpresa) : undefined });
   }, [config, effectiveEmpresa]);
 
-  const servicios = productos.filter((producto) => producto.tipo === 'SERVICIO');
   const set = (field: keyof PagoConfiguracion, value: unknown) => setForm((prev) => ({ ...prev, [field]: value }));
 
   const saveMutation = useMutation({
@@ -916,30 +910,6 @@ function PagosTab() {
               {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo || `${usuario.first_name} ${usuario.last_name}`.trim() || usuario.email}</option>)}
             </select>
           </label>
-          <label className="text-sm font-medium text-gray-700">Producto firma electrónica
-            <select value={form.producto_firma ?? ''} onChange={(e) => set('producto_firma', e.target.value ? Number(e.target.value) : null)} className={`${selectClass} mt-1`}>
-              <option value="">Auto/Firma electrónica</option>
-              {servicios.map((producto) => <option key={producto.id} value={producto.id}>{producto.codigo_principal} - {producto.nombre}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-medium text-gray-700">Producto recargo PayPhone
-            <select value={form.producto_recargo_payphone ?? ''} onChange={(e) => set('producto_recargo_payphone', e.target.value ? Number(e.target.value) : null)} className={`${selectClass} mt-1`}>
-              <option value="">Auto/Recargo PayPhone</option>
-              {servicios.map((producto) => <option key={producto.id} value={producto.id}>{producto.codigo_principal} - {producto.nombre}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-medium text-gray-700">Producto suscripción ERP
-            <select value={form.producto_suscripcion ?? ''} onChange={(e) => set('producto_suscripcion', e.target.value ? Number(e.target.value) : null)} className={`${selectClass} mt-1`}>
-              <option value="">Selecciona producto</option>
-              {servicios.map((producto) => <option key={producto.id} value={producto.id}>{producto.codigo_principal} - {producto.nombre}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-medium text-gray-700">% recargo tarjeta
-            <input value={form.fee_percent} onChange={(e) => set('fee_percent', e.target.value)} className={`${selectClass} mt-1`} />
-          </label>
-          <label className="text-sm font-medium text-gray-700">IVA sobre recargo
-            <input value={form.fee_tax_rate} onChange={(e) => set('fee_tax_rate', e.target.value)} className={`${selectClass} mt-1`} />
-          </label>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm text-gray-700"><input type="checkbox" checked={form.auto_generar_venta_firmas} onChange={(e) => set('auto_generar_venta_firmas', e.target.checked)} className="h-4 w-4 rounded text-blue-600" /> Generar venta por firmas</label>
@@ -947,7 +917,7 @@ function PagosTab() {
           <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm text-gray-700"><input type="checkbox" checked={form.activo} onChange={(e) => set('activo', e.target.checked)} className="h-4 w-4 rounded text-blue-600" /> Configuración activa</label>
         </div>
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          Para que un pago aprobado cree venta y movimiento bancario, deben estar configurados cuenta, caja y usuario. Los productos de firma y recargo pueden seleccionarse aquí o se crearán automáticamente como servicios si no existen.
+          Para que un pago aprobado cree venta y movimiento bancario, deben estar configurados cuenta, caja y usuario. Los productos se asignan en Precios de Firma y Planes de Suscripción; el recargo PayPhone queda registrado como dato financiero del pago.
         </div>
         <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
           <Save size={16} /> {saveMutation.isPending ? 'Guardando...' : 'Guardar configuración de pagos'}

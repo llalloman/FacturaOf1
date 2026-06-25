@@ -243,6 +243,14 @@ class FirmaPrecioElectronica(models.Model):
     validity = models.CharField(_('vigencia'), max_length=20, choices=SolicitudFirmaElectronica.Vigencia.choices, unique=True)
     regular_price = models.DecimalField(_('precio final incluido IVA'), max_digits=10, decimal_places=2)
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('15.00'))
+    producto_erp = models.ForeignKey(
+        'productos.Producto',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='precios_catalogo_firma_electronica',
+        verbose_name=_('producto ERP'),
+    )
     active = models.BooleanField(_('activo'), default=True)
     order = models.PositiveSmallIntegerField(_('orden'), default=0)
     created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)

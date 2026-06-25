@@ -12,11 +12,6 @@ export interface PagoConfiguracion {
   cuenta_payphone: number | null;
   caja_ventas: number | null;
   usuario_ventas: number | null;
-  producto_firma: number | null;
-  producto_recargo_payphone: number | null;
-  producto_suscripcion: number | null;
-  fee_percent: string;
-  fee_tax_rate: string;
   auto_generar_venta_firmas: boolean;
   auto_generar_venta_suscripciones: boolean;
   activo: boolean;
@@ -70,11 +65,6 @@ export const defaultPagoConfiguracion: PagoConfiguracion = {
   cuenta_payphone: null,
   caja_ventas: null,
   usuario_ventas: null,
-  producto_firma: null,
-  producto_recargo_payphone: null,
-  producto_suscripcion: null,
-  fee_percent: '5.00',
-  fee_tax_rate: '15.00',
   auto_generar_venta_firmas: true,
   auto_generar_venta_suscripciones: true,
   activo: true,
@@ -92,9 +82,6 @@ export const pagosService = {
       cuenta_payphone: payload.cuenta_payphone || null,
       caja_ventas: payload.caja_ventas || null,
       usuario_ventas: payload.usuario_ventas || null,
-      producto_firma: payload.producto_firma || null,
-      producto_recargo_payphone: payload.producto_recargo_payphone || null,
-      producto_suscripcion: payload.producto_suscripcion || null,
     };
     if (payload.id) {
       const { data } = await apiClient.patch(`/pagos/configuracion/${payload.id}/`, body);
