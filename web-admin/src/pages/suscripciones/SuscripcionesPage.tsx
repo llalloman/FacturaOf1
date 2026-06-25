@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuthStore } from '../../store/authStore';
 import { suscripcionesService } from '../../services/suscripcionesService';
 import type { PlanSuscripcion, Suscripcion } from '../../types';
 import {
@@ -671,11 +672,13 @@ function BillingToggle({ anual, onChange }: { anual: boolean; onChange: (v: bool
 // --- Pagina principal ---------------------------------------------------------
 export default function SuscripcionesPage() {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
 
   const { data: suscripcion, isLoading: loadingSus, error: errorSus } = useQuery({
     queryKey: ['suscripcion-activa'],
     queryFn: suscripcionesService.getSuscripcionActiva,
     retry: false,
+    enabled: Boolean(user?.empresa_id),
   });
 
   const { data: planes = [], isLoading: loadingPlanes } = useQuery({

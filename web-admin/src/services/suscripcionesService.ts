@@ -57,7 +57,7 @@ export const suscripcionesService = {
     await apiClient.delete(`/suscripciones/planes/${id}/`);
   },
 
-  getSuscripcionActiva: async (): Promise<Suscripcion> => {
+  getSuscripcionActiva: async (): Promise<Suscripcion | null> => {
     const { data } = await apiClient.get('/suscripciones/suscripciones/activa/');
     return data;
   },

@@ -243,7 +243,7 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
         """Devuelve la suscripción activa/vigente de la empresa del usuario."""
         empresa = getattr(request.user, 'empresa', None)
         if not empresa:
-            return Response({'detail': 'No tienes empresa asignada.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(None)
         suscripcion = (
             Suscripcion.objects
             .select_related('plan', 'empresa')
@@ -253,7 +253,7 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
             .first()
         )
         if not suscripcion:
-            return Response({'detail': 'No hay suscripción activa.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(None)
         return Response(SuscripcionSerializer(suscripcion).data)
 
     # ── Resumen general para el panel SUPER_ADMIN ──────────────────────────────
@@ -393,7 +393,7 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
         """
         empresa = getattr(request.user, 'empresa', None)
         if not empresa:
-            return Response({'detail': 'No tienes empresa asignada.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(None)
 
         plan_id = request.data.get('plan_id')
         if not plan_id:
@@ -431,7 +431,7 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
     def toggle_auto_renovar(self, request):
         empresa = getattr(request.user, 'empresa', None)
         if not empresa:
-            return Response({'detail': 'No tienes empresa asignada.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(None)
 
         suscripcion = (
             Suscripcion.objects

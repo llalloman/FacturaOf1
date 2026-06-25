@@ -22,8 +22,8 @@ class PagoConfiguracionViewSet(viewsets.ModelViewSet):
         )
         if self._is_super_admin():
             empresa_id = self.request.query_params.get('empresa')
-            return qs.filter(empresa_id=empresa_id) if empresa_id else qs
-        return qs.filter(empresa=self.request.user.empresa)
+            return (qs.filter(empresa_id=empresa_id) if empresa_id else qs).order_by("empresa__razon_social", "id")
+        return qs.filter(empresa=self.request.user.empresa).order_by("empresa__razon_social", "id")
 
     def perform_create(self, serializer):
         if self._is_super_admin():

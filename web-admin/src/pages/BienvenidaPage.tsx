@@ -243,11 +243,12 @@ export default function BienvenidaPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
-  const { data: suscripcion } = useQuery<Suscripcion>({
+  const { data: suscripcion } = useQuery<Suscripcion | null>({
     queryKey: ['suscripcion-activa'],
     queryFn: suscripcionesService.getSuscripcionActiva,
     retry: false,
     staleTime: 2 * 60 * 1000,
+    enabled: Boolean(user?.empresa_id),
   });
 
   return (
