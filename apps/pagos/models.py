@@ -53,6 +53,7 @@ class PagoConfiguracion(models.Model):
 class PagoOnline(models.Model):
     class Provider(models.TextChoices):
         PAYPHONE = 'PAYPHONE', _('PayPhone')
+        TRANSFERENCIA = 'TRANSFERENCIA', _('Transferencia bancaria')
 
     class Metodo(models.TextChoices):
         PAYPHONE = 'PAYPHONE', _('PayPhone')

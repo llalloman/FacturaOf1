@@ -36,6 +36,7 @@ from .serializers import (
     FirmaPrecioElectronicaSerializer,
     FirmaPromocionElectronicaSerializer,
     FirmaPromocionBulkSerializer,
+    MarcarPagoTransferenciaFirmaSerializer,
     DocumentoSolicitudFirmaUploadSerializer,
     HistorialEstadoSolicitudFirmaSerializer,
     PUBLIC_DOCUMENT_FIELDS,
@@ -54,6 +55,7 @@ from .services.payphone_service import (
     crear_pago_payphone_firma,
     crear_pago_payphone_firma_box,
 )
+from apps.pagos.services import PagoOnlineApplicationError, empresa_para_solicitud_firma, registrar_pago_firma_transferencia
 
 
 logger = logging.getLogger(__name__)
@@ -152,6 +154,36 @@ class SolicitudFirmaElectronicaViewSet(viewsets.ModelViewSet):
         solicitud = self.get_object()
         serializer = HistorialEstadoSolicitudFirmaSerializer(solicitud.status_history.all(), many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='marcar_pago_transferencia')
+    def marcar_pago_transferencia(self, request, pk=None):
+        solicitud = self.get_object()
+        serializer = MarcarPagoTransferenciaFirmaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        from apps.bancos.models import CuentaBancaria
+
+        empresa = empresa_para_solicitud_firma(solicitud)
+        cuenta = CuentaBancaria.objects.filter(
+            pk=serializer.validated_data['cuenta_bancaria'],
+            empresa=empresa,
+            activa=True,
+        ).first()
+        if not cuenta:
+            return Response({'cuenta_bancaria': 'Cuenta bancaria no encontrada o inactiva para la empresa destino.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            registrar_pago_firma_transferencia(
+                solicitud,
+                cuenta_bancaria=cuenta,
+                amount=serializer.validated_data.get('amount'),
+                fecha_pago=serializer.validated_data.get('fecha_pago'),
+                referencia=serializer.validated_data.get('referencia', ''),
+                observacion=serializer.validated_data.get('observacion', ''),
+                usuario=request.user,
+            )
+        except PagoOnlineApplicationError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        solicitud.refresh_from_db()
+        return Response(SolicitudFirmaElectronicaSerializer(solicitud, context={'request': request}).data)
 
 
 class DocumentoSolicitudFirmaViewSet(viewsets.ReadOnlyModelViewSet):
@@ -466,7 +498,6 @@ def consultar_solicitud_publica_pago(request):
             FirmaPagoElectronico,
             request=solicitud,
             client_transaction_id=transaction,
-            provider=FirmaPagoElectronico.Provider.PAYPHONE,
         )
     else:
         if not verification:
@@ -484,7 +515,7 @@ def consultar_solicitud_publica_pago(request):
         }
         if not matches_identity and not matches_email:
             return Response({'detail': 'Los datos ingresados no coinciden con la solicitud.'}, status=status.HTTP_403_FORBIDDEN)
-        payments = solicitud.payments.filter(provider=FirmaPagoElectronico.Provider.PAYPHONE)
+        payments = solicitud.payments.all()
         payment = (
             payments.filter(status=FirmaPagoElectronico.Estado.PAID).order_by('-paid_at', '-created_at').first()
             or payments.order_by('-created_at').first()

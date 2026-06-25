@@ -77,7 +77,8 @@ export interface CuponFirmaQuote {
 
 export interface FirmaPagoElectronicoResumen {
   id: number;
-  provider: 'PAYPHONE';
+  provider: 'PAYPHONE' | 'TRANSFERENCIA';
+  provider_display?: string;
   status: string;
   status_display?: string;
   amount: string;
@@ -476,6 +477,18 @@ export const firmasService = {
 
   changeStatus: async (id: number, payload: { status: EstadoSolicitudFirma; comment?: string; rejected_reason?: string; provider_request_id?: string }): Promise<SolicitudFirma> => {
     const { data } = await apiClient.post(`/firmas/solicitudes/${id}/cambiar_estado/`, payload);
+    return data;
+  },
+
+  markTransferPayment: async (id: number, payload: {
+    cuenta_bancaria: number;
+    amount: string;
+    fecha_pago?: string;
+    referencia?: string;
+    observacion?: string;
+    confirmado: boolean;
+  }): Promise<SolicitudFirma> => {
+    const { data } = await apiClient.post(`/firmas/solicitudes/${id}/marcar_pago_transferencia/`, payload);
     return data;
   },
 

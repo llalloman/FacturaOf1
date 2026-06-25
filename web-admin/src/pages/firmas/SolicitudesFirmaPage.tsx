@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, CreditCard, Download, Eye, FileSignature, Loader2, MessageCircle, RefreshCw, Save, Upload } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CreditCard, Download, Eye, FileSignature, Landmark, Loader2, MessageCircle, RefreshCw, Save, Upload, X } from 'lucide-react';
 import { firmasService, type DocumentoSolicitudFirma, type EstadoSolicitudFirma, type SolicitudFirma, type SolicitudFirmaFilters } from '../../services/firmasService';
+import { getCuentas, type CuentaBancaria } from '../../services/bancosService';
 import { useToast } from '../../hooks/useToast';
 
 const estados: Array<{ value: EstadoSolicitudFirma; label: string; color: string }> = [
@@ -44,16 +45,22 @@ export default function SolicitudesFirmaPage() {
   const [uploadType, setUploadType] = useState('CEDULA_ANVERSO');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
 
   const { data: solicitudes = [], isLoading } = useQuery({
     queryKey: ['solicitudes-firma', filters],
     queryFn: () => firmasService.list(filters),
+  });
+  const { data: cuentas = [] } = useQuery({
+    queryKey: ['cuentas-bancarias-firmas'],
+    queryFn: getCuentas,
   });
 
   const selected = useMemo(
     () => solicitudes.find((item) => item.id === selectedId) ?? solicitudes[0],
     [selectedId, solicitudes],
   );
+  const selectedPaid = Boolean(selected?.payments?.some((payment) => payment.status === 'PAID'));
 
   const setFilter = (field: keyof SolicitudFirmaFilters, value: string) => {
     setFilters((prev) => ({ ...prev, [field]: value || undefined }));
@@ -128,6 +135,23 @@ export default function SolicitudesFirmaPage() {
         status === 404 ? 'El archivo no está disponible. Vuelve a subirlo.' : 'No se pudo abrir el documento',
         'error',
       );
+    }
+  };
+
+  const markTransferPaid = async (payload: { cuenta_bancaria: number; amount: string; fecha_pago?: string; referencia?: string; observacion?: string }) => {
+    if (!selected?.id) return;
+    setSaving(true);
+    try {
+      await firmasService.markTransferPayment(selected.id, { ...payload, confirmado: true });
+      setTransferModalOpen(false);
+      showToast('Pago por transferencia registrado y aplicado al ERP', 'success');
+      queryClient.invalidateQueries({ queryKey: ['solicitudes-firma'] });
+      queryClient.invalidateQueries({ queryKey: ['pagos-online'] });
+    } catch (err) {
+      const data = (err as { response?: { data?: { detail?: string; cuenta_bancaria?: string } } })?.response?.data;
+      showToast(data?.detail || data?.cuenta_bancaria || 'No se pudo registrar la transferencia', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -269,6 +293,21 @@ export default function SolicitudesFirmaPage() {
               </div>
 
               <Section title="Pagos">
+                <div className="mb-3 flex flex-col gap-2 rounded-xl border border-blue-100 bg-blue-50 p-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Confirmación manual por transferencia</p>
+                    <p className="text-xs text-slate-600">Valida el comprobante antes de marcar la solicitud como pagada.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTransferModalOpen(true)}
+                    disabled={selectedPaid || saving}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Landmark size={16} />
+                    {selectedPaid ? 'Solicitud pagada' : 'Marcar transferencia'}
+                  </button>
+                </div>
                 {(selected.payments ?? []).length > 0 ? (
                   <div className="space-y-3">
                     {(selected.payments ?? []).map((payment) => {
@@ -277,14 +316,14 @@ export default function SolicitudesFirmaPage() {
                         <div key={payment.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                             <div>
-                              <p className="text-sm font-semibold text-slate-900">{payment.provider} - {payment.status_display ?? payment.status}</p>
+                              <p className="text-sm font-semibold text-slate-900">{payment.provider_display ?? payment.provider} - {payment.status_display ?? payment.status}</p>
                               <p className="break-all text-xs text-slate-500">{payment.client_transaction_id}</p>
                             </div>
                             <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${payment.status === 'PAID' ? 'bg-emerald-50 text-emerald-700' : payment.status === 'FAILED' ? 'bg-red-50 text-red-700' : payment.status === 'CANCELLED' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700'}`}>{payment.status_display ?? payment.status}</span>
                           </div>
                           <div className="mt-3 grid gap-3 md:grid-cols-4">
                             <Info label="Valor firma" value={`$${Number(payment.base_amount || 0).toFixed(2)}`} />
-                            <Info label="Recargo tarjeta" value={`$${recargo.toFixed(2)}`} />
+                            <Info label="Recargo transacción" value={`$${recargo.toFixed(2)}`} />
                             <Info label="Total cobrado" value={`$${Number(payment.amount || 0).toFixed(2)} ${payment.currency}`} />
                             <Info label="Pagado" value={payment.paid_at ? new Date(payment.paid_at).toLocaleString('es-EC') : '-'} />
                             <Info label="Venta" value={payment.venta_numero || (payment.venta_id ? `#${payment.venta_id}` : '-')} />
@@ -401,6 +440,123 @@ export default function SolicitudesFirmaPage() {
               </Section>
             </div>
           )}
+        </div>
+      </div>
+      {transferModalOpen && selected && (
+        <TransferPaymentModal
+          solicitud={selected}
+          cuentas={cuentas.filter((cuenta) => cuenta.activa)}
+          saving={saving}
+          onClose={() => setTransferModalOpen(false)}
+          onConfirm={markTransferPaid}
+        />
+      )}
+    </div>
+  );
+}
+
+function TransferPaymentModal({
+  solicitud,
+  cuentas,
+  saving,
+  onClose,
+  onConfirm,
+}: {
+  solicitud: SolicitudFirma;
+  cuentas: CuentaBancaria[];
+  saving: boolean;
+  onClose: () => void;
+  onConfirm: (payload: { cuenta_bancaria: number; amount: string; fecha_pago?: string; referencia?: string; observacion?: string }) => Promise<void>;
+}) {
+  const today = new Date().toISOString().slice(0, 16);
+  const [cuentaId, setCuentaId] = useState('');
+  const [amount, setAmount] = useState(String(solicitud.sale_price ?? '0.00'));
+  const [fechaPago, setFechaPago] = useState(today);
+  const [referencia, setReferencia] = useState('');
+  const [observacion, setObservacion] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    setError('');
+    if (!cuentaId) {
+      setError('Selecciona la cuenta bancaria donde se recibió el pago.');
+      return;
+    }
+    if (Number(amount) <= 0) {
+      setError('El valor recibido debe ser mayor a cero.');
+      return;
+    }
+    if (!confirmed) {
+      setError('Confirma que el comprobante fue validado manualmente.');
+      return;
+    }
+    await onConfirm({
+      cuenta_bancaria: Number(cuentaId),
+      amount,
+      fecha_pago: fechaPago ? new Date(fechaPago).toISOString() : undefined,
+      referencia,
+      observacion,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4">
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Pago por transferencia</p>
+            <h2 className="mt-1 text-lg font-bold text-slate-950">{solicitud.request_number ?? `Solicitud #${solicitud.id}`}</h2>
+            <p className="text-sm text-slate-500">{solicitud.full_name || `${solicitud.first_name} ${solicitud.last_name}`}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4 p-5">
+          {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+          <label className="block text-sm font-medium text-slate-700">
+            Cuenta donde ingresó el pago *
+            <select value={cuentaId} onChange={(e) => setCuentaId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">Selecciona una cuenta</option>
+              {cuentas.map((cuenta) => (
+                <option key={cuenta.id} value={cuenta.id}>
+                  {cuenta.banco} - {cuenta.tipo} - {cuenta.numero_cuenta}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block text-sm font-medium text-slate-700">
+              Valor recibido *
+              <input value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Fecha de pago
+              <input type="datetime-local" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+            </label>
+          </div>
+          <label className="block text-sm font-medium text-slate-700">
+            Referencia / número de comprobante
+            <input value={referencia} onChange={(e) => setReferencia(e.target.value.toUpperCase())} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Ej: comprobante, referencia bancaria" />
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            Observación
+            <textarea value={observacion} onChange={(e) => setObservacion(e.target.value)} className="mt-1 min-h-24 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Notas internas de validación" />
+          </label>
+          <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-1" />
+            <span>Confirmo que el comprobante fue revisado y que el valor ingresó a la cuenta seleccionada.</span>
+          </label>
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</button>
+          <button type="button" onClick={submit} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Landmark size={16} />}
+            Confirmar y aplicar
+          </button>
         </div>
       </div>
     </div>

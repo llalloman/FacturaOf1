@@ -193,6 +193,7 @@ class SolicitudFirmaElectronica(models.Model):
 class FirmaPagoElectronico(models.Model):
     class Provider(models.TextChoices):
         PAYPHONE = 'PAYPHONE', _('PayPhone')
+        TRANSFERENCIA = 'TRANSFERENCIA', _('Transferencia bancaria')
 
     class Estado(models.TextChoices):
         PENDING = 'PENDING', _('Pendiente')

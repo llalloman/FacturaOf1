@@ -66,6 +66,16 @@ def obtener_configuracion(empresa):
     return config
 
 
+def validar_cuenta_pago(config, cuenta, label='cuenta bancaria'):
+    if not cuenta:
+        raise PagoOnlineApplicationError(f'Selecciona la {label} para registrar el cobro.')
+    if cuenta.empresa_id != config.empresa_id:
+        raise PagoOnlineApplicationError(f'La {label} no pertenece a la empresa del pago.')
+    if not cuenta.activa:
+        raise PagoOnlineApplicationError(f'La {label} está inactiva.')
+    return cuenta
+
+
 def _tipo_identificacion_cliente(solicitud):
     if solicitud.identification_type == 'RUC':
         return '04'
@@ -209,7 +219,7 @@ def _subtotales_por_iva(lineas):
 
 
 @transaction.atomic
-def aplicar_pago_firma_a_ventas(pago_online, firma_payment):
+def aplicar_pago_firma_a_ventas(pago_online, firma_payment, *, cuenta_bancaria=None, forma_pago=None, usuario=None):
     from apps.ventas.models import DetalleVenta, PagoVenta, Venta
     from apps.ventas.finance import confirmar_pago_venta, registrar_finanzas_venta
 
@@ -224,12 +234,9 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment):
     config = obtener_configuracion(empresa)
     if not config.auto_generar_venta_firmas:
         raise PagoOnlineApplicationError('La generación automática de ventas para firmas está desactivada.')
-    if not config.cuenta_payphone_id:
-        raise PagoOnlineApplicationError('Configura la cuenta bancaria PayPhone para registrar el cobro.')
-    if config.cuenta_payphone.empresa_id != config.empresa_id:
-        raise PagoOnlineApplicationError('La cuenta PayPhone configurada no pertenece a la empresa del pago.')
-    if not config.cuenta_payphone.activa:
-        raise PagoOnlineApplicationError('La cuenta PayPhone configurada está inactiva.')
+    cuenta_cobro = cuenta_bancaria or config.cuenta_payphone
+    cuenta_label = 'cuenta bancaria seleccionada' if cuenta_bancaria else 'cuenta bancaria PayPhone'
+    validar_cuenta_pago(config, cuenta_cobro, cuenta_label)
 
     cliente = obtener_o_crear_cliente_firma(config.empresa, solicitud)
     apertura = _apertura_caja(config)
@@ -267,8 +274,9 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment):
         total=total,
         genera_factura=False,
         observaciones=(
-            f'Venta generada por pago online de firma {solicitud.request_number}. '
-            f'Recargo PayPhone registrado en PagoOnline: ${pago_online.processing_fee} + IVA ${pago_online.processing_fee_tax}.'
+            f'Venta generada por pago de firma {solicitud.request_number}. '
+            f'Método: {pago_online.get_metodo_display()}. '
+            f'Recargo transacción registrado en PagoOnline: ${pago_online.processing_fee} + IVA ${pago_online.processing_fee_tax}.'
         ),
         fecha_venta=firma_payment.paid_at or pago_online.confirmed_at or timezone.now(),
     )
@@ -277,8 +285,8 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment):
 
     pago_venta = PagoVenta.objects.create(
         venta=venta,
-        forma_pago=PagoVenta.FormaPagoChoices.TARJETA_CREDITO,
-        cuenta_bancaria=config.cuenta_payphone,
+        forma_pago=forma_pago or PagoVenta.FormaPagoChoices.TARJETA_CREDITO,
+        cuenta_bancaria=cuenta_cobro,
         monto=pago_online.total_amount,
         referencia=pago_online.client_transaction_id,
         estado_pago=PagoVenta.EstadoPagoChoices.PENDIENTE,
@@ -287,13 +295,93 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment):
     registrar_finanzas_venta(venta)
     movimiento = confirmar_pago_venta(
         pago_venta,
-        cuenta=config.cuenta_payphone,
+        cuenta=cuenta_cobro,
         fecha_pago=firma_payment.paid_at or pago_online.confirmed_at or timezone.now(),
         referencia=pago_online.client_transaction_id,
-        usuario=config.usuario_ventas,
+        usuario=usuario or config.usuario_ventas,
     )
     pago_online.mark_applied(venta=venta, pago_venta=pago_venta, movimiento=movimiento)
     return pago_online
+
+
+def registrar_pago_firma_transferencia(solicitud, *, cuenta_bancaria, amount=None, fecha_pago=None, referencia='', observacion='', usuario=None):
+    from apps.firmas.models import FirmaPagoElectronico
+    from apps.ventas.models import PagoVenta
+
+    empresa = empresa_para_solicitud_firma(solicitud)
+    config = obtener_configuracion(empresa)
+    validar_cuenta_pago(config, cuenta_bancaria, 'cuenta bancaria seleccionada')
+    fecha_confirmacion = fecha_pago or timezone.now()
+    monto = money(amount if amount is not None else solicitud.sale_price)
+    if monto <= 0:
+        raise PagoOnlineApplicationError('El valor recibido debe ser mayor a cero.')
+    reference = (referencia or '').strip() or f'TRANSFERENCIA-{solicitud.request_number or solicitud.id}'
+    client_transaction_id = f'FIRMA-TRF-{solicitud.request_number or solicitud.id}-{uuid.uuid4().hex[:8]}'
+
+    firma_payment = FirmaPagoElectronico.objects.create(
+        request=solicitud,
+        provider=FirmaPagoElectronico.Provider.TRANSFERENCIA,
+        status=FirmaPagoElectronico.Estado.PAID,
+        amount=monto,
+        base_amount=monto,
+        processing_fee=Decimal('0.00'),
+        processing_fee_tax=Decimal('0.00'),
+        currency='USD',
+        client_transaction_id=client_transaction_id,
+        provider_transaction_id=reference,
+        authorization_code=reference,
+        raw_request={
+            'cuenta_bancaria_id': cuenta_bancaria.id,
+            'referencia': reference,
+            'observacion': observacion,
+            'confirmed_by_user_id': getattr(usuario, 'id', None),
+        },
+        raw_response={},
+        paid_at=fecha_confirmacion,
+    )
+    pago_online = PagoOnline.objects.create(
+        empresa=empresa,
+        origen=PagoOnline.Origen.FIRMA,
+        origen_id=str(solicitud.id),
+        provider=PagoOnline.Provider.TRANSFERENCIA,
+        metodo=PagoOnline.Metodo.TRANSFERENCIA,
+        estado=PagoOnline.Estado.APPROVED,
+        currency='USD',
+        base_amount=monto,
+        processing_fee=Decimal('0.00'),
+        processing_fee_tax=Decimal('0.00'),
+        total_amount=monto,
+        client_transaction_id=client_transaction_id,
+        provider_transaction_id=reference,
+        authorization_code=reference,
+        raw_request={
+            'cuenta_bancaria_id': cuenta_bancaria.id,
+            'referencia': reference,
+            'observacion': observacion,
+            'confirmed_by_user_id': getattr(usuario, 'id', None),
+        },
+        raw_response={},
+        confirmed_at=fecha_confirmacion,
+        metadata={
+            'request_number': solicitud.request_number,
+            'request_model': 'firmas.SolicitudFirmaElectronica',
+            'payment_model': 'firmas.FirmaPagoElectronico',
+            'payment_id': firma_payment.id,
+            'manual_transfer': True,
+        },
+    )
+    try:
+        aplicar_pago_firma_a_ventas(
+            pago_online,
+            firma_payment,
+            cuenta_bancaria=cuenta_bancaria,
+            forma_pago=PagoVenta.FormaPagoChoices.TRANSFERENCIA,
+            usuario=usuario,
+        )
+    except Exception as exc:
+        logger.exception('No se pudo aplicar pago por transferencia de firma a ventas. pago_online_id=%s', pago_online.id)
+        pago_online.mark_application_error(exc)
+    return firma_payment, pago_online
 
 
 def registrar_pago_firma_payphone(firma_payment):

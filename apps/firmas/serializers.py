@@ -295,6 +295,7 @@ class ConsentimientoFirmaElectronicaSerializer(serializers.ModelSerializer):
 
 
 class FirmaPagoElectronicoResumenSerializer(serializers.ModelSerializer):
+    provider_display = serializers.CharField(source='get_provider_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     pago_online_id = serializers.SerializerMethodField()
     venta_id = serializers.SerializerMethodField()
@@ -305,7 +306,7 @@ class FirmaPagoElectronicoResumenSerializer(serializers.ModelSerializer):
     class Meta:
         model = FirmaPagoElectronico
         fields = [
-            'id', 'provider', 'status', 'status_display', 'amount', 'base_amount',
+            'id', 'provider', 'provider_display', 'status', 'status_display', 'amount', 'base_amount',
             'processing_fee', 'processing_fee_tax', 'currency', 'client_transaction_id',
             'provider_transaction_id', 'authorization_code', 'paid_at', 'created_at',
             'pago_online_id', 'venta_id', 'venta_numero', 'movimiento_bancario_id',
@@ -502,6 +503,20 @@ class CambiarEstadoFirmaSerializer(serializers.Serializer):
     comment = serializers.CharField(required=False, allow_blank=True)
     rejected_reason = serializers.CharField(required=False, allow_blank=True)
     provider_request_id = serializers.CharField(required=False, allow_blank=True)
+
+
+class MarcarPagoTransferenciaFirmaSerializer(serializers.Serializer):
+    cuenta_bancaria = serializers.IntegerField()
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, min_value=Decimal('0.01'))
+    fecha_pago = serializers.DateTimeField(required=False)
+    referencia = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    observacion = serializers.CharField(required=False, allow_blank=True)
+    confirmado = serializers.BooleanField()
+
+    def validate_confirmado(self, value):
+        if not value:
+            raise serializers.ValidationError('Confirma que el pago fue validado manualmente.')
+        return value
 
 
 class SolicitudDemoERPSerializer(serializers.ModelSerializer):
