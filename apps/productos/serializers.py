@@ -35,7 +35,9 @@ class ProductoSerializer(serializers.ModelSerializer):
     def validate_codigo_principal(self, value):
         """Validar que el código sea único para la empresa"""
         request = self.context.get('request')
-        empresa = request.user.empresa if request else None
+        empresa = None
+        if request:
+            empresa = getattr(request, 'tenant', None) or getattr(getattr(request, 'user', None), 'empresa', None)
         instance = self.instance
 
         if instance:

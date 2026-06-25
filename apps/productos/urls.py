@@ -46,6 +46,9 @@ class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         empresa = getattr(self.request, 'tenant', None) or getattr(self.request.user, 'empresa', None)
+        if not empresa:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'empresa': 'Selecciona una empresa para crear el producto.'})
         serializer.save(empresa=empresa)
 
     def destroy(self, request, *args, **kwargs):
