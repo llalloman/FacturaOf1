@@ -371,8 +371,12 @@ def crear_factura_desde_venta(venta):
         pct = getattr(producto, 'porcentaje_iva', '2') if producto else '2'
         tarifa, codigo_porcentaje = IVA_MAP.get(str(pct), (Decimal('15.00'), '4'))
         descuento = Decimal(str(dv.descuento or 0)).quantize(Decimal('0.01'))
-        gross_base = (Decimal(str(dv.cantidad or 0)) * Decimal(str(dv.precio_unitario or 0))).quantize(Decimal('0.01'))
-        base = Decimal(str(dv.subtotal or (gross_base - descuento))).quantize(Decimal('0.01'))
+        gross_base = Decimal(str(dv.subtotal or 0)).quantize(Decimal('0.01'))
+        if gross_base <= Decimal('0.00'):
+            gross_base = (
+                Decimal(str(dv.cantidad or 0)) * Decimal(str(dv.precio_unitario or 0))
+            ).quantize(Decimal('0.01'))
+        base = max(Decimal('0.00'), gross_base - descuento).quantize(Decimal('0.01'))
         iva_val = (base * tarifa / 100).quantize(Decimal('0.01'))
         if codigo_porcentaje == '2':
             iva_12 += iva_val

@@ -188,6 +188,7 @@ export interface Venta {
     cantidad: number;
     precio_unitario: number;
     costo_unitario: number;
+    descuento: number;
     subtotal: number;
     iva: number;
     total: number;

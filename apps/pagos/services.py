@@ -253,7 +253,7 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment, *, cuenta_bancaria=N
         _linea(
             firma_product,
             Decimal('1.00'),
-            final_subtotal,
+            regular_subtotal,
             final_tax,
             final_amount,
             precio_unitario=regular_subtotal,
@@ -263,8 +263,8 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment, *, cuenta_bancaria=N
 
     subtotal = money(sum((linea['subtotal'] for linea in lineas), Decimal('0.00')))
     iva = money(sum((linea['iva'] for linea in lineas), Decimal('0.00')))
-    total = money(sum((linea['total'] for linea in lineas), Decimal('0.00')))
     descuento = money(sum((linea['descuento'] for linea in lineas), Decimal('0.00')))
+    total = money(subtotal - descuento + iva)
     subtotal_0, subtotal_12, subtotal_15 = _subtotales_por_iva(lineas)
 
     venta = Venta.objects.create(

@@ -105,6 +105,9 @@ export default function VentasPage() {
   const clienteSeleccionado = clienteIdOverride
     ? clientes.find((c) => c.id === clienteIdOverride)
     : null;
+  const selectedVentaHasLineDiscount = (selectedVenta?.detalles ?? []).some(
+    (detalle) => Number(detalle.descuento || 0) > 0
+  );
 
   const invalidateVentas = () => {
     queryClient.invalidateQueries({ queryKey: ['ventas'] });
@@ -765,6 +768,9 @@ export default function VentasPage() {
                           <th className="text-left px-3 py-2 font-semibold">Producto</th>
                           <th className="text-right px-3 py-2 font-semibold">Cant.</th>
                           <th className="text-right px-3 py-2 font-semibold">P. Unit.</th>
+                          {selectedVentaHasLineDiscount && (
+                            <th className="text-right px-3 py-2 font-semibold">Desc.</th>
+                          )}
                           <th className="text-right px-3 py-2 font-semibold">Total</th>
                         </tr>
                       </thead>
@@ -777,6 +783,11 @@ export default function VentasPage() {
                             </td>
                             <td className="text-right px-3 py-2 text-gray-700">{Number(detalle.cantidad).toFixed(2)}</td>
                             <td className="text-right px-3 py-2 text-gray-700">${Number(detalle.precio_unitario).toFixed(2)}</td>
+                            {selectedVentaHasLineDiscount && (
+                              <td className="text-right px-3 py-2 text-rose-600">
+                                {Number(detalle.descuento || 0) > 0 ? `-$${Number(detalle.descuento).toFixed(2)}` : '-'}
+                              </td>
+                            )}
                             <td className="text-right px-3 py-2 font-semibold text-gray-900">${Number(detalle.total).toFixed(2)}</td>
                           </tr>
                         ))}
