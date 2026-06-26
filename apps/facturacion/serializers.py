@@ -85,11 +85,10 @@ class FacturaSerializer(serializers.ModelSerializer):
         attrs = super().validate(attrs)
         cliente = attrs.get('cliente') or getattr(self.instance, 'cliente', None)
         detalles_input = attrs.get('detalles_input', [])
-        total_descuento = Decimal(str(attrs.get('total_descuento', getattr(self.instance, 'total_descuento', 0)) or 0))
         total_estimado = sum(
             Decimal(str(item.get('total', 0) or 0))
             for item in detalles_input
-        ) - total_descuento
+        )
         if cliente:
             if not cliente.activo:
                 raise serializers.ValidationError({'cliente': 'No se puede usar un cliente inactivo para emitir nuevos documentos.'})
@@ -237,14 +236,13 @@ class FacturaSerializer(serializers.ModelSerializer):
                 iva_15 += detalle.valor_impuesto
 
         # ── Actualizar totales ────────────────────────────────────────────────────
-        descuento_gral = Decimal(str(factura.total_descuento or '0.00'))
         factura.subtotal_sin_impuestos = subtotal_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.subtotal_0 = subtotal_0.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.subtotal_12 = subtotal_12.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.subtotal_15 = subtotal_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.iva_12 = iva_12.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.iva_15 = iva_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        factura.total = (subtotal_total + iva_total - descuento_gral).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        factura.total = (subtotal_total + iva_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.save(update_fields=[
             'subtotal_sin_impuestos',
             'subtotal_0',
@@ -258,7 +256,7 @@ class FacturaSerializer(serializers.ModelSerializer):
         total_objetivo = sum(
             Decimal(str(item.get('total', 0) or 0))
             for item in detalles_data
-        ) - descuento_gral
+        )
         aplicar_ajuste_centavos_factura(factura, total_objetivo)
         recalcular_totales_factura_desde_detalles(factura)
 

@@ -190,12 +190,12 @@ def _apertura_caja(config):
     )
 
 
-def _linea(producto, cantidad, subtotal, iva, total):
+def _linea(producto, cantidad, subtotal, iva, total, precio_unitario=None, descuento=Decimal('0.00')):
     return {
         'producto': producto,
         'cantidad': Decimal(str(cantidad)),
-        'precio_unitario': Decimal(str(subtotal)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP),
-        'descuento': Decimal('0.00'),
+        'precio_unitario': Decimal(str(precio_unitario if precio_unitario is not None else subtotal)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP),
+        'descuento': money(descuento),
         'subtotal': money(subtotal),
         'iva': money(iva),
         'total': money(total),
@@ -241,19 +241,30 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment, *, cuenta_bancaria=N
     cliente = obtener_o_crear_cliente_firma(config.empresa, solicitud)
     apertura = _apertura_caja(config)
     firma_product = producto_firma(config, solicitud)
+    from apps.firmas.pricing import split_tax
+
+    final_amount = money(firma_payment.base_amount)
+    final_subtotal = money(solicitud.subtotal_without_tax or split_tax(final_amount, solicitud.tax_rate)[0])
+    final_tax = money(solicitud.tax_amount or (final_amount - final_subtotal))
+    regular_amount = money(solicitud.regular_price or final_amount)
+    regular_subtotal, _regular_tax = split_tax(regular_amount, solicitud.tax_rate)
+    discount_subtotal = money(max(Decimal('0.00'), regular_subtotal - final_subtotal))
     lineas = [
         _linea(
             firma_product,
             Decimal('1.00'),
-            solicitud.subtotal_without_tax or firma_payment.base_amount,
-            solicitud.tax_amount or Decimal('0.00'),
-            firma_payment.base_amount,
+            final_subtotal,
+            final_tax,
+            final_amount,
+            precio_unitario=regular_subtotal,
+            descuento=discount_subtotal,
         )
     ]
 
     subtotal = money(sum((linea['subtotal'] for linea in lineas), Decimal('0.00')))
     iva = money(sum((linea['iva'] for linea in lineas), Decimal('0.00')))
     total = money(sum((linea['total'] for linea in lineas), Decimal('0.00')))
+    descuento = money(sum((linea['descuento'] for linea in lineas), Decimal('0.00')))
     subtotal_0, subtotal_12, subtotal_15 = _subtotales_por_iva(lineas)
 
     venta = Venta.objects.create(
@@ -266,7 +277,7 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment, *, cuenta_bancaria=N
         tipo_venta=Venta.TipoVentaChoices.MOSTRADOR,
         estado=Venta.EstadoChoices.COMPLETADA,
         subtotal=subtotal,
-        descuento=Decimal('0.00'),
+        descuento=descuento,
         subtotal_0=subtotal_0,
         subtotal_12=subtotal_12,
         subtotal_15=subtotal_15,
@@ -276,6 +287,7 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment, *, cuenta_bancaria=N
         observaciones=(
             f'Venta generada por pago de firma {solicitud.request_number}. '
             f'Método: {pago_online.get_metodo_display()}. '
+            f'Precio normal: ${regular_amount}. Descuento aplicado: ${solicitud.discount_amount or Decimal("0.00")}. '
             f'Recargo transacción registrado en PagoOnline: ${pago_online.processing_fee} + IVA ${pago_online.processing_fee_tax}.'
         ),
         fecha_venta=firma_payment.paid_at or pago_online.confirmed_at or timezone.now(),

@@ -113,7 +113,6 @@ def recalcular_totales_factura_desde_detalles(factura):
             subtotal_15 += base
             iva_15 += impuesto
 
-    total_descuento = Decimal(str(factura.total_descuento or 0)).quantize(Decimal('0.01'))
     factura.subtotal_sin_impuestos = subtotal_sin_impuestos.quantize(Decimal('0.01'))
     factura.subtotal_0 = subtotal_0.quantize(Decimal('0.01'))
     factura.subtotal_12 = subtotal_12.quantize(Decimal('0.01'))
@@ -121,7 +120,7 @@ def recalcular_totales_factura_desde_detalles(factura):
     factura.iva_12 = iva_12.quantize(Decimal('0.01'))
     factura.iva_15 = iva_15.quantize(Decimal('0.01'))
     factura.total = (
-        factura.subtotal_sin_impuestos + factura.iva_12 + factura.iva_15 - total_descuento
+        factura.subtotal_sin_impuestos + factura.iva_12 + factura.iva_15
     ).quantize(Decimal('0.01'))
     factura.save(update_fields=[
         'subtotal_sin_impuestos',
@@ -142,7 +141,8 @@ def normalizar_precios_unitarios_factura(factura):
         if cantidad <= Decimal('0'):
             continue
         base = Decimal(str(detalle.precio_total_sin_impuesto or 0)).quantize(Decimal('0.01'))
-        precio_unitario = (base / cantidad).quantize(Decimal('0.000001'))
+        descuento = Decimal(str(detalle.descuento or 0)).quantize(Decimal('0.01'))
+        precio_unitario = ((base + descuento) / cantidad).quantize(Decimal('0.000001'))
         if Decimal(str(detalle.precio_unitario or 0)).quantize(Decimal('0.000001')) != precio_unitario:
             detalle.precio_unitario = precio_unitario
             detalle.save(update_fields=['precio_unitario'])
@@ -370,7 +370,9 @@ def crear_factura_desde_venta(venta):
         producto = dv.producto
         pct = getattr(producto, 'porcentaje_iva', '2') if producto else '2'
         tarifa, codigo_porcentaje = IVA_MAP.get(str(pct), (Decimal('15.00'), '4'))
-        base    = Decimal(str(dv.subtotal)).quantize(Decimal('0.01'))
+        descuento = Decimal(str(dv.descuento or 0)).quantize(Decimal('0.01'))
+        gross_base = (Decimal(str(dv.cantidad or 0)) * Decimal(str(dv.precio_unitario or 0))).quantize(Decimal('0.01'))
+        base = Decimal(str(dv.subtotal or (gross_base - descuento))).quantize(Decimal('0.01'))
         iva_val = (base * tarifa / 100).quantize(Decimal('0.01'))
         if codigo_porcentaje == '2':
             iva_12 += iva_val
@@ -384,7 +386,7 @@ def crear_factura_desde_venta(venta):
             descripcion=producto.nombre if producto else 'Ítem',
             cantidad=dv.cantidad,
             precio_unitario=dv.precio_unitario,
-            descuento=dv.descuento,
+            descuento=descuento,
             precio_total_sin_impuesto=base,
             tarifa=tarifa,
             codigo_porcentaje=codigo_porcentaje,
