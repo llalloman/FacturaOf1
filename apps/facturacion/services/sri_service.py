@@ -35,6 +35,22 @@ class SRIService:
         """
         self.empresa = empresa
         self.ambiente = empresa.ambiente
+
+    def _agregar_ruc_proveedor_facturacion(self, campos):
+        ruc_proveedor = (getattr(self.empresa, 'ruc_proveedor_facturacion_electronica', '') or '').strip()
+        if ruc_proveedor:
+            campos['RUC Proveedor'] = ruc_proveedor
+        return campos
+
+    def _agregar_info_adicional(self, root, campos):
+        self._agregar_ruc_proveedor_facturacion(campos)
+        if not campos:
+            return
+        info_adicional = etree.SubElement(root, 'infoAdicional')
+        for nombre, valor in campos.items():
+            if valor in (None, ''):
+                continue
+            etree.SubElement(info_adicional, 'campoAdicional', nombre=nombre).text = str(valor)[:300]
     
     def generar_clave_acceso(self, fecha_emision, tipo_comprobante, ruc, ambiente, 
                             serie, numero_comprobante, codigo_numerico='12345678', 
@@ -232,11 +248,7 @@ class SRIService:
             campos_adicionales['celular'] = cliente.celular
         if factura.informacion_adicional:
             campos_adicionales.update(factura.informacion_adicional)
-        if campos_adicionales:
-            info_adicional = etree.SubElement(factura_xml, 'infoAdicional')
-            for campo, valor in campos_adicionales.items():
-                campo_adicional = etree.SubElement(info_adicional, 'campoAdicional', nombre=campo)
-                campo_adicional.text = str(valor)
+        self._agregar_info_adicional(factura_xml, campos_adicionales)
         
         # Convertir a string (sin pretty_print: el whitespace rompe los digests de la firma)
         xml_string = etree.tostring(
@@ -353,10 +365,7 @@ class SRIService:
             campos['email'] = cliente.email
         if cliente.telefono:
             campos['telefono'] = cliente.telefono
-        if campos:
-            info_adic = etree.SubElement(nc_xml, 'infoAdicional')
-            for nombre, valor in campos.items():
-                etree.SubElement(info_adic, 'campoAdicional', nombre=nombre).text = str(valor)
+        self._agregar_info_adicional(nc_xml, campos)
 
         xml_string = etree.tostring(
             nc_xml, pretty_print=False, xml_declaration=True, encoding='UTF-8',
@@ -442,6 +451,8 @@ class SRIService:
                 etree.SubElement(det_el, 'descripcion').text   = det.descripcion
                 etree.SubElement(det_el, 'cantidad').text      = f"{det.cantidad:.6f}"
 
+        self._agregar_info_adicional(gr_xml, {})
+
         xml_string = etree.tostring(
             gr_xml, pretty_print=False, xml_declaration=True, encoding='UTF-8',
         ).decode('utf-8')
@@ -520,10 +531,7 @@ class SRIService:
             campos['email'] = sujeto.email
         if sujeto.telefono:
             campos['telefono'] = sujeto.telefono
-        if campos:
-            info_adic = etree.SubElement(ret_xml, 'infoAdicional')
-            for nombre, valor in campos.items():
-                etree.SubElement(info_adic, 'campoAdicional', nombre=nombre).text = str(valor)
+        self._agregar_info_adicional(ret_xml, campos)
 
         xml_string = etree.tostring(
             ret_xml, pretty_print=False, xml_declaration=True, encoding='UTF-8',
@@ -626,10 +634,7 @@ class SRIService:
             campos['email'] = cliente.email
         if cliente.telefono:
             campos['telefono'] = cliente.telefono
-        if campos:
-            info_adic = etree.SubElement(nd_xml, 'infoAdicional')
-            for nombre, valor in campos.items():
-                etree.SubElement(info_adic, 'campoAdicional', nombre=nombre).text = str(valor)
+        self._agregar_info_adicional(nd_xml, campos)
 
         xml_string = etree.tostring(
             nd_xml, pretty_print=False, xml_declaration=True, encoding='UTF-8',

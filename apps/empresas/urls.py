@@ -20,6 +20,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
             'certificado_digital', 'password_certificado', 'fecha_vencimiento_certificado',
             'firmado_automatico',
             'establecimiento_codigo', 'punto_emision_codigo',
+            'ruc_proveedor_facturacion_electronica',
             'logo', 'mensaje_personalizado',
             'activa', 'verificada', 'fecha_creacion',
         ]

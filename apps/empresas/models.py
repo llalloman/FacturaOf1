@@ -7,6 +7,7 @@ import os
 from cryptography.fernet import Fernet
 from django.conf import settings
 from django.db import models
+from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
@@ -149,6 +150,18 @@ class Empresa(models.Model):
         max_length=3,
         default='001',
         help_text=_('Código de 3 dígitos')
+    )
+    ruc_proveedor_facturacion_electronica = models.CharField(
+        _('RUC proveedor de facturación electrónica'),
+        max_length=13,
+        blank=True,
+        validators=[
+            RegexValidator(
+                regex=r'^\d{13}$',
+                message=_('El RUC del proveedor debe tener exactamente 13 dígitos.'),
+            )
+        ],
+        help_text=_('RUC del proveedor externo de sistemas o servicios de facturación electrónica.'),
     )
     
     # Logo y marca

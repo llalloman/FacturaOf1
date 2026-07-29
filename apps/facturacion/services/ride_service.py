@@ -15,6 +15,14 @@ from reportlab.platypus import (
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 
+def _info_adicional_con_ruc_proveedor(info_adicional, empresa):
+    info = dict(info_adicional or {})
+    ruc_proveedor = (getattr(empresa, 'ruc_proveedor_facturacion_electronica', '') or '').strip()
+    if ruc_proveedor:
+        info['RUC Proveedor'] = ruc_proveedor
+    return info
+
+
 def generar_ride_pdf(factura) -> bytes:
     """
     Genera el RIDE en PDF para una factura autorizada.
@@ -220,7 +228,7 @@ def generar_ride_pdf(factura) -> bytes:
     # ── TOTALES ───────────────────────────────────────────────────────────────
     story.append(Spacer(1, 4 * mm))
 
-    info_adic = factura.informacion_adicional or {}
+    info_adic = _info_adicional_con_ruc_proveedor(factura.informacion_adicional, empresa)
     # Campos adicionales + totales lado a lado
     add_rows = []
     for k, v in info_adic.items():
@@ -466,6 +474,24 @@ def generar_ride_nota_credito_pdf(nota_credito) -> bytes:
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
     ]))
     story.append(Table([['', totals_table]], colWidths=['55%', '45%']))
+
+    info_adic = _info_adicional_con_ruc_proveedor({}, empresa)
+    if info_adic:
+        story.append(Spacer(1, 3 * mm))
+        add_rows = [[Paragraph('<b>Información adicional</b>', bold_sm), '']]
+        for nombre, valor in info_adic.items():
+            add_rows.append([Paragraph(f'<b>{nombre}:</b>', bold_sm), Paragraph(str(valor), small)])
+        add_table = Table(add_rows, colWidths=['35%', '65%'])
+        add_table.setStyle(TableStyle([
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.grey),
+            ('SPAN', (0, 0), (1, 0)),
+            ('BACKGROUND', (0, 0), (1, 0), colors.HexColor('#D9D9D9')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(add_table)
 
     story.append(Spacer(1, 4 * mm))
     story.append(HRFlowable(width='100%', thickness=0.5, color=colors.grey))

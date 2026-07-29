@@ -275,6 +275,7 @@ export interface Empresa {
   firmado_automatico?: boolean;
   establecimiento_codigo?: string;
   punto_emision_codigo?: string;
+  ruc_proveedor_facturacion_electronica?: string;
   logo?: string;
   mensaje_personalizado?: string;
   activa: boolean;

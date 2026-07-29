@@ -286,6 +286,18 @@ function EmpresaTab() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Punto de Emisión por defecto</label>
             <input type="text" value={String(v('punto_emision_codigo'))} onChange={(e) => set('punto_emision_codigo', e.target.value)} placeholder="001" className={inp} />
           </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">RUC proveedor de facturación electrónica</label>
+            <input
+              type="text"
+              value={String(v('ruc_proveedor_facturacion_electronica'))}
+              onChange={(e) => set('ruc_proveedor_facturacion_electronica', e.target.value.replace(/\D/g, '').slice(0, 13))}
+              placeholder="Ej: 1791234567001"
+              maxLength={13}
+              className={inp}
+            />
+            <p className="text-xs text-gray-400 mt-1">Se enviará como campo adicional "RUC Proveedor" en el XML autorizado por el SRI.</p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Logo de la Empresa</label>
             <p className="text-xs text-gray-400 mb-1">Ancho y alto máximo: 500×300 px. Formatos: jpg, png, gif, bmp.</p>
