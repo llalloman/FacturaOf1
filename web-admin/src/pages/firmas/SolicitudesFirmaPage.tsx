@@ -270,7 +270,8 @@ export default function SolicitudesFirmaPage() {
                   <Info label="Motivo" value={selected.request_reason || '-'} />
                   <Info label="Representante" value={`${selected.representative_names ?? ''} ${selected.representative_last_names ?? ''}`.trim() || '-'} />
                   <Info label="ID representante" value={selected.representative_identification || '-'} />
-                  <Info label="Ubicación" value={`${selected.city}, ${selected.province}`} />
+                  <Info label="Ubicación" value={[selected.parish, selected.city, selected.province].filter(Boolean).join(', ')} />
+                  <Info label="Parroquia" value={selected.parish || '-'} />
                   <Info label="Dirección" value={selected.address || '-'} />
                   <Info label="Vigencia" value={selected.validity_display ?? selected.validity} />
                   <Info label="Origen" value={selected.source_display ?? selected.source ?? '-'} />

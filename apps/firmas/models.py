@@ -108,6 +108,7 @@ class SolicitudFirmaElectronica(models.Model):
     secondary_phone = models.CharField(_('teléfono secundario'), max_length=20, blank=True)
     province = models.CharField(_('provincia'), max_length=80)
     city = models.CharField(_('ciudad'), max_length=80)
+    parish = models.CharField(_('parroquia'), max_length=120, blank=True)
     address = models.CharField(_('dirección'), max_length=255)
     representative_identification_type = models.CharField(_('tipo identificación representante'), max_length=20, choices=TipoIdentificacion.choices, blank=True)
     representative_identification = models.CharField(_('identificación representante'), max_length=20, blank=True)

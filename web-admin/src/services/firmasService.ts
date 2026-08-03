@@ -129,6 +129,7 @@ export interface SolicitudFirma {
   secondary_phone?: string;
   province: string;
   city: string;
+  parish?: string;
   address: string;
   representative_identification_type?: string;
   representative_identification?: string;

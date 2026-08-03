@@ -134,6 +134,7 @@ const baseForm: SolicitudFirmaPublicPayload = {
   secondary_phone: '',
   province: '',
   city: '',
+  parish: '',
   address: '',
   representative_identification_type: 'CEDULA',
   representative_identification: '',
@@ -335,6 +336,7 @@ export default function SolicitarFirmaElectronicaPage() {
       secondary_phone: solicitud.secondary_phone ?? '',
       province: solicitud.province,
       city: solicitud.city,
+      parish: solicitud.parish ?? '',
       address: solicitud.address,
       representative_identification_type: solicitud.representative_identification_type ?? 'CEDULA',
       representative_identification: solicitud.representative_identification ?? '',
@@ -447,6 +449,10 @@ export default function SolicitarFirmaElectronicaPage() {
       }
       if (field === 'province') {
         next.city = '';
+        next.parish = '';
+      }
+      if (field === 'city') {
+        next.parish = '';
       }
       return next;
     });
@@ -510,7 +516,7 @@ export default function SolicitarFirmaElectronicaPage() {
       const requiredFields: Array<keyof SolicitudFirmaPublicPayload> = [
         'identification_type', 'first_name', 'last_name', 'identification',
         'fingerprint_code', 'birth_date', 'nationality', 'gender',
-        'email', 'phone', 'province', 'city', 'address',
+        'email', 'phone', 'province', 'city', 'parish', 'address',
       ];
       if (isCompanyRequest) requiredFields.push('ruc', 'business_name', 'applicant_position');
       if (form.request_type === 'PERSONA_NATURAL' && form.has_ruc) requiredFields.push('ruc');
@@ -843,6 +849,9 @@ export default function SolicitarFirmaElectronicaPage() {
                     {cantonesDisponibles.map((city) => <option key={city} value={city}>{city}</option>)}
                   </select>
                 </Field>
+                <Field label="Parroquia *" invalid={invalid('parish')}>
+                  <input className={fieldInputClass(invalid('parish'))} value={form.parish ?? ''} onChange={(e) => setField('parish', e.target.value)} />
+                </Field>
                 <Field label="Dirección *" invalid={invalid('address')}>
                   <input className={fieldInputClass(invalid('address'))} value={form.address ?? ''} onChange={(e) => setField('address', e.target.value)} />
                 </Field>
@@ -952,6 +961,7 @@ export default function SolicitarFirmaElectronicaPage() {
                   ['Correo 2', form.secondary_email],
                   ['Provincia', form.province],
                   ['Cantón', form.city],
+                  ['Parroquia', form.parish],
                   ['Dirección', form.address],
                 ]} />
                 {(isCompanyRequest || form.has_ruc) && (
@@ -1046,7 +1056,7 @@ export default function SolicitarFirmaElectronicaPage() {
                 <SummaryBlock title="Contacto" rows={[
                   ['Correo', form.email],
                   ['Teléfono', form.phone],
-                  ['Ubicación', `${form.city}, ${form.province}`],
+                  ['Ubicación', [form.parish, form.city, form.province].filter(Boolean).join(', ')],
                 ]} />
                 <SummaryBlock title="Documentos" rows={[
                   ['Cargados', uploadedDocs],
@@ -1126,7 +1136,7 @@ function RecoveredSignatureReview({ lookup }: { lookup: PublicSignatureLookupRes
           ['Correo', solicitud.email],
           ['Teléfono', solicitud.phone],
           ['Teléfono 2', solicitud.secondary_phone],
-          ['Ubicación', `${solicitud.city}, ${solicitud.province}`],
+          ['Ubicación', [solicitud.parish, solicitud.city, solicitud.province].filter(Boolean).join(', ')],
           ['Dirección', solicitud.address],
         ]} />
         <SummaryBlock title="Pago" rows={[

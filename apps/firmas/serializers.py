@@ -369,7 +369,7 @@ class SolicitudFirmaElectronicaSerializer(serializers.ModelSerializer):
             'second_last_name', 'full_name', 'identification', 'fingerprint_code',
             'birth_date', 'nationality', 'gender', 'ruc', 'has_ruc', 'business_name',
             'company_unit', 'applicant_position', 'request_reason', 'email',
-            'secondary_email', 'phone', 'secondary_phone', 'province', 'city', 'address',
+            'secondary_email', 'phone', 'secondary_phone', 'province', 'city', 'parish', 'address',
             'representative_identification_type', 'representative_identification',
             'representative_names', 'representative_last_names',
             'validity', 'validity_display', 'container_type', 'wants_erp',
@@ -471,7 +471,7 @@ class SolicitudFirmaElectronicaPublicSerializer(SolicitudFirmaElectronicaSeriali
             'fingerprint_code', 'birth_date', 'nationality', 'gender', 'ruc',
             'has_ruc', 'business_name', 'company_unit', 'applicant_position',
             'request_reason', 'email', 'secondary_email', 'phone', 'secondary_phone',
-            'province', 'city', 'address', 'representative_identification_type',
+            'province', 'city', 'parish', 'address', 'representative_identification_type',
             'representative_identification', 'representative_names',
             'representative_last_names', 'validity', 'container_type',
             'wants_erp', 'interested_plan', 'coupon_code',
@@ -481,6 +481,8 @@ class SolicitudFirmaElectronicaPublicSerializer(SolicitudFirmaElectronicaSeriali
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        if not attrs.get('parish'):
+            raise serializers.ValidationError({'parish': 'Este campo es requerido.'})
         if attrs.get('accepted_terms') is not True:
             raise serializers.ValidationError({'accepted_terms': 'Debes aceptar los Términos y Condiciones.'})
         if attrs.get('accepted_privacy') is not True:

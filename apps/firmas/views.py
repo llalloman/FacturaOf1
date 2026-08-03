@@ -463,6 +463,7 @@ def _public_signature_summary(solicitud):
         'secondary_phone': solicitud.secondary_phone,
         'province': solicitud.province,
         'city': solicitud.city,
+        'parish': solicitud.parish,
         'address': solicitud.address,
         'ruc': solicitud.ruc,
         'business_name': solicitud.business_name,
@@ -706,7 +707,7 @@ def notificar_solicitud_publica(request, solicitud):
         f'Empresa: {solicitud.business_name or "-"}\n'
         f'Correo: {solicitud.email}\n'
         f'Teléfono: {solicitud.phone}\n'
-        f'Ubicación: {solicitud.city}, {solicitud.province}\n'
+        f'Ubicación: {solicitud.parish or "-"}, {solicitud.city}, {solicitud.province}\n'
         f'Documentos: {documents}\n\n'
         f'Revisar en administración: {admin_url}\n'
     )
