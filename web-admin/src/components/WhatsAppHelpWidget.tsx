@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { MessageCircle, X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
-const WHATSAPP_NUMBER = '593995298989';
+const WHATSAPP_NUMBER = '593991840854';
 const HELP_MESSAGE = 'Hola, necesito ayuda sobre el ERP o firma electronica.';
 
 const HIDDEN_ROUTES = [

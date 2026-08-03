@@ -12,7 +12,7 @@ export default function FirmaPagoResultadoPage({ status }: { status: 'success' |
   const whatsappText = requestNumber
     ? `Hola, acabo de realizar el pago de la solicitud de firma ${requestNumber}.`
     : 'Hola, necesito ayuda con el pago de mi solicitud de firma electrónica.';
-  const whatsappUrl = `${whatsappBase}?phone=593995298989&text=${encodeURIComponent(whatsappText)}&type=phone_number&app_absent=0`;
+  const whatsappUrl = `${whatsappBase}?phone=593991840854&text=${encodeURIComponent(whatsappText)}&type=phone_number&app_absent=0`;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">

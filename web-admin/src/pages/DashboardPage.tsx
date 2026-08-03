@@ -313,7 +313,7 @@ function DashboardTenantView({ data }: { data: DashboardTenant }) {
               <Link to="/configuracion" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
                 Configurar empresa
               </Link>
-              <a href="https://api.whatsapp.com/send/?phone=593983904993&text=Hola%2C+necesito+soporte+con+FacturaOF1&type=phone_number&app_absent=0" target="_blank" rel="noreferrer" className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50">
+              <a href="https://api.whatsapp.com/send/?phone=593991840854&text=Hola%2C+necesito+soporte+con+FacturaOF1&type=phone_number&app_absent=0" target="_blank" rel="noreferrer" className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50">
                 Agendar soporte
               </a>
             </div>
