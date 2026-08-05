@@ -24,7 +24,8 @@ class ProductoSerializer(serializers.ModelSerializer):
             'id', 'empresa', 'codigo_principal', 'codigo_auxiliar', 'tipo', 'nombre',
             'descripcion', 'precio', 'precio_con_iva', 'precio_con_iva_input', 'modo_precio',
             'precio_minimo', 'costo', 'aplica_iva', 'porcentaje_iva', 'maneja_inventario',
-            'stock_actual', 'stock_minimo', 'activo', 'imagen', 'fecha_creacion',
+            'stock_actual', 'stock_minimo', 'controla_caducidad', 'exige_lote',
+            'dias_alerta_caducidad', 'vida_util_dias', 'activo', 'imagen', 'fecha_creacion',
             'fecha_modificacion',
         ]
         read_only_fields = ['empresa', 'fecha_creacion', 'fecha_modificacion']
@@ -83,5 +84,33 @@ class ProductoSerializer(serializers.ModelSerializer):
             attrs['maneja_inventario'] = False
             attrs['stock_actual'] = Decimal('0.00')
             attrs['stock_minimo'] = Decimal('0.00')
+            attrs['controla_caducidad'] = False
+            attrs['exige_lote'] = False
+
+        maneja_inventario = attrs.get('maneja_inventario', getattr(self.instance, 'maneja_inventario', False))
+        controla_caducidad = attrs.get('controla_caducidad', getattr(self.instance, 'controla_caducidad', False))
+        exige_lote = attrs.get('exige_lote', getattr(self.instance, 'exige_lote', False))
+
+        if controla_caducidad and not maneja_inventario:
+            raise serializers.ValidationError({
+                'controla_caducidad': 'Solo aplica para productos que manejan inventario.'
+            })
+
+        if exige_lote and not controla_caducidad:
+            raise serializers.ValidationError({
+                'exige_lote': 'Para exigir lote, primero activa el control de caducidad.'
+            })
+
+        dias_alerta = attrs.get('dias_alerta_caducidad', getattr(self.instance, 'dias_alerta_caducidad', 30))
+        if dias_alerta <= 0:
+            raise serializers.ValidationError({
+                'dias_alerta_caducidad': 'Debe ser mayor a cero.'
+            })
+
+        vida_util = attrs.get('vida_util_dias', getattr(self.instance, 'vida_util_dias', None))
+        if vida_util is not None and vida_util <= 0:
+            raise serializers.ValidationError({
+                'vida_util_dias': 'Debe ser mayor a cero cuando se defina una vida útil.'
+            })
 
         return attrs

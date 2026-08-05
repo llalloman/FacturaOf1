@@ -536,6 +536,16 @@ class DetalleRecepcion(models.Model):
         decimal_places=4,
         validators=[MinValueValidator(Decimal('0'))]
     )
+    numero_lote = models.CharField(
+        _('número de lote'),
+        max_length=80,
+        blank=True,
+    )
+    fecha_caducidad = models.DateField(
+        _('fecha de caducidad'),
+        null=True,
+        blank=True,
+    )
     
     notas = models.TextField(
         _('notas'),
@@ -548,6 +558,10 @@ class DetalleRecepcion(models.Model):
         verbose_name = _('detalle de recepción')
         verbose_name_plural = _('detalles de recepción')
         ordering = ['id']
+        indexes = [
+            models.Index(fields=['numero_lote']),
+            models.Index(fields=['fecha_caducidad']),
+        ]
     
     def __str__(self):
         return f"{self.recepcion} - {self.detalle_orden.producto}"

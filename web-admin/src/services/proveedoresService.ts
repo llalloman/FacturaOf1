@@ -1,7 +1,24 @@
 import apiClient from './apiClient';
-import type { Proveedor, ProveedorProducto } from '../types';
+import type {
+  Proveedor,
+  ProveedorProducto,
+  OrdenCompraCompra,
+  RecepcionCompra,
+  DetalleRecepcionCompra,
+  Bodega,
+} from '../types';
 
 export type ProveedorProductoPayload = Pick<ProveedorProducto, 'proveedor' | 'producto' | 'codigo_proveedor' | 'costo_referencia' | 'dias_entrega' | 'es_preferido' | 'activo'>;
+
+export interface RecepcionCompraPayload {
+  orden_compra: number;
+  bodega: number;
+  fecha_recepcion: string;
+  numero_factura_proveedor?: string;
+  fecha_factura_proveedor?: string;
+  notas?: string;
+  detalles: Array<Pick<DetalleRecepcionCompra, 'detalle_orden' | 'cantidad_recibida' | 'costo_unitario' | 'numero_lote' | 'fecha_caducidad' | 'notas'>>;
+}
 
 export const proveedoresService = {
   getAll: async () => {
@@ -41,5 +58,34 @@ export const proveedoresService = {
   updateRelacion: async (id: number, payload: Partial<ProveedorProductoPayload>): Promise<ProveedorProducto> => {
     const { data } = await apiClient.patch(`/proveedores/catalogo/${id}/`, payload);
     return data;
+  },
+
+  getOrdenes: async (params?: Record<string, unknown>): Promise<OrdenCompraCompra[]> => {
+    const { data } = await apiClient.get('/proveedores/ordenes/', {
+      params: { page_size: 200, ...params },
+    });
+    return Array.isArray(data) ? data : (data.results ?? []);
+  },
+
+  getRecepciones: async (params?: Record<string, unknown>): Promise<RecepcionCompra[]> => {
+    const { data } = await apiClient.get('/proveedores/recepciones/', {
+      params: { page_size: 200, ...params },
+    });
+    return Array.isArray(data) ? data : (data.results ?? []);
+  },
+
+  createRecepcion: async (payload: RecepcionCompraPayload): Promise<RecepcionCompra> => {
+    const { data } = await apiClient.post('/proveedores/recepciones/', payload);
+    return data;
+  },
+
+  confirmarRecepcion: async (id: number): Promise<RecepcionCompra> => {
+    const { data } = await apiClient.post(`/proveedores/recepciones/${id}/confirmar/`);
+    return data;
+  },
+
+  getBodegas: async (): Promise<Bodega[]> => {
+    const { data } = await apiClient.get('/inventarios/bodegas/', { params: { page_size: 200 } });
+    return Array.isArray(data) ? data : (data.results ?? []);
   },
 };

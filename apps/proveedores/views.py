@@ -171,13 +171,66 @@ class RecepcionCompraViewSet(viewsets.ModelViewSet):
         ).select_related(
             'empresa', 'orden_compra__proveedor', 'bodega', 'recibido_por'
         ).prefetch_related('detalles__detalle_orden__producto')
+
+    @staticmethod
+    def _resolver_lote_recepcion(recepcion, detalle_recep, detalle_orden, producto):
+        from apps.inventarios.models import LoteInventario
+
+        if not producto.controla_caducidad:
+            return None
+
+        numero_lote = (detalle_recep.numero_lote or '').strip()
+        if not numero_lote:
+            numero_lote = f"AUTO-{recepcion.numero_recepcion}-{detalle_orden.id}"
+
+        fecha_caducidad = detalle_recep.fecha_caducidad
+        if not fecha_caducidad and producto.vida_util_dias:
+            fecha_caducidad = recepcion.fecha_recepcion + timedelta(days=producto.vida_util_dias)
+
+        lote, _ = LoteInventario.objects.get_or_create(
+            empresa=recepcion.empresa,
+            producto=producto,
+            bodega=recepcion.bodega,
+            numero_lote=numero_lote,
+            defaults={
+                'fecha_caducidad': fecha_caducidad,
+                'costo_unitario': detalle_recep.costo_unitario,
+                'cantidad_disponible': 0,
+            },
+        )
+
+        updates = []
+        if fecha_caducidad and lote.fecha_caducidad != fecha_caducidad:
+            lote.fecha_caducidad = fecha_caducidad
+            updates.append('fecha_caducidad')
+        if lote.costo_unitario != detalle_recep.costo_unitario:
+            lote.costo_unitario = detalle_recep.costo_unitario
+            updates.append('costo_unitario')
+        if updates:
+            lote.save(update_fields=updates)
+        return lote
+
+    @staticmethod
+    def _registrar_movimiento_entrada(recepcion, detalle_recep, producto, usuario, lote=None):
+        from apps.inventarios.models import MovimientoInventario
+
+        MovimientoInventario.objects.create(
+            empresa=recepcion.empresa,
+            producto=producto,
+            bodega=recepcion.bodega,
+            lote=lote,
+            tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.ENTRADA_COMPRA,
+            cantidad=detalle_recep.cantidad_recibida,
+            costo_unitario=detalle_recep.costo_unitario,
+            documento_referencia=f"Recepción {recepcion.numero_recepcion}",
+            observaciones=f"OC: {recepcion.orden_compra.numero_orden}",
+            usuario=usuario,
+        )
     
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def confirmar(self, request, pk=None):
         """Confirmar recepción y actualizar inventario"""
-        from apps.inventarios.models import MovimientoInventario
-        
         recepcion = self.get_object()
         
         if recepcion.estado != RecepcionCompra.EstadoChoices.BORRADOR:
@@ -194,18 +247,8 @@ class RecepcionCompraViewSet(viewsets.ModelViewSet):
 
             producto = detalle_orden.producto
             if producto.tipo == 'BIEN' and producto.maneja_inventario:
-                # Crear movimiento solo para bienes que controlan existencias.
-                MovimientoInventario.objects.create(
-                    empresa=recepcion.empresa,
-                    producto=producto,
-                    bodega=recepcion.bodega,
-                    tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.ENTRADA_COMPRA,
-                    cantidad=detalle_recep.cantidad_recibida,
-                    costo_unitario=detalle_recep.costo_unitario,
-                    documento_referencia=f"Recepción {recepcion.numero_recepcion}",
-                    observaciones=f"OC: {recepcion.orden_compra.numero_orden}",
-                    usuario=request.user,
-                )
+                lote = self._resolver_lote_recepcion(recepcion, detalle_recep, detalle_orden, producto)
+                self._registrar_movimiento_entrada(recepcion, detalle_recep, producto, request.user, lote)
 
             from .models import ProveedorProducto
             relacion, _ = ProveedorProducto.objects.update_or_create(

@@ -82,6 +82,80 @@ class StockProducto(models.Model):
         return f"{self.producto.nombre} - {self.bodega.nombre}: {self.cantidad}"
 
 
+class LoteInventario(models.Model):
+    """Stock por lote para productos con control de caducidad."""
+
+    class EstadoChoices(models.TextChoices):
+        DISPONIBLE = 'DISPONIBLE', _('Disponible')
+        AGOTADO = 'AGOTADO', _('Agotado')
+        VENCIDO = 'VENCIDO', _('Vencido')
+
+    empresa = models.ForeignKey(
+        'empresas.Empresa',
+        on_delete=models.CASCADE,
+        related_name='lotes_inventario',
+        verbose_name=_('empresa')
+    )
+    producto = models.ForeignKey(
+        'productos.Producto',
+        on_delete=models.CASCADE,
+        related_name='lotes_inventario',
+        verbose_name=_('producto')
+    )
+    bodega = models.ForeignKey(
+        Bodega,
+        on_delete=models.CASCADE,
+        related_name='lotes_inventario',
+        verbose_name=_('bodega')
+    )
+    numero_lote = models.CharField(_('número de lote'), max_length=80)
+    fecha_caducidad = models.DateField(_('fecha de caducidad'), null=True, blank=True)
+    cantidad_disponible = models.DecimalField(
+        _('cantidad disponible'),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+    )
+    costo_unitario = models.DecimalField(
+        _('costo unitario'),
+        max_digits=12,
+        decimal_places=6,
+        default=Decimal('0.00')
+    )
+    estado = models.CharField(
+        _('estado'),
+        max_length=20,
+        choices=EstadoChoices.choices,
+        default=EstadoChoices.DISPONIBLE,
+    )
+    activo = models.BooleanField(_('activo'), default=True)
+    fecha_creacion = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(_('fecha de modificación'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('lote de inventario')
+        verbose_name_plural = _('lotes de inventario')
+        ordering = ['fecha_caducidad', 'numero_lote']
+        unique_together = ['empresa', 'producto', 'bodega', 'numero_lote']
+        indexes = [
+            models.Index(fields=['empresa', 'producto', 'bodega']),
+            models.Index(fields=['fecha_caducidad', 'estado']),
+        ]
+
+    def __str__(self):
+        return f"{self.producto.nombre} - Lote {self.numero_lote} ({self.cantidad_disponible})"
+
+    def actualizar_estado(self):
+        hoy = timezone.now().date()
+        if self.fecha_caducidad and self.fecha_caducidad < hoy:
+            self.estado = self.EstadoChoices.VENCIDO
+        elif self.cantidad_disponible <= 0:
+            self.estado = self.EstadoChoices.AGOTADO
+        else:
+            self.estado = self.EstadoChoices.DISPONIBLE
+
+
 class MovimientoInventario(models.Model):
     """
     Movimientos de inventario (entradas, salidas, ajustes, transferencias)
@@ -114,6 +188,14 @@ class MovimientoInventario(models.Model):
         on_delete=models.PROTECT,
         related_name='movimientos',
         verbose_name=_('bodega')
+    )
+    lote = models.ForeignKey(
+        LoteInventario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='movimientos',
+        verbose_name=_('lote')
     )
     
     tipo_movimiento = models.CharField(

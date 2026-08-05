@@ -25,10 +25,14 @@ const makeEmpty = () => ({
   maneja_inventario: false,
   stock_actual: '',
   stock_minimo: '',
+  controla_caducidad: false,
+  exige_lote: false,
+  dias_alerta_caducidad: '30',
+  vida_util_dias: '',
   activo: true,
 });
 
-export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
+export default function ProductoModal({ producto, onClose, onSuccess }: Readonly<Props>) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(producto?.imagen ?? null);
   const precioConIvaInicial = producto?.precio_con_iva ?? 0;
@@ -49,6 +53,10 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           maneja_inventario: producto.maneja_inventario ?? true,
           stock_actual: String(Number(producto.stock_actual) || 0),
           stock_minimo: String(Number(producto.stock_minimo) || 0),
+          controla_caducidad: producto.controla_caducidad ?? false,
+          exige_lote: producto.exige_lote ?? false,
+          dias_alerta_caducidad: String(Number(producto.dias_alerta_caducidad ?? 30) || 30),
+          vida_util_dias: producto.vida_util_dias == null ? '' : String(Number(producto.vida_util_dias) || ''),
           activo: producto.activo ?? true,
         }
       : makeEmpty()
@@ -81,17 +89,31 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     const parsed = {
       ...formData,
-      precio: parseFloat(formData.precio) || 0,
-      precio_con_iva_input: parseFloat(formData.precio_con_iva_input) || 0,
-      costo: parseFloat(formData.costo) || 0,
+      precio: Number.parseFloat(formData.precio) || 0,
+      precio_con_iva_input: Number.parseFloat(formData.precio_con_iva_input) || 0,
+      costo: Number.parseFloat(formData.costo) || 0,
       maneja_inventario: formData.tipo === 'BIEN' ? formData.maneja_inventario : false,
-      stock_actual: formData.tipo === 'BIEN' && formData.maneja_inventario ? parseFloat(formData.stock_actual) || 0 : 0,
-      stock_minimo: formData.tipo === 'BIEN' && formData.maneja_inventario ? parseFloat(formData.stock_minimo) || 0 : 0,
+      stock_actual: formData.tipo === 'BIEN' && formData.maneja_inventario ? Number.parseFloat(formData.stock_actual) || 0 : 0,
+      stock_minimo: formData.tipo === 'BIEN' && formData.maneja_inventario ? Number.parseFloat(formData.stock_minimo) || 0 : 0,
+      controla_caducidad:
+        formData.tipo === 'BIEN' && formData.maneja_inventario ? Boolean(formData.controla_caducidad) : false,
+      exige_lote:
+        formData.tipo === 'BIEN' && formData.maneja_inventario && formData.controla_caducidad
+          ? Boolean(formData.exige_lote)
+          : false,
+      dias_alerta_caducidad:
+        formData.tipo === 'BIEN' && formData.maneja_inventario && formData.controla_caducidad
+          ? Math.max(1, Number.parseInt(formData.dias_alerta_caducidad || '30', 10) || 30)
+          : 30,
+      vida_util_dias:
+        formData.tipo === 'BIEN' && formData.maneja_inventario && formData.controla_caducidad && formData.vida_util_dias !== ''
+          ? Math.max(1, Number.parseInt(formData.vida_util_dias || '0', 10) || 0)
+          : null,
     };
     if (imageFile) {
       const fd = new FormData();
@@ -106,15 +128,46 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
   const set = (field: string, value: unknown) =>
     setFormData((prev) => {
       if (field === 'tipo' && value === 'SERVICIO') {
-        return { ...prev, tipo: value as 'SERVICIO', maneja_inventario: false, stock_actual: '0', stock_minimo: '0' };
+        return {
+          ...prev,
+          tipo: value as 'SERVICIO',
+          maneja_inventario: false,
+          stock_actual: '0',
+          stock_minimo: '0',
+          controla_caducidad: false,
+          exige_lote: false,
+          dias_alerta_caducidad: '30',
+          vida_util_dias: '',
+        };
+      }
+      if (field === 'maneja_inventario' && value === false) {
+        return {
+          ...prev,
+          maneja_inventario: false,
+          stock_actual: '0',
+          stock_minimo: '0',
+          controla_caducidad: false,
+          exige_lote: false,
+          dias_alerta_caducidad: '30',
+          vida_util_dias: '',
+        };
+      }
+      if (field === 'controla_caducidad' && value === false) {
+        return {
+          ...prev,
+          controla_caducidad: false,
+          exige_lote: false,
+          dias_alerta_caducidad: '30',
+          vida_util_dias: '',
+        };
       }
       return { ...prev, [field]: value };
     });
 
   const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
   const ivaRate = formData.aplica_iva ? (IVA_PCT[formData.porcentaje_iva] ?? 0) : 0;
-  const precioNeto = parseFloat(formData.precio) || 0;
-  const precioFinal = parseFloat(formData.precio_con_iva_input) || 0;
+  const precioNeto = Number.parseFloat(formData.precio) || 0;
+  const precioFinal = Number.parseFloat(formData.precio_con_iva_input) || 0;
   const previewPrecioConIva = ivaRate > 0 ? precioNeto * (1 + ivaRate / 100) : precioNeto;
   const previewPrecioNeto = ivaRate > 0 ? precioFinal / (1 + ivaRate / 100) : precioFinal;
 
@@ -127,7 +180,7 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 bg-clip-text text-transparent">
             {producto ? 'Editar Producto' : 'Nuevo Producto'}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-blue-100 rounded-lg transition-colors text-blue-700">
+          <button type="button" onClick={onClose} className="p-2 hover:bg-blue-100 rounded-lg transition-colors text-blue-700">
             <X size={24} />
           </button>
         </div>
@@ -141,7 +194,7 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
 
           {/* Imagen */}
           <div>
-            <label className="block text-sm font-semibold text-blue-900 mb-2">Imagen del producto</label>
+            <p className="block text-sm font-semibold text-blue-900 mb-2">Imagen del producto</p>
             <div className="flex items-center gap-4">
               <div className="w-24 h-24 rounded-xl border-2 border-blue-200 bg-blue-50 flex items-center justify-center overflow-hidden flex-shrink-0">
                 {imagePreview
@@ -153,6 +206,7 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
                   <Upload size={16} />
                   {imageFile ? imageFile.name : 'Seleccionar imagen'}
                   <input
+                    id="imagen_producto"
                     type="file"
                     accept="image/*"
                     className="hidden"
@@ -181,7 +235,7 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
 
           {/* Tipo */}
           <div>
-            <label className="block text-sm font-semibold text-blue-900 mb-2">Tipo *</label>
+            <p className="block text-sm font-semibold text-blue-900 mb-2">Tipo *</p>
             <div className="grid grid-cols-2 gap-3">
               {(['BIEN', 'SERVICIO'] as const).map((t) => (
                 <button key={t} type="button" onClick={() => set('tipo', t)}
@@ -199,15 +253,15 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           {/* Códigos */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-blue-900 mb-2">Código Principal *</label>
-              <input type="text" value={formData.codigo_principal}
+              <label htmlFor="codigo_principal" className="block text-sm font-semibold text-blue-900 mb-2">Código Principal *</label>
+              <input id="codigo_principal" type="text" value={formData.codigo_principal}
                 onChange={(e) => set('codigo_principal', e.target.value)}
                 className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="P001" required />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-blue-900 mb-2">Código Auxiliar</label>
-              <input type="text" value={formData.codigo_auxiliar}
+              <label htmlFor="codigo_auxiliar" className="block text-sm font-semibold text-blue-900 mb-2">Código Auxiliar</label>
+              <input id="codigo_auxiliar" type="text" value={formData.codigo_auxiliar}
                 onChange={(e) => set('codigo_auxiliar', e.target.value)}
                 className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Código de barra (opcional)" />
@@ -216,8 +270,8 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
 
           {/* Nombre */}
           <div>
-            <label className="block text-sm font-semibold text-blue-900 mb-2">Nombre *</label>
-            <input type="text" value={formData.nombre}
+            <label htmlFor="nombre_producto" className="block text-sm font-semibold text-blue-900 mb-2">Nombre *</label>
+            <input id="nombre_producto" type="text" value={formData.nombre}
               onChange={(e) => set('nombre', e.target.value)}
               className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Nombre del producto o servicio" required />
@@ -225,8 +279,8 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
 
           {/* Descripción */}
           <div>
-            <label className="block text-sm font-semibold text-blue-900 mb-2">Descripción</label>
-            <textarea value={formData.descripcion} rows={2}
+            <label htmlFor="descripcion_producto" className="block text-sm font-semibold text-blue-900 mb-2">Descripción</label>
+            <textarea id="descripcion_producto" value={formData.descripcion} rows={2}
               onChange={(e) => set('descripcion', e.target.value)}
               className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Descripción opcional" />
@@ -235,7 +289,7 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           {/* Precio y Costo */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-blue-900 mb-2">Modo de precio *</label>
+              <p className="block text-sm font-semibold text-blue-900 mb-2">Modo de precio *</p>
               <div className="grid grid-cols-2 gap-2">
                 {(['SIN_IVA', 'CON_IVA'] as const).map((modo) => (
                   <button
@@ -257,12 +311,12 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
               </p>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-blue-900 mb-2">
+              <label htmlFor={formData.modo_precio === 'CON_IVA' ? 'precio_con_iva_input' : 'precio_neto'} className="block text-sm font-semibold text-blue-900 mb-2">
                 {formData.modo_precio === 'CON_IVA' ? 'Precio Final con IVA *' : 'Precio Neto sin IVA *'}
               </label>
               {formData.modo_precio === 'CON_IVA' ? (
                 <>
-                  <input type="number" step="0.01" min="0"
+                  <input id="precio_con_iva_input" type="number" step="0.01" min="0"
                     value={formData.precio_con_iva_input}
                     onChange={(e) => set('precio_con_iva_input', e.target.value)}
                     className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -273,7 +327,7 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
                 </>
               ) : (
                 <>
-                  <input type="number" step="0.0001" min="0"
+                  <input id="precio_neto" type="number" step="0.0001" min="0"
                     value={formData.precio}
                     onChange={(e) => set('precio', e.target.value)}
                     className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -288,8 +342,8 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-blue-900 mb-2">Costo</label>
-              <input type="number" step="0.01" min="0"
+              <label htmlFor="costo_producto" className="block text-sm font-semibold text-blue-900 mb-2">Costo</label>
+              <input id="costo_producto" type="number" step="0.01" min="0"
                 value={formData.costo}
                 onChange={(e) => set('costo', e.target.value)}
                 className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
@@ -299,8 +353,8 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
           {/* IVA */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-blue-900 mb-2">IVA</label>
-              <select value={formData.aplica_iva ? 'true' : 'false'}
+              <label htmlFor="aplica_iva" className="block text-sm font-semibold text-blue-900 mb-2">IVA</label>
+              <select id="aplica_iva" value={formData.aplica_iva ? 'true' : 'false'}
                 onChange={(e) => set('aplica_iva', e.target.value === 'true')}
                 className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                 <option value="true">Aplica IVA</option>
@@ -309,8 +363,8 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
             </div>
             {formData.aplica_iva && (
               <div>
-                <label className="block text-sm font-semibold text-blue-900 mb-2">Tarifa IVA</label>
-                <select value={formData.porcentaje_iva}
+                <label htmlFor="porcentaje_iva" className="block text-sm font-semibold text-blue-900 mb-2">Tarifa IVA</label>
+                <select id="porcentaje_iva" value={formData.porcentaje_iva}
                   onChange={(e) => set('porcentaje_iva', e.target.value)}
                   className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                   <option value="2">12%</option>
@@ -335,22 +389,84 @@ export default function ProductoModal({ producto, onClose, onSuccess }: Props) {
                 </label>
               </div>
               {formData.maneja_inventario && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-blue-900 mb-2">Stock Inicial</label>
-                    <input type="number" step="0.01" min="0"
-                      value={formData.stock_actual}
-                      onChange={(e) => set('stock_actual', e.target.value)}
-                      className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="stock_actual" className="block text-sm font-semibold text-blue-900 mb-2">Stock Inicial</label>
+                      <input id="stock_actual" type="number" step="0.01" min="0"
+                        value={formData.stock_actual}
+                        onChange={(e) => set('stock_actual', e.target.value)}
+                        className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                    </div>
+                    <div>
+                      <label htmlFor="stock_minimo" className="block text-sm font-semibold text-blue-900 mb-2">Stock Mínimo (alerta)</label>
+                      <input id="stock_minimo" type="number" step="0.01" min="0"
+                        value={formData.stock_minimo}
+                        onChange={(e) => set('stock_minimo', e.target.value)}
+                        className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-blue-900 mb-2">Stock Mínimo (alerta)</label>
-                    <input type="number" step="0.01" min="0"
-                      value={formData.stock_minimo}
-                      onChange={(e) => set('stock_minimo', e.target.value)}
-                      className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+
+                  <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-4 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="controla_caducidad"
+                        checked={Boolean(formData.controla_caducidad)}
+                        onChange={(e) => set('controla_caducidad', e.target.checked)}
+                        className="w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                      />
+                      <label htmlFor="controla_caducidad" className="text-sm font-semibold text-blue-900">
+                        Controlar caducidad
+                      </label>
+                    </div>
+
+                    {formData.controla_caducidad && (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id="exige_lote"
+                            checked={Boolean(formData.exige_lote)}
+                            onChange={(e) => set('exige_lote', e.target.checked)}
+                            className="w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                          />
+                          <label htmlFor="exige_lote" className="text-sm font-semibold text-blue-900">
+                            Exigir lote en movimientos
+                          </label>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label htmlFor="dias_alerta_caducidad" className="block text-sm font-semibold text-blue-900 mb-2">Días de alerta de caducidad</label>
+                            <input
+                              id="dias_alerta_caducidad"
+                              type="number"
+                              step="1"
+                              min="1"
+                              value={formData.dias_alerta_caducidad}
+                              onChange={(e) => set('dias_alerta_caducidad', e.target.value)}
+                              className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="vida_util_dias" className="block text-sm font-semibold text-blue-900 mb-2">Vida útil referencial (días)</label>
+                            <input
+                              id="vida_util_dias"
+                              type="number"
+                              step="1"
+                              min="1"
+                              value={formData.vida_util_dias}
+                              onChange={(e) => set('vida_util_dias', e.target.value)}
+                              placeholder="Opcional"
+                              className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
+                </>
               )}
             </>
           )}

@@ -81,6 +81,29 @@ class Producto(models.Model):
         decimal_places=2,
         default=Decimal('0.00')
     )
+
+    # Caducidad y trazabilidad
+    controla_caducidad = models.BooleanField(
+        _('controla caducidad'),
+        default=False,
+        help_text=_('Activa control de fecha de caducidad para productos perecibles')
+    )
+    exige_lote = models.BooleanField(
+        _('exige lote'),
+        default=False,
+        help_text=_('Obliga a registrar número de lote en entradas y salidas de inventario')
+    )
+    dias_alerta_caducidad = models.PositiveIntegerField(
+        _('días alerta caducidad'),
+        default=30,
+        help_text=_('Días antes del vencimiento para alertar productos por caducar')
+    )
+    vida_util_dias = models.PositiveIntegerField(
+        _('vida útil en días'),
+        null=True,
+        blank=True,
+        help_text=_('Vida útil referencial del producto para sugerir fecha de caducidad')
+    )
     
     # Estado
     activo = models.BooleanField(_('activo'), default=True)

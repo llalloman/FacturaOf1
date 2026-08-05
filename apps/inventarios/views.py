@@ -5,9 +5,11 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db import transaction
 from django.db.models import Q, Sum, F
-from .models import Bodega, StockProducto, MovimientoInventario, TransferenciaInventario
+from datetime import timedelta
+from django.utils import timezone
+from .models import Bodega, StockProducto, LoteInventario, MovimientoInventario, TransferenciaInventario
 from .serializers import (
-    BodegaSerializer, StockProductoSerializer, MovimientoInventarioSerializer,
+    BodegaSerializer, StockProductoSerializer, LoteInventarioSerializer, MovimientoInventarioSerializer,
     TransferenciaInventarioSerializer
 )
 from apps.core.permissions import HasModuleAccess
@@ -20,7 +22,7 @@ class BodegaViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['empresa', 'activa']
     search_fields = ['nombre', 'codigo']
-    ordering_fields = ['nombre', 'created_at']
+    ordering_fields = ['nombre', 'fecha_creacion']
     ordering = ['nombre']
     
     def get_queryset(self):
@@ -40,7 +42,7 @@ class StockProductoViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['bodega', 'producto']
     search_fields = ['producto__codigo', 'producto__nombre']
-    ordering_fields = ['cantidad_actual', 'ultima_actualizacion']
+    ordering_fields = ['cantidad', 'ultima_actualizacion']
     ordering = ['-ultima_actualizacion']
     
     def get_queryset(self):
@@ -54,7 +56,7 @@ class StockProductoViewSet(viewsets.ModelViewSet):
         stock_bajo = self.request.query_params.get('stock_bajo', None)
         if stock_bajo == 'true':
             queryset = queryset.filter(
-                cantidad_actual__lte=models.F('stock_minimo')
+                cantidad__lte=F('producto__stock_minimo')
             )
         
         return queryset
@@ -69,19 +71,54 @@ class StockProductoViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+class LoteInventarioViewSet(viewsets.ModelViewSet):
+    serializer_class = LoteInventarioSerializer
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'inventarios'
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['bodega', 'producto', 'estado', 'activo']
+    search_fields = ['numero_lote', 'producto__codigo_principal', 'producto__nombre']
+    ordering_fields = ['fecha_caducidad', 'cantidad_disponible', 'fecha_creacion']
+    ordering = ['fecha_caducidad', 'numero_lote']
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = LoteInventario.objects.select_related('producto', 'bodega')
+        if not user.is_superuser:
+            queryset = queryset.filter(empresa=user.empresa)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(empresa=self.request.user.empresa)
+
+    @action(detail=False, methods=['get'])
+    def alertas_caducidad(self, request):
+        dias = int(request.query_params.get('dias', 30) or 30)
+        hoy = timezone.now().date()
+        limite = hoy + timedelta(days=max(0, dias))
+        queryset = self.get_queryset().filter(
+            activo=True,
+            cantidad_disponible__gt=0,
+            fecha_caducidad__isnull=False,
+            fecha_caducidad__lte=limite,
+        ).order_by('fecha_caducidad')
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
 class MovimientoInventarioViewSet(viewsets.ModelViewSet):
     serializer_class = MovimientoInventarioSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'inventarios'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['bodega', 'producto', 'tipo_movimiento']
-    search_fields = ['producto__codigo', 'producto__nombre', 'referencia']
+    filterset_fields = ['bodega', 'producto', 'lote', 'tipo_movimiento']
+    search_fields = ['producto__codigo_principal', 'producto__nombre', 'documento_referencia', 'lote__numero_lote']
     ordering_fields = ['fecha_movimiento']
     ordering = ['-fecha_movimiento']
     
     def get_queryset(self):
         user = self.request.user
-        queryset = MovimientoInventario.objects.select_related('producto', 'bodega', 'usuario')
+        queryset = MovimientoInventario.objects.select_related('producto', 'bodega', 'lote', 'usuario')
         
         if not user.is_superuser:
             queryset = queryset.filter(bodega__empresa=user.empresa)
@@ -113,6 +150,10 @@ class MovimientoInventarioViewSet(viewsets.ModelViewSet):
             producto_id=producto_id,
             bodega_id=bodega_id
         ).order_by('fecha_movimiento')
+
+        lote_id = request.query_params.get('lote_id')
+        if lote_id:
+            movimientos = movimientos.filter(lote_id=lote_id)
         
         serializer = self.get_serializer(movimientos, many=True)
         return Response(serializer.data)
@@ -125,13 +166,13 @@ class TransferenciaInventarioViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['bodega_origen', 'bodega_destino', 'estado']
     search_fields = ['observaciones', 'bodega_origen__nombre', 'bodega_destino__nombre']
-    ordering_fields = ['fecha_transferencia']
-    ordering = ['-fecha_transferencia']
+    ordering_fields = ['fecha_envio']
+    ordering = ['-fecha_envio']
     
     def get_queryset(self):
         user = self.request.user
         queryset = TransferenciaInventario.objects.select_related(
-            'bodega_origen', 'bodega_destino', 'usuario'
+            'bodega_origen', 'bodega_destino', 'usuario_envia', 'usuario_recibe'
         ).prefetch_related('detalles__producto')
         
         if not user.is_superuser:
@@ -161,37 +202,38 @@ class TransferenciaInventarioViewSet(viewsets.ModelViewSet):
                     producto=detalle.producto
                 )
                 
-                if stock.cantidad_actual < detalle.cantidad:
+                if stock.cantidad < detalle.cantidad_enviada:
                     raise ValueError(
                         f'Stock insuficiente para {detalle.producto.nombre}. '
-                        f'Disponible: {stock.cantidad_actual}, Requerido: {detalle.cantidad}'
+                        f'Disponible: {stock.cantidad}, Requerido: {detalle.cantidad_enviada}'
                     )
             
-            # Todo OK, proceder con la transferencia
-            transferencia.estado = 'APROBADA'
+            transferencia.estado = TransferenciaInventario.EstadoChoices.EN_TRANSITO
             transferencia.save()
             
             # Crear movimientos de inventario
             for detalle in transferencia.detalles.all():
                 # Salida de bodega origen
                 MovimientoInventario.objects.create(
+                    empresa=transferencia.empresa,
                     bodega=transferencia.bodega_origen,
                     producto=detalle.producto,
-                    tipo_movimiento='TRANSFERENCIA_SALIDA',
-                    cantidad=-detalle.cantidad,
-                    costo_unitario=detalle.costo_unitario,
-                    referencia=f'Transferencia #{transferencia.id}',
+                    tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.TRANSFERENCIA_SALIDA,
+                    cantidad=-detalle.cantidad_enviada,
+                    costo_unitario=detalle.producto.costo,
+                    documento_referencia=f'Transferencia #{transferencia.id}',
                     usuario=request.user
                 )
                 
                 # Entrada a bodega destino
                 MovimientoInventario.objects.create(
+                    empresa=transferencia.empresa,
                     bodega=transferencia.bodega_destino,
                     producto=detalle.producto,
-                    tipo_movimiento='TRANSFERENCIA_ENTRADA',
-                    cantidad=detalle.cantidad,
-                    costo_unitario=detalle.costo_unitario,
-                    referencia=f'Transferencia #{transferencia.id}',
+                    tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.TRANSFERENCIA_ENTRADA,
+                    cantidad=detalle.cantidad_enviada,
+                    costo_unitario=detalle.producto.costo,
+                    documento_referencia=f'Transferencia #{transferencia.id}',
                     usuario=request.user
                 )
             
@@ -220,7 +262,7 @@ class TransferenciaInventarioViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        transferencia.estado = 'RECHAZADA'
+        transferencia.estado = TransferenciaInventario.EstadoChoices.CANCELADA
         transferencia.observaciones = request.data.get('observaciones', '')
         transferencia.save()
         

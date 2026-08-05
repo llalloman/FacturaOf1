@@ -5,13 +5,14 @@ import type { Proveedor } from '../../types';
 import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiPackage } from 'react-icons/fi';
 import ProveedorModal from './ProveedorModal';
 import ProveedorProductosPanel from './ProveedorProductosPanel';
+import RecepcionesPanel from './RecepcionesPanel';
 import { confirmDialog } from '../../store/confirmStore';
 
 const ProveedoresPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProveedor, setSelectedProveedor] = useState<Proveedor | null>(null);
-  const [activeTab, setActiveTab] = useState<'proveedores' | 'catalogo'>('proveedores');
+  const [activeTab, setActiveTab] = useState<'proveedores' | 'catalogo' | 'recepciones'>('proveedores');
   const queryClient = useQueryClient();
 
   const { data: proveedores, isLoading } = useQuery({
@@ -78,6 +79,10 @@ const ProveedoresPage: React.FC = () => {
           <button type="button" role="tab" aria-selected={activeTab === 'catalogo'} onClick={() => setActiveTab('catalogo')}
             className={`border-b-2 px-1 py-3 text-sm font-medium ${activeTab === 'catalogo' ? 'border-blue-700 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
             Productos vinculados
+          </button>
+          <button type="button" role="tab" aria-selected={activeTab === 'recepciones'} onClick={() => setActiveTab('recepciones')}
+            className={`border-b-2 px-1 py-3 text-sm font-medium ${activeTab === 'recepciones' ? 'border-blue-700 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            Recepciones
           </button>
         </div>
       </div>
@@ -213,6 +218,8 @@ const ProveedoresPage: React.FC = () => {
       </div></>}
 
       {activeTab === 'catalogo' && <ProveedorProductosPanel proveedores={proveedoresArray} />}
+
+      {activeTab === 'recepciones' && <RecepcionesPanel />}
 
       {isModalOpen && (
         <ProveedorModal

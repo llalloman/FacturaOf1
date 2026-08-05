@@ -231,7 +231,8 @@ class DetalleRecepcionSerializer(serializers.ModelSerializer):
         model = DetalleRecepcion
         fields = [
             'id', 'detalle_orden', 'producto_nombre', 'producto_codigo',
-            'cantidad_ordenada', 'cantidad_recibida', 'costo_unitario', 'notas'
+            'cantidad_ordenada', 'cantidad_recibida', 'costo_unitario',
+            'numero_lote', 'fecha_caducidad', 'notas'
         ]
 
 

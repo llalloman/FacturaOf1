@@ -60,6 +60,109 @@ export default function ProductosPage() {
   );
 
   const lowStockProducts = productosArray.filter((p: Producto) => Number(p.stock_actual) < Number(p.stock_minimo));
+  const productosConCaducidad = productosArray.filter((p: Producto) => Boolean(p.controla_caducidad));
+
+  const renderTableRows = () => {
+    if (isLoading) {
+      return (
+        <tr>
+          <td colSpan={8} className="px-6 py-12 text-center">
+            <div className="flex items-center justify-center">
+              <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+            </div>
+          </td>
+        </tr>
+      );
+    }
+
+    if (filteredProductos.length === 0) {
+      return (
+        <tr>
+          <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+            No se encontraron productos
+          </td>
+        </tr>
+      );
+    }
+
+    return filteredProductos.map((producto: Producto) => (
+      <tr key={producto.id} className="hover:bg-blue-50/50 transition-colors">
+        <td className="px-6 py-4 whitespace-nowrap">
+          <span className="font-mono text-sm font-medium text-gray-900">{producto.codigo_principal}</span>
+        </td>
+        <td className="px-6 py-4">
+          <div>
+            <p className="font-semibold text-gray-900">{producto.nombre}</p>
+            {producto.descripcion && (
+              <p className="text-sm text-gray-500 truncate max-w-xs">{producto.descripcion}</p>
+            )}
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-right">
+          <div className="font-semibold text-gray-900">
+            ${Number(producto.precio_con_iva ?? producto.precio).toFixed(2)}
+          </div>
+          <div className="text-xs text-gray-500">
+            Neto: ${Number(producto.precio).toFixed(4)}
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-right text-gray-600">
+          ${Number(producto.costo).toFixed(2)}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-center">
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+            Number(producto.stock_actual) < Number(producto.stock_minimo)
+              ? 'bg-red-100 text-red-800'
+              : 'bg-green-100 text-green-800'
+          }`}>
+            {producto.stock_actual}
+          </span>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-center">
+          {producto.controla_caducidad ? (
+            <div className="flex flex-col items-center gap-1">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-800">
+                Controlada
+              </span>
+              <span className="text-[11px] text-gray-500">
+                Alerta: {Number(producto.dias_alerta_caducidad ?? 30)} d
+                {producto.exige_lote ? ' · Lote requerido' : ''}
+              </span>
+            </div>
+          ) : (
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+              No aplica
+            </span>
+          )}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-center">
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+            producto.activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+          }`}>
+            {producto.activo ? 'Activo' : 'Inactivo'}
+          </span>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-center">
+          <div className="flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleEdit(producto)}
+              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors hover:shadow-md"
+            >
+              <Edit size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDelete(producto.id)}
+              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors hover:shadow-md"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
+        </td>
+      </tr>
+    ));
+  };
 
   return (
     <div className="p-8 bg-gradient-to-br from-blue-50 via-blue-50 to-sky-50 min-h-screen">
@@ -73,6 +176,7 @@ export default function ProductosPage() {
           <div className="flex items-center gap-3">
             <ExportButtons basePath="/productos/productos" filename="productos" />
             <button
+              type="button"
               onClick={handleCreate}
               className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-blue-600 to-sky-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:via-blue-700 hover:to-sky-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
             >
@@ -111,14 +215,14 @@ export default function ProductosPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
+              <button type="button" className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
                 <Filter size={18} />
                 <span className="font-medium">Filtros</span>
               </button>
-              <button className="flex items-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
+              <button type="button" className="flex items-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
                 <Download size={18} />
               </button>
-              <button className="flex items-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
+              <button type="button" className="flex items-center gap-2 px-4 py-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-blue-700">
                 <Upload size={18} />
               </button>
             </div>
@@ -127,7 +231,7 @@ export default function ProductosPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-blue-100 hover:shadow-xl transition-shadow">
           <div className="flex items-center gap-3">
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-3 rounded-xl shadow-md">
@@ -176,6 +280,17 @@ export default function ProductosPage() {
             </div>
           </div>
         </div>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-violet-100 hover:shadow-xl transition-shadow">
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-br from-violet-500 to-indigo-600 p-3 rounded-xl shadow-md">
+              <AlertCircle className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Con Caducidad</p>
+              <p className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">{productosConCaducidad.length}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -189,85 +304,13 @@ export default function ProductosPage() {
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Precio</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Costo</th>
                 <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Stock</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Caducidad</th>
                 <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Estado</th>
                 <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full"></div>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredProductos.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    No se encontraron productos
-                  </td>
-                </tr>
-              ) : (
-                filteredProductos.map((producto: Producto) => (
-                  <tr key={producto.id} className="hover:bg-blue-50/50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="font-mono text-sm font-medium text-gray-900">{producto.codigo_principal}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-semibold text-gray-900">{producto.nombre}</p>
-                        {producto.descripcion && (
-                          <p className="text-sm text-gray-500 truncate max-w-xs">{producto.descripcion}</p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="font-semibold text-gray-900">
-                        ${Number(producto.precio_con_iva ?? producto.precio).toFixed(2)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Neto: ${Number(producto.precio).toFixed(4)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-600">
-                      ${Number(producto.costo).toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        Number(producto.stock_actual) < Number(producto.stock_minimo)
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {producto.stock_actual}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                        producto.activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {producto.activo ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => handleEdit(producto)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors hover:shadow-md"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(producto.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors hover:shadow-md"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
+              {renderTableRows()}
             </tbody>
           </table>
         </div>

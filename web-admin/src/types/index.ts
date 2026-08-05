@@ -14,6 +14,10 @@ export interface Producto {
   maneja_inventario: boolean;
   stock_actual: number;
   stock_minimo: number;
+  controla_caducidad?: boolean;
+  exige_lote?: boolean;
+  dias_alerta_caducidad?: number;
+  vida_util_dias?: number | null;
   activo: boolean;
   imagen?: string | null;
   fecha_creacion?: string;
@@ -153,6 +157,71 @@ export interface OrdenCompra {
   impuestos: number;
   total: number;
   created_at?: string;
+}
+
+export interface DetalleOrdenCompraCompra {
+  id: number;
+  producto: number;
+  producto_nombre?: string;
+  producto_codigo?: string;
+  cantidad: number;
+  cantidad_recibida: number;
+  cantidad_pendiente_recibir: number;
+  precio_unitario: number;
+  descuento: number;
+  aplica_iva: boolean;
+  porcentaje_iva: number;
+  subtotal: number;
+  iva: number;
+  total: number;
+  notas?: string;
+}
+
+export interface OrdenCompraCompra {
+  id: number;
+  proveedor: number;
+  proveedor_nombre?: string;
+  bodega_destino: number;
+  bodega_nombre?: string;
+  numero_orden: string;
+  fecha_orden: string;
+  fecha_entrega_esperada?: string | null;
+  estado: 'BORRADOR' | 'ENVIADA' | 'PARCIAL' | 'RECIBIDA' | 'CANCELADA';
+  subtotal: number;
+  descuento: number;
+  iva: number;
+  total: number;
+  notas?: string;
+  detalles: DetalleOrdenCompraCompra[];
+}
+
+export interface DetalleRecepcionCompra {
+  id?: number;
+  detalle_orden: number;
+  producto_nombre?: string;
+  producto_codigo?: string;
+  cantidad_ordenada?: number;
+  cantidad_recibida: number;
+  costo_unitario: number;
+  numero_lote?: string;
+  fecha_caducidad?: string | null;
+  notas?: string;
+}
+
+export interface RecepcionCompra {
+  id: number;
+  orden_compra: number;
+  orden_numero?: string;
+  proveedor_nombre?: string;
+  bodega: number;
+  bodega_nombre?: string;
+  numero_recepcion: string;
+  fecha_recepcion: string;
+  estado: 'BORRADOR' | 'RECIBIDA' | 'CANCELADA';
+  numero_factura_proveedor?: string;
+  fecha_factura_proveedor?: string | null;
+  notas?: string;
+  detalles: DetalleRecepcionCompra[];
 }
 
 export interface Venta {

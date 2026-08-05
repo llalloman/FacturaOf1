@@ -18,7 +18,14 @@ class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
     module_required = 'productos'
     pagination_class = None  # Devolver todos los productos sin paginar
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['tipo', 'aplica_iva', 'activo', 'maneja_inventario']
+    filterset_fields = [
+        'tipo',
+        'aplica_iva',
+        'activo',
+        'maneja_inventario',
+        'controla_caducidad',
+        'exige_lote',
+    ]
     search_fields = ['codigo_principal', 'codigo_auxiliar', 'nombre', 'descripcion']
     ordering_fields = ['nombre', 'precio', 'codigo_principal']
     ordering = ['nombre']
@@ -31,6 +38,9 @@ class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
         ('aplica_iva', 'Aplica IVA'),
         ('porcentaje_iva', 'Tarifa IVA %'),
         ('maneja_inventario', 'Maneja Inventario'),
+        ('controla_caducidad', 'Controla Caducidad'),
+        ('exige_lote', 'Exige Lote'),
+        ('dias_alerta_caducidad', 'Días Alerta Caducidad'),
         ('activo', 'Activo'),
     ]
 
