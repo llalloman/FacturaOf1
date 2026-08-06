@@ -146,6 +146,23 @@ export interface MovimientoInventario {
   created_at?: string;
 }
 
+export interface LoteInventario {
+  id: number;
+  producto: number;
+  producto_nombre?: string;
+  producto_codigo?: string;
+  bodega: number;
+  bodega_nombre?: string;
+  numero_lote: string;
+  fecha_caducidad?: string | null;
+  cantidad_disponible: number;
+  costo_unitario: number;
+  estado: 'DISPONIBLE' | 'AGOTADO' | 'VENCIDO';
+  activo: boolean;
+  fecha_creacion?: string;
+  fecha_modificacion?: string;
+}
+
 export interface OrdenCompra {
   id: number;
   proveedor: number;

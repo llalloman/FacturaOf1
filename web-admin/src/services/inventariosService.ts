@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import type { MovimientoInventario } from '../types';
+import type { LoteInventario, MovimientoInventario } from '../types';
 
 export const inventariosService = {
   getMovimientos: async () => {
@@ -25,5 +25,19 @@ export const inventariosService = {
   getProductosBajoStock: async () => {
     const { data } = await apiClient.get('/inventarios/stock/alertas/');
     return Array.isArray(data) ? data : (data.results ?? data);
+  },
+
+  getLotes: async (params?: Record<string, unknown>) => {
+    const { data } = await apiClient.get('/inventarios/lotes/', {
+      params: { page_size: 500, ...params },
+    });
+    return (Array.isArray(data) ? data : (data.results ?? [])) as LoteInventario[];
+  },
+
+  getAlertasCaducidad: async (dias = 30) => {
+    const { data } = await apiClient.get('/inventarios/lotes/alertas_caducidad/', {
+      params: { dias },
+    });
+    return (Array.isArray(data) ? data : (data.results ?? [])) as LoteInventario[];
   },
 };

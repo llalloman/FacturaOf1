@@ -5,9 +5,10 @@ import { bodegasService } from '../../services/bodegasService';
 import { FiPackage, FiAlertTriangle, FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import BodegasTab from './BodegasTab';
 import MovimientosTab from './MovimientosTab';
+import LotesTab from './LotesTab';
 
 const InventariosPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'bodegas' | 'movimientos'>('bodegas');
+  const [activeTab, setActiveTab] = useState<'bodegas' | 'movimientos' | 'lotes'>('bodegas');
 
   const { data: bodegas } = useQuery({
     queryKey: ['bodegas'],
@@ -83,7 +84,7 @@ const InventariosPage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-lg p-6">
         {/* Tabs */}
         <div className="flex space-x-1 rounded-xl bg-gradient-to-r from-green-100 to-blue-100 p-1 mb-6">
-          {(['bodegas', 'movimientos'] as const).map((tab) => (
+          {(['bodegas', 'movimientos', 'lotes'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -93,13 +94,14 @@ const InventariosPage: React.FC = () => {
                   : 'text-gray-700 hover:text-gray-900'
               }`}
             >
-              {tab === 'bodegas' ? 'Bodegas' : 'Movimientos'}
+              {tab === 'bodegas' ? 'Bodegas' : tab === 'movimientos' ? 'Movimientos' : 'Lotes y caducidad'}
             </button>
           ))}
         </div>
 
         {activeTab === 'bodegas' && <BodegasTab />}
         {activeTab === 'movimientos' && <MovimientosTab />}
+        {activeTab === 'lotes' && <LotesTab />}
       </div>
     </div>
   );
