@@ -53,7 +53,7 @@ Acepta variantes para compatibilidad:
 
 ```json
 {
-  "to": "593995298989",
+  "to": "593991840854",
   "message": "Texto a enviar"
 }
 ```
@@ -70,7 +70,7 @@ Respuesta exitosa:
 ```json
 {
   "ok": true,
-  "to": "593995298989@s.whatsapp.net",
+  "to": "593991840854@s.whatsapp.net",
   "message": "Mensaje enviado."
 }
 ```

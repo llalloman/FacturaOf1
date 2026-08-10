@@ -1278,7 +1278,7 @@ function PaymentInstructions({ whatsappUrl, onPayCard, payingCard }: { whatsappU
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Datos para pago</p>
           <h3 className="mt-1 text-lg font-black text-slate-950">Realiza la transferencia y envía la captura por WhatsApp</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Una vez realizado el pago, envía la captura al WhatsApp <strong className="text-slate-900">+593 995 298 989</strong> para continuar con la emisión de tu firma electrónica.
+            Una vez realizado el pago, envía la captura al WhatsApp <strong className="text-slate-900">+593 99 184 0854</strong> para continuar con la emisión de tu firma electrónica.
           </p>
         </div>
         <a href={whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50">

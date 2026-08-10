@@ -28,7 +28,7 @@ Payload recomendado:
 
 ```json
 {
-  "phone": "593995298989",
+  "phone": "593991840854",
   "source_channel": "whatsapp",
   "interest_type": "erp",
   "status": "new",
@@ -53,12 +53,12 @@ Payload inbound:
 ```json
 {
   "direction": "INBOUND",
-  "phone": "593995298989",
+  "phone": "593991840854",
   "channel": "whatsapp",
   "message_body": "Quiero informacion del ERP",
   "message_type": "text",
   "message_id": "wamid-or-baileys-id",
-  "idempotency_key": "whatsapp:inbound:593995298989:message-id",
+  "idempotency_key": "whatsapp:inbound:593991840854:message-id",
   "category": "erp",
   "intent": "sales",
   "ai_confidence": "0.910",
@@ -78,11 +78,11 @@ Payload outbound:
 ```json
 {
   "direction": "OUTBOUND",
-  "phone": "593995298989",
+  "phone": "593991840854",
   "channel": "whatsapp",
   "message_body": "Plantilla enviada al cliente",
   "message_type": "text",
-  "idempotency_key": "whatsapp:inbound:593995298989:message-id:reply",
+  "idempotency_key": "whatsapp:inbound:593991840854:message-id:reply",
   "category": "erp",
   "intent": "sales",
   "template_key": "erp_demo",
