@@ -3,6 +3,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -94,6 +95,7 @@ class FirmadorDocumento(models.Model):
 
     class CertificadoOrigen(models.TextChoices):
         TEMPORAL = 'TEMPORAL', _('Temporal')
+        GUARDADO = 'GUARDADO', _('Guardado')
         EMPRESA = 'EMPRESA', _('Certificado de empresa')
 
     workspace = models.ForeignKey(
@@ -109,6 +111,14 @@ class FirmadorDocumento(models.Model):
         blank=True,
         related_name='documentos_firmador',
         verbose_name=_('usuario'),
+    )
+    certificado = models.ForeignKey(
+        'FirmadorCertificado',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documentos',
+        verbose_name=_('certificado'),
     )
     original_file = models.FileField(_('PDF original'), upload_to=firmador_upload_to, storage=FirmadorDocumentStorage(), null=True, blank=True)
     signed_file = models.FileField(_('PDF firmado'), upload_to=firmador_upload_to, storage=FirmadorDocumentStorage(), null=True, blank=True)
@@ -145,3 +155,49 @@ class FirmadorDocumento(models.Model):
     def __str__(self):
         return f'{self.original_file_name} - {self.get_status_display()}'
 
+
+class FirmadorCertificado(models.Model):
+    workspace = models.ForeignKey(
+        FirmadorWorkspace,
+        on_delete=models.CASCADE,
+        related_name='certificados',
+        verbose_name=_('workspace'),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='certificados_firmador',
+        verbose_name=_('usuario'),
+    )
+    alias = models.CharField(_('alias'), max_length=120)
+    original_file_name = models.CharField(_('archivo'), max_length=255)
+    encrypted_content = models.BinaryField(_('contenido cifrado'))
+    file_size = models.BigIntegerField(_('tamaÃ±o'), default=0)
+    fingerprint = models.CharField(_('huella'), max_length=64)
+    subject = models.TextField(_('sujeto'), blank=True)
+    issuer = models.TextField(_('emisor'), blank=True)
+    expires_at = models.DateTimeField(_('expira'))
+    active = models.BooleanField(_('activo'), default=True)
+    created_at = models.DateTimeField(_('fecha de creaciÃ³n'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('fecha de actualizaciÃ³n'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('certificado del firmador')
+        verbose_name_plural = _('certificados del firmador')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['workspace', 'active']),
+            models.Index(fields=['expires_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['workspace', 'fingerprint'],
+                condition=Q(active=True),
+                name='uniq_firmador_certificado_activo',
+            ),
+        ]
+
+    def __str__(self):
+        return self.alias or self.original_file_name

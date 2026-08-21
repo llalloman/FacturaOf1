@@ -11,7 +11,6 @@ import {
   Info,
   KeyRound,
   Loader2,
-  Pencil,
   Save,
   ShieldCheck,
   Trash2,
@@ -20,7 +19,7 @@ import {
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { useToast } from '../../hooks/useToast';
-import { firmadorService, type FirmadorDocumento } from '../../services/firmadorService';
+import { firmadorService, type FirmadorCertificado, type FirmadorDocumento } from '../../services/firmadorService';
 
 type TabKey = 'certificados' | 'firmar' | 'documentos' | 'validar' | 'ayuda';
 type SignMode = 'multiples_documentos' | 'multiples_firmantes' | 'un_firmante';
@@ -70,13 +69,18 @@ const readApiError = async (error: unknown): Promise<string> => {
       const parsed = JSON.parse(text) as { detail?: string };
       return parsed.detail ?? text;
     } catch {
-      return 'No se pudo firmar el PDF.';
+      return 'No se pudo completar la operacion.';
     }
   }
   if (data && typeof data === 'object' && 'detail' in data) {
     return String((data as { detail?: string }).detail);
   }
-  return 'No se pudo firmar el PDF.';
+  if (data && typeof data === 'object') {
+    const firstValue = Object.values(data as Record<string, unknown>)[0];
+    if (Array.isArray(firstValue)) return String(firstValue[0]);
+    if (firstValue) return String(firstValue);
+  }
+  return 'No se pudo completar la operacion.';
 };
 
 const downloadBlob = (blob: Blob, fileName: string) => {
@@ -100,6 +104,10 @@ export default function FirmadorPage() {
   const [pdf, setPdf] = useState<File | null>(null);
   const [certificate, setCertificate] = useState<File | null>(null);
   const [certificatePassword, setCertificatePassword] = useState('');
+  const [certificateAlias, setCertificateAlias] = useState('');
+  const [selectedCertificateId, setSelectedCertificateId] = useState<number | null>(null);
+  const [uploadingCertificate, setUploadingCertificate] = useState(false);
+  const [deletingCertificateId, setDeletingCertificateId] = useState<number | null>(null);
   const [keepFile, setKeepFile] = useState(false);
   const [visibleSignature, setVisibleSignature] = useState(false);
   const [reason, setReason] = useState('Firmado electronicamente');
@@ -117,15 +125,78 @@ export default function FirmadorPage() {
     queryFn: firmadorService.getDocumentos,
   });
 
+  const { data: certificados = [], isLoading: loadingCertificados } = useQuery({
+    queryKey: ['firmador-certificados'],
+    queryFn: firmadorService.getCertificados,
+  });
+
+  const selectedCertificate = useMemo(
+    () => certificados.find((cert) => cert.id === selectedCertificateId) ?? certificados[0] ?? null,
+    [certificados, selectedCertificateId],
+  );
+
   const storagePercent = useMemo(() => {
     if (!perfil?.max_storage_bytes) return 0;
     return Math.min(100, Math.round((perfil.used_storage_bytes / perfil.max_storage_bytes) * 100));
   }, [perfil]);
 
+  const handleUploadCertificate = async () => {
+    if (!certificate) {
+      showToast('Selecciona un certificado .p12 o .pfx.', 'warning');
+      return;
+    }
+    if (!certificatePassword.trim()) {
+      showToast('Ingresa la clave del certificado para validarlo.', 'warning');
+      return;
+    }
+    if (certificados.length >= 2) {
+      showToast('Puedes almacenar hasta 2 certificados digitales.', 'warning');
+      return;
+    }
+
+    setUploadingCertificate(true);
+    try {
+      const saved = await firmadorService.subirCertificado({
+        certificate,
+        certificatePassword,
+        alias: certificateAlias.trim() || undefined,
+      });
+      setSelectedCertificateId(saved.id);
+      setCertificate(null);
+      setCertificateAlias('');
+      await queryClient.invalidateQueries({ queryKey: ['firmador-certificados'] });
+      showToast('Certificado validado y guardado.', 'success');
+    } catch (error) {
+      showToast(await readApiError(error), 'error');
+    } finally {
+      setUploadingCertificate(false);
+    }
+  };
+
+  const handleDeleteCertificate = async (certificado: FirmadorCertificado) => {
+    setDeletingCertificateId(certificado.id);
+    try {
+      await firmadorService.eliminarCertificado(certificado.id);
+      if (selectedCertificateId === certificado.id) {
+        setSelectedCertificateId(null);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['firmador-certificados'] });
+      showToast('Certificado eliminado.', 'success');
+    } catch (error) {
+      showToast(await readApiError(error), 'error');
+    } finally {
+      setDeletingCertificateId(null);
+    }
+  };
+
   const handleSign = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!pdf || !certificate) {
-      showToast('Selecciona el PDF y el certificado.', 'warning');
+    if (!pdf) {
+      showToast('Selecciona el PDF que deseas firmar.', 'warning');
+      return;
+    }
+    if (!selectedCertificate && !certificate) {
+      showToast('Selecciona o sube un certificado digital.', 'warning');
       return;
     }
     if (!certificatePassword.trim()) {
@@ -137,7 +208,8 @@ export default function FirmadorPage() {
     try {
       const result = await firmadorService.firmarPdf({
         pdf,
-        certificate,
+        certificate: selectedCertificate ? null : certificate,
+        certificateId: selectedCertificate?.id ?? null,
         certificatePassword,
         keepFile,
         visibleSignature,
@@ -161,7 +233,10 @@ export default function FirmadorPage() {
   };
 
   const maxRetentionDays = perfil?.max_retention_days ?? 180;
-  const certificateName = certificate?.name.replace(/\.(p12|pfx)$/i, '') || 'Certificado temporal';
+  const certificateName =
+    selectedCertificate?.alias ||
+    certificate?.name.replace(/\.(p12|pfx)$/i, '') ||
+    'Certificado digital';
   const recentDocs = documentos.slice(0, 10);
 
   return (
@@ -196,7 +271,7 @@ export default function FirmadorPage() {
             <div className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
               <div className="flex items-center gap-3">
                 <Info className="h-4 w-4 flex-shrink-0" />
-                <span>Puedes usar un certificado digital por sesion. No se guarda la clave del certificado.</span>
+                <span>Puedes almacenar hasta 2 certificados digitales. Los certificados se guardan cifrados y la clave no se almacena.</span>
               </div>
             </div>
 
@@ -208,21 +283,40 @@ export default function FirmadorPage() {
                     <p className="mt-1 text-sm text-slate-500">Archivo .p12 o .pfx</p>
                   </div>
                   <span className="rounded-full bg-teal-700 px-3 py-1 text-xs font-bold text-white">
-                    {certificate ? '1/1' : '0/1'}
+                    {certificados.length}/2
                   </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => certInputRef.current?.click()}
-                  className="mt-8 flex h-44 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-center transition-colors hover:border-cyan-700 hover:bg-cyan-50"
-                >
-                  <UploadCloud className="h-11 w-11 text-slate-500" />
-                  <span className="mt-4 text-sm font-bold text-slate-900">
-                    {certificate ? certificate.name : 'Arrastra tu certificado o haz clic'}
-                  </span>
-                  <span className="mt-1 text-xs text-slate-500">Formatos: .p12, .pfx (max. 2MB)</span>
-                </button>
+                {certificate ? (
+                  <div className="mt-8 flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-slate-50 px-5 py-4">
+                    <div className="flex min-w-0 items-center gap-4">
+                      <FileSignature className="h-9 w-9 flex-shrink-0 text-cyan-800" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-950">{certificate.name}</p>
+                        <p className="mt-1 text-xs text-slate-500">{formatBytes(certificate.size)}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCertificate(null)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-white"
+                      title="Quitar"
+                    >
+                      x
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => certInputRef.current?.click()}
+                    disabled={certificados.length >= 2}
+                    className="mt-8 flex h-44 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-center transition-colors hover:border-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <UploadCloud className="h-11 w-11 text-slate-500" />
+                    <span className="mt-4 text-sm font-bold text-slate-900">Arrastra tu certificado o haz clic</span>
+                    <span className="mt-1 text-xs text-slate-500">Formatos: .p12, .pfx (max. 2MB)</span>
+                  </button>
+                )}
                 <input
                   ref={certInputRef}
                   type="file"
@@ -232,7 +326,7 @@ export default function FirmadorPage() {
                 />
 
                 <label className="mt-5 block">
-                  <span className="text-sm font-bold text-slate-700">Clave del certificado</span>
+                  <span className="text-sm font-bold text-slate-700">Contrasena del certificado *</span>
                   <div className="relative mt-2">
                     <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <input
@@ -242,54 +336,96 @@ export default function FirmadorPage() {
                       className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
                     />
                   </div>
+                  <span className="mt-2 block text-xs text-slate-500">Esta clave se usa para validar el certificado. No se guarda.</span>
                 </label>
+
+                <label className="mt-5 block">
+                  <span className="text-sm font-bold text-slate-700">Alias de la firma (Opcional)</span>
+                  <input
+                    value={certificateAlias}
+                    onChange={(event) => setCertificateAlias(event.target.value)}
+                    placeholder="Ej: FIRMA PERSONAL, FIRMA DE EMPRESA..."
+                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
+                  />
+                  <span className="mt-2 block text-xs text-slate-500">Nombre para identificar esta firma rapidamente.</span>
+                </label>
+
+                <Button
+                  type="button"
+                  loading={uploadingCertificate}
+                  disabled={!certificate || certificados.length >= 2}
+                  icon={<Upload className="h-4 w-4" />}
+                  className="mt-6 w-full bg-cyan-700 hover:bg-cyan-800"
+                  onClick={handleUploadCertificate}
+                >
+                  Subir Certificado
+                </Button>
               </section>
 
               <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-black text-slate-950">Mis Certificados</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  {certificate ? '1 certificado cargado en esta sesion' : '0 certificados cargados'}
+                  {certificados.length} certificado(s) guardado(s)
                 </p>
 
-                <div className="mt-7">
-                  {certificate ? (
-                    <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 px-4 py-4">
-                      <div className="flex min-w-0 items-center gap-4">
-                        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-800">
-                          <FileSignature className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-slate-950">{certificateName}</p>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Cargado
-                            </span>
-                            <span>{formatBytes(certificate.size)}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" title="Editar">
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCertificate(null);
-                            setCertificatePassword('');
-                          }}
-                          className="rounded-lg p-2 text-red-500 hover:bg-red-50"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                <div className="mt-7 space-y-3">
+                  {loadingCertificados ? (
+                    <div className="flex items-center justify-center py-10 text-slate-500">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  ) : certificados.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">
+                      No hay certificados guardados.
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">
-                      No hay certificados cargados.
-                    </div>
+                    certificados.map((certificado) => {
+                      const active = selectedCertificate?.id === certificado.id;
+                      return (
+                        <div
+                          key={certificado.id}
+                          onClick={() => setSelectedCertificateId(certificado.id)}
+                          className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-lg border px-4 py-4 text-left transition-colors ${
+                            active ? 'border-cyan-700 bg-cyan-50' : 'border-slate-200 hover:border-cyan-300'
+                          }`}
+                        >
+                          <div className="flex min-w-0 items-center gap-4">
+                            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-800">
+                              <FileSignature className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-slate-950">{certificado.alias}</p>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${
+                                  certificado.is_expired ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
+                                }`}>
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  {certificado.is_expired ? 'Expirado' : 'Vigente'}
+                                </span>
+                                <span>hasta {new Date(certificado.expires_at).toLocaleDateString()}</span>
+                                <span>{formatBytes(certificado.file_size)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleDeleteCertificate(certificado);
+                              }}
+                              className="rounded-lg p-2 text-red-500 hover:bg-red-50"
+                              title="Eliminar"
+                            >
+                              {deletingCertificateId === certificado.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               </section>
@@ -355,6 +491,38 @@ export default function FirmadorPage() {
                 />
 
                 <div className="mt-5 grid grid-cols-1 gap-4">
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-700">Certificado para firmar</span>
+                    <select
+                      value={selectedCertificate?.id ?? ''}
+                      onChange={(event) => setSelectedCertificateId(event.target.value ? Number(event.target.value) : null)}
+                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
+                    >
+                      <option value="">Selecciona un certificado</option>
+                      {certificados.map((certificado) => (
+                        <option key={certificado.id} value={certificado.id} disabled={certificado.is_expired}>
+                          {certificado.alias} {certificado.is_expired ? '(expirado)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {certificados.length === 0 && (
+                      <span className="mt-2 block text-xs text-slate-500">Primero guarda un certificado en Firma Digital.</span>
+                    )}
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-700">Clave del certificado seleccionado</span>
+                    <div className="relative mt-2">
+                      <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="password"
+                        value={certificatePassword}
+                        onChange={(event) => setCertificatePassword(event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
+                      />
+                    </div>
+                  </label>
+
                   <label className="block">
                     <span className="text-sm font-bold text-slate-700">Motivo</span>
                     <input
@@ -430,7 +598,7 @@ export default function FirmadorPage() {
                       {pdf ? pdf.name : 'Selecciona un PDF para preparar la firma'}
                     </p>
                     <p className="mt-2 text-xs text-slate-500">
-                      {certificate ? `Certificado: ${certificateName}` : 'Carga un certificado en Firma Digital'}
+                      {selectedCertificate ? `Certificado: ${certificateName}` : 'Selecciona un certificado en Firma Digital'}
                     </p>
                   </div>
                 </div>

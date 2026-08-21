@@ -13,8 +13,9 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import FirmadorDocumento, FirmadorWorkspace
-from .serializers import FirmadorDocumentoSerializer, FirmadorWorkspaceSerializer
+from .models import FirmadorCertificado, FirmadorDocumento, FirmadorWorkspace
+from .serializers import FirmadorCertificadoSerializer, FirmadorDocumentoSerializer, FirmadorWorkspaceSerializer
+from .services.certificates import decrypt_certificate, parse_and_encrypt_certificate
 from .services.pdf_signer import (
     sign_pdf_with_pkcs12,
     validate_certificate_upload,
@@ -90,6 +91,62 @@ class FirmadorDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
 
+class FirmadorCertificadoViewSet(viewsets.ModelViewSet):
+    serializer_class = FirmadorCertificadoSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        workspace = get_or_create_workspace(self.request.user)
+        return FirmadorCertificado.objects.filter(workspace=workspace, active=True)
+
+    def create(self, request, *args, **kwargs):
+        workspace = get_or_create_workspace(request.user)
+        cert_file = request.FILES.get('certificate')
+        password = request.data.get('certificate_password', '')
+        alias = (request.data.get('alias') or '').strip()
+
+        if not cert_file:
+            return Response({'certificate': 'Este campo es requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not password:
+            return Response({'certificate_password': 'Ingresa la clave del certificado.'}, status=status.HTTP_400_BAD_REQUEST)
+        if workspace.certificados.filter(active=True).count() >= 2:
+            return Response({'detail': 'Puedes almacenar hasta 2 certificados digitales.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            validate_certificate_upload(cert_file)
+            content = cert_file.read()
+            info = parse_and_encrypt_certificate(content, password)
+        except DjangoValidationError as exc:
+            return Response({'detail': exc.messages[0] if hasattr(exc, 'messages') else str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if info.expires_at <= timezone.now():
+            return Response({'detail': 'El certificado esta vencido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if FirmadorCertificado.objects.filter(workspace=workspace, fingerprint=info.fingerprint, active=True).exists():
+            return Response({'detail': 'Este certificado ya fue cargado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        certificado = FirmadorCertificado.objects.create(
+            workspace=workspace,
+            user=request.user,
+            alias=alias or getattr(cert_file, 'name', '') or 'Certificado digital',
+            original_file_name=getattr(cert_file, 'name', '') or 'certificado.p12',
+            encrypted_content=info.encrypted_content,
+            file_size=len(content),
+            fingerprint=info.fingerprint,
+            subject=info.subject,
+            issuer=info.issuer,
+            expires_at=info.expires_at,
+        )
+        return Response(self.get_serializer(certificado).data, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, *args, **kwargs):
+        certificado = self.get_object()
+        certificado.active = False
+        certificado.save(update_fields=['active', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def perfil_firmador(request):
@@ -104,6 +161,7 @@ def firmar_documento(request):
     workspace = get_or_create_workspace(request.user)
     pdf_file = request.FILES.get('pdf')
     cert_file = request.FILES.get('certificate')
+    certificate_id = request.data.get('certificate_id')
     password = request.data.get('certificate_password', '')
     keep_file = str(request.data.get('keep_file', 'false')).lower() in ('true', '1', 'yes', 'on')
     visible_signature = str(request.data.get('visible_signature', 'false')).lower() in ('true', '1', 'yes', 'on')
@@ -114,6 +172,16 @@ def firmar_documento(request):
 
     if not pdf_file:
         return Response({'pdf': 'Este campo es requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+    certificado = None
+    if certificate_id:
+        certificado = FirmadorCertificado.objects.filter(id=certificate_id, workspace=workspace, active=True).first()
+        if not certificado:
+            return Response({'certificate_id': 'El certificado seleccionado no existe.'}, status=status.HTTP_400_BAD_REQUEST)
+        if certificado.expires_at <= timezone.now():
+            return Response({'certificate_id': 'El certificado seleccionado esta vencido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        cert_file = ContentFile(decrypt_certificate(bytes(certificado.encrypted_content)), name=certificado.original_file_name)
+
     if not cert_file:
         return Response({'certificate': 'Este campo es requerido.'}, status=status.HTTP_400_BAD_REQUEST)
     if not password:
@@ -135,12 +203,13 @@ def firmar_documento(request):
     documento = FirmadorDocumento.objects.create(
         workspace=workspace,
         user=request.user,
+        certificado=certificado,
         original_file_name=getattr(pdf_file, 'name', '') or 'documento.pdf',
         original_size=pdf_file.size,
         keep_file=keep_file,
         retention_days=retention_days if keep_file else 0,
         expires_at=timezone.now() + timedelta(days=retention_days) if keep_file else None,
-        certificado_origen=FirmadorDocumento.CertificadoOrigen.TEMPORAL,
+        certificado_origen=FirmadorDocumento.CertificadoOrigen.GUARDADO if certificado else FirmadorDocumento.CertificadoOrigen.TEMPORAL,
         reason=reason,
         location=location,
         visible_signature=visible_signature,

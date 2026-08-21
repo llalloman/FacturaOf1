@@ -37,9 +37,31 @@ export interface FirmadorDocumento {
   download_url?: string;
 }
 
+export interface FirmadorCertificado {
+  id: number;
+  alias: string;
+  original_file_name: string;
+  file_size: number;
+  fingerprint: string;
+  subject: string;
+  issuer: string;
+  expires_at: string;
+  active: boolean;
+  is_expired: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubirCertificadoPayload {
+  certificate: File;
+  certificatePassword: string;
+  alias?: string;
+}
+
 export interface FirmarPdfPayload {
   pdf: File;
-  certificate: File;
+  certificate?: File | null;
+  certificateId?: number | null;
   certificatePassword: string;
   keepFile: boolean;
   visibleSignature: boolean;
@@ -72,10 +94,33 @@ export const firmadorService = {
     return Array.isArray(data) ? data : data.results ?? [];
   },
 
+  getCertificados: async (): Promise<FirmadorCertificado[]> => {
+    const { data } = await apiClient.get('/firmador/certificados/');
+    return Array.isArray(data) ? data : data.results ?? [];
+  },
+
+  subirCertificado: async (payload: SubirCertificadoPayload): Promise<FirmadorCertificado> => {
+    const formData = new FormData();
+    formData.append('certificate', payload.certificate);
+    formData.append('certificate_password', payload.certificatePassword);
+    if (payload.alias) formData.append('alias', payload.alias);
+
+    const { data } = await apiClient.post('/firmador/certificados/', formData);
+    return data;
+  },
+
+  eliminarCertificado: async (id: number): Promise<void> => {
+    await apiClient.delete(`/firmador/certificados/${id}/`);
+  },
+
   firmarPdf: async (payload: FirmarPdfPayload): Promise<FirmarPdfResponse> => {
     const formData = new FormData();
     formData.append('pdf', payload.pdf);
-    formData.append('certificate', payload.certificate);
+    if (payload.certificateId) {
+      formData.append('certificate_id', String(payload.certificateId));
+    } else if (payload.certificate) {
+      formData.append('certificate', payload.certificate);
+    }
     formData.append('certificate_password', payload.certificatePassword);
     formData.append('keep_file', String(payload.keepFile));
     formData.append('visible_signature', String(payload.visibleSignature));

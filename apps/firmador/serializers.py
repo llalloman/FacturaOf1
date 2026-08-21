@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import FirmadorDocumento, FirmadorWorkspace
+from .models import FirmadorCertificado, FirmadorDocumento, FirmadorWorkspace
 
 
 class FirmadorWorkspaceSerializer(serializers.ModelSerializer):
@@ -32,7 +32,7 @@ class FirmadorDocumentoSerializer(serializers.ModelSerializer):
             'id', 'workspace', 'original_file_name', 'signed_file_name',
             'original_size', 'signed_size', 'stored_bytes',
             'original_hash', 'signed_hash', 'keep_file', 'retention_days',
-            'expires_at', 'deleted_at', 'status', 'certificado_origen',
+            'expires_at', 'deleted_at', 'status', 'certificado', 'certificado_origen',
             'reason', 'location', 'visible_signature', 'error_message',
             'download_url', 'created_at', 'updated_at',
         ]
@@ -44,3 +44,19 @@ class FirmadorDocumentoSerializer(serializers.ModelSerializer):
             return None
         return request.build_absolute_uri(f'/api/firmador/documentos/{obj.id}/descargar/')
 
+
+class FirmadorCertificadoSerializer(serializers.ModelSerializer):
+    is_expired = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FirmadorCertificado
+        fields = [
+            'id', 'alias', 'original_file_name', 'file_size', 'fingerprint',
+            'subject', 'issuer', 'expires_at', 'active', 'is_expired',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_is_expired(self, obj):
+        from django.utils import timezone
+        return obj.expires_at <= timezone.now()
