@@ -17,7 +17,7 @@ export default defineConfig({
   } as Record<string, unknown>),
   plugins: [
     react(),
-    VitePWA({
+    ...(process.env.VITE_ENABLE_PWA === 'true' ? [VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icons/*.png'],
       manifest: {
@@ -73,7 +73,7 @@ export default defineConfig({
           },
         ],
       },
-    }),
+    })] : []),
   ],
   server: {
     port: 5174,
