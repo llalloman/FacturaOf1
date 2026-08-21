@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, FileCheck2, FileSignature, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, FileCheck2, FileSignature, Loader2, ShieldCheck } from 'lucide-react';
 import { firmadorService } from '../../services/firmadorService';
 
 const shortHash = (hash?: string) => {
@@ -78,6 +78,16 @@ export default function ValidarDocumentoPublicoPage() {
                 <FileCheck2 className="mb-2 h-5 w-5 text-blue-700" />
                 Esta validacion confirma el registro del documento en OF1 Firmador. Para validar criptograficamente un PDF descargado, ingresa al firmador y usa la opcion Validar.
               </div>
+
+              {data.file_available && data.download_url && (
+                <a
+                  href={data.download_url}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white hover:bg-blue-800 sm:w-auto"
+                >
+                  <Download className="h-4 w-4" />
+                  Descargar PDF firmado
+                </a>
+              )}
             </div>
           )}
 

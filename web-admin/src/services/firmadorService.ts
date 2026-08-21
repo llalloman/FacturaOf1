@@ -60,6 +60,7 @@ export interface FirmadorValidacionPublica {
   is_expired?: boolean;
   is_deleted?: boolean;
   file_available?: boolean;
+  download_url?: string | null;
   certificado_origen?: string;
   reason?: string;
   location?: string;
@@ -239,6 +240,16 @@ export const firmadorService = {
 
   eliminarDocumento: async (id: number): Promise<void> => {
     await apiClient.delete(`/firmador/documentos/${id}/`);
+  },
+
+  descargarDocumento: async (id: number): Promise<{ blob: Blob; fileName: string }> => {
+    const response = await apiClient.get(`/firmador/documentos/${id}/descargar/`, {
+      responseType: 'blob',
+    });
+    return {
+      blob: response.data,
+      fileName: fileNameFromDisposition(response.headers['content-disposition']) ?? 'documento-firmado.pdf',
+    };
   },
 
   validarDocumentoPublico: async (id: string, token: string): Promise<FirmadorValidacionPublica> => {

@@ -125,6 +125,7 @@ export default function FirmadorPage() {
   const [uploadingCertificate, setUploadingCertificate] = useState(false);
   const [deletingCertificateId, setDeletingCertificateId] = useState<number | null>(null);
   const [deletingDocumentId, setDeletingDocumentId] = useState<number | null>(null);
+  const [downloadingDocumentId, setDownloadingDocumentId] = useState<number | null>(null);
   const [keepFile, setKeepFile] = useState(false);
   const [visibleSignature, setVisibleSignature] = useState(false);
   const [signatureType, setSignatureType] = useState<SignatureType>('AVANZADA');
@@ -288,6 +289,18 @@ export default function FirmadorPage() {
       showToast(await readApiError(error), 'error');
     } finally {
       setDeletingDocumentId(null);
+    }
+  };
+
+  const handleDownloadDocument = async (doc: FirmadorDocumento) => {
+    setDownloadingDocumentId(doc.id);
+    try {
+      const result = await firmadorService.descargarDocumento(doc.id);
+      downloadBlob(result.blob, result.fileName);
+    } catch (error) {
+      showToast(await readApiError(error), 'error');
+    } finally {
+      setDownloadingDocumentId(null);
     }
   };
 
@@ -954,13 +967,18 @@ export default function FirmadorPage() {
                           </button>
                         )}
                         {doc.download_url && (
-                          <a
-                            href={doc.download_url}
+                          <button
+                            type="button"
+                            onClick={() => void handleDownloadDocument(doc)}
                             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
                             title="Descargar"
                           >
-                            <Download className="h-4 w-4" />
-                          </a>
+                            {downloadingDocumentId === doc.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                          </button>
                         )}
                         <button
                           type="button"

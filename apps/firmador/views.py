@@ -132,7 +132,7 @@ def _is_valid_document_token(documento_id, token):
     return str(payload.get('documento')) == str(documento_id)
 
 
-def _public_document_payload(documento, token_valid=False):
+def _public_document_payload(documento, token_valid=False, request=None):
     now = timezone.now()
     expired = bool(documento.expires_at and documento.expires_at <= now)
     deleted = documento.status == FirmadorDocumento.Estado.ELIMINADO or documento.deleted_at is not None
@@ -159,6 +159,9 @@ def _public_document_payload(documento, token_valid=False):
         'is_expired': expired,
         'is_deleted': deleted,
         'file_available': available,
+        'download_url': request.build_absolute_uri(
+            f'/api/firmador/validar/{documento.id}/descargar/?token={_document_validation_token(documento.id)}'
+        ) if available and token_valid and request else None,
         'certificado_origen': documento.certificado_origen,
         'reason': documento.reason,
         'location': documento.location,
@@ -501,7 +504,30 @@ def validar_documento_publico(request, pk):
             {'registered': False, 'token_valid': True, 'detail': 'No se encontro el documento.'},
             status=status.HTTP_404_NOT_FOUND,
         )
-    return Response(_public_document_payload(documento, token_valid=True))
+    return Response(_public_document_payload(documento, token_valid=True, request=request))
+
+
+@api_view(['GET'])
+@permission_classes([])
+def descargar_documento_publico(request, pk):
+    token = request.query_params.get('token', '')
+    if not _is_valid_document_token(pk, token):
+        return Response({'detail': 'El enlace de descarga no es valido.'}, status=status.HTTP_403_FORBIDDEN)
+
+    documento = FirmadorDocumento.objects.filter(pk=pk).first()
+    if not documento:
+        raise Http404
+
+    payload = _public_document_payload(documento, token_valid=True, request=request)
+    if not payload['file_available'] or not documento.signed_file:
+        return Response({'detail': 'El documento no esta disponible para descarga.'}, status=status.HTTP_404_NOT_FOUND)
+
+    return FileResponse(
+        documento.signed_file.open('rb'),
+        as_attachment=True,
+        filename=documento.signed_file_name or 'documento-firmado.pdf',
+        content_type='application/pdf',
+    )
 
 
 @api_view(['POST'])

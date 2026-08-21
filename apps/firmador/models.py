@@ -14,6 +14,8 @@ def firmador_upload_to(instance, filename):
     workspace = instance.workspace_id or 'sin-workspace'
     document = instance.pk or uuid.uuid4()
     safe_name = os.path.basename(filename or 'documento.pdf')
+    name, ext = os.path.splitext(safe_name)
+    safe_name = f'{name[:120]}{ext[:12]}' if len(safe_name) > 140 else safe_name
     return f'firmador/{workspace}/{document}/{uuid.uuid4()}-{safe_name}'
 
 
@@ -125,8 +127,8 @@ class FirmadorDocumento(models.Model):
         related_name='documentos',
         verbose_name=_('certificado'),
     )
-    original_file = models.FileField(_('PDF original'), upload_to=firmador_upload_to, storage=FirmadorDocumentStorage(), null=True, blank=True)
-    signed_file = models.FileField(_('PDF firmado'), upload_to=firmador_upload_to, storage=FirmadorDocumentStorage(), null=True, blank=True)
+    original_file = models.FileField(_('PDF original'), upload_to=firmador_upload_to, storage=FirmadorDocumentStorage(), max_length=500, null=True, blank=True)
+    signed_file = models.FileField(_('PDF firmado'), upload_to=firmador_upload_to, storage=FirmadorDocumentStorage(), max_length=500, null=True, blank=True)
     original_file_name = models.CharField(_('archivo original'), max_length=255)
     signed_file_name = models.CharField(_('archivo firmado'), max_length=255, blank=True)
     original_size = models.BigIntegerField(_('tamaño original'), default=0)
