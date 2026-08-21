@@ -4,9 +4,11 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.base import ContentFile
+from django.core import signing
 from django.http import FileResponse, Http404, HttpResponse
 from django.utils.http import content_disposition_header
 from django.utils import timezone
+from django.db.models import Count, Sum, Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes, parser_classes
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -14,9 +16,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import FirmadorCertificado, FirmadorDocumento, FirmadorWorkspace
-from .serializers import FirmadorCertificadoSerializer, FirmadorDocumentoSerializer, FirmadorWorkspaceSerializer
+from .serializers import (
+    FirmadorAdminWorkspaceDetailSerializer,
+    FirmadorAdminWorkspaceListSerializer,
+    FirmadorAdminWorkspaceUpdateSerializer,
+    FirmadorCertificadoSerializer,
+    FirmadorDocumentoSerializer,
+    FirmadorWorkspaceSerializer,
+)
 from .services.certificates import decrypt_certificate, parse_and_encrypt_certificate
 from .services.pdf_signer import (
+    inspect_signed_pdf,
     sign_pdf_with_pkcs12,
     validate_certificate_upload,
     validate_pdf_upload,
@@ -24,6 +34,7 @@ from .services.pdf_signer import (
 
 
 logger = logging.getLogger(__name__)
+VALIDATION_TOKEN_SALT = 'firmador.documento.validacion'
 
 
 def _default_limit(name, default_mb):
@@ -105,6 +116,53 @@ def _signature_box_from_percent(pdf_file, page_number, x_percent, y_percent, wid
     y_top = max(0, min(95, y_percent)) / 100 * page_height
     y = max(0, page_height - y_top - box_height)
     return (int(x), int(y), int(min(x + box_width, page_width)), int(min(y + box_height, page_height)))
+
+
+def _document_validation_token(documento_id):
+    return signing.dumps({'documento': int(documento_id)}, salt=VALIDATION_TOKEN_SALT)
+
+
+def _is_valid_document_token(documento_id, token):
+    if not token:
+        return False
+    try:
+        payload = signing.loads(token, salt=VALIDATION_TOKEN_SALT)
+    except signing.BadSignature:
+        return False
+    return str(payload.get('documento')) == str(documento_id)
+
+
+def _public_document_payload(documento, token_valid=False):
+    now = timezone.now()
+    expired = bool(documento.expires_at and documento.expires_at <= now)
+    deleted = documento.status == FirmadorDocumento.Estado.ELIMINADO or documento.deleted_at is not None
+    available = bool(documento.keep_file and documento.signed_file and not expired and not deleted)
+    if deleted:
+        public_status = 'ELIMINADO'
+    elif expired:
+        public_status = 'EXPIRADO'
+    else:
+        public_status = documento.status
+    return {
+        'registered': True,
+        'token_valid': token_valid,
+        'id': documento.id,
+        'file_name': documento.signed_file_name or documento.original_file_name,
+        'status': public_status,
+        'status_display': dict(FirmadorDocumento.Estado.choices).get(public_status, public_status),
+        'signature_type': documento.signature_type,
+        'signature_type_display': dict(FirmadorDocumento.TipoFirma.choices).get(documento.signature_type, documento.signature_type),
+        'signed_hash': documento.signed_hash,
+        'original_hash': documento.original_hash if token_valid else '',
+        'signed_at': documento.created_at,
+        'expires_at': documento.expires_at,
+        'is_expired': expired,
+        'is_deleted': deleted,
+        'file_available': available,
+        'certificado_origen': documento.certificado_origen,
+        'reason': documento.reason,
+        'location': documento.location,
+    }
 
 
 class FirmadorDocumentoViewSet(viewsets.ModelViewSet):
@@ -201,6 +259,82 @@ class FirmadorCertificadoViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def _is_super_admin_user(user):
+    return bool(user and user.is_authenticated and (user.is_superuser or getattr(user, 'rol', '') == 'SUPER_ADMIN'))
+
+
+class FirmadorAdminWorkspaceViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'patch', 'head', 'options']
+
+    def get_queryset(self):
+        if not _is_super_admin_user(self.request.user):
+            return FirmadorWorkspace.objects.none()
+        qs = (
+            FirmadorWorkspace.objects
+            .select_related('owner_user', 'empresa', 'solicitud_firma')
+            .annotate(
+                documentos_count=Count('documentos', filter=~Q(documentos__status=FirmadorDocumento.Estado.ELIMINADO), distinct=True),
+                certificados_count=Count('certificados', filter=Q(certificados__active=True), distinct=True),
+            )
+            .order_by('-created_at')
+        )
+        search = (self.request.query_params.get('search') or '').strip()
+        estado = (self.request.query_params.get('estado') or '').strip().lower()
+        tipo = (self.request.query_params.get('tipo') or '').strip()
+        if search:
+            qs = qs.filter(
+                Q(nombre__icontains=search)
+                | Q(email__icontains=search)
+                | Q(identificacion__icontains=search)
+                | Q(owner_user__email__icontains=search)
+                | Q(owner_user__first_name__icontains=search)
+                | Q(owner_user__last_name__icontains=search)
+            )
+        if estado == 'activo':
+            qs = qs.filter(activo=True, owner_user__is_active=True)
+        elif estado == 'inactivo':
+            qs = qs.filter(Q(activo=False) | Q(owner_user__is_active=False))
+        if tipo:
+            qs = qs.filter(tipo=tipo)
+        return qs
+
+    def get_serializer_class(self):
+        if self.action in ('partial_update', 'update'):
+            return FirmadorAdminWorkspaceUpdateSerializer
+        if self.action == 'retrieve':
+            return FirmadorAdminWorkspaceDetailSerializer
+        return FirmadorAdminWorkspaceListSerializer
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if not _is_super_admin_user(request.user):
+            self.permission_denied(request, message='No tienes permiso para administrar el firmador.')
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        detail_serializer = FirmadorAdminWorkspaceDetailSerializer(instance, context=self.get_serializer_context())
+        return Response(detail_serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='metricas')
+    def metricas(self, request):
+        qs = self.get_queryset()
+        documentos = FirmadorDocumento.objects.exclude(status=FirmadorDocumento.Estado.ELIMINADO)
+        certificados = FirmadorCertificado.objects.filter(active=True)
+        return Response({
+            'workspaces': qs.count(),
+            'workspaces_activos': qs.filter(activo=True, owner_user__is_active=True).count(),
+            'documentos': documentos.count(),
+            'documentos_qr': documentos.filter(signature_type=FirmadorDocumento.TipoFirma.QR).count(),
+            'certificados': certificados.count(),
+            'storage_bytes': documentos.filter(keep_file=True, deleted_at__isnull=True).aggregate(total=Sum('stored_bytes')).get('total') or 0,
+        })
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def perfil_firmador(request):
@@ -233,6 +367,9 @@ def firmar_documento(request):
         signature_type = FirmadorDocumento.TipoFirma.AVANZADA
     if signature_type == FirmadorDocumento.TipoFirma.SIMPLE:
         visible_signature = False
+    if signature_type == FirmadorDocumento.TipoFirma.QR:
+        visible_signature = True
+        keep_file = True
     signature_page = max(_int_param(request.data, 'signature_page', 1), 1)
     signature_x = max(0, min(95, _float_param(request.data, 'signature_x', 6)))
     signature_y = max(0, min(95, _float_param(request.data, 'signature_y', 72)))
@@ -306,7 +443,10 @@ def firmar_documento(request):
             signature_page=signature_page,
             signature_box=_signature_box_from_percent(pdf_file, signature_page, signature_x, signature_y, signature_width, signature_height) if visible_signature else None,
             signature_type=signature_type,
-            qr_url=f"{(getattr(settings, 'PUBLIC_BASE_URL', '') or 'https://firmador.of1solutions.com').rstrip('/')}/firmador/validar?documento={documento.id}",
+            qr_url=(
+                f"{(getattr(settings, 'PUBLIC_BASE_URL', '') or 'https://firmador.of1solutions.com').rstrip('/')}"
+                f"/firmador/validar?documento={documento.id}&token={_document_validation_token(documento.id)}"
+            ),
         )
         documento.original_hash = result.original_hash
         documento.signed_hash = result.signed_hash
@@ -343,3 +483,66 @@ def firmar_documento(request):
     response['X-Firmador-Document-Id'] = str(documento.id)
     response['X-Firmador-Keep-File'] = 'true' if keep_file else 'false'
     return response
+
+
+@api_view(['GET'])
+@permission_classes([])
+def validar_documento_publico(request, pk):
+    token = request.query_params.get('token', '')
+    token_valid = _is_valid_document_token(pk, token)
+    if not token_valid:
+        return Response(
+            {'registered': False, 'token_valid': False, 'detail': 'El enlace de validacion no es valido.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    documento = FirmadorDocumento.objects.filter(pk=pk).first()
+    if not documento:
+        return Response(
+            {'registered': False, 'token_valid': True, 'detail': 'No se encontro el documento.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    return Response(_public_document_payload(documento, token_valid=True))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def validar_documentos_pdf(request):
+    workspace = get_or_create_workspace(request.user)
+    files = request.FILES.getlist('documents') or request.FILES.getlist('pdfs') or request.FILES.getlist('files')
+    if not files and request.FILES.get('document'):
+        files = [request.FILES.get('document')]
+    if not files:
+        return Response({'documents': 'Sube al menos un PDF firmado.'}, status=status.HTTP_400_BAD_REQUEST)
+    if len(files) > 10:
+        return Response({'documents': 'Puedes validar hasta 10 documentos por vez.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    results = []
+    for file in files:
+        try:
+            validate_pdf_upload(file, workspace.max_file_size_bytes)
+            inspected = inspect_signed_pdf(file)
+            document = FirmadorDocumento.objects.filter(signed_hash=inspected['sha256']).first()
+            inspected['of1_registered'] = bool(document)
+            inspected['of1_document'] = _public_document_payload(document, token_valid=False) if document else None
+            if document and document.signed_file and (
+                document.workspace_id == workspace.id
+                or request.user.is_superuser
+                or getattr(request.user, 'rol', '') == 'SUPER_ADMIN'
+            ):
+                inspected['download_url'] = request.build_absolute_uri(f'/api/firmador/documentos/{document.id}/descargar/')
+            results.append(inspected)
+        except DjangoValidationError as exc:
+            results.append({
+                'file_name': getattr(file, 'name', '') or 'documento.pdf',
+                'file_size': getattr(file, 'size', 0),
+                'sha256': '',
+                'has_signatures': False,
+                'signature_count': 0,
+                'signatures': [],
+                'validation_available': False,
+                'of1_registered': False,
+                'of1_document': None,
+                'error': exc.messages[0] if hasattr(exc, 'messages') else str(exc),
+            })
+    return Response({'results': results})

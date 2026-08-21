@@ -4,6 +4,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import {
   CheckCircle2,
+  Copy,
   Download,
   Eye,
   FileCheck2,
@@ -13,6 +14,7 @@ import {
   KeyRound,
   Loader2,
   Move,
+  Plus,
   QrCode,
   Save,
   ShieldCheck,
@@ -22,11 +24,11 @@ import {
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { useToast } from '../../hooks/useToast';
-import { firmadorService, type FirmadorCertificado, type FirmadorDocumento } from '../../services/firmadorService';
+import { firmadorService, type FirmadorCertificado, type FirmadorDocumento, type FirmadorPdfValidado } from '../../services/firmadorService';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString();
 
-type TabKey = 'certificados' | 'firmar' | 'documentos';
+type TabKey = 'certificados' | 'firmar' | 'documentos' | 'validar';
 type SignMode = 'multiples_documentos' | 'multiples_firmantes' | 'un_firmante';
 type SignatureType = 'SIMPLE' | 'QR' | 'AVANZADA';
 
@@ -34,6 +36,7 @@ const tabs: Array<{ key: TabKey; label: string; icon: React.ElementType }> = [
   { key: 'certificados', label: 'Firma Digital', icon: Upload },
   { key: 'firmar', label: 'Firmar Documento', icon: FileSignature },
   { key: 'documentos', label: 'Documentos Firmados', icon: FileCheck2 },
+  { key: 'validar', label: 'Validar', icon: ShieldCheck },
 ];
 
 const signModes: Array<{ key: SignMode; label: string; description: string; icon: React.ElementType }> = [
@@ -131,6 +134,9 @@ export default function FirmadorPage() {
   const [location, setLocation] = useState('Ecuador');
   const [retentionDays, setRetentionDays] = useState(30);
   const [signing, setSigning] = useState(false);
+  const [validationFiles, setValidationFiles] = useState<File[]>([]);
+  const [validationResults, setValidationResults] = useState<FirmadorPdfValidado[]>([]);
+  const [validatingPdfs, setValidatingPdfs] = useState(false);
 
   const { data: perfil, isLoading: loadingPerfil } = useQuery({
     queryKey: ['firmador-perfil'],
@@ -185,6 +191,9 @@ export default function FirmadorPage() {
   useEffect(() => {
     if (signatureType === 'SIMPLE') {
       setVisibleSignature(false);
+    } else if (signatureType === 'QR') {
+      setVisibleSignature(true);
+      setKeepFile(true);
     } else {
       setVisibleSignature(true);
     }
@@ -282,6 +291,38 @@ export default function FirmadorPage() {
     }
   };
 
+  const handleAddValidationFiles = (files: FileList | null) => {
+    if (!files) return;
+    const nextFiles = Array.from(files).filter((file) => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+    setValidationFiles((current) => {
+      const merged = [...current, ...nextFiles];
+      return merged.slice(0, 10);
+    });
+    setValidationResults([]);
+  };
+
+  const handleValidatePdfs = async () => {
+    if (validationFiles.length === 0) {
+      showToast('Selecciona al menos un PDF firmado.', 'warning');
+      return;
+    }
+    setValidatingPdfs(true);
+    try {
+      const results = await firmadorService.validarPdfs(validationFiles);
+      setValidationResults(results);
+      showToast('Validacion completada.', 'success');
+    } catch (error) {
+      showToast(await readApiError(error), 'error');
+    } finally {
+      setValidatingPdfs(false);
+    }
+  };
+
+  const copyValidationUrl = async (url: string) => {
+    await navigator.clipboard.writeText(url);
+    showToast('Enlace de validacion copiado.', 'success');
+  };
+
   const handleSign = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!pdf) {
@@ -343,7 +384,7 @@ export default function FirmadorPage() {
     <main className="min-h-screen bg-slate-50">
       <nav className="sticky top-0 z-20 border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="grid grid-cols-2 gap-1 md:grid-cols-5">
+          <div className="grid grid-cols-2 gap-1 md:grid-cols-4">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.key;
@@ -686,8 +727,9 @@ export default function FirmadorPage() {
                     <input
                       type="checkbox"
                       checked={keepFile}
+                      disabled={signatureType === 'QR'}
                       onChange={(event) => setKeepFile(event.target.checked)}
-                      className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+                      className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-600 disabled:opacity-50"
                     />
                     <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                       <Save className="h-4 w-4" />
@@ -695,6 +737,12 @@ export default function FirmadorPage() {
                     </span>
                   </label>
                 </div>
+
+                {signatureType === 'QR' && (
+                  <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">
+                    La firma QR guarda el documento obligatoriamente para mantener el enlace de validacion.
+                  </div>
+                )}
 
                 {visibleSignature && signatureType !== 'SIMPLE' && (
                   <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -887,11 +935,24 @@ export default function FirmadorPage() {
                     <div key={doc.id} className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 px-4 py-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-bold text-slate-900">{doc.signed_file_name || doc.original_file_name}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {new Date(doc.created_at).toLocaleString()} - {formatBytes(doc.signed_size)}
-                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span>{new Date(doc.created_at).toLocaleString()} - {formatBytes(doc.signed_size)}</span>
+                          {doc.signature_type === 'QR' && (
+                            <span className="rounded-full bg-blue-50 px-2 py-0.5 font-bold text-blue-700">QR verificable</span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {doc.validation_url && (
+                          <button
+                            type="button"
+                            onClick={() => void copyValidationUrl(doc.validation_url || '')}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-100 text-blue-700 hover:bg-blue-50"
+                            title="Copiar enlace de validacion"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                        )}
                         {doc.download_url && (
                           <a
                             href={doc.download_url}
@@ -917,6 +978,156 @@ export default function FirmadorPage() {
                     </div>
                   ))
                 )}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {activeTab === 'validar' && (
+          <div className="space-y-6">
+            <header>
+              <h1 className="text-3xl font-black text-slate-950">Validacion de Documentos y Firmas</h1>
+              <p className="mt-2 text-slate-500">Verifica PDFs firmados y confirma si fueron registrados en OF1 Firmador.</p>
+            </header>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-black text-slate-950">Verificar Documento(s) PDF</h2>
+              <p className="mt-1 text-sm text-slate-500">Sube o arrastra documentos PDF firmados para verificar sus firmas digitales.</p>
+
+              <label className="mt-6 flex min-h-24 cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-slate-200 px-4 py-5 transition-colors hover:border-blue-500 hover:bg-blue-50">
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  multiple
+                  className="hidden"
+                  onChange={(event) => handleAddValidationFiles(event.target.files)}
+                />
+                <span className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white">
+                  <Plus className="h-4 w-4" />
+                  Agregar archivo
+                </span>
+                <span className="text-sm text-slate-500">o arrastra aqui (max 10)</span>
+              </label>
+
+              <p className="mt-4 text-sm text-slate-500">{validationFiles.length} documento(s) seleccionado(s)</p>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-black text-slate-950">Lista de Documentos</h2>
+
+              <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
+                <div className="grid grid-cols-[1fr_90px_90px_130px_1fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">
+                  <span>Documento</span>
+                  <span>Abrir</span>
+                  <span>Quitar</span>
+                  <span>Estado</span>
+                  <span>Detalle</span>
+                </div>
+                {validationFiles.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-sm text-slate-500">No hay documentos seleccionados</div>
+                ) : (
+                  validationFiles.map((file, index) => {
+                    const result = validationResults[index];
+                    const validSignature = result?.signatures?.some((signature) => signature.valid || signature.intact);
+                    const statusLabel = result
+                      ? result.error
+                        ? 'Error'
+                        : result.of1_registered
+                          ? 'Registrado OF1'
+                          : validSignature
+                            ? 'Firma detectada'
+                            : 'No registrado'
+                      : '-';
+                    return (
+                      <div key={`${file.name}-${index}`} className="grid grid-cols-[1fr_90px_90px_130px_1fr] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-900">{file.name}</p>
+                          <p className="mt-1 text-xs text-slate-500">{formatBytes(file.size)}</p>
+                        </div>
+                        <a
+                          href={URL.createObjectURL(file)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
+                          title="Abrir"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setValidationFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+                            setValidationResults([]);
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
+                          title="Quitar"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                        <span className={`inline-flex h-8 items-center text-xs font-bold ${
+                          result?.of1_registered ? 'text-blue-700' : result?.error ? 'text-red-600' : 'text-slate-500'
+                        }`}>
+                          {statusLabel}
+                        </span>
+                        <span className="min-w-0 text-xs text-slate-500">
+                          {result
+                            ? result.error || `${result.signature_count} firma(s). Hash ${result.sha256.slice(0, 10)}...`
+                            : '-'}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {validationResults.length > 0 && (
+                <div className="mt-5 space-y-3">
+                  {validationResults.map((result, index) => (
+                    <div key={`${result.file_name}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-black text-slate-950">{result.file_name}</p>
+                          <p className="mt-1 break-all font-mono text-xs text-slate-500">{result.sha256 || 'Sin hash'}</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+                          result.of1_registered ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {result.of1_registered ? 'Registrado en OF1' : 'No registrado en OF1'}
+                        </span>
+                      </div>
+                      {result.signatures.length > 0 ? (
+                        <div className="mt-4 grid gap-2">
+                          {result.signatures.map((signature, signatureIndex) => (
+                            <div key={`${signature.field_name}-${signatureIndex}`} className="rounded-lg bg-white p-3 text-xs text-slate-600">
+                              <p className="font-bold text-slate-900">{signature.signer || signature.field_name || `Firma ${signatureIndex + 1}`}</p>
+                              <p className="mt-1">Integridad: {signature.intact ? 'Correcta' : 'No confirmada'} - Valida: {signature.valid ? 'Si' : 'No confirmada'} - Confianza: {signature.trusted ? 'Si' : 'No configurada'}</p>
+                              {signature.summary && <p className="mt-1">{signature.summary}</p>}
+                              {signature.error && <p className="mt-1 text-red-600">{signature.error}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-slate-500">{result.error || 'No se detectaron firmas digitales embebidas.'}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setValidationFiles([]);
+                    setValidationResults([]);
+                  }}
+                >
+                  Restablecer
+                </Button>
+                <Button type="button" loading={validatingPdfs} disabled={validationFiles.length === 0} onClick={handleValidatePdfs}>
+                  Verificar
+                </Button>
               </div>
             </section>
           </div>

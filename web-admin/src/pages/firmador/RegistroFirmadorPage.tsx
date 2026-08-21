@@ -74,37 +74,37 @@ export default function RegistroFirmadorPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-slate-900 px-4 py-8">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-5xl items-center justify-center">
-        <section className="grid w-full overflow-hidden rounded-3xl bg-white shadow-2xl lg:grid-cols-[0.95fr_1.05fr]">
-          <aside className="relative hidden border-r border-slate-100 bg-slate-50 p-8 lg:flex lg:flex-col lg:justify-between">
+    <main className="min-h-screen bg-slate-100 px-4 py-6">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-5xl items-center justify-center">
+        <section className="grid max-h-[calc(100vh-3rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl lg:grid-cols-[0.9fr_1.1fr]">
+          <aside className="relative hidden border-r border-slate-100 bg-blue-950 p-7 text-white lg:flex lg:flex-col lg:justify-between">
             <div>
-              <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-16 w-auto object-contain" />
-              <div className="mt-10 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-700 text-white shadow-lg shadow-blue-700/20">
+              <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto rounded-xl bg-white object-contain p-2" />
+              <div className="mt-8 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white">
                 <FileSignature className="h-7 w-7" />
               </div>
-              <h1 className="mt-6 text-3xl font-black leading-tight text-slate-950">
+              <h1 className="mt-5 text-2xl font-black leading-tight">
                 Crea tu cuenta de firmador PDF
               </h1>
-              <p className="mt-3 max-w-sm text-sm leading-6 text-slate-600">
+              <p className="mt-3 max-w-sm text-sm leading-6 text-blue-100">
                 Acceso independiente para firmar documentos con certificado electronico, sin crear una empresa en el ERP.
               </p>
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3">
-                <Shield className="h-5 w-5 text-blue-700" />
-                <span className="text-sm font-semibold text-slate-700">Certificados protegidos</span>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
+                <Shield className="h-5 w-5 text-blue-100" />
+                <span className="text-sm font-semibold text-white">Certificados protegidos</span>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3">
-                <CheckCircle2 className="h-5 w-5 text-blue-700" />
-                <span className="text-sm font-semibold text-slate-700">Cuenta solo para firmador</span>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
+                <CheckCircle2 className="h-5 w-5 text-blue-100" />
+                <span className="text-sm font-semibold text-white">Cuenta solo para firmador</span>
               </div>
             </div>
           </aside>
 
-          <form onSubmit={handleSubmit} className="p-6 sm:p-8 lg:p-10">
-            <div className="mb-7">
+          <form onSubmit={handleSubmit} className="p-6 sm:p-8">
+            <div className="mb-6">
               <div className="flex items-center justify-between gap-4">
                 <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto object-contain lg:hidden" />
                 <Link to="/login" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900">
@@ -112,7 +112,7 @@ export default function RegistroFirmadorPage() {
                   Iniciar sesion
                 </Link>
               </div>
-              <div className="mt-6">
+              <div className="mt-5">
                 <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                   <FileSignature className="h-3.5 w-3.5" />
                   Firmador PDF

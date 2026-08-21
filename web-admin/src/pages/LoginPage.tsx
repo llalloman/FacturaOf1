@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AlertCircle, ArrowLeft, FileSignature, Loader2, Lock, Mail, UserPlus } from 'lucide-react';
 import { authService } from '../services/authService';
-import { Lock, User, AlertCircle, Loader2, ShieldCheck, Zap, UserPlus, ArrowLeft } from 'lucide-react';
+import { useAuthStore } from '../store/authStore';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -11,20 +11,42 @@ export default function LoginPage() {
   const isFirmadorHost = typeof window !== 'undefined' && window.location.hostname.startsWith('firmador.');
   const registroPath = isFirmadorHost ? '/firmador/registro' : '/registro';
   const setAuth = useAuthStore((state) => state.setAuth);
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notFound, setNotFound] = useState(false);
   const [wrongPassword, setWrongPassword] = useState(false);
-  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const product = isFirmadorHost
+    ? {
+        badge: 'Firmador PDF',
+        title: 'Ingresa a OF1 Firmador',
+        subtitle: 'Firma, guarda y valida documentos PDF con certificado electronico.',
+        registerCta: 'Crear cuenta de firmador',
+        registerHint: 'Cuenta independiente para firmar documentos.',
+        icon: FileSignature,
+      }
+    : {
+        badge: 'FacturaOF1 ERP',
+        title: 'Ingresa a FacturaOF1',
+        subtitle: 'Factura electronica, inventario, ventas y gestion de negocio.',
+        registerCta: 'Registrar empresa',
+        registerHint: 'Empieza con una cuenta para tu negocio.',
+        icon: UserPlus,
+      };
+  const ProductIcon = product.icon;
+
+  const resetTransientErrors = () => {
     setError('');
     setNotFound(false);
     setWrongPassword(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    resetTransientErrors();
     setLoading(true);
 
     try {
@@ -32,24 +54,18 @@ export default function LoginPage() {
       const user = response.user;
       setAuth(user, response.access, response.refresh);
 
-      // 1. Cambio de contraseña obligatorio (máxima prioridad)
       if (user.debe_cambiar_password) {
         navigate('/cambiar-password');
-      // 2. Email no verificado aún
       } else if (!user.email_verificado) {
         navigate('/verificar-email');
-      // 3. SUPER_ADMIN → siempre al dashboard
       } else if (user.rol === 'FIRMADOR') {
         navigate('/firmador');
       } else if (user.rol === 'SUPER_ADMIN') {
         navigate('/');
-      // 4. Volver a la página que intentaba acceder
       } else if (from && from !== '/login' && from !== '/registro' && from !== '/firmador/registro') {
         navigate(from);
-      // 5. Onboarding completado → al dashboard; ProtectedRoute revisa suscripción
       } else if (user.onboarding_completado) {
         navigate('/');
-      // 6. Sin onboarding → bienvenida/planes; App.tsx revisa suscripción
       } else {
         navigate('/bienvenida');
       }
@@ -58,15 +74,12 @@ export default function LoginPage() {
       const status = axiosErr.response?.status;
       const detail = axiosErr.response?.data?.detail || '';
       const detailLower = detail.toLowerCase();
-      // El API devuelve 401 tanto para cuenta inexistente como para contraseña incorrecta.
-      // Distinguimos por el mensaje.
       if (detailLower.includes('no active account') || detailLower.includes('no existe') || detailLower.includes('no encontr')) {
         setNotFound(true);
       } else if (status === 401) {
-        // Cuenta existe pero credenciales incorrectas
         setWrongPassword(true);
       } else {
-        setError(detail || 'Error al iniciar sesión. Intenta de nuevo.');
+        setError(detail || 'Error al iniciar sesion. Intenta de nuevo.');
       }
     } finally {
       setLoading(false);
@@ -74,223 +87,205 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-slate-800 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-slate-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-15 animate-blob animation-delay-4000"></div>
-      </div>
-
-      {/* Decorative grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e40af15_1px,transparent_1px),linear-gradient(to_bottom,#1e40af15_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
-
-      {/* Login Card */}
-      <div className="relative w-full max-w-lg">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-slate-600 rounded-3xl blur-2xl opacity-20 animate-pulse"></div>
-        
-        <div className="relative bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-10 border border-white/20">
-          {/* Logo y Header */}
-          <div className="text-center mb-10">
-            <div className="relative inline-block mb-4">
-              <img
-                src="/logo-of1-1.png"
-                alt="OF1 Solutions"
-                className="h-44 w-auto drop-shadow-2xl transform transition-all hover:scale-105 duration-500"
-              />
+    <main className="min-h-screen bg-slate-100 px-4 py-6">
+      <section className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-5xl items-center justify-center">
+        <div className="grid w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl lg:grid-cols-[0.9fr_1.1fr]">
+          <aside className="hidden bg-blue-950 p-8 text-white lg:flex lg:flex-col lg:justify-between">
+            <div>
+              <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto rounded-xl bg-white object-contain p-2" />
+              <div className="mt-10 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-blue-100">
+                <ProductIcon className="h-4 w-4" />
+                {product.badge}
+              </div>
+              <h1 className="mt-5 text-3xl font-black leading-tight">{product.title}</h1>
+              <p className="mt-3 max-w-sm text-sm leading-6 text-blue-100">{product.subtitle}</p>
             </div>
-            
-            <h1 className="text-3xl font-black mb-1">
-              <span className="bg-gradient-to-r from-blue-700 to-slate-600 bg-clip-text text-transparent">
-                Facturación Electrónica
-              </span>
-            </h1>
-            <p className="text-gray-600 font-medium text-sm">Sistema Integral de Gestión · SRI Ecuador</p>
-            
-            {/* Features badges */}
-            <div className="flex items-center justify-center gap-4 mt-6">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 rounded-full">
-                <ShieldCheck className="w-4 h-4 text-blue-600" />
-                <span className="text-xs font-semibold text-blue-700">Seguro</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-full">
-                <Zap className="w-4 h-4 text-slate-600" />
-                <span className="text-xs font-semibold text-slate-700">Rápido</span>
-              </div>
-            </div>
-          </div>
 
-          {/* ── NOT REGISTERED PANEL ── */}
-          {notFound ? (
-            <div className="text-center">
-              <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-8 h-8 text-amber-500" />
-              </div>
-              <h2 className="text-xl font-black text-gray-900 mb-2">Cuenta no encontrada</h2>
-              <p className="text-sm text-gray-500 mb-1">
-                No existe ninguna cuenta registrada con:
-              </p>
-              <p className="text-sm font-bold text-gray-800 mb-6 break-all">{email}</p>
-
-              <button
-                onClick={() => navigate(`${registroPath}?email=${encodeURIComponent(email)}`)}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white rounded-xl font-bold text-base shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 mb-4"
-              >
-                <UserPlus className="w-5 h-5" />
-                {isFirmadorHost ? 'Crear cuenta de firmador' : 'Crear cuenta nueva'}
-              </button>
-
-              <button
-                onClick={() => { setNotFound(false); setError(''); }}
-                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-gray-200 hover:border-gray-300 text-gray-600 hover:text-gray-800 rounded-xl font-semibold text-sm transition-all"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Intentar con otro correo
-              </button>
-            </div>
-          ) : wrongPassword ? (
-            <div className="text-center">
-              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-8 h-8 text-red-500" />
-              </div>
-              <h2 className="text-xl font-black text-gray-900 mb-2">Contraseña incorrecta</h2>
-              <p className="text-sm text-gray-500 mb-1">La contraseña ingresada no es correcta para:</p>
-              <p className="text-sm font-bold text-gray-800 mb-6 break-all">{email}</p>
-              <button
-                onClick={() => { setWrongPassword(false); setError(''); setPassword(''); }}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white rounded-xl font-bold text-base shadow-lg transition-all mb-4"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                Intentar nuevamente
-              </button>
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <p className="text-sm font-bold">No tienes cuenta?</p>
+              <p className="mt-1 text-xs text-blue-100">{product.registerHint}</p>
               <Link
-                to="/recuperar-password"
-                className="block w-full text-center text-sm text-blue-600 hover:text-blue-800 font-semibold hover:underline transition-colors"
+                to={registroPath}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-900 hover:bg-blue-50"
               >
-                ¿Olvidaste tu contraseña? Recupérala por correo
+                <UserPlus className="h-4 w-4" />
+                {product.registerCta}
               </Link>
             </div>
-          ) : (
-            <>
-              {/* Error Message */}
-              {error && (
-                <div className="mb-6 bg-gradient-to-r from-red-50 to-sky-50 border-l-4 border-red-500 rounded-r-xl p-4 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                    <p className="text-sm text-red-800 font-medium">{error}</p>
-                  </div>
-                </div>
-              )}
+          </aside>
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Email Input */}
-                <div className="group">
-                  <label className="block text-sm font-bold text-gray-700 mb-2.5 ml-1">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-all duration-300 ${
-                      focusedInput === 'email' ? 'scale-110' : 'scale-100'
-                    }`}>
-                      <User className={`h-5 w-5 transition-colors duration-300 ${
-                        focusedInput === 'email' ? 'text-blue-700' : 'text-gray-400'
-                      }`} />
+          <div className="p-6 sm:p-8 lg:p-10">
+            <div className="mb-7">
+              <div className="flex items-center justify-between gap-4">
+                <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto object-contain lg:hidden" />
+                <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                  <ProductIcon className="h-3.5 w-3.5" />
+                  {product.badge}
+                </span>
+              </div>
+              <h2 className="mt-6 text-2xl font-black text-slate-950">Iniciar sesion</h2>
+              <p className="mt-1 text-sm text-slate-500">{product.subtitle}</p>
+            </div>
+
+            {notFound ? (
+              <StatePanel
+                icon={<AlertCircle className="h-7 w-7 text-amber-500" />}
+                title="Cuenta no encontrada"
+                text={`No existe una cuenta registrada con ${email}.`}
+                primaryLabel={product.registerCta}
+                onPrimary={() => navigate(`${registroPath}?email=${encodeURIComponent(email)}`)}
+                secondaryLabel="Intentar con otro correo"
+                onSecondary={() => resetTransientErrors()}
+              />
+            ) : wrongPassword ? (
+              <StatePanel
+                icon={<Lock className="h-7 w-7 text-red-500" />}
+                title="Contrasena incorrecta"
+                text={`La contrasena ingresada no corresponde a ${email}.`}
+                primaryLabel="Intentar nuevamente"
+                onPrimary={() => {
+                  setWrongPassword(false);
+                  setPassword('');
+                }}
+                secondaryLabel="Recuperar contrasena"
+                secondaryTo="/recuperar-password"
+              />
+            ) : (
+              <>
+                {error && (
+                  <div className="mb-5 rounded-xl border-l-4 border-red-500 bg-red-50 p-3.5">
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600" />
+                      <p className="text-sm font-medium text-red-800">{error}</p>
                     </div>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <Field label="Correo electronico" icon={<Mail className="h-4 w-4" />}>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      onFocus={() => setFocusedInput('email')}
-                      onBlur={() => setFocusedInput(null)}
-                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-white focus:border-blue-700 focus:ring-4 focus:ring-blue-100 transition-all duration-300 outline-none text-gray-900 placeholder-gray-400 font-medium"
+                      className={inputClass}
                       placeholder="correo@ejemplo.com"
                       required
                     />
-                  </div>
-                </div>
+                  </Field>
 
-                {/* Password Input */}
-                <div className="group">
-                  <label className="block text-sm font-bold text-gray-700 mb-2.5 ml-1">
-                    Contraseña
-                  </label>
-                  <div className="relative">
-                    <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-all duration-300 ${
-                      focusedInput === 'password' ? 'scale-110' : 'scale-100'
-                    }`}>
-                      <Lock className={`h-5 w-5 transition-colors duration-300 ${
-                        focusedInput === 'password' ? 'text-blue-700' : 'text-gray-400'
-                      }`} />
-                    </div>
+                  <Field label="Contrasena" icon={<Lock className="h-4 w-4" />}>
                     <input
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      onFocus={() => setFocusedInput('password')}
-                      onBlur={() => setFocusedInput(null)}
-                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-white focus:border-blue-700 focus:ring-4 focus:ring-blue-100 transition-all duration-300 outline-none text-gray-900 placeholder-gray-400 font-medium"
-                      placeholder="Ingrese su contraseña"
+                      className={inputClass}
+                      placeholder="Ingresa tu contrasena"
                       required
                     />
-                  </div>
-                </div>
+                  </Field>
 
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="relative w-full mt-8 group overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-blue-900 rounded-xl blur opacity-50 group-hover:opacity-75 transition-opacity duration-300"></div>
-                  <div className="relative bg-gradient-to-r from-blue-700 to-blue-900 text-white py-4 px-6 rounded-xl font-bold shadow-xl hover:shadow-2xl transform transition-all duration-300 hover:-translate-y-1 active:translate-y-0 flex items-center justify-center gap-3 border border-white/20">
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span className="text-lg">Iniciando sesión...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-lg">Iniciar Sesión</span>
-                        <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                        </svg>
-                      </>
-                    )}
-                  </div>
-                </button>
-              </form>
-            </>
-          )}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-900/15 hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {loading && <Loader2 className="h-5 w-5 animate-spin" />}
+                    {loading ? 'Iniciando sesion...' : 'Iniciar sesion'}
+                  </button>
+                </form>
 
-          {/* Footer */}
-          <div className="mt-10 pt-8 border-t border-gray-200 text-center">
-            {!notFound && !wrongPassword && (
-              <>
-                <p className="text-sm text-gray-600 font-medium mb-3">
-                  ¿Aún no tienes cuenta?{' '}
+                <div className="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center sm:grid-cols-[1fr_auto] sm:text-left">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">No tienes cuenta?</p>
+                    <p className="text-xs text-slate-500">{product.registerHint}</p>
+                  </div>
                   <Link
                     to={registroPath}
-                    className="font-bold text-blue-600 hover:text-blue-700 underline-offset-2 hover:underline transition-colors"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-black text-blue-700 hover:bg-blue-50"
                   >
-                    {isFirmadorHost ? 'Crea tu cuenta de firmador' : 'Registra tu empresa'}
+                    <UserPlus className="h-4 w-4" />
+                    {product.registerCta}
                   </Link>
-                </p>
-                <p className="text-sm text-gray-500 mb-3">
-                  <Link
-                    to="/recuperar-password"
-                    className="text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors"
-                  >
-                    ¿Olvidaste tu contraseña?
+                </div>
+
+                <p className="mt-4 text-center text-sm">
+                  <Link to="/recuperar-password" className="font-semibold text-blue-700 hover:text-blue-900">
+                    Olvidaste tu contrasena?
                   </Link>
                 </p>
               </>
             )}
-            <p className="text-sm text-gray-500 font-medium mb-1">Sistema de Facturación Electrónica</p>
-            <p className="text-xs text-gray-400">© 2026 OF1 Solutions S.A.S. - Todos los derechos reservados</p>
           </div>
         </div>
+      </section>
+    </main>
+  );
+}
+
+const inputClass =
+  'w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500';
+
+function Field({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">{label}</span>
+      <div className="relative">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">{icon}</span>
+        {children}
       </div>
+    </label>
+  );
+}
+
+function StatePanel({
+  icon,
+  title,
+  text,
+  primaryLabel,
+  onPrimary,
+  secondaryLabel,
+  onSecondary,
+  secondaryTo,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+  primaryLabel: string;
+  onPrimary: () => void;
+  secondaryLabel: string;
+  onSecondary?: () => void;
+  secondaryTo?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">{icon}</div>
+      <h2 className="mt-4 text-xl font-black text-slate-950">{title}</h2>
+      <p className="mt-2 break-words text-sm text-slate-500">{text}</p>
+      <button
+        type="button"
+        onClick={onPrimary}
+        className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white hover:bg-blue-800"
+      >
+        <UserPlus className="h-4 w-4" />
+        {primaryLabel}
+      </button>
+      {secondaryTo ? (
+        <Link
+          to={secondaryTo}
+          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+        >
+          {secondaryLabel}
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={onSecondary}
+          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {secondaryLabel}
+        </button>
+      )}
     </div>
   );
 }

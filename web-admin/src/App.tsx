@@ -59,6 +59,8 @@ const SolicitarFirmaElectronicaPage = lazy(() => import('./pages/public/Solicita
 const FirmaPagoResultadoPage = lazy(() => import('./pages/public/FirmaPagoResultadoPage'));
 const FirmadorPage = lazy(() => import('./pages/firmador/FirmadorPage'));
 const RegistroFirmadorPage = lazy(() => import('./pages/firmador/RegistroFirmadorPage'));
+const ValidarDocumentoPublicoPage = lazy(() => import('./pages/firmador/ValidarDocumentoPublicoPage'));
+const FirmadorAdminPage = lazy(() => import('./pages/firmador/FirmadorAdminPage'));
 
 /** Spinner global usado mientras se verifica el estado de suscripción */
 function AppLoader() {
@@ -204,6 +206,11 @@ const appLayoutRoutes = (
     <Route path="firmador" element={
       <ModuloGuard modulo="firmador_pdf"><FirmadorPage /></ModuloGuard>
     } />
+    <Route path="firmador-admin" element={
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+        <FirmadorAdminPage />
+      </ProtectedRoute>
+    } />
   </>
 );
 
@@ -255,6 +262,7 @@ function AppRoutes() {
             path="/firmador/registro"
             element={isAuthenticated ? <Navigate to={authenticatedHome()} /> : <RegistroFirmadorPage />}
           />
+          <Route path="/firmador/validar" element={<ValidarDocumentoPublicoPage />} />
 
           {/* Password recovery — public */}
           <Route path="/recuperar-password" element={<RecuperarPasswordPage />} />

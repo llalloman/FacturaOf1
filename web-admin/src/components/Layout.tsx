@@ -162,6 +162,7 @@ const menuItemsSuperAdmin: MenuItem[] = [
   { icon: Layers3,         label: 'Catálogo de Menús', path: '/catalogo-modulos' },
   { icon: FileSignature,   label: 'Solicitudes de Firma', path: '/firmas-electronicas' },
   { icon: BadgeDollarSign,  label: 'Precios de Firma', path: '/firmas-electronicas/precios' },
+  { icon: FileSignature,   label: 'Admin Firmador', path: '/firmador-admin' },
   { icon: Bot,              label: 'Leads WhatsApp', path: '/automation/leads' },
   { icon: CreditCard,       label: 'Pagos Online', path: '/pagos-online' },
   { icon: Users,           label: 'Usuarios',         path: '/usuarios' },

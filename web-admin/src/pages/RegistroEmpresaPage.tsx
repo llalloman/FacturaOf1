@@ -41,9 +41,9 @@ function PlanCard({ plan, selected, onSelect }: { plan: PlanSuscripcion; selecte
     <button
       type="button"
       onClick={onSelect}
-      className={`relative w-full text-left rounded-2xl border-2 p-5 transition-all duration-200
+      className={`relative w-full text-left rounded-xl border p-4 transition-all duration-200
         bg-gradient-to-br ${s.gradient}
-        ${selected ? `${s.border} ring-2 ring-offset-2 ${isFeatured ? 'ring-blue-400' : 'ring-blue-500'} scale-[1.02]` : `border-transparent hover:${s.border} hover:scale-[1.01]`}
+        ${selected ? `${s.border} ring-2 ring-offset-1 ${isFeatured ? 'ring-blue-400' : 'ring-blue-500'}` : `border-transparent hover:${s.border}`}
       `}
     >
       {isFeatured && (
@@ -56,8 +56,8 @@ function PlanCard({ plan, selected, onSelect }: { plan: PlanSuscripcion; selecte
           <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold mb-2 ${s.badge}`}>{displayName}</span>
           <div className={`flex items-baseline gap-1 ${textClass}`}>
             {plan.precio === 0
-              ? <span className="text-2xl font-black">Demo</span>
-              : <><span className="text-2xl font-black">${plan.precio}</span><span className={`text-sm ${subClass}`}>/{plan.periodo === 'MENSUAL' ? 'mes' : plan.periodo.toLowerCase()}</span></>
+              ? <span className="text-xl font-black">Demo</span>
+              : <><span className="text-xl font-black">${plan.precio}</span><span className={`text-xs ${subClass}`}>/{plan.periodo === 'MENSUAL' ? 'mes' : plan.periodo.toLowerCase()}</span></>
             }
           </div>
           {displayDescription && <p className={`text-xs mt-1 ${subClass}`}>{displayDescription}</p>}
@@ -67,7 +67,7 @@ function PlanCard({ plan, selected, onSelect }: { plan: PlanSuscripcion; selecte
           {selected && <Check className={`w-3.5 h-3.5 ${isFeatured ? 'text-blue-600' : 'text-white'}`} />}
         </div>
       </div>
-      <ul className={`mt-3 space-y-1.5 ${subClass}`}>
+      <ul className={`mt-2 space-y-1 ${subClass}`}>
         {features.map((f) => (
           <li key={f} className="flex items-center gap-2 text-xs">
             <Check className={`w-3.5 h-3.5 flex-shrink-0 ${isFeatured ? 'text-blue-200' : 'text-emerald-500'}`} />
@@ -159,27 +159,22 @@ export default function RegistroEmpresaPage() {
   const selectedPlan = planes.find((p) => p.id === selectedPlanId);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-slate-800 flex items-center justify-center p-4">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-sky-500/20 rounded-full blur-3xl" />
-      </div>
-
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="relative w-full max-w-2xl">
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+        <div className="max-h-[calc(100vh-2rem)] overflow-y-auto bg-white rounded-2xl shadow-xl border border-slate-200">
 
           {/* Header */}
-          <div className="px-8 pt-8 pb-6 text-center border-b border-gray-100">
-            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-16 mx-auto mb-3 object-contain drop-shadow-md" />
-            <h1 className="text-2xl font-black text-gray-900 mb-1">Empieza con FacturaOF1 ERP</h1>
+          <div className="px-6 pt-6 pb-4 text-center border-b border-gray-100">
+            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-12 mx-auto mb-2 object-contain" />
+            <h1 className="text-xl font-black text-gray-900 mb-1">Empieza con FacturaOF1 ERP</h1>
             <p className="text-sm text-gray-500">Facturación electrónica SRI y control de negocio</p>
-            <div className="flex items-center justify-center gap-3 mt-3">
+            <div className="hidden items-center justify-center gap-3 mt-3 sm:flex">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full"><CheckCircle2 className="w-3.5 h-3.5" />Demo guiada</span>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full"><Shield className="w-3.5 h-3.5" />Datos seguros</span>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-50 px-3 py-1 rounded-full"><Zap className="w-3.5 h-3.5" />Sin contrato</span>
             </div>
             {/* Step indicators */}
-            <div className="flex items-center justify-center gap-3 mt-5">
+            <div className="flex items-center justify-center gap-3 mt-4">
               <div className={`flex items-center gap-2 text-sm font-semibold ${step === 1 ? 'text-blue-700' : 'text-emerald-600'}`}>
                 <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step === 1 ? 'bg-blue-600 text-white' : 'bg-emerald-500 text-white'}`}>
                   {step > 1 ? <Check className="w-4 h-4" /> : '1'}
@@ -194,11 +189,11 @@ export default function RegistroEmpresaPage() {
             </div>
           </div>
 
-          <div className="p-8">
+          <div className="p-6">
             {/* ── STEP 1: Plan selection ───────────────────────────────────── */}
             {step === 1 && (
               <div>
-                <p className="text-sm text-gray-600 mb-5 text-center">
+                <p className="text-sm text-gray-600 mb-4 text-center">
                   Elige el plan que mejor se adapta a tu negocio. Si necesitas ayuda, agenda una demostración.
                 </p>
                 {planesLoading ? (
@@ -208,7 +203,7 @@ export default function RegistroEmpresaPage() {
                 ) : (
                   <>
                     {/* Toggle mensual / anual */}
-                    <div className="flex items-center justify-center mb-5">
+                    <div className="flex items-center justify-center mb-4">
                       <div className="inline-flex items-center bg-slate-100 rounded-full p-1 gap-1">
                         <button
                           onClick={() => handleTogglePeriodo(false)}
@@ -232,7 +227,7 @@ export default function RegistroEmpresaPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {planes
                         .filter((p) => p.tipo === 'FREE' || p.periodo === (anual ? 'ANUAL' : 'MENSUAL'))
                         .map((plan) => (
@@ -250,7 +245,7 @@ export default function RegistroEmpresaPage() {
                   type="button"
                   disabled={!selectedPlanId || planesLoading}
                   onClick={() => setStep(2)}
-                  className="w-full mt-6 py-3.5 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  className="w-full mt-5 py-3 bg-blue-700 hover:bg-blue-800 text-white rounded-xl font-bold text-sm shadow-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   Continuar con {selectedPlan ? `Plan ${selectedPlan.tipo === 'FREE' ? 'Demo guiada' : selectedPlan.nombre}` : '…'}
                 </button>

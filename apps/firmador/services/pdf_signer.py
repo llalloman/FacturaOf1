@@ -1,6 +1,7 @@
 import hashlib
 import os
 import tempfile
+from io import BytesIO
 from dataclasses import dataclass
 
 from django.conf import settings
@@ -20,6 +21,61 @@ class SignedPdfResult:
 
 def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def inspect_signed_pdf(file) -> dict:
+    content = _read_file(file)
+    result = {
+        'file_name': os.path.basename(getattr(file, 'name', '') or 'documento.pdf'),
+        'file_size': len(content),
+        'sha256': sha256_bytes(content),
+        'has_signatures': False,
+        'signature_count': 0,
+        'signatures': [],
+        'validation_available': False,
+        'error': '',
+    }
+
+    try:
+        from pyhanko.pdf_utils.reader import PdfFileReader
+        from pyhanko.sign.validation import validate_pdf_signature
+    except ImportError:
+        result['error'] = 'La validacion criptografica requiere pyHanko en el backend.'
+        return result
+
+    try:
+        reader = PdfFileReader(BytesIO(content), strict=False)
+        embedded_signatures = list(reader.embedded_signatures)
+        result['validation_available'] = True
+        result['has_signatures'] = bool(embedded_signatures)
+        result['signature_count'] = len(embedded_signatures)
+        for embedded_signature in embedded_signatures:
+            signature_info = {
+                'field_name': getattr(embedded_signature, 'field_name', '') or '',
+                'signer': '',
+                'valid': False,
+                'trusted': False,
+                'intact': False,
+                'summary': '',
+                'error': '',
+            }
+            try:
+                status = validate_pdf_signature(embedded_signature)
+                signing_cert = getattr(status, 'signing_cert', None)
+                if signing_cert is not None:
+                    signature_info['signer'] = signing_cert.subject.human_friendly
+                signature_info['valid'] = bool(getattr(status, 'valid', False))
+                signature_info['trusted'] = bool(getattr(status, 'trusted', False))
+                signature_info['intact'] = bool(getattr(status, 'intact', False))
+                summary = getattr(status, 'summary', None)
+                signature_info['summary'] = summary() if callable(summary) else str(status)
+            except Exception as exc:
+                signature_info['error'] = str(exc)
+            result['signatures'].append(signature_info)
+    except Exception as exc:
+        result['error'] = f'No se pudo leer la firma digital del PDF: {exc}'
+
+    return result
 
 
 def validate_pdf_upload(file, max_size):
@@ -131,9 +187,9 @@ def sign_pdf_with_pkcs12(
                             background=None,
                             background_opacity=0,
                             text_box_style=text.TextBoxStyle(font_size=6, leading=7, border_width=0),
-                            stamp_text=' ',
-                            innsep=0,
-                            qr_inner_size=72,
+                            stamp_text='Firmado por:\n%(signer)s\nFecha: %(ts)s',
+                            innsep=3,
+                            qr_inner_size=58,
                         )
                         pdf_signer = signers.PdfSigner(meta, signer=signer, stamp_style=stamp_style)
                         pdf_signer.sign_pdf(

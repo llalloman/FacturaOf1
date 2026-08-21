@@ -41,6 +41,98 @@ export interface FirmadorDocumento {
   created_at: string;
   updated_at: string;
   download_url?: string;
+  validation_url?: string | null;
+}
+
+export interface FirmadorValidacionPublica {
+  registered: boolean;
+  token_valid: boolean;
+  id?: number;
+  file_name?: string;
+  status?: string;
+  status_display?: string;
+  signature_type?: string;
+  signature_type_display?: string;
+  signed_hash?: string;
+  original_hash?: string;
+  signed_at?: string;
+  expires_at?: string | null;
+  is_expired?: boolean;
+  is_deleted?: boolean;
+  file_available?: boolean;
+  certificado_origen?: string;
+  reason?: string;
+  location?: string;
+  detail?: string;
+}
+
+export interface FirmadorFirmaValidada {
+  field_name: string;
+  signer: string;
+  valid: boolean;
+  trusted: boolean;
+  intact: boolean;
+  summary: string;
+  error: string;
+}
+
+export interface FirmadorPdfValidado {
+  file_name: string;
+  file_size: number;
+  sha256: string;
+  has_signatures: boolean;
+  signature_count: number;
+  signatures: FirmadorFirmaValidada[];
+  validation_available: boolean;
+  of1_registered: boolean;
+  of1_document: FirmadorValidacionPublica | null;
+  download_url?: string;
+  error: string;
+}
+
+export interface FirmadorAdminWorkspace {
+  id: number;
+  tipo: string;
+  nombre: string;
+  identificacion: string;
+  email: string;
+  activo: boolean;
+  owner_email: string;
+  owner_name: string;
+  owner_active: boolean;
+  owner_email_verificado: boolean;
+  max_file_size_bytes: number;
+  max_storage_bytes: number;
+  monthly_signature_limit: number;
+  default_retention_days: number;
+  max_retention_days: number;
+  used_storage_bytes: number;
+  monthly_signatures_used: number;
+  documentos_count: number;
+  certificados_count: number;
+  created_at: string;
+  updated_at: string;
+  documentos_recientes?: FirmadorDocumento[];
+  certificados_activos?: FirmadorCertificado[];
+}
+
+export interface FirmadorAdminMetricas {
+  workspaces: number;
+  workspaces_activos: number;
+  documentos: number;
+  documentos_qr: number;
+  certificados: number;
+  storage_bytes: number;
+}
+
+export interface FirmadorAdminWorkspaceUpdate {
+  activo?: boolean;
+  owner_active?: boolean;
+  max_file_size_bytes?: number;
+  max_storage_bytes?: number;
+  monthly_signature_limit?: number;
+  default_retention_days?: number;
+  max_retention_days?: number;
 }
 
 export interface FirmadorCertificado {
@@ -111,6 +203,26 @@ export const firmadorService = {
     return Array.isArray(data) ? data : data.results ?? [];
   },
 
+  getAdminMetricas: async (): Promise<FirmadorAdminMetricas> => {
+    const { data } = await apiClient.get('/firmador/admin/workspaces/metricas/');
+    return data;
+  },
+
+  getAdminWorkspaces: async (params?: { search?: string; estado?: string; tipo?: string }): Promise<FirmadorAdminWorkspace[]> => {
+    const { data } = await apiClient.get('/firmador/admin/workspaces/', { params });
+    return Array.isArray(data) ? data : data.results ?? [];
+  },
+
+  getAdminWorkspace: async (id: number): Promise<FirmadorAdminWorkspace> => {
+    const { data } = await apiClient.get(`/firmador/admin/workspaces/${id}/`);
+    return data;
+  },
+
+  updateAdminWorkspace: async (id: number, payload: FirmadorAdminWorkspaceUpdate): Promise<FirmadorAdminWorkspace> => {
+    const { data } = await apiClient.patch(`/firmador/admin/workspaces/${id}/`, payload);
+    return data;
+  },
+
   subirCertificado: async (payload: SubirCertificadoPayload): Promise<FirmadorCertificado> => {
     const formData = new FormData();
     formData.append('certificate', payload.certificate);
@@ -127,6 +239,18 @@ export const firmadorService = {
 
   eliminarDocumento: async (id: number): Promise<void> => {
     await apiClient.delete(`/firmador/documentos/${id}/`);
+  },
+
+  validarDocumentoPublico: async (id: string, token: string): Promise<FirmadorValidacionPublica> => {
+    const { data } = await apiClient.get(`/firmador/validar/${id}/`, { params: { token } });
+    return data;
+  },
+
+  validarPdfs: async (files: File[]): Promise<FirmadorPdfValidado[]> => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('documents', file));
+    const { data } = await apiClient.post('/firmador/validar/', formData);
+    return data.results ?? [];
   },
 
   firmarPdf: async (payload: FirmarPdfPayload): Promise<FirmarPdfResponse> => {
