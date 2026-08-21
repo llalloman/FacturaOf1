@@ -57,6 +57,8 @@ const PagosOnlinePage = lazy(() => import('./pages/pagos/PagosOnlinePage'));
 const SolicitarDemoPage = lazy(() => import('./pages/public/SolicitarDemoPage'));
 const SolicitarFirmaElectronicaPage = lazy(() => import('./pages/public/SolicitarFirmaElectronicaPage'));
 const FirmaPagoResultadoPage = lazy(() => import('./pages/public/FirmaPagoResultadoPage'));
+const FirmadorPage = lazy(() => import('./pages/firmador/FirmadorPage'));
+const RegistroFirmadorPage = lazy(() => import('./pages/firmador/RegistroFirmadorPage'));
 
 /** Spinner global usado mientras se verifica el estado de suscripción */
 function AppLoader() {
@@ -199,6 +201,9 @@ const appLayoutRoutes = (
     <Route path="pedidos/:id" element={
       <ModuloGuard modulo="pedidos"><PedidoDetallePage /></ModuloGuard>
     } />
+    <Route path="firmador" element={
+      <ModuloGuard modulo="firmador_pdf"><FirmadorPage /></ModuloGuard>
+    } />
   </>
 );
 
@@ -208,6 +213,7 @@ function AppRoutes() {
   const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
   const { tieneAcceso, cargando: cargandoSuscripcion, esSuperAdmin } = useSubscriptionStatus();
+  const isFirmadorHost = typeof window !== 'undefined' && window.location.hostname.startsWith('firmador.');
 
   // Handle token expiry signalled by apiClient (avoids hard window.location redirect)
   useEffect(() => {
@@ -227,6 +233,7 @@ function AppRoutes() {
     if (esSuperAdmin) return '/';
     if (!user?.email_verificado) return '/verificar-email';
     if (user?.debe_cambiar_password) return '/cambiar-password';
+    if (user?.rol === 'FIRMADOR') return '/firmador';
     // Mientras cargamos la suscripción, mandamos a /bienvenida (página segura)
     if (cargandoSuscripcion) return '/bienvenida';
     if (!tieneAcceso) return '/bienvenida';
@@ -243,6 +250,10 @@ function AppRoutes() {
           <Route
             path="/registro"
             element={isAuthenticated ? <Navigate to={authenticatedHome()} /> : <RegistroEmpresaPage />}
+          />
+          <Route
+            path="/firmador/registro"
+            element={isAuthenticated ? <Navigate to={authenticatedHome()} /> : <RegistroFirmadorPage />}
           />
 
           {/* Password recovery — public */}
@@ -344,7 +355,7 @@ function AppRoutes() {
             path="/"
             element={
               !isAuthenticated ? (
-                <LandingPage />
+                isFirmadorHost ? <Navigate to="/login" replace /> : <LandingPage />
               ) : (
                 <ProtectedRoute>
                   <Layout />

@@ -36,6 +36,8 @@ export const MODULOS: ModuloInfo[] = [
   { codigo: 'contabilidad',   ruta: '/contabilidad',    label: 'Contabilidad',       grupo: 'Finanzas' },
   { codigo: 'declaraciones',  ruta: '/declaraciones',   label: 'Declaraciones SRI',  grupo: 'Finanzas' },
   { codigo: 'nomina',         ruta: '/nomina',          label: 'Nómina',             grupo: 'Finanzas' },
+  // Documentos
+  { codigo: 'firmador_pdf',    ruta: '/firmador',        label: 'Firmador PDF',       grupo: 'Documentos' },
   // Reportes
   { codigo: 'reportes',       ruta: '/reportes',        label: 'Reportes',           grupo: 'Reportes' },
   // Administración

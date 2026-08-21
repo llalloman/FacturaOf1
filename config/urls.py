@@ -9,7 +9,7 @@ from django.http import JsonResponse
 from apps.usuarios.auth_views import (
     CustomTokenObtainPairView, current_user, logout, registro_empresa,
     verificar_email, reenviar_codigo, consultar_ruc, validar_certificado, completar_onboarding,
-    recuperar_password, cambiar_password,
+    recuperar_password, cambiar_password, registro_firmador,
 )
 from apps.core.views import dashboard as dashboard_view
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -23,6 +23,7 @@ urlpatterns = [
     path('api/auth/me/', current_user, name='current_user'),
     path('api/auth/logout/', logout, name='logout'),
     path('api/auth/registro-empresa/', registro_empresa, name='registro_empresa'),
+    path('api/auth/registro-firmador/', registro_firmador, name='registro_firmador'),
     path('api/auth/verificar-email/', verificar_email, name='verificar_email'),
     path('api/auth/reenviar-codigo/', reenviar_codigo, name='reenviar_codigo'),
     path('api/auth/consultar-ruc/<str:ruc>/', consultar_ruc, name='consultar_ruc'),
@@ -50,6 +51,7 @@ urlpatterns = [
     path('api/pagos/', include('apps.pagos.urls')),
     path('api/nomina/', include('apps.nomina.urls')),
     path('api/firmas/', include('apps.firmas.urls')),
+    path('api/firmador/', include('apps.firmador.urls')),
     path('api/automation/', include('apps.automation.urls')),
     
     # Dashboard

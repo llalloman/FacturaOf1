@@ -25,6 +25,7 @@ export function useSubscriptionStatus(): SubscriptionStatus {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
   const esSuperAdmin = user?.rol === 'SUPER_ADMIN';
+  const esFirmador = user?.rol === 'FIRMADOR';
   const tieneEmpresa = Boolean(user?.empresa_id);
 
   const {
@@ -34,7 +35,7 @@ export function useSubscriptionStatus(): SubscriptionStatus {
   } = useQuery({
     queryKey: ['suscripcion-activa-guard'],
     queryFn: () => suscripcionesService.getSuscripcionActiva(),
-    enabled: isAuthenticated && !esSuperAdmin && tieneEmpresa,
+    enabled: isAuthenticated && !esSuperAdmin && !esFirmador && tieneEmpresa,
     staleTime: 3 * 60 * 1000, // 3 min — evita fetch en cada navegación
     retry: 1,
     retryDelay: 1000,
@@ -44,12 +45,13 @@ export function useSubscriptionStatus(): SubscriptionStatus {
 
   const tieneAcceso =
     esSuperAdmin ||
+    esFirmador ||
     (!!suscripcion && ESTADOS_CON_ACCESO.includes(suscripcion.estado));
 
-  const estaVencida = !esSuperAdmin && !!suscripcion && suscripcion.estado === 'VENCIDA';
+  const estaVencida = !esSuperAdmin && !esFirmador && !!suscripcion && suscripcion.estado === 'VENCIDA';
 
   // Solo mostrar "cargando" cuando el usuario normal está autenticado y no hemos resuelto aún
-  const cargando = isAuthenticated && !esSuperAdmin && tieneEmpresa && isLoading;
+  const cargando = isAuthenticated && !esSuperAdmin && !esFirmador && tieneEmpresa && isLoading;
 
   return {
     tieneAcceso,

@@ -19,6 +19,15 @@ def first_configured(*names, default=''):
             return value
     return default
 
+
+def bool_config(name, default=False):
+    value = str(config(name, default=str(default))).strip().strip('"\'').lower()
+    if value in ('true', '1', 'yes', 'y', 'on'):
+        return True
+    if value in ('false', '0', 'no', 'n', 'off', ''):
+        return False
+    return bool(default)
+
 # ── Security settings ──────────────────────────────────────────────────────────
 # SECRET_KEY MUST come from environment. No insecure defaults.
 _secret = config('SECRET_KEY', default='')
@@ -33,7 +42,7 @@ if not _secret:
 SECRET_KEY = _secret
 
 # DEBUG defaults to False — must be explicitly enabled
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = bool_config('DEBUG', default=False)
 
 # ALLOWED_HOSTS must be configured in production
 _hosts = config('ALLOWED_HOSTS', default='').strip()
@@ -77,6 +86,7 @@ INSTALLED_APPS = [
     'apps.pagos',
     'apps.nomina',
     'apps.firmas',
+    'apps.firmador',
     'apps.automation',
 ]
 
@@ -343,6 +353,15 @@ SRI_PRODUCCION_AUTORIZACION_URL = config(
 # El flujo público de firmas puede subir varios documentos de hasta 15 MB.
 FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024
 DATA_UPLOAD_MAX_MEMORY_SIZE = 120 * 1024 * 1024
+
+# Firmador PDF
+FIRMADOR_DOCUMENTS_STORAGE = config('FIRMADOR_DOCUMENTS_STORAGE', default='').strip().lower()
+FIRMADOR_MAX_FILE_SIZE_BYTES = config('FIRMADOR_MAX_FILE_SIZE_BYTES', default=25 * 1024 * 1024, cast=int)
+FIRMADOR_MAX_CERT_SIZE_BYTES = config('FIRMADOR_MAX_CERT_SIZE_BYTES', default=2 * 1024 * 1024, cast=int)
+FIRMADOR_MAX_STORAGE_BYTES_PER_WORKSPACE = config('FIRMADOR_MAX_STORAGE_BYTES_PER_WORKSPACE', default=1024 * 1024 * 1024, cast=int)
+FIRMADOR_MONTHLY_SIGNATURE_LIMIT = config('FIRMADOR_MONTHLY_SIGNATURE_LIMIT', default=100, cast=int)
+FIRMADOR_DEFAULT_RETENTION_DAYS = config('FIRMADOR_DEFAULT_RETENTION_DAYS', default=30, cast=int)
+FIRMADOR_MAX_RETENTION_DAYS = config('FIRMADOR_MAX_RETENTION_DAYS', default=180, cast=int)
 
 # ── Seguridad extra en producción (DEBUG=False) ────────────────────────────────
 if not DEBUG:

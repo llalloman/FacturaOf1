@@ -6,7 +6,7 @@ export function useNotificaciones() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
   // SUPER_ADMIN no tiene empresa → no tiene notificaciones de facturación
-  const enabled = isAuthenticated && !!user && user.rol !== 'SUPER_ADMIN';
+  const enabled = isAuthenticated && !!user && user.rol !== 'SUPER_ADMIN' && user.rol !== 'FIRMADOR';
 
   const queryClient = useQueryClient();
 

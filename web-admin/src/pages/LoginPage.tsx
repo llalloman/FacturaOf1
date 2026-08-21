@@ -8,6 +8,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? null;
+  const isFirmadorHost = typeof window !== 'undefined' && window.location.hostname.startsWith('firmador.');
+  const registroPath = isFirmadorHost ? '/firmador/registro' : '/registro';
   const setAuth = useAuthStore((state) => state.setAuth);
   
   const [email, setEmail] = useState('');
@@ -37,10 +39,12 @@ export default function LoginPage() {
       } else if (!user.email_verificado) {
         navigate('/verificar-email');
       // 3. SUPER_ADMIN → siempre al dashboard
+      } else if (user.rol === 'FIRMADOR') {
+        navigate('/firmador');
       } else if (user.rol === 'SUPER_ADMIN') {
         navigate('/');
       // 4. Volver a la página que intentaba acceder
-      } else if (from && from !== '/login' && from !== '/registro') {
+      } else if (from && from !== '/login' && from !== '/registro' && from !== '/firmador/registro') {
         navigate(from);
       // 5. Onboarding completado → al dashboard; ProtectedRoute revisa suscripción
       } else if (user.onboarding_completado) {
@@ -129,11 +133,11 @@ export default function LoginPage() {
               <p className="text-sm font-bold text-gray-800 mb-6 break-all">{email}</p>
 
               <button
-                onClick={() => navigate(`/registro?email=${encodeURIComponent(email)}`)}
+                onClick={() => navigate(`${registroPath}?email=${encodeURIComponent(email)}`)}
                 className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white rounded-xl font-bold text-base shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 mb-4"
               >
                 <UserPlus className="w-5 h-5" />
-                Crear cuenta nueva
+                {isFirmadorHost ? 'Crear cuenta de firmador' : 'Crear cuenta nueva'}
               </button>
 
               <button
@@ -266,10 +270,10 @@ export default function LoginPage() {
                 <p className="text-sm text-gray-600 font-medium mb-3">
                   ¿Aún no tienes cuenta?{' '}
                   <Link
-                    to="/registro"
+                    to={registroPath}
                     className="font-bold text-blue-600 hover:text-blue-700 underline-offset-2 hover:underline transition-colors"
                   >
-                    Registra tu empresa
+                    {isFirmadorHost ? 'Crea tu cuenta de firmador' : 'Registra tu empresa'}
                   </Link>
                 </p>
                 <p className="text-sm text-gray-500 mb-3">

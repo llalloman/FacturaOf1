@@ -43,6 +43,7 @@ class Usuario(AbstractUser):
         CONTADOR = 'CONTADOR', _('Contador')  # Puede facturar y ver reportes
         VENDEDOR = 'VENDEDOR', _('Vendedor')  # Solo puede crear facturas
         CONSULTOR = 'CONSULTOR', _('Consultor')  # Solo puede ver reportes
+        FIRMADOR = 'FIRMADOR', _('Usuario Firmador')  # Acceso solo al firmador PDF
     
     username = None  # Removemos username
     email = models.EmailField(_('email'), unique=True)

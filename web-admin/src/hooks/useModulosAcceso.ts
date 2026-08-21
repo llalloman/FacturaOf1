@@ -20,12 +20,13 @@ export function useModulosAcceso() {
   const updateUser = useAuthStore((s) => s.updateUser);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const esSuperAdmin = user?.rol === 'SUPER_ADMIN';
+  const esFirmador = user?.rol === 'FIRMADOR';
 
   // React Query deduplica esta llamada aunque el hook se use en múltiples componentes
   const { data: modulosServidor } = useQuery({
     queryKey: ['mis-modulos'],
     queryFn: () => suscripcionesService.getMisModulos(),
-    enabled: isAuthenticated && !esSuperAdmin,
+    enabled: isAuthenticated && !esSuperAdmin && !esFirmador,
     staleTime: 2 * 60 * 1000,   // refresca cada 2 min
     refetchOnWindowFocus: true,  // revalida al volver a la pestaña
     retry: 1,
@@ -40,6 +41,8 @@ export function useModulosAcceso() {
 
   const modulos: string[] = esSuperAdmin
     ? TODOS_LOS_CODIGOS
+    : esFirmador
+      ? ['firmador_pdf']
     : (modulosServidor ?? user?.modulos_activos ?? []);
 
   const modulosSet = new Set(modulos);
@@ -50,6 +53,7 @@ export function useModulosAcceso() {
    */
   const tieneAccesoModulo = (codigo: string): boolean => {
     if (esSuperAdmin) return true;
+    if (esFirmador) return codigo === 'firmador_pdf';
     return modulosSet.has(codigo);
   };
 

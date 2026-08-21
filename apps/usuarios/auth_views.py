@@ -67,6 +67,8 @@ def _user_dict(user, empresa=None):
     from apps.suscripciones.models import Suscripcion, ModuloPermiso, get_todos_modulos_codigos
     if getattr(user, 'rol', None) == 'SUPER_ADMIN' or user.is_superuser:
         modulos_activos = get_todos_modulos_codigos()
+    elif getattr(user, 'rol', None) == 'FIRMADOR':
+        modulos_activos = ['firmador_pdf']
     elif emp:
         try:
             suscripcion_activa = (
@@ -249,6 +251,68 @@ def registro_empresa(request):
         'access': str(refresh.access_token),
         'refresh': str(refresh),
         'user': _user_dict(usuario, empresa),
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def registro_firmador(request):
+    """
+    Registro público para usuarios que solo usarán firmador.of1solutions.com.
+    Crea Usuario FIRMADOR + workspace de firmador sin empresa ERP.
+    """
+    from apps.firmador.views import get_or_create_workspace
+
+    data = request.data
+    required = ['email', 'password', 'nombre', 'apellido']
+    missing = [field for field in required if not data.get(field)]
+    if missing:
+        return Response({'error': f"Campos requeridos: {', '.join(missing)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+    email = data['email'].strip().lower()
+    if User.objects.filter(email=email).exists():
+        return Response({'error': 'Ya existe un usuario con ese email.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    password = data['password']
+    if len(password) < 8:
+        return Response({'error': 'La contraseña debe tener al menos 8 caracteres.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    codigo = _generate_code()
+    ahora = timezone.now()
+    try:
+        with transaction.atomic():
+            usuario = User.objects.create_user(
+                email=email,
+                password=password,
+                first_name=data['nombre'].strip(),
+                last_name=data['apellido'].strip(),
+                cedula=data.get('identificacion', '').strip() or None,
+                telefono=data.get('telefono', '').strip(),
+                rol='FIRMADOR',
+                empresa=None,
+                email_verificado=False,
+                codigo_verificacion=codigo,
+                codigo_verificacion_expira=ahora + timedelta(minutes=30),
+                intentos_reenvio=0,
+            )
+            workspace = get_or_create_workspace(usuario)
+            workspace.nombre = data.get('workspace_nombre', '').strip() or usuario.get_full_name() or email
+            workspace.identificacion = data.get('identificacion', '').strip()
+            workspace.email = email
+            workspace.save(update_fields=['nombre', 'identificacion', 'email', 'updated_at'])
+    except IntegrityError:
+        return Response({'error': 'No se pudo completar el registro. Intenta nuevamente.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    try:
+        _send_verification_email(email, codigo, nombre=data.get('nombre', '').strip())
+    except Exception:
+        pass
+
+    refresh = RefreshToken.for_user(usuario)
+    return Response({
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
+        'user': _user_dict(usuario),
     }, status=status.HTTP_201_CREATED)
 
 

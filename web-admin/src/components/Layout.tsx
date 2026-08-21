@@ -77,6 +77,7 @@ const MODULO_ICONOS: Record<string, React.ElementType> = {
   usuarios: Users,
   configuracion: Settings,
   firmas_electronicas: FileSignature,
+  firmador_pdf: FileSignature,
 };
 
 const ICONOS_POR_NOMBRE: Record<string, React.ElementType> = {
@@ -149,6 +150,7 @@ const ROL_PATHS: Record<string, string[]> = {
   CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/contabilidad', '/bancos', '/nomina', '/clientes', '/reportes'],
   VENDEDOR:      ['/', '/pos', '/ventas', '/pedidos', '/cotizaciones', '/clientes', '/productos'],
   CONSULTOR:     ['/', '/facturacion', '/retenciones', '/ventas', '/reportes'],
+  FIRMADOR:      ['/firmador'],
 };
 
 // Menú exclusivo del Super Admin (no está atado a ninguna empresa)
@@ -190,7 +192,7 @@ export default function Layout() {
   const { data: catalogoModulos = [] } = useQuery({
     queryKey: ['modulos-catalogo'],
     queryFn: () => suscripcionesService.getCatalogModulos(),
-    enabled: !!user && user.rol !== 'SUPER_ADMIN',
+    enabled: !!user && user.rol !== 'SUPER_ADMIN' && user.rol !== 'FIRMADOR',
     staleTime: 5 * 60 * 1000,
   });
   const { notificaciones, noLeidas, marcarLeida, marcarTodasLeidas } = useNotificaciones();
@@ -466,7 +468,7 @@ export default function Layout() {
         </nav>
 
         {/* Aviso fiscal — solo cuando onboarding incompleto y no es SUPER_ADMIN */}
-        {user?.rol !== 'SUPER_ADMIN' && !user?.onboarding_completado && (
+        {user?.rol !== 'SUPER_ADMIN' && user?.rol !== 'FIRMADOR' && !user?.onboarding_completado && (
           <div className="px-3 pb-2">
             <Link
               to="/onboarding"

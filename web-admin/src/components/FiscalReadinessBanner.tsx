@@ -10,7 +10,7 @@ import { useAuthStore } from '../store/authStore';
 export default function FiscalReadinessBanner() {
   const user = useAuthStore((s) => s.user);
 
-  if (!user || user.rol === 'SUPER_ADMIN' || user.onboarding_completado) return null;
+  if (!user || user.rol === 'SUPER_ADMIN' || user.rol === 'FIRMADOR' || user.onboarding_completado) return null;
 
   return (
     <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">

@@ -1,0 +1,188 @@
+import logging
+from datetime import timedelta
+
+from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.files.base import ContentFile
+from django.http import FileResponse, Http404, HttpResponse
+from django.utils.http import content_disposition_header
+from django.utils import timezone
+from rest_framework import status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes, parser_classes
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from .models import FirmadorDocumento, FirmadorWorkspace
+from .serializers import FirmadorDocumentoSerializer, FirmadorWorkspaceSerializer
+from .services.pdf_signer import (
+    sign_pdf_with_pkcs12,
+    validate_certificate_upload,
+    validate_pdf_upload,
+)
+
+
+logger = logging.getLogger(__name__)
+
+
+def _default_limit(name, default_mb):
+    return int(getattr(settings, name, default_mb * 1024 * 1024))
+
+
+def _workspace_defaults():
+    return {
+        'max_file_size_bytes': _default_limit('FIRMADOR_MAX_FILE_SIZE_BYTES', 25),
+        'max_storage_bytes': _default_limit('FIRMADOR_MAX_STORAGE_BYTES_PER_WORKSPACE', 1024),
+        'monthly_signature_limit': int(getattr(settings, 'FIRMADOR_MONTHLY_SIGNATURE_LIMIT', 100)),
+        'default_retention_days': int(getattr(settings, 'FIRMADOR_DEFAULT_RETENTION_DAYS', 30)),
+        'max_retention_days': int(getattr(settings, 'FIRMADOR_MAX_RETENTION_DAYS', 180)),
+    }
+
+
+def get_or_create_workspace(user):
+    workspace = FirmadorWorkspace.objects.filter(owner_user=user, activo=True).order_by('-created_at').first()
+    if workspace:
+        return workspace
+
+    empresa = getattr(user, 'empresa', None)
+    if empresa:
+        return FirmadorWorkspace.objects.create(
+            owner_user=user,
+            empresa=empresa,
+            tipo=FirmadorWorkspace.Tipo.EMPRESA_ERP,
+            nombre=empresa.razon_social,
+            identificacion=empresa.ruc,
+            email=empresa.email or user.email,
+            **_workspace_defaults(),
+        )
+
+    return FirmadorWorkspace.objects.create(
+        owner_user=user,
+        tipo=FirmadorWorkspace.Tipo.PERSONA_NATURAL,
+        nombre=user.get_full_name() or user.email,
+        identificacion=getattr(user, 'cedula', '') or '',
+        email=user.email,
+        **_workspace_defaults(),
+    )
+
+
+class FirmadorDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = FirmadorDocumentoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = FirmadorDocumento.objects.select_related('workspace', 'user')
+        if user.is_superuser or getattr(user, 'rol', '') == 'SUPER_ADMIN':
+            return qs
+        return qs.filter(workspace__owner_user=user)
+
+    @action(detail=True, methods=['get'], url_path='descargar')
+    def descargar(self, request, pk=None):
+        documento = self.get_object()
+        if not documento.signed_file:
+            raise Http404
+        return FileResponse(
+            documento.signed_file.open('rb'),
+            as_attachment=True,
+            filename=documento.signed_file_name or 'documento-firmado.pdf',
+            content_type='application/pdf',
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def perfil_firmador(request):
+    workspace = get_or_create_workspace(request.user)
+    return Response(FirmadorWorkspaceSerializer(workspace).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def firmar_documento(request):
+    workspace = get_or_create_workspace(request.user)
+    pdf_file = request.FILES.get('pdf')
+    cert_file = request.FILES.get('certificate')
+    password = request.data.get('certificate_password', '')
+    keep_file = str(request.data.get('keep_file', 'false')).lower() in ('true', '1', 'yes', 'on')
+    visible_signature = str(request.data.get('visible_signature', 'false')).lower() in ('true', '1', 'yes', 'on')
+    reason = request.data.get('reason', 'Firmado electrónicamente')
+    location = request.data.get('location', 'Ecuador')
+    retention_days = int(request.data.get('retention_days') or workspace.default_retention_days)
+    retention_days = min(max(retention_days, 1), workspace.max_retention_days)
+
+    if not pdf_file:
+        return Response({'pdf': 'Este campo es requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not cert_file:
+        return Response({'certificate': 'Este campo es requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not password:
+        return Response({'certificate_password': 'Ingresa la clave del certificado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        validate_pdf_upload(pdf_file, workspace.max_file_size_bytes)
+        validate_certificate_upload(cert_file)
+    except DjangoValidationError as exc:
+        return Response({'detail': exc.messages[0] if hasattr(exc, 'messages') else str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    if workspace.monthly_signatures_used() >= workspace.monthly_signature_limit:
+        return Response({'detail': 'Alcanzaste el límite mensual de documentos firmados.'}, status=status.HTTP_402_PAYMENT_REQUIRED)
+
+    projected_storage = workspace.active_storage_bytes() + (pdf_file.size if keep_file else 0)
+    if keep_file and projected_storage > workspace.max_storage_bytes:
+        return Response({'detail': 'No tienes espacio suficiente para guardar este documento. Actualiza tu plan o descarga sin guardar.'}, status=status.HTTP_402_PAYMENT_REQUIRED)
+
+    documento = FirmadorDocumento.objects.create(
+        workspace=workspace,
+        user=request.user,
+        original_file_name=getattr(pdf_file, 'name', '') or 'documento.pdf',
+        original_size=pdf_file.size,
+        keep_file=keep_file,
+        retention_days=retention_days if keep_file else 0,
+        expires_at=timezone.now() + timedelta(days=retention_days) if keep_file else None,
+        certificado_origen=FirmadorDocumento.CertificadoOrigen.TEMPORAL,
+        reason=reason,
+        location=location,
+        visible_signature=visible_signature,
+    )
+
+    try:
+        result = sign_pdf_with_pkcs12(
+            pdf_file=pdf_file,
+            certificate_file=cert_file,
+            certificate_password=password,
+            reason=reason,
+            location=location,
+            visible_signature=visible_signature,
+        )
+        documento.original_hash = result.original_hash
+        documento.signed_hash = result.signed_hash
+        documento.signed_file_name = result.signed_file_name
+        documento.signed_size = len(result.content)
+        if keep_file and workspace.active_storage_bytes() + documento.original_size + documento.signed_size > workspace.max_storage_bytes:
+            documento.status = FirmadorDocumento.Estado.ERROR
+            documento.error_message = 'No tienes espacio suficiente para guardar este documento.'
+            documento.save(update_fields=['original_hash', 'signed_hash', 'signed_file_name', 'signed_size', 'status', 'error_message', 'updated_at'])
+            return Response(
+                {'detail': 'No tienes espacio suficiente para guardar este documento. Actualiza tu plan o descarga sin guardar.'},
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
+        if keep_file:
+            pdf_file.seek(0)
+            documento.original_file.save(documento.original_file_name, pdf_file, save=False)
+            documento.signed_file.save(result.signed_file_name, ContentFile(result.content), save=False)
+            documento.stored_bytes = documento.original_size + documento.signed_size
+        documento.status = FirmadorDocumento.Estado.FIRMADO
+        documento.save()
+    except Exception as exc:
+        logger.exception('Error firmando PDF. workspace_id=%s documento_id=%s', workspace.id, documento.id)
+        documento.status = FirmadorDocumento.Estado.ERROR
+        documento.error_message = str(exc)
+        documento.save(update_fields=['status', 'error_message', 'updated_at'])
+        return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    response = HttpResponse(result.content, content_type='application/pdf')
+    response['Content-Disposition'] = content_disposition_header(True, result.signed_file_name)
+    response['X-Firmador-Document-Id'] = str(documento.id)
+    response['X-Firmador-Keep-File'] = 'true' if keep_file else 'false'
+    return response

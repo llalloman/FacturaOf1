@@ -327,7 +327,7 @@ export interface Usuario {
   nombre_completo?: string;
   cedula?: string;
   telefono?: string;
-  rol: 'SUPER_ADMIN' | 'ADMIN_EMPRESA' | 'CONTADOR' | 'VENDEDOR' | 'CONSULTOR';
+  rol: 'SUPER_ADMIN' | 'ADMIN_EMPRESA' | 'CONTADOR' | 'VENDEDOR' | 'CONSULTOR' | 'FIRMADOR';
   empresa?: number;
   empresa_nombre?: string;
   is_active: boolean;

@@ -36,6 +36,16 @@ export interface RegistroData {
   plan_id?: number;
 }
 
+export interface RegistroFirmadorData {
+  email: string;
+  password: string;
+  nombre: string;
+  apellido: string;
+  identificacion?: string;
+  telefono?: string;
+  workspace_nombre?: string;
+}
+
 export const authService = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     const { data } = await apiClient.post('/auth/login/', credentials);
@@ -44,6 +54,11 @@ export const authService = {
 
   registroEmpresa: async (payload: RegistroData): Promise<AuthResponse> => {
     const { data } = await apiClient.post('/auth/registro-empresa/', payload);
+    return data;
+  },
+
+  registroFirmador: async (payload: RegistroFirmadorData): Promise<AuthResponse> => {
+    const { data } = await apiClient.post('/auth/registro-firmador/', payload);
     return data;
   },
 
