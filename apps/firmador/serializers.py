@@ -55,7 +55,7 @@ class FirmadorDocumentoSerializer(serializers.ModelSerializer):
     def get_validation_url(self, obj):
         if obj.signature_type != FirmadorDocumento.TipoFirma.QR:
             return None
-        public_base = (getattr(settings, 'PUBLIC_BASE_URL', '') or 'https://firmador.of1solutions.com').rstrip('/')
+        public_base = (getattr(settings, 'FIRMADOR_PUBLIC_BASE_URL', '') or 'https://firmador.of1solutions.com').rstrip('/')
         token = signing.dumps({'documento': int(obj.id)}, salt=VALIDATION_TOKEN_SALT)
         return f'{public_base}/firmador/validar?documento={obj.id}&token={token}'
 

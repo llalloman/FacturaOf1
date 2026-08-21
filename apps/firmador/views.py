@@ -447,7 +447,7 @@ def firmar_documento(request):
             signature_box=_signature_box_from_percent(pdf_file, signature_page, signature_x, signature_y, signature_width, signature_height) if visible_signature else None,
             signature_type=signature_type,
             qr_url=(
-                f"{(getattr(settings, 'PUBLIC_BASE_URL', '') or 'https://firmador.of1solutions.com').rstrip('/')}"
+                f"{(getattr(settings, 'FIRMADOR_PUBLIC_BASE_URL', '') or 'https://firmador.of1solutions.com').rstrip('/')}"
                 f"/firmador/validar?documento={documento.id}&token={_document_validation_token(documento.id)}"
             ),
         )
