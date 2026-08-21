@@ -273,6 +273,10 @@ def registro_firmador(request):
     if User.objects.filter(email=email).exists():
         return Response({'error': 'Ya existe un usuario con ese email.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    identificacion = data.get('identificacion', '').strip()
+    if identificacion and User.objects.filter(cedula=identificacion).exists():
+        return Response({'error': 'Ya existe un usuario con esa identificacion.'}, status=status.HTTP_400_BAD_REQUEST)
+
     password = data['password']
     if len(password) < 8:
         return Response({'error': 'La contraseña debe tener al menos 8 caracteres.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -286,7 +290,7 @@ def registro_firmador(request):
                 password=password,
                 first_name=data['nombre'].strip(),
                 last_name=data['apellido'].strip(),
-                cedula=data.get('identificacion', '').strip() or None,
+                cedula=identificacion or None,
                 telefono=data.get('telefono', '').strip(),
                 rol='FIRMADOR',
                 empresa=None,
@@ -297,11 +301,11 @@ def registro_firmador(request):
             )
             workspace = get_or_create_workspace(usuario)
             workspace.nombre = data.get('workspace_nombre', '').strip() or usuario.get_full_name() or email
-            workspace.identificacion = data.get('identificacion', '').strip()
+            workspace.identificacion = identificacion
             workspace.email = email
             workspace.save(update_fields=['nombre', 'identificacion', 'email', 'updated_at'])
     except IntegrityError:
-        return Response({'error': 'No se pudo completar el registro. Intenta nuevamente.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': 'Ya existe un usuario con ese email o identificacion.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         _send_verification_email(email, codigo, nombre=data.get('nombre', '').strip())
