@@ -219,7 +219,16 @@ def firmar_documento(request):
     password = request.data.get('certificate_password', '')
     keep_file = str(request.data.get('keep_file', 'false')).lower() in ('true', '1', 'yes', 'on')
     visible_signature = str(request.data.get('visible_signature', 'false')).lower() in ('true', '1', 'yes', 'on')
-    signature_type = (request.data.get('signature_type') or FirmadorDocumento.TipoFirma.AVANZADA).upper()
+    signature_type = (request.data.get('signature_type') or FirmadorDocumento.TipoFirma.AVANZADA).strip().upper()
+    signature_type_aliases = {
+        'ADVANCED': FirmadorDocumento.TipoFirma.AVANZADA,
+        'AVANZADO': FirmadorDocumento.TipoFirma.AVANZADA,
+        'VISIBLE': FirmadorDocumento.TipoFirma.AVANZADA,
+        'QRCODE': FirmadorDocumento.TipoFirma.QR,
+        'CODIGO_QR': FirmadorDocumento.TipoFirma.QR,
+        'CODIGO QR': FirmadorDocumento.TipoFirma.QR,
+    }
+    signature_type = signature_type_aliases.get(signature_type, signature_type)
     if signature_type not in FirmadorDocumento.TipoFirma.values:
         signature_type = FirmadorDocumento.TipoFirma.AVANZADA
     if signature_type == FirmadorDocumento.TipoFirma.SIMPLE:

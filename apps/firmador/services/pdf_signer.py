@@ -69,6 +69,7 @@ def sign_pdf_with_pkcs12(
 ) -> SignedPdfResult:
     try:
         from pyhanko import stamp
+        from pyhanko.pdf_utils import text
         from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
         from pyhanko.sign import fields, signers
     except ImportError as exc:
@@ -126,7 +127,13 @@ def sign_pdf_with_pkcs12(
                 if visible_signature:
                     if signature_type == 'QR':
                         stamp_style = stamp.QRStampStyle(
-                            stamp_text='Firmado por: %(signer)s\nFecha: %(ts)s\nVerificar: %(url)s',
+                            border_width=1,
+                            background=None,
+                            background_opacity=0,
+                            text_box_style=text.TextBoxStyle(font_size=6, leading=7, border_width=0),
+                            stamp_text=' ',
+                            innsep=0,
+                            qr_inner_size=72,
                         )
                         pdf_signer = signers.PdfSigner(meta, signer=signer, stamp_style=stamp_style)
                         pdf_signer.sign_pdf(
@@ -136,8 +143,12 @@ def sign_pdf_with_pkcs12(
                         )
                     else:
                         stamp_style = stamp.TextStampStyle(
+                            border_width=1,
+                            background=None,
+                            background_opacity=0,
+                            text_box_style=text.TextBoxStyle(font_size=6, leading=7, border_width=0),
                             stamp_text=(
-                                'Firmado electronicamente por:\n'
+                                'Firmado digitalmente por:\n'
                                 '%(signer)s\n'
                                 'Fecha: %(ts)s\n'
                                 'Razon: %(reason)s\n'

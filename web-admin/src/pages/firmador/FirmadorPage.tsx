@@ -9,7 +9,6 @@ import {
   FileCheck2,
   FileSignature,
   FileText,
-  HelpCircle,
   Info,
   KeyRound,
   Loader2,
@@ -27,7 +26,7 @@ import { firmadorService, type FirmadorCertificado, type FirmadorDocumento } fro
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString();
 
-type TabKey = 'certificados' | 'firmar' | 'documentos' | 'validar' | 'ayuda';
+type TabKey = 'certificados' | 'firmar' | 'documentos';
 type SignMode = 'multiples_documentos' | 'multiples_firmantes' | 'un_firmante';
 type SignatureType = 'SIMPLE' | 'QR' | 'AVANZADA';
 
@@ -35,8 +34,6 @@ const tabs: Array<{ key: TabKey; label: string; icon: React.ElementType }> = [
   { key: 'certificados', label: 'Firma Digital', icon: Upload },
   { key: 'firmar', label: 'Firmar Documento', icon: FileSignature },
   { key: 'documentos', label: 'Documentos Firmados', icon: FileCheck2 },
-  { key: 'validar', label: 'Validar', icon: ShieldCheck },
-  { key: 'ayuda', label: 'Ayuda', icon: HelpCircle },
 ];
 
 const signModes: Array<{ key: SignMode; label: string; description: string; icon: React.ElementType }> = [
@@ -925,13 +922,6 @@ export default function FirmadorPage() {
           </div>
         )}
 
-        {activeTab === 'validar' && (
-          <PlaceholderView icon={ShieldCheck} title="Validar documentos" text="La validacion de documentos firmados quedara en este espacio." />
-        )}
-
-        {activeTab === 'ayuda' && (
-          <PlaceholderView icon={HelpCircle} title="Ayuda" text="Soporte, preguntas frecuentes y trazabilidad del firmador." />
-        )}
       </section>
     </main>
   );
@@ -972,23 +962,5 @@ function PdfPageCanvas({ document, pageNumber }: { document: PDFDocumentProxy; p
 
   return (
     <canvas ref={canvasRef} className="block w-full bg-white" />
-  );
-}
-
-function PlaceholderView({
-  icon: Icon,
-  title,
-  text,
-}: {
-  icon: React.ElementType;
-  title: string;
-  text: string;
-}) {
-  return (
-    <section className="rounded-lg border border-slate-200 bg-white p-10 text-center shadow-sm">
-      <Icon className="mx-auto h-12 w-12 text-blue-800" />
-      <h1 className="mt-5 text-2xl font-black text-slate-950">{title}</h1>
-      <p className="mt-2 text-sm text-slate-500">{text}</p>
-    </section>
   );
 }

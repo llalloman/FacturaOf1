@@ -1,6 +1,20 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, FileSignature, Loader2, UserPlus } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  FileSignature,
+  Loader2,
+  Lock,
+  Mail,
+  Shield,
+  User,
+  UserPlus,
+} from 'lucide-react';
 import { authService } from '../../services/authService';
 import { useAuthStore } from '../../store/authStore';
 
@@ -11,11 +25,12 @@ export default function RegistroFirmadorPage() {
   const [form, setForm] = useState({
     email: searchParams.get('email') ?? '',
     password: '',
+    confirm_password: '',
     nombre: '',
     apellido: '',
-    identificacion: '',
-    workspace_nombre: '',
   });
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,12 +38,26 @@ export default function RegistroFirmadorPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setLoading(true);
     setError('');
+    if (form.password !== form.confirm_password) {
+      setError('Las contrasenas no coinciden.');
+      return;
+    }
+    if (form.password.length < 8) {
+      setError('La contrasena debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const response = await authService.registroFirmador(form);
+      const response = await authService.registroFirmador({
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        nombre: form.nombre.trim(),
+        apellido: form.apellido.trim(),
+      });
       setAuth(response.user, response.access, response.refresh);
       navigate(response.user.email_verificado ? '/firmador' : '/verificar-email', { replace: true });
     } catch (err: unknown) {
@@ -45,116 +74,185 @@ export default function RegistroFirmadorPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <section className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] bg-white border border-slate-100 shadow-xl rounded-lg overflow-hidden">
-        <div className="bg-slate-900 text-white p-8 lg:p-10 flex flex-col justify-between gap-10">
-          <div>
-            <Link to="/login" className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
-              <ArrowLeft className="w-4 h-4" />
-              Iniciar sesion
-            </Link>
-            <div className="mt-10 inline-flex h-14 w-14 items-center justify-center rounded-lg bg-blue-600">
-              <FileSignature className="w-8 h-8" />
+    <main className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-slate-900 px-4 py-8">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-5xl items-center justify-center">
+        <section className="grid w-full overflow-hidden rounded-3xl bg-white shadow-2xl lg:grid-cols-[0.95fr_1.05fr]">
+          <aside className="relative hidden border-r border-slate-100 bg-slate-50 p-8 lg:flex lg:flex-col lg:justify-between">
+            <div>
+              <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-16 w-auto object-contain" />
+              <div className="mt-10 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-700 text-white shadow-lg shadow-blue-700/20">
+                <FileSignature className="h-7 w-7" />
+              </div>
+              <h1 className="mt-6 text-3xl font-black leading-tight text-slate-950">
+                Crea tu cuenta de firmador PDF
+              </h1>
+              <p className="mt-3 max-w-sm text-sm leading-6 text-slate-600">
+                Acceso independiente para firmar documentos con certificado electronico, sin crear una empresa en el ERP.
+              </p>
             </div>
-            <h1 className="mt-6 text-3xl font-black">Crea tu cuenta de firmador PDF</h1>
-            <p className="mt-3 text-slate-300 leading-relaxed">
-              Usa tu certificado electronico para firmar PDFs sin crear una empresa dentro del ERP.
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3">
+                <Shield className="h-5 w-5 text-blue-700" />
+                <span className="text-sm font-semibold text-slate-700">Certificados protegidos</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3">
+                <CheckCircle2 className="h-5 w-5 text-blue-700" />
+                <span className="text-sm font-semibold text-slate-700">Cuenta solo para firmador</span>
+              </div>
+            </div>
+          </aside>
+
+          <form onSubmit={handleSubmit} className="p-6 sm:p-8 lg:p-10">
+            <div className="mb-7">
+              <div className="flex items-center justify-between gap-4">
+                <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto object-contain lg:hidden" />
+                <Link to="/login" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900">
+                  <ArrowLeft className="h-4 w-4" />
+                  Iniciar sesion
+                </Link>
+              </div>
+              <div className="mt-6">
+                <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                  <FileSignature className="h-3.5 w-3.5" />
+                  Firmador PDF
+                </span>
+                <h2 className="mt-4 text-2xl font-black text-slate-950">Registro de usuario</h2>
+                <p className="mt-1 text-sm text-slate-500">Usa estos datos para ingresar desde firmador.of1solutions.com.</p>
+              </div>
+            </div>
+
+            {error && (
+              <div className="mb-5 rounded-xl border-l-4 border-red-500 bg-red-50 p-3.5">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600" />
+                  <p className="text-sm font-medium text-red-800">{error}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <Field label="Correo electronico *" icon={Mail}>
+                <input
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(event) => updateField('email', event.target.value)}
+                  placeholder="tu@correo.com"
+                  className={inputClass}
+                />
+              </Field>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Nombres *" icon={User}>
+                  <input
+                    type="text"
+                    required
+                    value={form.nombre}
+                    onChange={(event) => updateField('nombre', event.target.value)}
+                    placeholder="Juan"
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label="Apellidos *">
+                  <input
+                    type="text"
+                    required
+                    value={form.apellido}
+                    onChange={(event) => updateField('apellido', event.target.value)}
+                    placeholder="Perez"
+                    className={plainInputClass}
+                  />
+                </Field>
+              </div>
+
+              <Field label="Contrasena *" icon={Lock}>
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  required
+                  value={form.password}
+                  onChange={(event) => updateField('password', event.target.value)}
+                  placeholder="Min. 8 caracteres"
+                  className={`${inputClass} pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass((value) => !value)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  aria-label={showPass ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                >
+                  {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </Field>
+
+              <Field label="Confirmar contrasena *" icon={Lock}>
+                <input
+                  type={showConfirm ? 'text' : 'password'}
+                  required
+                  value={form.confirm_password}
+                  onChange={(event) => updateField('confirm_password', event.target.value)}
+                  placeholder="Repite la contrasena"
+                  className={`${inputClass} pr-10 ${
+                    form.confirm_password && form.confirm_password !== form.password
+                      ? 'border-red-300 focus:ring-red-400'
+                      : ''
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm((value) => !value)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  aria-label={showConfirm ? 'Ocultar confirmacion' : 'Mostrar confirmacion'}
+                >
+                  {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </Field>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-blue-900 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-900/20 transition hover:from-blue-800 hover:to-blue-950 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <UserPlus className="h-5 w-5" />}
+              Crear cuenta de firmador
+            </button>
+
+            <p className="mt-5 text-center text-xs text-slate-500">
+              Ya tienes cuenta?{' '}
+              <Link to="/login" className="font-bold text-blue-700 hover:text-blue-900">
+                Inicia sesion
+              </Link>
             </p>
-          </div>
-          <div className="grid grid-cols-1 gap-3 text-sm text-slate-300">
-            <span>Sesion obligatoria para cada firma.</span>
-            <span>Descarga inmediata o guardado temporal en R2.</span>
-            <span>Cuotas por archivo, almacenamiento y firmas mensuales.</span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 md:p-8 lg:p-10 space-y-5">
-          <div>
-            <h2 className="text-2xl font-black text-slate-900">Registro</h2>
-            <p className="text-sm text-slate-500 mt-1">Esta cuenta tendra acceso solo al firmador.</p>
-          </div>
-
-          {error && (
-            <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="block">
-              <span className="text-sm font-bold text-slate-700">Nombre</span>
-              <input
-                value={form.nombre}
-                onChange={(event) => updateField('nombre', event.target.value)}
-                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                required
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-bold text-slate-700">Apellido</span>
-              <input
-                value={form.apellido}
-                onChange={(event) => updateField('apellido', event.target.value)}
-                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                required
-              />
-            </label>
-          </div>
-
-          <label className="block">
-            <span className="text-sm font-bold text-slate-700">Correo</span>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) => updateField('email', event.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-              required
-            />
-          </label>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="block">
-              <span className="text-sm font-bold text-slate-700">Identificacion</span>
-              <input
-                value={form.identificacion}
-                onChange={(event) => updateField('identificacion', event.target.value)}
-                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-bold text-slate-700">Nombre del espacio</span>
-              <input
-                value={form.workspace_nombre}
-                onChange={(event) => updateField('workspace_nombre', event.target.value)}
-                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                placeholder="Opcional"
-              />
-            </label>
-          </div>
-
-          <label className="block">
-            <span className="text-sm font-bold text-slate-700">Contrasena</span>
-            <input
-              type="password"
-              value={form.password}
-              onChange={(event) => updateField('password', event.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-              minLength={8}
-              required
-            />
-          </label>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-3 font-bold text-white shadow-lg hover:bg-blue-800 disabled:opacity-60"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserPlus className="w-5 h-5" />}
-            Crear cuenta de firmador
-          </button>
-        </form>
-      </section>
+          </form>
+        </section>
+      </div>
     </main>
+  );
+}
+
+const inputClass =
+  'w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500';
+
+const plainInputClass =
+  'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500';
+
+function Field({
+  label,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  icon?: React.ElementType;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">{label}</span>
+      <div className="relative">
+        {Icon && <Icon className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />}
+        {children}
+      </div>
+    </label>
   );
 }
