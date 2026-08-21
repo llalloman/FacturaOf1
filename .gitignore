@@ -69,4 +69,11 @@ htmlcov/
 automation/.env
 automation/openwa/session/*
 !automation/openwa/session/.gitkeep
+automation/whatsapp-gateway/session/
+automation/whatsapp-gateway/session-backup/
+automation/whatsapp-gateway/session_old_*/
+automation/whatsapp-gateway/*.log
 automation/n8n/.n8n
+
+# Local env backups
+.env.save
