@@ -10,34 +10,87 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='firmadordocumento',
-            name='signature_height',
-            field=models.PositiveIntegerField(default=64, verbose_name='alto firma'),
-        ),
-        migrations.AddField(
-            model_name='firmadordocumento',
-            name='signature_page',
-            field=models.PositiveIntegerField(default=1, verbose_name='pagina de firma'),
-        ),
-        migrations.AddField(
-            model_name='firmadordocumento',
-            name='signature_type',
-            field=models.CharField(choices=[('SIMPLE', 'Simple'), ('QR', 'QR'), ('AVANZADA', 'Avanzada')], default='AVANZADA', max_length=20, verbose_name='tipo de firma'),
-        ),
-        migrations.AddField(
-            model_name='firmadordocumento',
-            name='signature_width',
-            field=models.PositiveIntegerField(default=224, verbose_name='ancho firma'),
-        ),
-        migrations.AddField(
-            model_name='firmadordocumento',
-            name='signature_x',
-            field=models.PositiveIntegerField(default=36, verbose_name='firma x'),
-        ),
-        migrations.AddField(
-            model_name='firmadordocumento',
-            name='signature_y',
-            field=models.PositiveIntegerField(default=36, verbose_name='firma y'),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    sql=(
+                        "ALTER TABLE firmador_firmadordocumento "
+                        "ADD COLUMN IF NOT EXISTS signature_height integer NOT NULL DEFAULT 64;"
+                    ),
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+                migrations.RunSQL(
+                    sql=(
+                        "ALTER TABLE firmador_firmadordocumento "
+                        "ADD COLUMN IF NOT EXISTS signature_page integer NOT NULL DEFAULT 1;"
+                    ),
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+                migrations.RunSQL(
+                    sql=(
+                        "ALTER TABLE firmador_firmadordocumento "
+                        "ADD COLUMN IF NOT EXISTS signature_type varchar(20) NOT NULL DEFAULT 'AVANZADA';"
+                    ),
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+                migrations.RunSQL(
+                    sql=(
+                        "ALTER TABLE firmador_firmadordocumento "
+                        "ADD COLUMN IF NOT EXISTS signature_width integer NOT NULL DEFAULT 224;"
+                    ),
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+                migrations.RunSQL(
+                    sql=(
+                        "ALTER TABLE firmador_firmadordocumento "
+                        "ADD COLUMN IF NOT EXISTS signature_x integer NOT NULL DEFAULT 36;"
+                    ),
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+                migrations.RunSQL(
+                    sql=(
+                        "ALTER TABLE firmador_firmadordocumento "
+                        "ADD COLUMN IF NOT EXISTS signature_y integer NOT NULL DEFAULT 36;"
+                    ),
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name='firmadordocumento',
+                    name='signature_height',
+                    field=models.PositiveIntegerField(default=64, verbose_name='alto firma'),
+                ),
+                migrations.AddField(
+                    model_name='firmadordocumento',
+                    name='signature_page',
+                    field=models.PositiveIntegerField(default=1, verbose_name='pagina de firma'),
+                ),
+                migrations.AddField(
+                    model_name='firmadordocumento',
+                    name='signature_type',
+                    field=models.CharField(
+                        choices=[('SIMPLE', 'Simple'), ('QR', 'QR'), ('AVANZADA', 'Avanzada')],
+                        default='AVANZADA',
+                        max_length=20,
+                        verbose_name='tipo de firma',
+                    ),
+                ),
+                migrations.AddField(
+                    model_name='firmadordocumento',
+                    name='signature_width',
+                    field=models.PositiveIntegerField(default=224, verbose_name='ancho firma'),
+                ),
+                migrations.AddField(
+                    model_name='firmadordocumento',
+                    name='signature_x',
+                    field=models.PositiveIntegerField(default=36, verbose_name='firma x'),
+                ),
+                migrations.AddField(
+                    model_name='firmadordocumento',
+                    name='signature_y',
+                    field=models.PositiveIntegerField(default=36, verbose_name='firma y'),
+                ),
+            ],
         ),
     ]

@@ -272,6 +272,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5175",
     "http://127.0.0.1:8080",
     "https://facturaof1.of1solutions.com",
+    "https://firmador.of1solutions.com",
     "https://facturaof1-back.of1solutions.com",
 ] + _cors_extra_list
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -293,6 +294,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5175",
     "http://127.0.0.1:8080",
     "https://facturaof1.of1solutions.com",
+    "https://firmador.of1solutions.com",
     "https://facturaof1-back.of1solutions.com",
 ] + _csrf_extra_list
 
