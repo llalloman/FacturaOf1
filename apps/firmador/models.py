@@ -98,6 +98,11 @@ class FirmadorDocumento(models.Model):
         GUARDADO = 'GUARDADO', _('Guardado')
         EMPRESA = 'EMPRESA', _('Certificado de empresa')
 
+    class TipoFirma(models.TextChoices):
+        SIMPLE = 'SIMPLE', _('Simple')
+        QR = 'QR', _('QR')
+        AVANZADA = 'AVANZADA', _('Avanzada')
+
     workspace = models.ForeignKey(
         FirmadorWorkspace,
         on_delete=models.CASCADE,
@@ -135,6 +140,12 @@ class FirmadorDocumento(models.Model):
     deleted_at = models.DateTimeField(_('eliminado'), null=True, blank=True)
     status = models.CharField(_('estado'), max_length=20, choices=Estado.choices, default=Estado.FIRMADO)
     certificado_origen = models.CharField(_('origen certificado'), max_length=20, choices=CertificadoOrigen.choices, default=CertificadoOrigen.TEMPORAL)
+    signature_type = models.CharField(_('tipo de firma'), max_length=20, choices=TipoFirma.choices, default=TipoFirma.AVANZADA)
+    signature_page = models.PositiveIntegerField(_('pagina de firma'), default=1)
+    signature_x = models.PositiveIntegerField(_('firma x'), default=36)
+    signature_y = models.PositiveIntegerField(_('firma y'), default=36)
+    signature_width = models.PositiveIntegerField(_('ancho firma'), default=224)
+    signature_height = models.PositiveIntegerField(_('alto firma'), default=64)
     reason = models.CharField(_('razón'), max_length=180, blank=True)
     location = models.CharField(_('ubicación'), max_length=120, blank=True)
     visible_signature = models.BooleanField(_('firma visible'), default=False)

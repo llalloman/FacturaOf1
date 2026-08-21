@@ -28,6 +28,12 @@ export interface FirmadorDocumento {
   expires_at: string | null;
   status: string;
   status_display: string;
+  signature_type: string;
+  signature_page: number;
+  signature_x: number;
+  signature_y: number;
+  signature_width: number;
+  signature_height: number;
   reason: string;
   location: string;
   visible_signature: boolean;
@@ -65,6 +71,12 @@ export interface FirmarPdfPayload {
   certificatePassword: string;
   keepFile: boolean;
   visibleSignature: boolean;
+  signatureType?: string;
+  signaturePage?: number;
+  signatureX?: number;
+  signatureY?: number;
+  signatureWidth?: number;
+  signatureHeight?: number;
   reason?: string;
   location?: string;
   retentionDays?: number;
@@ -113,6 +125,10 @@ export const firmadorService = {
     await apiClient.delete(`/firmador/certificados/${id}/`);
   },
 
+  eliminarDocumento: async (id: number): Promise<void> => {
+    await apiClient.delete(`/firmador/documentos/${id}/`);
+  },
+
   firmarPdf: async (payload: FirmarPdfPayload): Promise<FirmarPdfResponse> => {
     const formData = new FormData();
     formData.append('pdf', payload.pdf);
@@ -124,6 +140,12 @@ export const firmadorService = {
     formData.append('certificate_password', payload.certificatePassword);
     formData.append('keep_file', String(payload.keepFile));
     formData.append('visible_signature', String(payload.visibleSignature));
+    if (payload.signatureType) formData.append('signature_type', payload.signatureType);
+    if (payload.signaturePage) formData.append('signature_page', String(payload.signaturePage));
+    if (payload.signatureX !== undefined) formData.append('signature_x', String(payload.signatureX));
+    if (payload.signatureY !== undefined) formData.append('signature_y', String(payload.signatureY));
+    if (payload.signatureWidth !== undefined) formData.append('signature_width', String(payload.signatureWidth));
+    if (payload.signatureHeight !== undefined) formData.append('signature_height', String(payload.signatureHeight));
     if (payload.reason) formData.append('reason', payload.reason);
     if (payload.location) formData.append('location', payload.location);
     if (payload.retentionDays) formData.append('retention_days', String(payload.retentionDays));

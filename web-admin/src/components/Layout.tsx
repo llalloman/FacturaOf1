@@ -286,8 +286,14 @@ export default function Layout() {
   const toggleGroup = (label: string) =>
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
 
+  const isFirmador = rol === 'FIRMADOR';
+  const fullName = `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim();
+  const displayName = fullName || user?.username || user?.email || 'Usuario';
+  const userInitial = displayName.charAt(0).toUpperCase();
+  const searchPlaceholder = isFirmador ? 'Buscar documentos firmados...' : 'Buscar en el sistema...';
+
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-slate-50">
       {/* Skip to main content link — visible only on focus (keyboard nav) */}
       <a
         href="#main-content"
@@ -305,34 +311,34 @@ export default function Layout() {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed md:relative inset-y-0 left-0 z-50 h-full md:h-screen flex-shrink-0 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 flex flex-col ${
-        sidebarOpen ? 'w-72 translate-x-0' : 'w-72 -translate-x-full md:translate-x-0 md:w-20'
+      <aside className={`fixed md:relative inset-y-0 left-0 z-50 h-full md:h-screen flex-shrink-0 border-r border-slate-800 bg-slate-950 text-white transition-all duration-300 flex flex-col ${
+        sidebarOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full md:translate-x-0 md:w-16'
       }`}>
         {/* Logo */}
-        <div className="border-b border-gray-700/80">
+        <div className="border-b border-slate-800">
           {sidebarOpen ? (
-            <div className="px-4 pt-5 pb-3 flex items-center justify-between gap-2">
-              <div className="bg-white rounded-2xl shadow-xl flex-1 h-20 overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-3 py-3">
+              <div className="h-12 flex-1 overflow-hidden rounded-lg bg-white">
                 <img
                   src="/logo-of1-1.png"
                   alt="OF1 Solutions"
-                  className="w-full h-full object-contain p-1"
+                  className="h-full w-full object-contain p-1"
                 />
               </div>
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded-lg hover:bg-gray-700 transition-colors text-gray-400 hover:text-white flex-shrink-0">
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-800 hover:text-white">
                 <X size={18} />
               </button>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-2 py-3 px-2">
-              <div className="bg-white rounded-xl shadow-lg w-full h-14 overflow-hidden">
+            <div className="flex flex-col items-center gap-2 px-2 py-3">
+              <div className="h-10 w-10 overflow-hidden rounded-lg bg-white">
                 <img
                   src="/logo-of1-1.png"
                   alt="OF1 Solutions"
-                  className="w-full h-full object-contain p-0.5"
+                  className="h-full w-full object-contain p-0.5"
                 />
               </div>
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded-lg hover:bg-gray-700 transition-colors text-gray-400 hover:text-white">
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-800 hover:text-white">
                 <Menu size={18} />
               </button>
             </div>
@@ -340,25 +346,25 @@ export default function Layout() {
         </div>
 
         {/* Navigation */}
-        <nav aria-label="Menú principal" className="flex-1 p-4 space-y-1 overflow-y-auto">
+        <nav aria-label="Menú principal" className="flex-1 space-y-1 overflow-y-auto px-2 py-3">
           {/* SUPER_ADMIN: menú de administración de plataforma */}
           {user?.rol === 'SUPER_ADMIN' ? (
             <>
               {sidebarOpen && (
-                <p className="px-4 pt-1 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Administración</p>
+                <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase text-slate-500">Administración</p>
               )}
               {menuItemsSuperAdmin.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 ${
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                     isActive(item.path)
-                      ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
-                      : 'hover:bg-gray-800 hover:translate-x-1'
+                      ? 'bg-blue-700 text-white'
+                      : 'text-slate-300 hover:bg-slate-900 hover:text-white'
                   }`}
                 >
-                  <item.icon size={22} className={isActive(item.path) ? 'text-white' : 'text-gray-400'} />
-                  {sidebarOpen && <span className={`font-medium ${isActive(item.path) ? 'text-white' : 'text-gray-300'}`}>{item.label}</span>}
+                  <item.icon size={19} className={isActive(item.path) ? 'text-white' : 'text-slate-400'} />
+                  {sidebarOpen && <span className="font-medium">{item.label}</span>}
                 </Link>
               ))}
             </>
@@ -374,18 +380,18 @@ export default function Layout() {
                       /* Cabecera del grupo — clickable */
                       <button
                         onClick={() => toggleGroup(group.label)}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${
-                          hasActive ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'
+                        className={`flex w-full items-center justify-between rounded-lg px-3 py-2 transition-colors ${
+                          hasActive ? 'text-blue-300' : 'text-slate-500 hover:text-slate-300'
                         }`}
                       >
-                        <span className="text-xs font-semibold uppercase tracking-wider">{group.label}</span>
+                        <span className="text-[11px] font-semibold uppercase">{group.label}</span>
                         <ChevronDown
                           size={14}
                           className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
                         />
                       </button>
                     ) : (
-                      <div className="my-1 border-t border-gray-700/60" />
+                      <div className="my-1 border-t border-slate-800" />
                     )}
 
                     {/* Ítems del grupo */}
@@ -398,25 +404,23 @@ export default function Layout() {
                         const codigoModulo = rutaAModulo[item.path];
                         const bloqueado = codigoModulo ? !tieneAccesoModulo(codigoModulo) : false;
                         const isFavorite = favoritePaths.includes(item.path);
-                        const itemClassName = `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
+                        const itemClassName = `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                           isActive(item.path)
-                            ? 'bg-gradient-to-r from-blue-700 to-blue-900 shadow-lg shadow-blue-900/50'
+                            ? 'bg-blue-700 text-white'
                             : bloqueado
-                            ? 'opacity-50 hover:bg-gray-800/50 cursor-pointer'
-                            : 'hover:bg-gray-800 hover:translate-x-1'
+                            ? 'cursor-pointer opacity-50 hover:bg-slate-900/70'
+                            : 'text-slate-300 hover:bg-slate-900 hover:text-white'
                         }`;
                         const itemContent = (
                           <>
-                            <item.icon size={20} className={isActive(item.path) ? 'text-white' : 'text-gray-400'} />
+                            <item.icon size={18} className={isActive(item.path) ? 'text-white' : 'text-slate-400'} />
                             {sidebarOpen && (
-                              <span className={`flex-1 text-sm font-medium ${
-                                isActive(item.path) ? 'text-white' : 'text-gray-300'
-                              }`}>
+                              <span className="min-w-0 flex-1 truncate font-medium">
                                 {item.label}
                               </span>
                             )}
                             {sidebarOpen && bloqueado && (
-                              <Lock size={12} className="text-gray-500 flex-shrink-0" />
+                              <Lock size={12} className="flex-shrink-0 text-slate-500" />
                             )}
                           </>
                         );
@@ -447,8 +451,8 @@ export default function Layout() {
                                 onClick={() => toggleFavorite(item.path)}
                                 className={`shrink-0 p-2 rounded-lg transition-colors ${
                                   isFavorite
-                                    ? 'text-amber-300 hover:bg-gray-800'
-                                    : 'text-gray-600 hover:text-amber-300 hover:bg-gray-800 opacity-0 group-hover/item:opacity-100 focus:opacity-100'
+                                    ? 'text-amber-300 hover:bg-slate-900'
+                                    : 'text-slate-600 opacity-0 hover:bg-slate-900 hover:text-amber-300 focus:opacity-100 group-hover/item:opacity-100'
                                 }`}
                                 aria-label={isFavorite ? `Quitar ${item.label} de favoritos` : `Agregar ${item.label} a favoritos`}
                                 title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
@@ -472,7 +476,7 @@ export default function Layout() {
           <div className="px-3 pb-2">
             <Link
               to="/onboarding"
-              className={`flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-amber-300 hover:bg-amber-500/20 transition-colors ${!sidebarOpen && 'justify-center'}`}
+              className={`flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-300 transition-colors hover:bg-amber-500/15 ${!sidebarOpen && 'justify-center'}`}
               title="Completar configuración fiscal"
             >
               <AlertTriangle size={16} className="flex-shrink-0" />
@@ -486,23 +490,23 @@ export default function Layout() {
         )}
 
         {/* User Section */}
-        <div className="p-4 border-t border-gray-700">
-          <div className={`flex items-center gap-3 p-4 rounded-xl bg-gray-800 mb-3 ${!sidebarOpen && 'justify-center'}`}>
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-slate-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
-              {(user?.username || user?.email || 'U').charAt(0).toUpperCase()}
+        <div className="border-t border-slate-800 p-3">
+          <div className={`mb-2 flex items-center gap-3 rounded-lg bg-slate-900 px-3 py-2.5 ${!sidebarOpen && 'justify-center'}`}>
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-700 text-sm font-bold text-white">
+              {userInitial}
             </div>
             {sidebarOpen && (
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-white">{user?.username || user?.email}</p>
-                <p className="text-xs text-gray-400">{user?.rol || 'Usuario'}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-white" title={displayName}>{displayName}</p>
+                <p className="truncate text-xs text-slate-400">{user?.rol || 'Usuario'}</p>
               </div>
             )}
           </div>
           <button
             onClick={handleLogout}
-            className={`w-full flex items-center gap-3 px-4 py-3 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all ${!sidebarOpen && 'justify-center'}`}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-300 transition-colors hover:bg-red-600 hover:text-white ${!sidebarOpen && 'justify-center'}`}
           >
-            <LogOut size={20} />
+            <LogOut size={18} />
             {sidebarOpen && <span className="font-medium">Cerrar Sesión</span>}
           </button>
         </div>
@@ -511,32 +515,34 @@ export default function Layout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top Bar */}
-        <header className="bg-white border-b border-gray-200 p-4 flex items-center justify-between shadow-sm">
+        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
           {/* Botón hamburguesa para móvil */}
           <button
-            className="md:hidden p-2 rounded-lg hover:bg-gray-100 mr-2 flex-shrink-0"
+            className="mr-2 flex-shrink-0 rounded-lg p-2 hover:bg-slate-100 md:hidden"
             onClick={() => setSidebarOpen(true)}
             aria-label="Abrir menú"
           >
             <Menu size={22} className="text-gray-600" />
           </button>
-          <div className="flex-1 max-w-2xl">
+          <div className="max-w-xl flex-1">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
                 type="text"
-                placeholder="Buscar productos, clientes, facturas..."
-                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                aria-label="Buscar productos, clientes, facturas"
+                name="erp-global-search"
+                autoComplete="off"
+                placeholder={searchPlaceholder}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none transition-colors focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                aria-label={searchPlaceholder}
               />
             </div>
           </div>
-          <div className="flex items-center gap-4 ml-6">
+          <div className="ml-4 flex items-center gap-2">
             {/* Campanita de notificaciones */}
             <div className="relative" ref={bellRef}>
               <button
                 onClick={() => setBellOpen((v) => !v)}
-                className="relative p-3 hover:bg-gray-100 rounded-xl transition-colors"
+                className="relative rounded-lg p-2.5 transition-colors hover:bg-slate-100"
                 aria-label="Notificaciones"
               >
                 <Bell size={22} className="text-gray-600" />
@@ -548,7 +554,7 @@ export default function Layout() {
               </button>
 
               {bellOpen && (
-                <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+                <div className="absolute right-0 top-full z-50 mt-2 w-96 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
                   {/* Header */}
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                     <div className="flex items-center gap-2">

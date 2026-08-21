@@ -62,6 +62,8 @@ def sign_pdf_with_pkcs12(
     reason='Firmado electrónicamente',
     location='Ecuador',
     visible_signature=False,
+    signature_page=1,
+    signature_box=None,
 ) -> SignedPdfResult:
     try:
         from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
@@ -101,12 +103,13 @@ def sign_pdf_with_pkcs12(
             except Exception as exc:
                 raise ValidationError('No se pudo leer la estructura del PDF. Intenta exportarlo nuevamente como PDF y vuelve a firmarlo.') from exc
             if visible_signature:
+                box = signature_box or (36, 36, 260, 100)
                 fields.append_signature_field(
                     writer,
                     sig_field_spec=fields.SigFieldSpec(
                         sig_field_name=field_name,
-                        box=(36, 36, 260, 100),
-                        on_page=0,
+                        box=box,
+                        on_page=max(int(signature_page or 1) - 1, 0),
                     ),
                 )
             meta = signers.PdfSignatureMetadata(

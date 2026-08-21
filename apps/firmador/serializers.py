@@ -33,6 +33,8 @@ class FirmadorDocumentoSerializer(serializers.ModelSerializer):
             'original_size', 'signed_size', 'stored_bytes',
             'original_hash', 'signed_hash', 'keep_file', 'retention_days',
             'expires_at', 'deleted_at', 'status', 'certificado', 'certificado_origen',
+            'signature_type', 'signature_page', 'signature_x', 'signature_y',
+            'signature_width', 'signature_height',
             'reason', 'location', 'visible_signature', 'error_message',
             'download_url', 'created_at', 'updated_at',
         ]

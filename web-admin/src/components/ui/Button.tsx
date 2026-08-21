@@ -6,7 +6,7 @@ type Size = 'xs' | 'sm' | 'md' | 'lg';
 
 const variantStyles: Record<Variant, string> = {
   primary:
-    'bg-gradient-to-r from-blue-600 to-sky-600 text-white shadow-lg hover:from-blue-700 hover:to-sky-700 hover:shadow-xl hover:-translate-y-0.5',
+    'bg-blue-700 text-white hover:bg-blue-800',
   secondary:
     'bg-white border border-blue-200 text-blue-700 hover:bg-blue-50',
   outline:
@@ -14,9 +14,9 @@ const variantStyles: Record<Variant, string> = {
   ghost:
     'bg-transparent text-gray-600 hover:bg-gray-100',
   danger:
-    'bg-red-600 text-white shadow-lg hover:bg-red-700 hover:shadow-xl hover:-translate-y-0.5',
+    'bg-red-600 text-white hover:bg-red-700',
   success:
-    'bg-green-600 text-white shadow-lg hover:bg-green-700 hover:shadow-xl',
+    'bg-blue-700 text-white hover:bg-blue-800',
   export:
     'bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100',
 };

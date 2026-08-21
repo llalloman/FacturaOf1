@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2,
@@ -11,6 +11,8 @@ import {
   Info,
   KeyRound,
   Loader2,
+  Move,
+  QrCode,
   Save,
   ShieldCheck,
   Trash2,
@@ -23,6 +25,7 @@ import { firmadorService, type FirmadorCertificado, type FirmadorDocumento } fro
 
 type TabKey = 'certificados' | 'firmar' | 'documentos' | 'validar' | 'ayuda';
 type SignMode = 'multiples_documentos' | 'multiples_firmantes' | 'un_firmante';
+type SignatureType = 'SIMPLE' | 'QR' | 'AVANZADA';
 
 const tabs: Array<{ key: TabKey; label: string; icon: React.ElementType }> = [
   { key: 'certificados', label: 'Firma Digital', icon: Upload },
@@ -51,6 +54,12 @@ const signModes: Array<{ key: SignMode; label: string; description: string; icon
     description: 'Una sola persona firma en varios lugares de un documento PDF.',
     icon: FileSignature,
   },
+];
+
+const signatureTypes: Array<{ key: SignatureType; label: string; description: string; icon: React.ElementType }> = [
+  { key: 'SIMPLE', label: 'Simple', description: 'Firma digital sin marca visible.', icon: FileSignature },
+  { key: 'QR', label: 'QR', description: 'Reserva un espacio visible para verificacion.', icon: QrCode },
+  { key: 'AVANZADA', label: 'Avanzada', description: 'Firma visible con motivo y ubicacion.', icon: ShieldCheck },
 ];
 
 const formatBytes = (bytes: number) => {
@@ -99,17 +108,23 @@ export default function FirmadorPage() {
   const { showToast } = useToast();
   const certInputRef = useRef<HTMLInputElement | null>(null);
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('certificados');
   const [signMode, setSignMode] = useState<SignMode>('multiples_documentos');
   const [pdf, setPdf] = useState<File | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [certificate, setCertificate] = useState<File | null>(null);
   const [certificatePassword, setCertificatePassword] = useState('');
   const [certificateAlias, setCertificateAlias] = useState('');
   const [selectedCertificateId, setSelectedCertificateId] = useState<number | null>(null);
   const [uploadingCertificate, setUploadingCertificate] = useState(false);
   const [deletingCertificateId, setDeletingCertificateId] = useState<number | null>(null);
+  const [deletingDocumentId, setDeletingDocumentId] = useState<number | null>(null);
   const [keepFile, setKeepFile] = useState(false);
   const [visibleSignature, setVisibleSignature] = useState(false);
+  const [signatureType, setSignatureType] = useState<SignatureType>('AVANZADA');
+  const [signaturePage, setSignaturePage] = useState(1);
+  const [signaturePosition, setSignaturePosition] = useState({ x: 6, y: 72, width: 36, height: 10 });
   const [reason, setReason] = useState('Firmado electronicamente');
   const [location, setLocation] = useState('Ecuador');
   const [retentionDays, setRetentionDays] = useState(30);
@@ -130,6 +145,24 @@ export default function FirmadorPage() {
     queryFn: firmadorService.getCertificados,
   });
 
+  useEffect(() => {
+    if (!pdf) {
+      setPdfPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(pdf);
+    setPdfPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pdf]);
+
+  useEffect(() => {
+    if (signatureType === 'SIMPLE') {
+      setVisibleSignature(false);
+    } else {
+      setVisibleSignature(true);
+    }
+  }, [signatureType]);
+
   const selectedCertificate = useMemo(
     () => certificados.find((cert) => cert.id === selectedCertificateId) ?? certificados[0] ?? null,
     [certificados, selectedCertificateId],
@@ -137,8 +170,12 @@ export default function FirmadorPage() {
 
   const storagePercent = useMemo(() => {
     if (!perfil?.max_storage_bytes) return 0;
-    return Math.min(100, Math.round((perfil.used_storage_bytes / perfil.max_storage_bytes) * 100));
+    return Math.min(100, (perfil.used_storage_bytes / perfil.max_storage_bytes) * 100);
   }, [perfil]);
+  const storageBarPercent = perfil?.used_storage_bytes
+    ? Math.max(1, storagePercent)
+    : 0;
+  const availableStorage = Math.max((perfil?.max_storage_bytes ?? 0) - (perfil?.used_storage_bytes ?? 0), 0);
 
   const handleUploadCertificate = async () => {
     if (!certificate) {
@@ -189,6 +226,34 @@ export default function FirmadorPage() {
     }
   };
 
+  const handlePreviewClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!visibleSignature || signatureType === 'SIMPLE' || !previewRef.current) return;
+    const rect = previewRef.current.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    setSignaturePosition((current) => ({
+      ...current,
+      x: Math.max(0, Math.min(100 - current.width, x - current.width / 2)),
+      y: Math.max(0, Math.min(100 - current.height, y - current.height / 2)),
+    }));
+  };
+
+  const handleDeleteDocument = async (doc: FirmadorDocumento) => {
+    setDeletingDocumentId(doc.id);
+    try {
+      await firmadorService.eliminarDocumento(doc.id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['firmador-perfil'] }),
+        queryClient.invalidateQueries({ queryKey: ['firmador-documentos'] }),
+      ]);
+      showToast('Documento eliminado.', 'success');
+    } catch (error) {
+      showToast(await readApiError(error), 'error');
+    } finally {
+      setDeletingDocumentId(null);
+    }
+  };
+
   const handleSign = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!pdf) {
@@ -213,6 +278,12 @@ export default function FirmadorPage() {
         certificatePassword,
         keepFile,
         visibleSignature,
+        signatureType,
+        signaturePage,
+        signatureX: signaturePosition.x,
+        signatureY: signaturePosition.y,
+        signatureWidth: signaturePosition.width,
+        signatureHeight: signaturePosition.height,
         reason,
         location,
         retentionDays,
@@ -237,7 +308,8 @@ export default function FirmadorPage() {
     selectedCertificate?.alias ||
     certificate?.name.replace(/\.(p12|pfx)$/i, '') ||
     'Certificado digital';
-  const recentDocs = documentos.slice(0, 10);
+  const storedDocs = useMemo(() => documentos.filter((doc) => doc.keep_file), [documentos]);
+  const recentDocs = storedDocs.slice(0, 10);
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -253,7 +325,7 @@ export default function FirmadorPage() {
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex h-12 items-center justify-center gap-2 border-b-2 text-sm font-semibold transition-colors ${
-                    active ? 'border-cyan-700 text-cyan-800' : 'border-transparent text-slate-400 hover:text-slate-700'
+                    active ? 'border-blue-700 text-blue-800' : 'border-transparent text-slate-400 hover:text-slate-700'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -268,7 +340,7 @@ export default function FirmadorPage() {
       <section className="mx-auto max-w-7xl px-4 py-8">
         {activeTab === 'certificados' && (
           <div className="space-y-6">
-            <div className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
               <div className="flex items-center gap-3">
                 <Info className="h-4 w-4 flex-shrink-0" />
                 <span>Puedes almacenar hasta 2 certificados digitales. Los certificados se guardan cifrados y la clave no se almacena.</span>
@@ -282,7 +354,7 @@ export default function FirmadorPage() {
                     <h1 className="text-xl font-black text-slate-950">Subir Certificado</h1>
                     <p className="mt-1 text-sm text-slate-500">Archivo .p12 o .pfx</p>
                   </div>
-                  <span className="rounded-full bg-teal-700 px-3 py-1 text-xs font-bold text-white">
+                  <span className="rounded-full bg-blue-700 px-3 py-1 text-xs font-bold text-white">
                     {certificados.length}/2
                   </span>
                 </div>
@@ -290,7 +362,7 @@ export default function FirmadorPage() {
                 {certificate ? (
                   <div className="mt-8 flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-slate-50 px-5 py-4">
                     <div className="flex min-w-0 items-center gap-4">
-                      <FileSignature className="h-9 w-9 flex-shrink-0 text-cyan-800" />
+                      <FileSignature className="h-9 w-9 flex-shrink-0 text-blue-800" />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-950">{certificate.name}</p>
                         <p className="mt-1 text-xs text-slate-500">{formatBytes(certificate.size)}</p>
@@ -310,7 +382,7 @@ export default function FirmadorPage() {
                     type="button"
                     onClick={() => certInputRef.current?.click()}
                     disabled={certificados.length >= 2}
-                    className="mt-8 flex h-44 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-center transition-colors hover:border-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    className="mt-8 flex h-44 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-center transition-colors hover:border-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                   >
                     <UploadCloud className="h-11 w-11 text-slate-500" />
                     <span className="mt-4 text-sm font-bold text-slate-900">Arrastra tu certificado o haz clic</span>
@@ -333,7 +405,7 @@ export default function FirmadorPage() {
                       type="password"
                       value={certificatePassword}
                       onChange={(event) => setCertificatePassword(event.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
+                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                     />
                   </div>
                   <span className="mt-2 block text-xs text-slate-500">Esta clave se usa para validar el certificado. No se guarda.</span>
@@ -345,7 +417,7 @@ export default function FirmadorPage() {
                     value={certificateAlias}
                     onChange={(event) => setCertificateAlias(event.target.value)}
                     placeholder="Ej: FIRMA PERSONAL, FIRMA DE EMPRESA..."
-                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
+                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                   />
                   <span className="mt-2 block text-xs text-slate-500">Nombre para identificar esta firma rapidamente.</span>
                 </label>
@@ -355,7 +427,7 @@ export default function FirmadorPage() {
                   loading={uploadingCertificate}
                   disabled={!certificate || certificados.length >= 2}
                   icon={<Upload className="h-4 w-4" />}
-                  className="mt-6 w-full bg-cyan-700 hover:bg-cyan-800"
+                  className="mt-6 w-full bg-blue-700 hover:bg-blue-800"
                   onClick={handleUploadCertificate}
                 >
                   Subir Certificado
@@ -385,18 +457,18 @@ export default function FirmadorPage() {
                           key={certificado.id}
                           onClick={() => setSelectedCertificateId(certificado.id)}
                           className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-lg border px-4 py-4 text-left transition-colors ${
-                            active ? 'border-cyan-700 bg-cyan-50' : 'border-slate-200 hover:border-cyan-300'
+                            active ? 'border-blue-700 bg-blue-50' : 'border-slate-200 hover:border-blue-300'
                           }`}
                         >
                           <div className="flex min-w-0 items-center gap-4">
-                            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-800">
+                            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-800">
                               <FileSignature className="h-5 w-5" />
                             </div>
                             <div className="min-w-0">
                               <p className="truncate text-sm font-bold text-slate-950">{certificado.alias}</p>
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${
-                                  certificado.is_expired ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
+                                  certificado.is_expired ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
                                 }`}>
                                   <CheckCircle2 className="h-3 w-3" />
                                   {certificado.is_expired ? 'Expirado' : 'Vigente'}
@@ -450,11 +522,11 @@ export default function FirmadorPage() {
                     type="button"
                     onClick={() => setSignMode(mode.key)}
                     className={`flex items-start gap-4 rounded-lg border bg-white p-6 text-left shadow-sm transition-colors ${
-                      active ? 'border-cyan-700 bg-cyan-50' : 'border-slate-200 hover:border-cyan-300'
+                      active ? 'border-blue-700 bg-blue-50' : 'border-slate-200 hover:border-blue-300'
                     }`}
                   >
                     <span className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full ${
-                      active ? 'bg-cyan-800 text-white' : 'bg-slate-50 text-slate-500'
+                      active ? 'bg-blue-800 text-white' : 'bg-slate-50 text-slate-500'
                     }`}>
                       <Icon className="h-5 w-5" />
                     </span>
@@ -474,7 +546,7 @@ export default function FirmadorPage() {
                 <button
                   type="button"
                   onClick={() => pdfInputRef.current?.click()}
-                  className="mt-7 flex h-40 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-center transition-colors hover:border-cyan-700 hover:bg-cyan-50"
+                  className="mt-7 flex h-40 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-center transition-colors hover:border-blue-700 hover:bg-blue-50"
                 >
                   <UploadCloud className="h-10 w-10 text-slate-500" />
                   <span className="mt-4 text-sm font-bold text-slate-950">
@@ -496,7 +568,7 @@ export default function FirmadorPage() {
                     <select
                       value={selectedCertificate?.id ?? ''}
                       onChange={(event) => setSelectedCertificateId(event.target.value ? Number(event.target.value) : null)}
-                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
+                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                     >
                       <option value="">Selecciona un certificado</option>
                       {certificados.map((certificado) => (
@@ -518,17 +590,43 @@ export default function FirmadorPage() {
                         type="password"
                         value={certificatePassword}
                         onChange={(event) => setCertificatePassword(event.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
+                        className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                       />
                     </div>
                   </label>
+
+                  <div>
+                    <span className="text-sm font-bold text-slate-700">Tipo de firma</span>
+                    <div className="mt-2 grid grid-cols-1 gap-2">
+                      {signatureTypes.map((type) => {
+                        const Icon = type.icon;
+                        const active = signatureType === type.key;
+                        return (
+                          <button
+                            key={type.key}
+                            type="button"
+                            onClick={() => setSignatureType(type.key)}
+                            className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                              active ? 'border-blue-700 bg-blue-50' : 'border-slate-200 hover:border-blue-300'
+                            }`}
+                          >
+                            <Icon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-blue-800' : 'text-slate-500'}`} />
+                            <span className="min-w-0">
+                              <span className="block text-sm font-bold text-slate-900">{type.label}</span>
+                              <span className="block text-xs text-slate-500">{type.description}</span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   <label className="block">
                     <span className="text-sm font-bold text-slate-700">Motivo</span>
                     <input
                       value={reason}
                       onChange={(event) => setReason(event.target.value)}
-                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
+                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                     />
                   </label>
                   <label className="block">
@@ -536,7 +634,7 @@ export default function FirmadorPage() {
                     <input
                       value={location}
                       onChange={(event) => setLocation(event.target.value)}
-                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
+                      className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                     />
                   </label>
                 </div>
@@ -546,8 +644,9 @@ export default function FirmadorPage() {
                     <input
                       type="checkbox"
                       checked={visibleSignature}
+                      disabled={signatureType === 'SIMPLE'}
                       onChange={(event) => setVisibleSignature(event.target.checked)}
-                      className="h-5 w-5 rounded border-slate-300 text-cyan-700 focus:ring-cyan-600"
+                      className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-600 disabled:opacity-50"
                     />
                     <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                       <Eye className="h-4 w-4" />
@@ -560,7 +659,7 @@ export default function FirmadorPage() {
                       type="checkbox"
                       checked={keepFile}
                       onChange={(event) => setKeepFile(event.target.checked)}
-                      className="h-5 w-5 rounded border-slate-300 text-cyan-700 focus:ring-cyan-600"
+                      className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
                     />
                     <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                       <Save className="h-4 w-4" />
@@ -568,6 +667,36 @@ export default function FirmadorPage() {
                     </span>
                   </label>
                 </div>
+
+                {visibleSignature && signatureType !== 'SIMPLE' && (
+                  <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-sm font-bold text-slate-700">Pagina</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={signaturePage}
+                        onChange={(event) => setSignaturePage(Math.max(1, Number(event.target.value) || 1))}
+                        className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-sm font-bold text-slate-700">Tamano visible</span>
+                      <select
+                        value={`${signaturePosition.width}-${signaturePosition.height}`}
+                        onChange={(event) => {
+                          const [width, height] = event.target.value.split('-').map(Number);
+                          setSignaturePosition((current) => ({ ...current, width, height }));
+                        }}
+                        className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                      >
+                        <option value="28-8">Compacta</option>
+                        <option value="36-10">Normal</option>
+                        <option value="46-12">Amplia</option>
+                      </select>
+                    </label>
+                  </div>
+                )}
 
                 <label className="mt-5 block">
                   <span className="text-sm font-bold text-slate-700">Retencion</span>
@@ -578,7 +707,7 @@ export default function FirmadorPage() {
                     value={retentionDays}
                     disabled={!keepFile}
                     onChange={(event) => setRetentionDays(Number(event.target.value))}
-                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100 disabled:bg-slate-100"
+                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100"
                   />
                 </label>
 
@@ -588,19 +717,64 @@ export default function FirmadorPage() {
               </section>
 
               <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 px-6 py-5">
-                  <h2 className="text-lg font-black text-slate-950">Vista Previa</h2>
-                </div>
-                <div className="flex min-h-[420px] items-center justify-center bg-slate-100 px-6 text-center">
+                <div className="flex flex-col gap-2 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <FileText className="mx-auto h-14 w-14 text-slate-400" />
-                    <p className="mt-4 text-sm font-semibold text-slate-600">
-                      {pdf ? pdf.name : 'Selecciona un PDF para preparar la firma'}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-500">
-                      {selectedCertificate ? `Certificado: ${certificateName}` : 'Selecciona un certificado en Firma Digital'}
+                    <h2 className="text-lg font-black text-slate-950">Vista Previa</h2>
+                    <p className="text-xs text-slate-500">
+                      {visibleSignature && signatureType !== 'SIMPLE'
+                        ? 'Haz clic sobre el PDF para ubicar la firma visible.'
+                        : 'La firma simple no muestra marca visible.'}
                     </p>
                   </div>
+                  {visibleSignature && signatureType !== 'SIMPLE' && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                      <Move className="h-3.5 w-3.5" />
+                      Pagina {signaturePage}
+                    </span>
+                  )}
+                </div>
+                <div className="bg-slate-100 p-4">
+                  {pdfPreviewUrl ? (
+                    <div
+                      ref={previewRef}
+                      onClick={handlePreviewClick}
+                      className={`relative mx-auto h-[520px] overflow-hidden rounded-lg border border-slate-300 bg-white ${
+                        visibleSignature && signatureType !== 'SIMPLE' ? 'cursor-crosshair' : ''
+                      }`}
+                    >
+                      <object data={pdfPreviewUrl} type="application/pdf" className="h-full w-full">
+                        <iframe src={pdfPreviewUrl} title="Vista previa PDF" className="h-full w-full" />
+                      </object>
+                      {visibleSignature && signatureType !== 'SIMPLE' && (
+                        <>
+                          <div className="absolute inset-0 z-10" />
+                          <div
+                            className="pointer-events-none absolute z-20 flex items-center justify-center rounded border-2 border-blue-700 bg-blue-600/10 text-center text-[11px] font-bold text-blue-900 shadow-sm"
+                            style={{
+                              left: `${signaturePosition.x}%`,
+                              top: `${signaturePosition.y}%`,
+                              width: `${signaturePosition.width}%`,
+                              height: `${signaturePosition.height}%`,
+                            }}
+                          >
+                            <span className="rounded bg-white/85 px-2 py-1">
+                              {signatureType === 'QR' ? 'QR + Firma' : 'Firma visible'}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex min-h-[420px] items-center justify-center text-center">
+                      <div>
+                        <FileText className="mx-auto h-14 w-14 text-slate-400" />
+                        <p className="mt-4 text-sm font-semibold text-slate-600">Selecciona un PDF para preparar la firma</p>
+                        <p className="mt-2 text-xs text-slate-500">
+                          {selectedCertificate ? `Certificado: ${certificateName}` : 'Selecciona un certificado en Firma Digital'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </section>
             </div>
@@ -615,24 +789,32 @@ export default function FirmadorPage() {
             </header>
 
             <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Save className="h-5 w-5 text-cyan-800" />
-                <h2 className="text-lg font-black text-slate-950">Estado del Almacenamiento</h2>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <Save className="h-5 w-5 text-blue-800" />
+                  <h2 className="text-lg font-black text-slate-950">Estado del Almacenamiento</h2>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                  {storagePercent.toFixed(storagePercent > 0 && storagePercent < 1 ? 2 : 0)}%
+                </span>
               </div>
               <p className="mt-2 text-sm text-slate-500">
                 {formatBytes(perfil?.used_storage_bytes ?? 0)} utilizados de {formatBytes(perfil?.max_storage_bytes ?? 0)}
               </p>
-              <div className="mt-10 grid grid-cols-[70px_1fr] items-center gap-4">
-                <span className="text-sm font-semibold text-slate-900">Espacio</span>
-                <div className="h-12 bg-slate-200">
-                  <div className="h-full bg-cyan-700" style={{ width: `${storagePercent}%` }} />
+              <div className="mt-6">
+                <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full rounded-full bg-blue-700 transition-all" style={{ width: `${storageBarPercent}%` }} />
+                </div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                  <span>{formatBytes(availableStorage)} disponibles</span>
+                  <span>Solo cuentan los documentos guardados</span>
                 </div>
               </div>
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-black text-slate-950">Tus Documentos</h2>
-              <p className="text-sm text-slate-500">{documentos.length} documento(s) guardado(s)</p>
+              <p className="text-sm text-slate-500">{storedDocs.length} documento(s) guardado(s)</p>
 
               <div className="mt-5 space-y-3">
                 {loadingPerfil ? (
@@ -652,15 +834,29 @@ export default function FirmadorPage() {
                           {new Date(doc.created_at).toLocaleString()} - {formatBytes(doc.signed_size)}
                         </p>
                       </div>
-                      {doc.download_url && (
-                        <a
-                          href={doc.download_url}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-                          title="Descargar"
+                      <div className="flex items-center gap-2">
+                        {doc.download_url && (
+                          <a
+                            href={doc.download_url}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                            title="Descargar"
+                          >
+                            <Download className="h-4 w-4" />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteDocument(doc)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 text-red-600 hover:bg-red-50"
+                          title="Eliminar documento"
                         >
-                          <Download className="h-4 w-4" />
-                        </a>
-                      )}
+                          {deletingDocumentId === doc.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -692,7 +888,7 @@ function PlaceholderView({
 }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-10 text-center shadow-sm">
-      <Icon className="mx-auto h-12 w-12 text-cyan-800" />
+      <Icon className="mx-auto h-12 w-12 text-blue-800" />
       <h1 className="mt-5 text-2xl font-black text-slate-950">{title}</h1>
       <p className="mt-2 text-sm text-slate-500">{text}</p>
     </section>

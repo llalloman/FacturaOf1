@@ -67,13 +67,54 @@ def get_or_create_workspace(user):
     )
 
 
-class FirmadorDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
+def _float_param(data, name, default):
+    try:
+        return float(data.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _int_param(data, name, default):
+    try:
+        return int(data.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _signature_box_from_percent(pdf_file, page_number, x_percent, y_percent, width_percent, height_percent):
+    try:
+        from PyPDF2 import PdfReader
+
+        current = pdf_file.tell() if hasattr(pdf_file, 'tell') else None
+        reader = PdfReader(pdf_file)
+        page_index = min(max(int(page_number or 1) - 1, 0), len(reader.pages) - 1)
+        page = reader.pages[page_index]
+        page_width = float(page.mediabox.width)
+        page_height = float(page.mediabox.height)
+        if current is not None:
+            pdf_file.seek(current)
+    except Exception:
+        page_width = 612
+        page_height = 792
+        if hasattr(pdf_file, 'seek'):
+            pdf_file.seek(0)
+
+    x = max(0, min(95, x_percent)) / 100 * page_width
+    box_width = max(8, min(95, width_percent)) / 100 * page_width
+    box_height = max(6, min(50, height_percent)) / 100 * page_height
+    y_top = max(0, min(95, y_percent)) / 100 * page_height
+    y = max(0, page_height - y_top - box_height)
+    return (int(x), int(y), int(min(x + box_width, page_width)), int(min(y + box_height, page_height)))
+
+
+class FirmadorDocumentoViewSet(viewsets.ModelViewSet):
     serializer_class = FirmadorDocumentoSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'delete', 'head', 'options']
 
     def get_queryset(self):
         user = self.request.user
-        qs = FirmadorDocumento.objects.select_related('workspace', 'user')
+        qs = FirmadorDocumento.objects.select_related('workspace', 'user', 'certificado').exclude(status=FirmadorDocumento.Estado.ELIMINADO)
         if user.is_superuser or getattr(user, 'rol', '') == 'SUPER_ADMIN':
             return qs
         return qs.filter(workspace__owner_user=user)
@@ -89,6 +130,19 @@ class FirmadorDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
             filename=documento.signed_file_name or 'documento-firmado.pdf',
             content_type='application/pdf',
         )
+
+    def destroy(self, request, *args, **kwargs):
+        documento = self.get_object()
+        if documento.original_file:
+            documento.original_file.delete(save=False)
+        if documento.signed_file:
+            documento.signed_file.delete(save=False)
+        documento.status = FirmadorDocumento.Estado.ELIMINADO
+        documento.deleted_at = timezone.now()
+        documento.keep_file = False
+        documento.stored_bytes = 0
+        documento.save(update_fields=['status', 'deleted_at', 'keep_file', 'stored_bytes', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class FirmadorCertificadoViewSet(viewsets.ModelViewSet):
@@ -165,6 +219,16 @@ def firmar_documento(request):
     password = request.data.get('certificate_password', '')
     keep_file = str(request.data.get('keep_file', 'false')).lower() in ('true', '1', 'yes', 'on')
     visible_signature = str(request.data.get('visible_signature', 'false')).lower() in ('true', '1', 'yes', 'on')
+    signature_type = (request.data.get('signature_type') or FirmadorDocumento.TipoFirma.AVANZADA).upper()
+    if signature_type not in FirmadorDocumento.TipoFirma.values:
+        signature_type = FirmadorDocumento.TipoFirma.AVANZADA
+    if signature_type == FirmadorDocumento.TipoFirma.SIMPLE:
+        visible_signature = False
+    signature_page = max(_int_param(request.data, 'signature_page', 1), 1)
+    signature_x = max(0, min(95, _float_param(request.data, 'signature_x', 6)))
+    signature_y = max(0, min(95, _float_param(request.data, 'signature_y', 72)))
+    signature_width = max(8, min(95, _float_param(request.data, 'signature_width', 36)))
+    signature_height = max(6, min(50, _float_param(request.data, 'signature_height', 10)))
     reason = request.data.get('reason', 'Firmado electrónicamente')
     location = request.data.get('location', 'Ecuador')
     retention_days = int(request.data.get('retention_days') or workspace.default_retention_days)
@@ -196,7 +260,8 @@ def firmar_documento(request):
     if workspace.monthly_signatures_used() >= workspace.monthly_signature_limit:
         return Response({'detail': 'Alcanzaste el límite mensual de documentos firmados.'}, status=status.HTTP_402_PAYMENT_REQUIRED)
 
-    projected_storage = workspace.active_storage_bytes() + (pdf_file.size if keep_file else 0)
+    estimated_signed_size = pdf_file.size * 2
+    projected_storage = workspace.active_storage_bytes() + (estimated_signed_size if keep_file else 0)
     if keep_file and projected_storage > workspace.max_storage_bytes:
         return Response({'detail': 'No tienes espacio suficiente para guardar este documento. Actualiza tu plan o descarga sin guardar.'}, status=status.HTTP_402_PAYMENT_REQUIRED)
 
@@ -210,6 +275,12 @@ def firmar_documento(request):
         retention_days=retention_days if keep_file else 0,
         expires_at=timezone.now() + timedelta(days=retention_days) if keep_file else None,
         certificado_origen=FirmadorDocumento.CertificadoOrigen.GUARDADO if certificado else FirmadorDocumento.CertificadoOrigen.TEMPORAL,
+        signature_type=signature_type,
+        signature_page=signature_page,
+        signature_x=round(signature_x),
+        signature_y=round(signature_y),
+        signature_width=round(signature_width),
+        signature_height=round(signature_height),
         reason=reason,
         location=location,
         visible_signature=visible_signature,
@@ -223,6 +294,8 @@ def firmar_documento(request):
             reason=reason,
             location=location,
             visible_signature=visible_signature,
+            signature_page=signature_page,
+            signature_box=_signature_box_from_percent(pdf_file, signature_page, signature_x, signature_y, signature_width, signature_height) if visible_signature else None,
         )
         documento.original_hash = result.original_hash
         documento.signed_hash = result.signed_hash
