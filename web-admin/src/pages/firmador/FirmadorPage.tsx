@@ -129,7 +129,7 @@ export default function FirmadorPage() {
   const [visibleSignature, setVisibleSignature] = useState(false);
   const [signatureType, setSignatureType] = useState<SignatureType>('AVANZADA');
   const [signaturePage, setSignaturePage] = useState(1);
-  const [signaturePosition, setSignaturePosition] = useState({ x: 6, y: 72, width: 36, height: 10 });
+  const [signaturePosition, setSignaturePosition] = useState({ x: 62, y: 6, width: 32, height: 12 });
   const [reason, setReason] = useState('Firmado electronicamente');
   const [location, setLocation] = useState('Ecuador');
   const [retentionDays, setRetentionDays] = useState(30);
@@ -721,9 +721,9 @@ export default function FirmadorPage() {
                         }}
                         className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                       >
-                        <option value="28-8">Compacta</option>
-                        <option value="36-10">Normal</option>
-                        <option value="46-12">Amplia</option>
+                        <option value="24-10">Compacta</option>
+                        <option value="32-12">Normal</option>
+                        <option value="42-15">Amplia</option>
                       </select>
                     </label>
                   </div>

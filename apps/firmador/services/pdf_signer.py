@@ -64,8 +64,11 @@ def sign_pdf_with_pkcs12(
     visible_signature=False,
     signature_page=1,
     signature_box=None,
+    signature_type='AVANZADA',
+    qr_url='',
 ) -> SignedPdfResult:
     try:
+        from pyhanko import stamp
         from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
         from pyhanko.sign import fields, signers
     except ImportError as exc:
@@ -120,7 +123,38 @@ def sign_pdf_with_pkcs12(
                 location=location or 'Ecuador',
             )
             with open(out_path, 'wb') as outf:
-                signers.sign_pdf(writer, signature_meta=meta, signer=signer, output=outf)
+                if visible_signature:
+                    if signature_type == 'QR':
+                        stamp_style = stamp.QRStampStyle(
+                            stamp_text='Firmado por: %(signer)s\nFecha: %(ts)s\nVerificar: %(url)s',
+                        )
+                        pdf_signer = signers.PdfSigner(meta, signer=signer, stamp_style=stamp_style)
+                        pdf_signer.sign_pdf(
+                            writer,
+                            output=outf,
+                            appearance_text_params={'url': qr_url or 'https://firmador.of1solutions.com'},
+                        )
+                    else:
+                        stamp_style = stamp.TextStampStyle(
+                            stamp_text=(
+                                'Firmado electronicamente por:\n'
+                                '%(signer)s\n'
+                                'Fecha: %(ts)s\n'
+                                'Razon: %(reason)s\n'
+                                'Ubicacion: %(location)s'
+                            ),
+                        )
+                        pdf_signer = signers.PdfSigner(meta, signer=signer, stamp_style=stamp_style)
+                        pdf_signer.sign_pdf(
+                            writer,
+                            output=outf,
+                            appearance_text_params={
+                                'reason': reason or 'Firmado electronicamente',
+                                'location': location or 'Ecuador',
+                            },
+                        )
+                else:
+                    signers.sign_pdf(writer, signature_meta=meta, signer=signer, output=outf)
 
         with open(out_path, 'rb') as signed_file:
             signed_content = signed_file.read()

@@ -296,6 +296,8 @@ def firmar_documento(request):
             visible_signature=visible_signature,
             signature_page=signature_page,
             signature_box=_signature_box_from_percent(pdf_file, signature_page, signature_x, signature_y, signature_width, signature_height) if visible_signature else None,
+            signature_type=signature_type,
+            qr_url=f"{(getattr(settings, 'PUBLIC_BASE_URL', '') or 'https://firmador.of1solutions.com').rstrip('/')}/firmador/validar?documento={documento.id}",
         )
         documento.original_hash = result.original_hash
         documento.signed_hash = result.signed_hash
