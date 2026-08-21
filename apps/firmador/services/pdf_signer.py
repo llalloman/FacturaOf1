@@ -95,6 +95,8 @@ def sign_pdf_with_pkcs12(
             )
         except ValueError as exc:
             raise ValidationError('No se pudo abrir el certificado. Verifica que sea .p12/.pfx y que la clave sea correcta.') from exc
+        if signer is None:
+            raise ValidationError('No se pudo abrir el certificado. Verifica que sea .p12/.pfx y que la clave sea correcta.')
 
         field_name = 'FirmaOF1'
         with open(pdf_path, 'rb') as inf:

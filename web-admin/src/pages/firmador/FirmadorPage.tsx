@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import * as pdfjsLib from 'pdfjs-dist';
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import {
   CheckCircle2,
   Download,
@@ -22,6 +24,8 @@ import {
 import Button from '../../components/ui/Button';
 import { useToast } from '../../hooks/useToast';
 import { firmadorService, type FirmadorCertificado, type FirmadorDocumento } from '../../services/firmadorService';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString();
 
 type TabKey = 'certificados' | 'firmar' | 'documentos' | 'validar' | 'ayuda';
 type SignMode = 'multiples_documentos' | 'multiples_firmantes' | 'un_firmante';
@@ -108,11 +112,12 @@ export default function FirmadorPage() {
   const { showToast } = useToast();
   const certInputRef = useRef<HTMLInputElement | null>(null);
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
-  const previewRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('certificados');
   const [signMode, setSignMode] = useState<SignMode>('multiples_documentos');
   const [pdf, setPdf] = useState<File | null>(null);
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
+  const [pdfPageCount, setPdfPageCount] = useState(0);
+  const [pdfPreviewError, setPdfPreviewError] = useState('');
   const [certificate, setCertificate] = useState<File | null>(null);
   const [certificatePassword, setCertificatePassword] = useState('');
   const [certificateAlias, setCertificateAlias] = useState('');
@@ -146,13 +151,38 @@ export default function FirmadorPage() {
   });
 
   useEffect(() => {
+    let cancelled = false;
+    let loadedDocument: PDFDocumentProxy | null = null;
+
     if (!pdf) {
-      setPdfPreviewUrl(null);
-      return;
+      setPdfDocument(null);
+      setPdfPageCount(0);
+      setPdfPreviewError('');
+      return undefined;
     }
-    const url = URL.createObjectURL(pdf);
-    setPdfPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
+
+    setPdfDocument(null);
+    setPdfPageCount(0);
+    setPdfPreviewError('');
+    pdf.arrayBuffer()
+      .then((data) => pdfjsLib.getDocument({ data }).promise)
+      .then((document) => {
+        loadedDocument = document;
+        if (cancelled) {
+          void document.destroy();
+          return;
+        }
+        setPdfDocument(document);
+        setPdfPageCount(document.numPages);
+      })
+      .catch(() => {
+        if (!cancelled) setPdfPreviewError('No se pudo cargar la vista previa del PDF.');
+      });
+
+    return () => {
+      cancelled = true;
+      if (loadedDocument) void loadedDocument.destroy();
+    };
   }, [pdf]);
 
   useEffect(() => {
@@ -226,11 +256,12 @@ export default function FirmadorPage() {
     }
   };
 
-  const handlePreviewClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!visibleSignature || signatureType === 'SIMPLE' || !previewRef.current) return;
-    const rect = previewRef.current.getBoundingClientRect();
+  const handlePreviewClick = (pageNumber: number, event: React.MouseEvent<HTMLDivElement>) => {
+    if (!visibleSignature || signatureType === 'SIMPLE') return;
+    const rect = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 100;
     const y = ((event.clientY - rect.top) / rect.height) * 100;
+    setSignaturePage(pageNumber);
     setSignaturePosition((current) => ({
       ...current,
       x: Math.max(0, Math.min(100 - current.width, x - current.width / 2)),
@@ -734,35 +765,64 @@ export default function FirmadorPage() {
                   )}
                 </div>
                 <div className="bg-slate-100 p-4">
-                  {pdfPreviewUrl ? (
-                    <div
-                      ref={previewRef}
-                      onClick={handlePreviewClick}
-                      className={`relative mx-auto h-[520px] overflow-hidden rounded-lg border border-slate-300 bg-white ${
-                        visibleSignature && signatureType !== 'SIMPLE' ? 'cursor-crosshair' : ''
-                      }`}
-                    >
-                      <object data={pdfPreviewUrl} type="application/pdf" className="h-full w-full">
-                        <iframe src={pdfPreviewUrl} title="Vista previa PDF" className="h-full w-full" />
-                      </object>
-                      {visibleSignature && signatureType !== 'SIMPLE' && (
-                        <>
-                          <div className="absolute inset-0 z-10" />
-                          <div
-                            className="pointer-events-none absolute z-20 flex items-center justify-center rounded border-2 border-blue-700 bg-blue-600/10 text-center text-[11px] font-bold text-blue-900 shadow-sm"
-                            style={{
-                              left: `${signaturePosition.x}%`,
-                              top: `${signaturePosition.y}%`,
-                              width: `${signaturePosition.width}%`,
-                              height: `${signaturePosition.height}%`,
-                            }}
-                          >
-                            <span className="rounded bg-white/85 px-2 py-1">
-                              {signatureType === 'QR' ? 'QR + Firma' : 'Firma visible'}
-                            </span>
+                  {pdfDocument ? (
+                    <div className="max-h-[620px] space-y-4 overflow-auto pr-1">
+                      {Array.from({ length: pdfPageCount }, (_, index) => {
+                        const pageNumber = index + 1;
+                        const selectedPage = signaturePage === pageNumber;
+                        return (
+                          <div key={pageNumber} className="mx-auto max-w-[820px]">
+                            <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500">
+                              <span>Pagina {pageNumber}</span>
+                              {visibleSignature && signatureType !== 'SIMPLE' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSignaturePage(pageNumber)}
+                                  className={`rounded-full px-3 py-1 ${
+                                    selectedPage ? 'bg-blue-700 text-white' : 'bg-white text-slate-600 hover:bg-blue-50'
+                                  }`}
+                                >
+                                  Usar esta pagina
+                                </button>
+                              )}
+                            </div>
+                            <div
+                              onClick={(event) => handlePreviewClick(pageNumber, event)}
+                              className={`relative overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm ${
+                                visibleSignature && signatureType !== 'SIMPLE' ? 'cursor-crosshair' : ''
+                              }`}
+                            >
+                              <PdfPageCanvas document={pdfDocument} pageNumber={pageNumber} />
+                              {visibleSignature && signatureType !== 'SIMPLE' && selectedPage && (
+                                <div
+                                  className="pointer-events-none absolute z-20 flex items-center justify-center rounded border-2 border-blue-700 bg-blue-600/10 text-center text-[11px] font-bold text-blue-900 shadow-sm"
+                                  style={{
+                                    left: `${signaturePosition.x}%`,
+                                    top: `${signaturePosition.y}%`,
+                                    width: `${signaturePosition.width}%`,
+                                    height: `${signaturePosition.height}%`,
+                                  }}
+                                >
+                                  <span className="rounded bg-white/85 px-2 py-1">
+                                    {signatureType === 'QR' ? 'QR + Firma' : 'Firma visible'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </>
-                      )}
+                        );
+                      })}
+                    </div>
+                  ) : pdfPreviewError ? (
+                    <div className="flex min-h-[420px] items-center justify-center text-center">
+                      <div>
+                        <FileText className="mx-auto h-14 w-14 text-red-300" />
+                        <p className="mt-4 text-sm font-semibold text-red-600">{pdfPreviewError}</p>
+                      </div>
+                    </div>
+                  ) : pdf ? (
+                    <div className="flex min-h-[420px] items-center justify-center text-center text-slate-500">
+                      <Loader2 className="h-6 w-6 animate-spin" />
                     </div>
                   ) : (
                     <div className="flex min-h-[420px] items-center justify-center text-center">
@@ -874,6 +934,44 @@ export default function FirmadorPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function PdfPageCanvas({ document, pageNumber }: { document: PDFDocumentProxy; pageNumber: number }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [page, setPage] = useState<PDFPageProxy | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPage(null);
+    document.getPage(pageNumber).then((loadedPage) => {
+      if (!cancelled) setPage(loadedPage);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [document, pageNumber]);
+
+  useEffect(() => {
+    if (!page || !canvasRef.current) return undefined;
+    const viewport = page.getViewport({ scale: 1.35 });
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+    if (!context) return undefined;
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
+
+    const task = page.render({ canvas, canvasContext: context, viewport });
+    return () => {
+      task.cancel();
+    };
+  }, [page]);
+
+  return (
+    <canvas ref={canvasRef} className="block w-full bg-white" />
   );
 }
 
