@@ -177,9 +177,13 @@ def firmar_documento(request):
     except Exception as exc:
         logger.exception('Error firmando PDF. workspace_id=%s documento_id=%s', workspace.id, documento.id)
         documento.status = FirmadorDocumento.Estado.ERROR
-        documento.error_message = str(exc)
+        if isinstance(exc, DjangoValidationError):
+            message = exc.messages[0] if hasattr(exc, 'messages') else str(exc)
+        else:
+            message = str(exc)
+        documento.error_message = message
         documento.save(update_fields=['status', 'error_message', 'updated_at'])
-        return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'detail': message}, status=status.HTTP_400_BAD_REQUEST)
 
     response = HttpResponse(result.content, content_type='application/pdf')
     response['Content-Disposition'] = content_disposition_header(True, result.signed_file_name)

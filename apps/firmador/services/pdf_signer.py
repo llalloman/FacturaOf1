@@ -86,13 +86,20 @@ def sign_pdf_with_pkcs12(
     os.close(out_fd)
 
     try:
-        signer = signers.SimpleSigner.load_pkcs12(
-            pfx_file=cert_path,
-            passphrase=(certificate_password or '').encode(),
-        )
+        try:
+            signer = signers.SimpleSigner.load_pkcs12(
+                pfx_file=cert_path,
+                passphrase=(certificate_password or '').encode(),
+            )
+        except ValueError as exc:
+            raise ValidationError('No se pudo abrir el certificado. Verifica que sea .p12/.pfx y que la clave sea correcta.') from exc
+
         field_name = 'FirmaOF1'
         with open(pdf_path, 'rb') as inf:
-            writer = IncrementalPdfFileWriter(inf)
+            try:
+                writer = IncrementalPdfFileWriter(inf, strict=False)
+            except Exception as exc:
+                raise ValidationError('No se pudo leer la estructura del PDF. Intenta exportarlo nuevamente como PDF y vuelve a firmarlo.') from exc
             if visible_signature:
                 fields.append_signature_field(
                     writer,
