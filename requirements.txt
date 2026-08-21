@@ -23,7 +23,7 @@ requests==2.31.0
 # PDF Generation (RIDE)
 reportlab==4.0.9
 PyPDF2==3.0.1
-pyHanko==0.26.0
+pyHanko==0.25.1
 
 # Background Tasks
 celery==5.3.6
