@@ -107,6 +107,10 @@ const downloadBlob = (blob: Blob, fileName: string) => {
   URL.revokeObjectURL(url);
 };
 
+const fileArray = (files: FileList | File[] | null) => Array.from(files ?? []);
+const isPdfFile = (file: File) => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+const isCertificateFile = (file: File) => /\.(p12|pfx)$/i.test(file.name);
+
 export default function FirmadorPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -138,18 +142,21 @@ export default function FirmadorPage() {
   const [validationFiles, setValidationFiles] = useState<File[]>([]);
   const [validationResults, setValidationResults] = useState<FirmadorPdfValidado[]>([]);
   const [validatingPdfs, setValidatingPdfs] = useState(false);
+  const [draggingCertificate, setDraggingCertificate] = useState(false);
+  const [draggingPdf, setDraggingPdf] = useState(false);
+  const [draggingValidation, setDraggingValidation] = useState(false);
 
-  const { data: perfil, isLoading: loadingPerfil } = useQuery({
+  const { data: perfil, isLoading: loadingPerfil, isError: perfilError } = useQuery({
     queryKey: ['firmador-perfil'],
     queryFn: firmadorService.getPerfil,
   });
 
-  const { data: documentos = [] } = useQuery({
+  const { data: documentos = [], isError: documentosError } = useQuery({
     queryKey: ['firmador-documentos'],
     queryFn: firmadorService.getDocumentos,
   });
 
-  const { data: certificados = [], isLoading: loadingCertificados } = useQuery({
+  const { data: certificados = [], isLoading: loadingCertificados, isError: certificadosError } = useQuery({
     queryKey: ['firmador-certificados'],
     queryFn: firmadorService.getCertificados,
   });
@@ -213,6 +220,30 @@ export default function FirmadorPage() {
     ? Math.max(1, storagePercent)
     : 0;
   const availableStorage = Math.max((perfil?.max_storage_bytes ?? 0) - (perfil?.used_storage_bytes ?? 0), 0);
+
+  const handleCertificateFiles = (files: FileList | File[] | null) => {
+    const file = fileArray(files)[0];
+    if (!file) return;
+    if (!isCertificateFile(file)) {
+      showToast('Selecciona un certificado .p12 o .pfx.', 'warning');
+      return;
+    }
+    if (certificados.length >= 2) {
+      showToast('Puedes almacenar hasta 2 certificados digitales.', 'warning');
+      return;
+    }
+    setCertificate(file);
+  };
+
+  const handlePdfFiles = (files: FileList | File[] | null) => {
+    const file = fileArray(files)[0];
+    if (!file) return;
+    if (!isPdfFile(file)) {
+      showToast('Selecciona un archivo PDF.', 'warning');
+      return;
+    }
+    setPdf(file);
+  };
 
   const handleUploadCertificate = async () => {
     if (!certificate) {
@@ -304,9 +335,14 @@ export default function FirmadorPage() {
     }
   };
 
-  const handleAddValidationFiles = (files: FileList | null) => {
+  const handleAddValidationFiles = (files: FileList | File[] | null) => {
     if (!files) return;
-    const nextFiles = Array.from(files).filter((file) => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+    const selectedFiles = fileArray(files);
+    const nextFiles = selectedFiles.filter(isPdfFile);
+    if (selectedFiles.length > 0 && nextFiles.length === 0) {
+      showToast('Solo puedes agregar documentos PDF.', 'warning');
+      return;
+    }
     setValidationFiles((current) => {
       const merged = [...current, ...nextFiles];
       return merged.slice(0, 10);
@@ -420,6 +456,12 @@ export default function FirmadorPage() {
       </nav>
 
       <section className="mx-auto max-w-7xl px-4 py-8">
+        {(perfilError || documentosError || certificadosError) && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            No se pudo cargar toda la informacion del firmador. Revisa tu conexion o vuelve a iniciar sesion.
+          </div>
+        )}
+
         {activeTab === 'certificados' && (
           <div className="space-y-6">
             <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
@@ -463,8 +505,24 @@ export default function FirmadorPage() {
                   <button
                     type="button"
                     onClick={() => certInputRef.current?.click()}
+                    onDragEnter={(event) => {
+                      event.preventDefault();
+                      if (certificados.length < 2) setDraggingCertificate(true);
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      if (certificados.length < 2) setDraggingCertificate(true);
+                    }}
+                    onDragLeave={() => setDraggingCertificate(false)}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      setDraggingCertificate(false);
+                      handleCertificateFiles(event.dataTransfer.files);
+                    }}
                     disabled={certificados.length >= 2}
-                    className="mt-8 flex h-44 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-center transition-colors hover:border-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    className={`mt-8 flex h-44 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed bg-white text-center transition-colors disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${
+                      draggingCertificate ? 'border-blue-700 bg-blue-50' : 'border-slate-300 hover:border-blue-700 hover:bg-blue-50'
+                    }`}
                   >
                     <UploadCloud className="h-11 w-11 text-slate-500" />
                     <span className="mt-4 text-sm font-bold text-slate-900">Arrastra tu certificado o haz clic</span>
@@ -476,7 +534,10 @@ export default function FirmadorPage() {
                   type="file"
                   accept=".p12,.pfx"
                   className="hidden"
-                  onChange={(event) => setCertificate(event.target.files?.[0] ?? null)}
+                  onChange={(event) => {
+                    handleCertificateFiles(event.target.files);
+                    event.target.value = '';
+                  }}
                 />
 
                 <label className="mt-5 block">
@@ -628,7 +689,23 @@ export default function FirmadorPage() {
                 <button
                   type="button"
                   onClick={() => pdfInputRef.current?.click()}
-                  className="mt-7 flex h-40 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-center transition-colors hover:border-blue-700 hover:bg-blue-50"
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    setDraggingPdf(true);
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setDraggingPdf(true);
+                  }}
+                  onDragLeave={() => setDraggingPdf(false)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setDraggingPdf(false);
+                    handlePdfFiles(event.dataTransfer.files);
+                  }}
+                  className={`mt-7 flex h-40 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed bg-white text-center transition-colors ${
+                    draggingPdf ? 'border-blue-700 bg-blue-50' : 'border-slate-300 hover:border-blue-700 hover:bg-blue-50'
+                  }`}
                 >
                   <UploadCloud className="h-10 w-10 text-slate-500" />
                   <span className="mt-4 text-sm font-bold text-slate-950">
@@ -641,7 +718,10 @@ export default function FirmadorPage() {
                   type="file"
                   accept="application/pdf,.pdf"
                   className="hidden"
-                  onChange={(event) => setPdf(event.target.files?.[0] ?? null)}
+                  onChange={(event) => {
+                    handlePdfFiles(event.target.files);
+                    event.target.value = '';
+                  }}
                 />
 
                 <div className="mt-5 grid grid-cols-1 gap-4">
@@ -1012,13 +1092,34 @@ export default function FirmadorPage() {
               <h2 className="text-lg font-black text-slate-950">Verificar Documento(s) PDF</h2>
               <p className="mt-1 text-sm text-slate-500">Sube o arrastra documentos PDF firmados para verificar sus firmas digitales.</p>
 
-              <label className="mt-6 flex min-h-24 cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-slate-200 px-4 py-5 transition-colors hover:border-blue-500 hover:bg-blue-50">
+              <label
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setDraggingValidation(true);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDraggingValidation(true);
+                }}
+                onDragLeave={() => setDraggingValidation(false)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDraggingValidation(false);
+                  handleAddValidationFiles(event.dataTransfer.files);
+                }}
+                className={`mt-6 flex min-h-24 cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed px-4 py-5 transition-colors ${
+                  draggingValidation ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-blue-500 hover:bg-blue-50'
+                }`}
+              >
                 <input
                   type="file"
                   accept="application/pdf,.pdf"
                   multiple
                   className="hidden"
-                  onChange={(event) => handleAddValidationFiles(event.target.files)}
+                  onChange={(event) => {
+                    handleAddValidationFiles(event.target.files);
+                    event.target.value = '';
+                  }}
                 />
                 <span className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white">
                   <Plus className="h-4 w-4" />

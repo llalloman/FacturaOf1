@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
 import Layout from './components/Layout';
@@ -216,6 +216,7 @@ const appLayoutRoutes = (
 
 function AppRoutes() {
   const navigate = useNavigate();
+  const location = useLocation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
@@ -364,6 +365,8 @@ function AppRoutes() {
             element={
               !isAuthenticated ? (
                 isFirmadorHost ? <Navigate to="/login" replace /> : <LandingPage />
+              ) : user?.rol === 'FIRMADOR' && location.pathname === '/' ? (
+                <Navigate to="/firmador" replace />
               ) : (
                 <ProtectedRoute>
                   <Layout />
