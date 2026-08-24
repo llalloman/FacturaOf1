@@ -22,7 +22,7 @@ export default function CtaDemoSection() {
           electrónica, las ventas y el control de inventario de tu negocio.
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="flex flex-col gap-4 justify-center sm:flex-row sm:flex-wrap">
           <Link
             to="/solicitar-demo"
             className="inline-flex items-center justify-center gap-2.5 px-8 py-4 border-2 border-blue-600 text-blue-700 font-bold text-base rounded-xl hover:bg-blue-50 transition-all"
@@ -42,16 +42,24 @@ export default function CtaDemoSection() {
             className="inline-flex items-center justify-center gap-2.5 px-8 py-4 border-2 border-emerald-200 text-emerald-700 font-bold text-base rounded-xl hover:bg-emerald-50 transition-all"
           >
             <FileSignature className="w-4 h-4" />
-            Obtener firma electrónica
+            Solicitar firma electrónica
+          </Link>
+          <Link
+            to="/firmador/registro"
+            className="inline-flex items-center justify-center gap-2.5 px-8 py-4 border-2 border-slate-300 text-slate-700 font-bold text-base rounded-xl hover:bg-white transition-all"
+          >
+            <FileSignature className="w-4 h-4" />
+            Crear cuenta de firmador
           </Link>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-8 mt-16 pt-12 border-t border-slate-200">
+        <div className="grid grid-cols-2 gap-8 mt-16 pt-12 border-t border-slate-200 sm:grid-cols-4">
           {[
             { value: '100%', label: 'Compatible SRI' },
             { value: 'Demo', label: 'Acompañamiento guiado' },
             { value: 'ERP', label: 'Control operativo' },
+            { value: 'PDF', label: 'Firmador y validación' },
           ].map((stat) => (
             <div key={stat.label}>
               <div className="text-3xl lg:text-4xl font-black text-slate-900 mb-1">{stat.value}</div>

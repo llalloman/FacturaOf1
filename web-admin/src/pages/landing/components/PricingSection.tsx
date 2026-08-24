@@ -42,7 +42,7 @@ const PLANS: Plan[] = [
       { text: 'Revisión de necesidades del negocio' },
       { text: 'Explicación de facturación electrónica SRI' },
       { text: 'Recorrido por POS, inventario y cartera' },
-      { text: 'Asesoría para firma electrónica' },
+      { text: 'Asesoría para firma electrónica y OF1 Firmador' },
       { text: 'Recomendación de plan' },
     ],
   },
@@ -321,7 +321,7 @@ export default function PricingSection() {
             </span>
             <h3 className="mt-3 text-2xl font-black text-slate-900">Ideal para negocios que quieren empezar a facturar sin complicaciones.</h3>
             <p className="mt-2 text-sm text-slate-600">
-              Incluye firma electrónica 1 año, configuración inicial, capacitación y activación de FacturaOF1 ERP.
+              Incluye firma electrónica 1 año, configuración inicial, capacitación, activación de FacturaOF1 ERP y orientación para usar OF1 Firmador.
             </p>
           </div>
           <div className="mt-5 lg:mt-0 lg:text-right">

@@ -13,6 +13,7 @@ const BENEFITS = [
   'Facturación electrónica aprobada por el SRI',
   'Control de inventario en tiempo real',
   'Punto de venta rápido y sencillo',
+  'OF1 Firmador para PDFs y validación',
   'Administra múltiples empresas',
   'Reportes y métricas clave',
 ];
@@ -151,8 +152,8 @@ export default function HeroSection() {
 
             <p className="text-lg text-slate-300 leading-relaxed mb-8 max-w-lg">
               FacturaOF1 ERP integra facturación electrónica SRI, punto de venta,
-              inventario, clientes, cartera y reportes. Si aún no tienes firma
-              electrónica, también te acompañamos en la solicitud.
+              inventario, clientes, cartera, reportes y OF1 Firmador. Si aún no tienes firma
+              electrónica, también te acompañamos en la solicitud del certificado.
             </p>
 
             {/* Benefit list */}
@@ -186,6 +187,12 @@ export default function HeroSection() {
               >
                 <FileSignature className="w-4 h-4" />
                 Solicitar firma electrónica
+              </Link>
+              <Link
+                to="/firmador/registro"
+                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-emerald-300/30 text-emerald-100 hover:text-white hover:bg-emerald-400/10 font-semibold text-base rounded-xl transition-all"
+              >
+                Crear cuenta de firmador
               </Link>
             </div>
 

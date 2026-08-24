@@ -1,4 +1,4 @@
-import { ReceiptText, Package, ShoppingCart, BarChart3, Building2, CreditCard } from 'lucide-react';
+import { ReceiptText, Package, ShoppingCart, BarChart3, Building2, FileSignature } from 'lucide-react';
 
 const FEATURES = [
   {
@@ -47,10 +47,10 @@ const FEATURES = [
     border: 'border-cyan-100',
   },
   {
-    icon: CreditCard,
-    title: 'Suscripciones flexibles',
+    icon: FileSignature,
+    title: 'Firma y documentos',
     description:
-      'Elige el plan que mejor se adapta a tu tamaño. Desde emprendedores hasta empresas con múltiples sucursales.',
+      'Solicita tu firma electrónica y usa OF1 Firmador para firmar, guardar y validar documentos PDF.',
     color: 'from-rose-500 to-pink-600',
     bg: 'bg-rose-50',
     border: 'border-rose-100',

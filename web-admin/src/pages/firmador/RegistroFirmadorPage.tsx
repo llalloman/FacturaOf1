@@ -97,10 +97,10 @@ export default function RegistroFirmadorPage() {
                 <FileSignature className="h-7 w-7" />
               </div>
               <h1 className="mt-5 text-2xl font-black leading-tight">
-                Crea tu cuenta de firmador PDF
+                Crea tu cuenta de OF1 Firmador
               </h1>
               <p className="mt-3 max-w-sm text-sm leading-6 text-blue-100">
-                Acceso independiente para firmar documentos con certificado electronico, sin crear una empresa en el ERP.
+                Acceso independiente para firmar documentos PDF con certificado electrónico, sin crear una empresa en el ERP.
               </p>
             </div>
 
@@ -128,10 +128,10 @@ export default function RegistroFirmadorPage() {
               <div className="mt-5">
                 <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                   <FileSignature className="h-3.5 w-3.5" />
-                  Firmador PDF
+                  OF1 Firmador
                 </span>
                 <h2 className="mt-4 text-2xl font-black text-slate-950">Registro de usuario</h2>
-                <p className="mt-1 text-sm text-slate-500">Usa estos datos para ingresar desde firmador.of1solutions.com.</p>
+                <p className="mt-1 text-sm text-slate-500">Usa estos datos para ingresar al firmador PDF de OF1 Solutions.</p>
               </div>
             </div>
 
@@ -235,7 +235,7 @@ export default function RegistroFirmadorPage() {
                   <Link to="/terminos-y-condiciones" target="_blank" className="font-bold text-blue-700 hover:underline">
                     Terminos y Condiciones
                   </Link>{' '}
-                  del firmador PDF.
+                  de OF1 Firmador.
                 </span>
               </label>
               <label className="flex items-start gap-3 text-sm text-slate-600">
@@ -250,7 +250,7 @@ export default function RegistroFirmadorPage() {
                   <Link to="/politica-privacidad" target="_blank" className="font-bold text-blue-700 hover:underline">
                     Politica de Privacidad
                   </Link>
-                  , incluyendo el uso del servicio de firmador PDF.
+                  , incluyendo el uso del servicio OF1 Firmador.
                 </span>
               </label>
             </div>

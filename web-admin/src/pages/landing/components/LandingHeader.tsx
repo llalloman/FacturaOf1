@@ -5,6 +5,7 @@ import { Menu, X } from 'lucide-react';
 const NAV_LINKS = [
   { label: 'Inicio', href: '#inicio' },
   { label: 'Funcionalidades', href: '#funcionalidades' },
+  { label: 'Firmador', href: '#firmador' },
   { label: 'Planes', href: '#planes' },
   { label: 'Demo', href: '#demo' },
   { label: 'Contacto', href: '#contacto' },
@@ -78,7 +79,7 @@ export default function LandingHeader() {
                   : 'text-blue-100 hover:text-white hover:bg-white/10'
               }`}
             >
-              Firma electrónica
+              Firma y firmador
             </Link>
             <Link
               to="/login"

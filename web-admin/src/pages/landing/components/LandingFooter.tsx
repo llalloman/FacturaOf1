@@ -4,6 +4,7 @@ import { Mail, Phone, Twitter, Linkedin, Instagram } from 'lucide-react';
 const FOOTER_LINKS = {
   Producto: [
     { label: 'Funcionalidades', href: '#funcionalidades' },
+    { label: 'OF1 Firmador', href: '#firmador' },
     { label: 'Planes y precios', href: '#planes' },
     { label: 'Demo', href: '#demo' },
   ],
@@ -55,7 +56,7 @@ export default function LandingFooter() {
             </div>
             <p className="text-slate-400 text-sm leading-relaxed mb-6 max-w-xs">
               Sistema SaaS de facturación electrónica, inventario y punto de venta
-              para negocios ecuatorianos. Conectado al SRI.
+              para negocios ecuatorianos. Incluye acceso al ecosistema de firma electrónica y OF1 Firmador.
             </p>
 
             {/* Contact */}
@@ -135,6 +136,9 @@ export default function LandingFooter() {
             </Link>
             <Link to="/solicitar-demo" className="text-blue-500 hover:text-blue-400 text-xs font-semibold transition-colors">
               Solicitar demostración →
+            </Link>
+            <Link to="/firmador/registro" className="text-emerald-400 hover:text-emerald-300 text-xs font-semibold transition-colors">
+              Crear cuenta de firmador →
             </Link>
           </div>
         </div>
