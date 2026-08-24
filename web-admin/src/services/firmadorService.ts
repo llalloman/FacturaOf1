@@ -115,6 +115,20 @@ export interface FirmadorAdminWorkspace {
   updated_at: string;
   documentos_recientes?: FirmadorDocumento[];
   certificados_activos?: FirmadorCertificado[];
+  consentimiento_legal?: FirmadorConsentimientoLegal | null;
+}
+
+export interface FirmadorConsentimientoLegal {
+  id: number;
+  accepted_terms: boolean;
+  accepted_privacy: boolean;
+  accepted_at: string;
+  ip_address: string | null;
+  user_agent: string;
+  terms_version: string;
+  privacy_version: string;
+  source: string;
+  created_at: string;
 }
 
 export interface FirmadorAdminMetricas {

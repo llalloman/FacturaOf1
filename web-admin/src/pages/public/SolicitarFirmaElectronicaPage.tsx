@@ -81,8 +81,8 @@ const loadPayPhoneAssets = () => {
 };
 
 const whatsappBase = 'https://api.whatsapp.com/send/';
-const signatureTermsVersion = 'firma-2026-06-22';
-const signaturePrivacyVersion = 'privacidad-2026-06-22';
+const signatureTermsVersion = 'terminos-2026-08-24';
+const signaturePrivacyVersion = 'privacidad-2026-08-24';
 const maxDocumentSizeBytes = 15 * 1024 * 1024;
 const maxDocumentSizeMb = maxDocumentSizeBytes / 1024 / 1024;
 const allowedDocumentExtensions = ['pdf', 'jpg', 'jpeg', 'png'];

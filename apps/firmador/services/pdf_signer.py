@@ -183,7 +183,7 @@ def sign_pdf_with_pkcs12(
                 if visible_signature:
                     if signature_type == 'QR':
                         stamp_style = stamp.QRStampStyle(
-                            border_width=1,
+                            border_width=0,
                             background=None,
                             background_opacity=0,
                             text_box_style=text.TextBoxStyle(font_size=6, leading=7, border_width=0),
@@ -199,7 +199,7 @@ def sign_pdf_with_pkcs12(
                         )
                     else:
                         stamp_style = stamp.TextStampStyle(
-                            border_width=1,
+                            border_width=0,
                             background=None,
                             background_opacity=0,
                             text_box_style=text.TextBoxStyle(font_size=6, leading=7, border_width=0),

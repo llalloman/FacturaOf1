@@ -435,6 +435,26 @@ export default function FirmadorAdminPage() {
 
               <div className="border-t border-slate-200 pt-4">
                 <h3 className="flex items-center gap-2 text-sm font-bold text-slate-950">
+                  <ShieldCheck size={16} />
+                  Consentimiento legal
+                </h3>
+                {selected.consentimiento_legal ? (
+                  <div className="mt-3 rounded-lg border border-slate-200 p-3 text-xs text-slate-600">
+                    <p><span className="font-bold text-slate-900">Terminos:</span> {selected.consentimiento_legal.terms_version}</p>
+                    <p className="mt-1"><span className="font-bold text-slate-900">Privacidad:</span> {selected.consentimiento_legal.privacy_version}</p>
+                    <p className="mt-1"><span className="font-bold text-slate-900">Aceptado:</span> {new Date(selected.consentimiento_legal.accepted_at).toLocaleString('es-EC')}</p>
+                    <p className="mt-1"><span className="font-bold text-slate-900">IP:</span> {selected.consentimiento_legal.ip_address || '-'}</p>
+                    <p className="mt-1"><span className="font-bold text-slate-900">Origen:</span> {selected.consentimiento_legal.source}</p>
+                  </div>
+                ) : (
+                  <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                    No hay evidencia legal registrada para esta cuenta.
+                  </p>
+                )}
+              </div>
+
+              <div className="border-t border-slate-200 pt-4">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-slate-950">
                   <KeyRound size={16} />
                   Certificados activos
                 </h3>

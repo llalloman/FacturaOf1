@@ -19,8 +19,8 @@ from .models import (
 from .pricing import customer_key, promotion_price, resolve_signature_price
 
 
-SIGNATURE_TERMS_VERSION = 'firma-2026-06-22'
-SIGNATURE_PRIVACY_VERSION = 'privacidad-2026-06-22'
+SIGNATURE_TERMS_VERSION = 'terminos-2026-08-24'
+SIGNATURE_PRIVACY_VERSION = 'privacidad-2026-08-24'
 PHONE_RE = re.compile(r'^(09\d{8}|\+593\d{9})$')
 MAX_DOCUMENT_SIZE = 15 * 1024 * 1024
 ALLOWED_DOCUMENT_MIME_TYPES = {

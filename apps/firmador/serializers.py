@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.conf import settings
 from django.core import signing
 
-from .models import FirmadorCertificado, FirmadorDocumento, FirmadorWorkspace
+from .models import FirmadorCertificado, FirmadorConsentimientoLegal, FirmadorDocumento, FirmadorWorkspace
 
 
 VALIDATION_TOKEN_SALT = 'firmador.documento.validacion'
@@ -77,6 +77,17 @@ class FirmadorCertificadoSerializer(serializers.ModelSerializer):
         return obj.expires_at <= timezone.now()
 
 
+class FirmadorConsentimientoLegalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FirmadorConsentimientoLegal
+        fields = [
+            'id', 'accepted_terms', 'accepted_privacy', 'accepted_at',
+            'ip_address', 'user_agent', 'terms_version', 'privacy_version',
+            'source', 'created_at',
+        ]
+        read_only_fields = fields
+
+
 class FirmadorAdminWorkspaceListSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source='owner_user.email', read_only=True)
     owner_name = serializers.CharField(source='owner_user.get_full_name', read_only=True)
@@ -110,10 +121,11 @@ class FirmadorAdminWorkspaceListSerializer(serializers.ModelSerializer):
 class FirmadorAdminWorkspaceDetailSerializer(FirmadorAdminWorkspaceListSerializer):
     documentos_recientes = serializers.SerializerMethodField()
     certificados_activos = serializers.SerializerMethodField()
+    consentimiento_legal = serializers.SerializerMethodField()
 
     class Meta(FirmadorAdminWorkspaceListSerializer.Meta):
         fields = FirmadorAdminWorkspaceListSerializer.Meta.fields + [
-            'documentos_recientes', 'certificados_activos',
+            'documentos_recientes', 'certificados_activos', 'consentimiento_legal',
         ]
 
     def get_documentos_recientes(self, obj):
@@ -123,6 +135,12 @@ class FirmadorAdminWorkspaceDetailSerializer(FirmadorAdminWorkspaceListSerialize
     def get_certificados_activos(self, obj):
         certificados = obj.certificados.filter(active=True).order_by('-created_at')
         return FirmadorCertificadoSerializer(certificados, many=True, context=self.context).data
+
+    def get_consentimiento_legal(self, obj):
+        consentimiento = obj.consentimientos_legales.order_by('-accepted_at').first()
+        if not consentimiento:
+            return None
+        return FirmadorConsentimientoLegalSerializer(consentimiento, context=self.context).data
 
 
 class FirmadorAdminWorkspaceUpdateSerializer(serializers.ModelSerializer):

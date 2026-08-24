@@ -19,6 +19,8 @@ import requests as http_requests
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+FIRMADOR_TERMS_VERSION = 'terminos-2026-08-24'
+FIRMADOR_PRIVACY_VERSION = 'privacidad-2026-08-24'
 
 
 def _generate_code():
@@ -31,6 +33,19 @@ def _generate_provisional_ruc() -> str:
     Prefijo 9 para distinguirlo de RUC reales y minimizar colisiones.
     """
     return f"9{secrets.randbelow(10**12):012d}"
+
+
+def _get_client_ip(request):
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+
+
+def _truthy(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ('true', '1', 'yes', 'y', 'on', 'si', 'sí')
 
 
 def _send_verification_email(email: str, code: str, nombre: str = ''):
@@ -261,6 +276,7 @@ def registro_firmador(request):
     Registro público para usuarios que solo usarán firmador.of1solutions.com.
     Crea Usuario FIRMADOR + workspace de firmador sin empresa ERP.
     """
+    from apps.firmador.models import FirmadorConsentimientoLegal
     from apps.firmador.views import get_or_create_workspace
 
     data = request.data
@@ -268,6 +284,11 @@ def registro_firmador(request):
     missing = [field for field in required if not data.get(field)]
     if missing:
         return Response({'error': f"Campos requeridos: {', '.join(missing)}"}, status=status.HTTP_400_BAD_REQUEST)
+    if not _truthy(data.get('accepted_terms')) or not _truthy(data.get('accepted_privacy')):
+        return Response(
+            {'error': 'Debes aceptar los terminos y la politica de privacidad para crear la cuenta de firmador.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     email = data['email'].strip().lower()
     if User.objects.filter(email=email).exists():
@@ -304,6 +325,17 @@ def registro_firmador(request):
             workspace.identificacion = identificacion
             workspace.email = email
             workspace.save(update_fields=['nombre', 'identificacion', 'email', 'updated_at'])
+            FirmadorConsentimientoLegal.objects.create(
+                user=usuario,
+                workspace=workspace,
+                accepted_terms=True,
+                accepted_privacy=True,
+                ip_address=_get_client_ip(request),
+                user_agent=(request.META.get('HTTP_USER_AGENT') or '')[:1000],
+                terms_version=data.get('terms_version') or FIRMADOR_TERMS_VERSION,
+                privacy_version=data.get('privacy_version') or FIRMADOR_PRIVACY_VERSION,
+                source=FirmadorConsentimientoLegal.Origen.REGISTRO,
+            )
     except IntegrityError:
         return Response({'error': 'Ya existe un usuario con ese email o identificacion.'}, status=status.HTTP_400_BAD_REQUEST)
 

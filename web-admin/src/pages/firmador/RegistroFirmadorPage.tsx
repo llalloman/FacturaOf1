@@ -18,6 +18,9 @@ import {
 import { authService } from '../../services/authService';
 import { useAuthStore } from '../../store/authStore';
 
+const firmadorTermsVersion = 'terminos-2026-08-24';
+const firmadorPrivacyVersion = 'privacidad-2026-08-24';
+
 export default function RegistroFirmadorPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -28,13 +31,15 @@ export default function RegistroFirmadorPage() {
     confirm_password: '',
     nombre: '',
     apellido: '',
+    accepted_terms: false,
+    accepted_privacy: false,
   });
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const updateField = (field: keyof typeof form, value: string) => {
+  const updateField = (field: keyof typeof form, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -49,6 +54,10 @@ export default function RegistroFirmadorPage() {
       setError('La contrasena debe tener al menos 8 caracteres.');
       return;
     }
+    if (!form.accepted_terms || !form.accepted_privacy) {
+      setError('Debes aceptar los terminos y la politica de privacidad para crear tu cuenta.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -57,6 +66,10 @@ export default function RegistroFirmadorPage() {
         password: form.password,
         nombre: form.nombre.trim(),
         apellido: form.apellido.trim(),
+        accepted_terms: form.accepted_terms,
+        accepted_privacy: form.accepted_privacy,
+        terms_version: firmadorTermsVersion,
+        privacy_version: firmadorPrivacyVersion,
       });
       setAuth(response.user, response.access, response.refresh);
       navigate(response.user.email_verificado ? '/firmador' : '/verificar-email', { replace: true });
@@ -207,6 +220,39 @@ export default function RegistroFirmadorPage() {
                   {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </Field>
+            </div>
+
+            <div className="mt-5 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <label className="flex items-start gap-3 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={form.accepted_terms}
+                  onChange={(event) => updateField('accepted_terms', event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                />
+                <span>
+                  Acepto los{' '}
+                  <Link to="/terminos-y-condiciones" target="_blank" className="font-bold text-blue-700 hover:underline">
+                    Terminos y Condiciones
+                  </Link>{' '}
+                  del firmador PDF.
+                </span>
+              </label>
+              <label className="flex items-start gap-3 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={form.accepted_privacy}
+                  onChange={(event) => updateField('accepted_privacy', event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                />
+                <span>
+                  Autorizo el tratamiento de mis datos personales conforme a la{' '}
+                  <Link to="/politica-privacidad" target="_blank" className="font-bold text-blue-700 hover:underline">
+                    Politica de Privacidad
+                  </Link>
+                  , incluyendo el uso del servicio de firmador PDF.
+                </span>
+              </label>
             </div>
 
             <button

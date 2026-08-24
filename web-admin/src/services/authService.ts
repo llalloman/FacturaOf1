@@ -44,6 +44,10 @@ export interface RegistroFirmadorData {
   identificacion?: string;
   telefono?: string;
   workspace_nombre?: string;
+  accepted_terms?: boolean;
+  accepted_privacy?: boolean;
+  terms_version?: string;
+  privacy_version?: string;
 }
 
 export const authService = {

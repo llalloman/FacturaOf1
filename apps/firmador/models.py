@@ -214,3 +214,47 @@ class FirmadorCertificado(models.Model):
 
     def __str__(self):
         return self.alias or self.original_file_name
+
+
+class FirmadorConsentimientoLegal(models.Model):
+    class Origen(models.TextChoices):
+        REGISTRO = 'firmador_registro', _('Registro del firmador')
+        ADMIN = 'admin', _('Administracion')
+        OTRO = 'otro', _('Otro')
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='consentimientos_firmador',
+        verbose_name=_('usuario'),
+    )
+    workspace = models.ForeignKey(
+        FirmadorWorkspace,
+        on_delete=models.CASCADE,
+        related_name='consentimientos_legales',
+        verbose_name=_('workspace'),
+    )
+    accepted_terms = models.BooleanField(_('acepto terminos'), default=True)
+    accepted_privacy = models.BooleanField(_('acepto privacidad'), default=True)
+    accepted_at = models.DateTimeField(_('fecha de aceptacion'), default=timezone.now)
+    ip_address = models.GenericIPAddressField(_('direccion IP'), null=True, blank=True)
+    user_agent = models.TextField(_('user agent'), blank=True)
+    terms_version = models.CharField(_('version de terminos'), max_length=40)
+    privacy_version = models.CharField(_('version de privacidad'), max_length=40)
+    source = models.CharField(_('origen'), max_length=40, choices=Origen.choices, default=Origen.REGISTRO)
+    created_at = models.DateTimeField(_('fecha de creacion'), auto_now_add=True)
+
+    class Meta:
+        db_table = 'firmador_legal_consents'
+        verbose_name = _('consentimiento legal del firmador')
+        verbose_name_plural = _('consentimientos legales del firmador')
+        ordering = ['-accepted_at']
+        indexes = [
+            models.Index(fields=['user', 'accepted_at']),
+            models.Index(fields=['workspace', 'accepted_at']),
+            models.Index(fields=['terms_version', 'privacy_version']),
+            models.Index(fields=['source']),
+        ]
+
+    def __str__(self):
+        return f'{self.user_id} - {self.terms_version} - {self.accepted_at:%Y-%m-%d %H:%M:%S}'

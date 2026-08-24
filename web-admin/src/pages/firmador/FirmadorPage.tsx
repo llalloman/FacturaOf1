@@ -29,7 +29,7 @@ import { firmadorService, type FirmadorCertificado, type FirmadorDocumento, type
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString();
 
 type TabKey = 'certificados' | 'firmar' | 'documentos' | 'validar';
-type SignMode = 'multiples_documentos' | 'multiples_firmantes' | 'un_firmante';
+type SignMode = 'documento_individual' | 'multiples_documentos' | 'multiples_firmantes';
 type SignatureType = 'SIMPLE' | 'QR' | 'AVANZADA';
 
 const tabs: Array<{ key: TabKey; label: string; icon: React.ElementType }> = [
@@ -39,24 +39,27 @@ const tabs: Array<{ key: TabKey; label: string; icon: React.ElementType }> = [
   { key: 'validar', label: 'Validar', icon: ShieldCheck },
 ];
 
-const signModes: Array<{ key: SignMode; label: string; description: string; icon: React.ElementType }> = [
+const signModes: Array<{ key: SignMode; label: string; description: string; icon: React.ElementType; enabled: boolean }> = [
+  {
+    key: 'documento_individual',
+    label: 'Documento Individual',
+    description: 'Firma un PDF con un certificado digital.',
+    icon: FileSignature,
+    enabled: true,
+  },
   {
     key: 'multiples_documentos',
     label: 'Multiples Documentos',
     description: 'Aplica la misma firma en la misma posicion a varios archivos PDF.',
     icon: FileText,
+    enabled: false,
   },
   {
     key: 'multiples_firmantes',
     label: 'Multiples Firmantes',
     description: 'Diferentes personas firman en un unico documento PDF.',
     icon: FileCheck2,
-  },
-  {
-    key: 'un_firmante',
-    label: 'Un Firmante',
-    description: 'Una sola persona firma en varios lugares de un documento PDF.',
-    icon: FileSignature,
+    enabled: false,
   },
 ];
 
@@ -117,7 +120,7 @@ export default function FirmadorPage() {
   const certInputRef = useRef<HTMLInputElement | null>(null);
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('certificados');
-  const [signMode, setSignMode] = useState<SignMode>('multiples_documentos');
+  const [signMode, setSignMode] = useState<SignMode>('documento_individual');
   const [pdf, setPdf] = useState<File | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [pdfPageCount, setPdfPageCount] = useState(0);
@@ -651,8 +654,8 @@ export default function FirmadorPage() {
         {activeTab === 'firmar' && (
           <form onSubmit={handleSign} className="space-y-7">
             <header>
-              <h1 className="text-3xl font-black text-slate-950">Firma de Multiples Documentos</h1>
-              <p className="mt-2 text-slate-500">Selecciona el modo que mejor se adapte a tus necesidades.</p>
+              <h1 className="text-3xl font-black text-slate-950">Firmar Documento PDF</h1>
+              <p className="mt-2 text-slate-500">Firma un documento con certificado digital y elige si deseas una marca visible.</p>
             </header>
 
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -663,9 +666,16 @@ export default function FirmadorPage() {
                   <button
                     key={mode.key}
                     type="button"
-                    onClick={() => setSignMode(mode.key)}
+                    disabled={!mode.enabled}
+                    onClick={() => {
+                      if (mode.enabled) setSignMode(mode.key);
+                    }}
                     className={`flex items-start gap-4 rounded-lg border bg-white p-6 text-left shadow-sm transition-colors ${
-                      active ? 'border-blue-700 bg-blue-50' : 'border-slate-200 hover:border-blue-300'
+                      active
+                        ? 'border-blue-700 bg-blue-50'
+                        : mode.enabled
+                          ? 'border-slate-200 hover:border-blue-300'
+                          : 'border-slate-200 bg-slate-50 opacity-70'
                     }`}
                   >
                     <span className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full ${
@@ -673,8 +683,15 @@ export default function FirmadorPage() {
                     }`}>
                       <Icon className="h-5 w-5" />
                     </span>
-                    <span>
-                      <span className="block text-lg font-black text-slate-950">{mode.label}</span>
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2 text-lg font-black text-slate-950">
+                        {mode.label}
+                        {!mode.enabled && (
+                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                            Proximamente
+                          </span>
+                        )}
+                      </span>
                       <span className="mt-2 block text-sm leading-6 text-slate-500">{mode.description}</span>
                     </span>
                   </button>
