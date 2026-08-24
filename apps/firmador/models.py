@@ -53,6 +53,7 @@ class FirmadorWorkspace(models.Model):
     identificacion = models.CharField(_('identificación'), max_length=20, blank=True)
     email = models.EmailField(_('email'))
     activo = models.BooleanField(_('activo'), default=True)
+    is_primary = models.BooleanField(_('workspace principal'), default=False)
     max_file_size_bytes = models.BigIntegerField(_('máximo por archivo'), default=25 * 1024 * 1024)
     max_storage_bytes = models.BigIntegerField(_('cuota de almacenamiento'), default=1024 * 1024 * 1024)
     monthly_signature_limit = models.PositiveIntegerField(_('firmas mensuales'), default=100)
@@ -67,8 +68,16 @@ class FirmadorWorkspace(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['owner_user', 'activo']),
+            models.Index(fields=['owner_user', 'is_primary']),
             models.Index(fields=['empresa', 'activo']),
             models.Index(fields=['solicitud_firma']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner_user'],
+                condition=Q(is_primary=True, activo=True),
+                name='uniq_firmador_workspace_principal_activo',
+            ),
         ]
 
     def __str__(self):

@@ -10,8 +10,8 @@ from .models import (
 
 @admin.register(FirmadorWorkspace)
 class FirmadorWorkspaceAdmin(admin.ModelAdmin):
-    list_display = ('id', 'nombre', 'email', 'tipo', 'activo', 'owner_user', 'created_at')
-    list_filter = ('tipo', 'activo', 'created_at')
+    list_display = ('id', 'nombre', 'email', 'tipo', 'activo', 'is_primary', 'owner_user', 'created_at')
+    list_filter = ('tipo', 'activo', 'is_primary', 'created_at')
     search_fields = ('nombre', 'email', 'identificacion', 'owner_user__email')
     readonly_fields = ('created_at', 'updated_at')
 

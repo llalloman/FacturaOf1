@@ -8,6 +8,7 @@ from django.core import signing
 from django.http import FileResponse, Http404, HttpResponse
 from django.utils.http import content_disposition_header
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Count, Sum, Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes, parser_classes
@@ -51,10 +52,43 @@ def _workspace_defaults():
     }
 
 
+def _workspace_with_data_order(queryset):
+    return (
+        queryset
+        .annotate(
+            documentos_total=Count('documentos', distinct=True),
+            certificados_total=Count('certificados', distinct=True),
+        )
+        .order_by(
+            '-activo',
+            '-documentos_total',
+            '-certificados_total',
+            '-is_primary',
+            'created_at',
+            'id',
+        )
+    )
+
+
+def _mark_primary_workspace(workspace):
+    if not workspace:
+        return None
+    FirmadorWorkspace.objects.filter(owner_user=workspace.owner_user, is_primary=True).exclude(pk=workspace.pk).update(is_primary=False)
+    if not workspace.is_primary:
+        workspace.is_primary = True
+        workspace.save(update_fields=['is_primary', 'updated_at'])
+    return workspace
+
+
 def get_or_create_workspace(user):
-    workspace = FirmadorWorkspace.objects.filter(owner_user=user, activo=True).order_by('-created_at').first()
+    user_workspaces = FirmadorWorkspace.objects.filter(owner_user=user)
+    workspace = _workspace_with_data_order(user_workspaces.filter(activo=True)).first()
     if workspace:
-        return workspace
+        return _mark_primary_workspace(workspace)
+
+    workspace = _workspace_with_data_order(user_workspaces).first()
+    if workspace:
+        return _mark_primary_workspace(workspace)
 
     empresa = getattr(user, 'empresa', None)
     if empresa:
@@ -65,6 +99,7 @@ def get_or_create_workspace(user):
             nombre=empresa.razon_social,
             identificacion=empresa.ruc,
             email=empresa.email or user.email,
+            is_primary=True,
             **_workspace_defaults(),
         )
 
@@ -74,6 +109,7 @@ def get_or_create_workspace(user):
         nombre=user.get_full_name() or user.email,
         identificacion=getattr(user, 'cedula', '') or '',
         email=user.email,
+        is_primary=True,
         **_workspace_defaults(),
     )
 
@@ -322,6 +358,17 @@ class FirmadorAdminWorkspaceViewSet(viewsets.ModelViewSet):
         self.perform_update(serializer)
         detail_serializer = FirmadorAdminWorkspaceDetailSerializer(instance, context=self.get_serializer_context())
         return Response(detail_serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='marcar-principal')
+    def marcar_principal(self, request, pk=None):
+        workspace = self.get_object()
+        with transaction.atomic():
+            FirmadorWorkspace.objects.filter(owner_user=workspace.owner_user).exclude(pk=workspace.pk).update(is_primary=False)
+            workspace.is_primary = True
+            workspace.activo = True
+            workspace.save(update_fields=['is_primary', 'activo', 'updated_at'])
+        serializer = FirmadorAdminWorkspaceDetailSerializer(workspace, context=self.get_serializer_context())
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='metricas')
     def metricas(self, request):

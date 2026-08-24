@@ -12,9 +12,11 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Star,
   ToggleLeft,
   ToggleRight,
   UserRound,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   firmadorService,
@@ -143,7 +145,14 @@ function WorkspaceRow({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="truncate text-base font-bold text-slate-950">{workspace.nombre || 'Sin nombre'}</h3>
             <StatusPill active={workspace.activo && workspace.owner_active} label={workspace.activo && workspace.owner_active ? 'Activo' : 'Inactivo'} />
+            {workspace.is_primary && <StatusPill active label="Principal" />}
             {workspace.owner_email_verificado && <StatusPill active label="Email verificado" />}
+            {workspace.has_workspace_conflict && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                <AlertTriangle size={13} />
+                {workspace.owner_workspaces_count} espacios
+              </span>
+            )}
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
             <span className="inline-flex items-center gap-1"><Mail size={14} />{workspace.owner_email || workspace.email}</span>
@@ -245,6 +254,19 @@ export default function FirmadorAdminPage() {
       ]);
     },
     onError: () => showToast('No se pudo actualizar el usuario firmador', 'error'),
+  });
+
+  const markPrimaryMutation = useMutation({
+    mutationFn: (id: number) => firmadorService.marcarAdminWorkspacePrincipal(id),
+    onSuccess: async (_, id) => {
+      showToast('Workspace principal actualizado', 'success');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['firmador-admin-metricas'] }),
+        queryClient.invalidateQueries({ queryKey: ['firmador-admin-workspaces'] }),
+        queryClient.invalidateQueries({ queryKey: ['firmador-admin-workspace', id] }),
+      ]);
+    },
+    onError: () => showToast('No se pudo marcar el workspace principal', 'error'),
   });
 
   const handleSave = () => {
@@ -376,7 +398,13 @@ export default function FirmadorAdminPage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <StatusPill active={selected.activo} label={selected.activo ? 'Workspace activo' : 'Workspace inactivo'} />
                   <StatusPill active={selected.owner_active} label={selected.owner_active ? 'Usuario activo' : 'Usuario inactivo'} />
+                  {selected.is_primary && <StatusPill active label="Principal" />}
                 </div>
+                {selected.has_workspace_conflict && (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+                    Este usuario tiene {selected.owner_workspaces_count} espacios de firmador. Mantén como principal el que tenga certificados, documentos o almacenamiento real.
+                  </div>
+                )}
               </div>
 
               <div className="rounded-xl bg-slate-50 p-3">
@@ -432,6 +460,18 @@ export default function FirmadorAdminPage() {
                 {updateMutation.isPending && <Loader2 className="animate-spin" size={16} />}
                 Guardar cambios
               </button>
+
+              {!selected.is_primary && (
+                <button
+                  type="button"
+                  onClick={() => markPrimaryMutation.mutate(selected.id)}
+                  disabled={markPrimaryMutation.isPending}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {markPrimaryMutation.isPending ? <Loader2 className="animate-spin" size={16} /> : <Star size={16} />}
+                  Marcar como principal
+                </button>
+              )}
 
               <div className="border-t border-slate-200 pt-4">
                 <h3 className="flex items-center gap-2 text-sm font-bold text-slate-950">

@@ -7,6 +7,7 @@ export interface FirmadorWorkspace {
   identificacion: string;
   email: string;
   activo: boolean;
+  is_primary: boolean;
   max_file_size_bytes: number;
   max_storage_bytes: number;
   monthly_signature_limit: number;
@@ -98,6 +99,7 @@ export interface FirmadorAdminWorkspace {
   identificacion: string;
   email: string;
   activo: boolean;
+  is_primary: boolean;
   owner_email: string;
   owner_name: string;
   owner_active: boolean;
@@ -111,6 +113,8 @@ export interface FirmadorAdminWorkspace {
   monthly_signatures_used: number;
   documentos_count: number;
   certificados_count: number;
+  owner_workspaces_count: number;
+  has_workspace_conflict: boolean;
   created_at: string;
   updated_at: string;
   documentos_recientes?: FirmadorDocumento[];
@@ -235,6 +239,11 @@ export const firmadorService = {
 
   updateAdminWorkspace: async (id: number, payload: FirmadorAdminWorkspaceUpdate): Promise<FirmadorAdminWorkspace> => {
     const { data } = await apiClient.patch(`/firmador/admin/workspaces/${id}/`, payload);
+    return data;
+  },
+
+  marcarAdminWorkspacePrincipal: async (id: number): Promise<FirmadorAdminWorkspace> => {
+    const { data } = await apiClient.post(`/firmador/admin/workspaces/${id}/marcar-principal/`);
     return data;
   },
 

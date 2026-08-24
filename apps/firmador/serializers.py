@@ -15,7 +15,7 @@ class FirmadorWorkspaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = FirmadorWorkspace
         fields = [
-            'id', 'tipo', 'nombre', 'identificacion', 'email', 'activo',
+            'id', 'tipo', 'nombre', 'identificacion', 'email', 'activo', 'is_primary',
             'max_file_size_bytes', 'max_storage_bytes', 'monthly_signature_limit',
             'default_retention_days', 'max_retention_days',
             'used_storage_bytes', 'monthly_signatures_used',
@@ -94,6 +94,8 @@ class FirmadorAdminWorkspaceListSerializer(serializers.ModelSerializer):
     owner_active = serializers.BooleanField(source='owner_user.is_active', read_only=True)
     owner_email_verificado = serializers.BooleanField(source='owner_user.email_verificado', read_only=True)
     used_storage_bytes = serializers.SerializerMethodField()
+    owner_workspaces_count = serializers.SerializerMethodField()
+    has_workspace_conflict = serializers.SerializerMethodField()
     documentos_count = serializers.IntegerField(read_only=True)
     certificados_count = serializers.IntegerField(read_only=True)
     monthly_signatures_used = serializers.SerializerMethodField()
@@ -101,12 +103,13 @@ class FirmadorAdminWorkspaceListSerializer(serializers.ModelSerializer):
     class Meta:
         model = FirmadorWorkspace
         fields = [
-            'id', 'tipo', 'nombre', 'identificacion', 'email', 'activo',
+            'id', 'tipo', 'nombre', 'identificacion', 'email', 'activo', 'is_primary',
             'owner_email', 'owner_name', 'owner_active', 'owner_email_verificado',
             'max_file_size_bytes', 'max_storage_bytes', 'monthly_signature_limit',
             'default_retention_days', 'max_retention_days',
             'used_storage_bytes', 'monthly_signatures_used',
             'documentos_count', 'certificados_count',
+            'owner_workspaces_count', 'has_workspace_conflict',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields
@@ -116,6 +119,12 @@ class FirmadorAdminWorkspaceListSerializer(serializers.ModelSerializer):
 
     def get_monthly_signatures_used(self, obj):
         return obj.monthly_signatures_used()
+
+    def get_owner_workspaces_count(self, obj):
+        return FirmadorWorkspace.objects.filter(owner_user=obj.owner_user).count()
+
+    def get_has_workspace_conflict(self, obj):
+        return self.get_owner_workspaces_count(obj) > 1
 
 
 class FirmadorAdminWorkspaceDetailSerializer(FirmadorAdminWorkspaceListSerializer):
