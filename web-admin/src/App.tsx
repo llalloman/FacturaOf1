@@ -58,6 +58,7 @@ const SolicitarDemoPage = lazy(() => import('./pages/public/SolicitarDemoPage'))
 const SolicitarFirmaElectronicaPage = lazy(() => import('./pages/public/SolicitarFirmaElectronicaPage'));
 const FirmaPagoResultadoPage = lazy(() => import('./pages/public/FirmaPagoResultadoPage'));
 const FirmadorPage = lazy(() => import('./pages/firmador/FirmadorPage'));
+const FirmadorLandingPage = lazy(() => import('./pages/firmador/FirmadorLandingPage'));
 const RegistroFirmadorPage = lazy(() => import('./pages/firmador/RegistroFirmadorPage'));
 const ValidarDocumentoPublicoPage = lazy(() => import('./pages/firmador/ValidarDocumentoPublicoPage'));
 const FirmadorAdminPage = lazy(() => import('./pages/firmador/FirmadorAdminPage'));
@@ -364,7 +365,7 @@ function AppRoutes() {
             path="/"
             element={
               !isAuthenticated ? (
-                isFirmadorHost ? <Navigate to="/login" replace /> : <LandingPage />
+                isFirmadorHost ? <FirmadorLandingPage /> : <LandingPage />
               ) : user?.rol === 'FIRMADOR' && location.pathname === '/' ? (
                 <Navigate to="/firmador" replace />
               ) : (
