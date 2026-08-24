@@ -578,10 +578,12 @@ def descargar_documento_publico(request, pk):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([])
 @parser_classes([MultiPartParser, FormParser])
 def validar_documentos_pdf(request):
-    workspace = get_or_create_workspace(request.user)
+    is_authenticated = bool(request.user and request.user.is_authenticated)
+    workspace = get_or_create_workspace(request.user) if is_authenticated else None
+    max_file_size = workspace.max_file_size_bytes if workspace else _default_limit('FIRMADOR_MAX_FILE_SIZE_BYTES', 25)
     files = request.FILES.getlist('documents') or request.FILES.getlist('pdfs') or request.FILES.getlist('files')
     if not files and request.FILES.get('document'):
         files = [request.FILES.get('document')]
@@ -593,12 +595,12 @@ def validar_documentos_pdf(request):
     results = []
     for file in files:
         try:
-            validate_pdf_upload(file, workspace.max_file_size_bytes)
+            validate_pdf_upload(file, max_file_size)
             inspected = inspect_signed_pdf(file)
             document = FirmadorDocumento.objects.filter(signed_hash=inspected['sha256']).first()
             inspected['of1_registered'] = bool(document)
             inspected['of1_document'] = _public_document_payload(document, token_valid=False) if document else None
-            if document and document.signed_file and (
+            if is_authenticated and document and document.signed_file and workspace and (
                 document.workspace_id == workspace.id
                 or request.user.is_superuser
                 or getattr(request.user, 'rol', '') == 'SUPER_ADMIN'

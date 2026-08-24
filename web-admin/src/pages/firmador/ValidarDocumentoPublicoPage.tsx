@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, Download, FileCheck2, FileSignature, Loader2, ShieldCheck } from 'lucide-react';
-import { firmadorService } from '../../services/firmadorService';
+import { AlertCircle, CheckCircle2, Download, FileCheck2, FileSignature, Loader2, ShieldCheck, Trash2, UploadCloud } from 'lucide-react';
+import { firmadorService, type FirmadorPdfValidado } from '../../services/firmadorService';
 
 const shortHash = (hash?: string) => {
   if (!hash) return 'No disponible';
@@ -12,11 +13,16 @@ export default function ValidarDocumentoPublicoPage() {
   const [params] = useSearchParams();
   const documento = params.get('documento') ?? '';
   const token = params.get('token') ?? '';
+  const hasQrParams = Boolean(documento && token);
+  const [files, setFiles] = useState<File[]>([]);
+  const [results, setResults] = useState<FirmadorPdfValidado[]>([]);
+  const [validating, setValidating] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['firmador-validacion-publica', documento, token],
     queryFn: () => firmadorService.validarDocumentoPublico(documento, token),
-    enabled: Boolean(documento && token),
+    enabled: hasQrParams,
     retry: false,
   });
 
@@ -29,16 +35,59 @@ export default function ValidarDocumentoPublicoPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto object-contain" />
-              <h1 className="mt-6 text-2xl font-black text-slate-950">Validacion de documento firmado</h1>
-              <p className="mt-1 text-sm text-slate-500">Consulta publica generada desde OF1 Firmador.</p>
+              <h1 className="mt-6 text-2xl font-black text-slate-950">
+                {hasQrParams ? 'Validacion de documento firmado' : 'Validar PDF firmado'}
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                {hasQrParams ? 'Consulta publica generada desde OF1 Firmador.' : 'Sube uno o varios PDFs para revisar firmas y registro en OF1 Firmador.'}
+              </p>
             </div>
             <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${valid ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-600'}`}>
               {valid ? <ShieldCheck className="h-7 w-7" /> : <AlertCircle className="h-7 w-7" />}
             </div>
           </div>
 
-          {!documento || !token ? (
-            <Message type="error" text="El enlace de validacion esta incompleto." />
+          {!hasQrParams ? (
+            <PublicUploadValidator
+              files={files}
+              results={results}
+              validating={validating}
+              uploadError={uploadError}
+              onFiles={(nextFiles) => {
+                setUploadError('');
+                const pdfs = nextFiles.filter((file) => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+                if (nextFiles.length && !pdfs.length) {
+                  setUploadError('Solo puedes subir documentos PDF.');
+                  return;
+                }
+                setFiles((current) => [...current, ...pdfs].slice(0, 10));
+                setResults([]);
+              }}
+              onRemove={(index) => {
+                setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+                setResults([]);
+              }}
+              onReset={() => {
+                setFiles([]);
+                setResults([]);
+                setUploadError('');
+              }}
+              onValidate={async () => {
+                if (!files.length) {
+                  setUploadError('Sube al menos un PDF firmado.');
+                  return;
+                }
+                setValidating(true);
+                setUploadError('');
+                try {
+                  setResults(await firmadorService.validarPdfs(files));
+                } catch {
+                  setUploadError('No se pudo completar la validacion. Intenta nuevamente.');
+                } finally {
+                  setValidating(false);
+                }
+              }}
+            />
           ) : isLoading ? (
             <div className="mt-10 flex items-center justify-center gap-3 rounded-2xl border border-slate-200 py-10 text-slate-500">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -100,6 +149,118 @@ export default function ValidarDocumentoPublicoPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function PublicUploadValidator({
+  files,
+  results,
+  validating,
+  uploadError,
+  onFiles,
+  onRemove,
+  onReset,
+  onValidate,
+}: {
+  files: File[];
+  results: FirmadorPdfValidado[];
+  validating: boolean;
+  uploadError: string;
+  onFiles: (files: File[]) => void;
+  onRemove: (index: number) => void;
+  onReset: () => void;
+  onValidate: () => void;
+}) {
+  return (
+    <div className="mt-8 space-y-5">
+      <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-100">
+        <UploadCloud className="h-10 w-10 text-blue-700" />
+        <span className="mt-3 text-sm font-black text-blue-900">Subir PDF firmado</span>
+        <span className="mt-1 text-xs text-blue-700">Puedes seleccionar hasta 10 documentos PDF.</span>
+        <input
+          type="file"
+          accept="application/pdf,.pdf"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            onFiles(Array.from(event.target.files ?? []));
+            event.target.value = '';
+          }}
+        />
+      </label>
+
+      {uploadError && <Message type="error" text={uploadError} />}
+
+      {files.length > 0 && (
+        <div className="rounded-2xl border border-slate-200">
+          {files.map((file, index) => {
+            const result = results[index];
+            const validSignature = result?.signatures?.some((signature) => signature.valid || signature.intact);
+            const status = result
+              ? result.error
+                ? 'Error'
+                : result.of1_registered
+                  ? 'Registrado en OF1'
+                  : validSignature
+                    ? 'Firma detectada'
+                    : 'Sin firma detectada'
+              : 'Pendiente';
+            return (
+              <div key={`${file.name}-${index}`} className="grid gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 sm:grid-cols-[1fr_150px_40px] sm:items-center">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-slate-900">{file.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                  {result && (
+                    <p className="mt-1 break-all text-xs text-slate-500">
+                      {result.error || `${result.signature_count} firma(s). Hash ${result.sha256.slice(0, 12)}...`}
+                    </p>
+                  )}
+                </div>
+                <span className={`text-sm font-black ${
+                  result?.of1_registered ? 'text-blue-700' : result?.error ? 'text-red-600' : validSignature ? 'text-emerald-700' : 'text-slate-500'
+                }`}>
+                  {status}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onRemove(index)}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
+                  title="Quitar"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {results.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          <FileCheck2 className="mb-2 h-5 w-5 text-blue-700" />
+          La validacion publica revisa firmas embebidas y confirma coincidencia por hash con documentos registrados en OF1 Firmador.
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          onClick={onReset}
+          className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+        >
+          Limpiar
+        </button>
+        <button
+          type="button"
+          disabled={!files.length || validating}
+          onClick={onValidate}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {validating && <Loader2 className="h-4 w-4 animate-spin" />}
+          Validar PDF
+        </button>
+      </div>
+    </div>
   );
 }
 

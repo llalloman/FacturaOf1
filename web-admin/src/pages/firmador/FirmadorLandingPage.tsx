@@ -97,6 +97,12 @@ export default function FirmadorLandingPage() {
               >
                 Ingresar al firmador
               </Link>
+              <Link
+                to="/firmador/validar"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-white/10"
+              >
+                Validar PDF firmado
+              </Link>
               <a
                 href="https://facturaof1.of1solutions.com/solicitar-firma-electronica"
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/30 px-6 py-3.5 text-sm font-bold text-emerald-100 transition hover:bg-emerald-400/10"

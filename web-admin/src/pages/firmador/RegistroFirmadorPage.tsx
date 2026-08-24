@@ -47,11 +47,11 @@ export default function RegistroFirmadorPage() {
     event.preventDefault();
     setError('');
     if (form.password !== form.confirm_password) {
-      setError('Las contrasenas no coinciden.');
+      setError('Las contraseñas no coinciden.');
       return;
     }
     if (form.password.length < 8) {
-      setError('La contrasena debe tener al menos 8 caracteres.');
+      setError('La contraseña debe tener al menos 8 caracteres.');
       return;
     }
     if (!form.accepted_terms || !form.accepted_privacy) {
@@ -145,7 +145,7 @@ export default function RegistroFirmadorPage() {
             )}
 
             <div className="space-y-4">
-              <Field label="Correo electronico *" icon={Mail}>
+              <Field label="Correo electrónico *" icon={Mail}>
                 <input
                   type="email"
                   required
@@ -179,7 +179,7 @@ export default function RegistroFirmadorPage() {
                 </Field>
               </div>
 
-              <Field label="Contrasena *" icon={Lock}>
+              <Field label="Contraseña *" icon={Lock}>
                 <input
                   type={showPass ? 'text' : 'password'}
                   required
@@ -192,19 +192,19 @@ export default function RegistroFirmadorPage() {
                   type="button"
                   onClick={() => setShowPass((value) => !value)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  aria-label={showPass ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                  aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                 >
                   {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </Field>
 
-              <Field label="Confirmar contrasena *" icon={Lock}>
+              <Field label="Confirmar contraseña *" icon={Lock}>
                 <input
                   type={showConfirm ? 'text' : 'password'}
                   required
                   value={form.confirm_password}
                   onChange={(event) => updateField('confirm_password', event.target.value)}
-                  placeholder="Repite la contrasena"
+                  placeholder="Repite la contraseña"
                   className={`${inputClass} pr-10 ${
                     form.confirm_password && form.confirm_password !== form.password
                       ? 'border-red-300 focus:ring-red-400'

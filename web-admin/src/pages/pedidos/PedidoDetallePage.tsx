@@ -12,7 +12,7 @@ import { clientesService } from '../../services/clientesService';
 import { getResumen, type CuentaBancaria } from '../../services/bancosService';
 import type { Producto, Cliente, Caja } from '../../types';
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Helpers
 
 const ESTADO_ITEM_COLOR: Record<DetallePedido['estado'], string> = {
   PENDIENTE:       'bg-gray-100  text-gray-600',
@@ -39,7 +39,7 @@ const PAGO_LABELS: Record<PagoPayload['forma_pago'], string> = {
   CREDITO: 'Credito',
 };
 
-// Convertir cÃ³digo de IVA SRI a decimal
+// Convertir código de IVA SRI a decimal
 const getIVADecimal = (porcentajeIva: string, aplica: boolean): number => {
   if (!aplica) return 0;
   const rates: Record<string, number> = {
@@ -52,7 +52,7 @@ const getIVADecimal = (porcentajeIva: string, aplica: boolean): number => {
   return rates[porcentajeIva] ?? 0;
 };
 
-// â”€â”€ Modal: Agregar producto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Modal: Agregar producto
 
 interface AgregarItemModalProps {
   productos: Producto[];
@@ -82,7 +82,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
   const subtotalBruto = precioSinIva * cantidad;
   const ivaRate = seleccionado ? getIVADecimal(seleccionado.porcentaje_iva, seleccionado.aplica_iva) : 0;
 
-  // Calcular descuento segÃºn el modo
+  // Calcular descuento según el modo
   let descuentoMonto = 0;
   if (modoDescuento === 'monto') {
     descuentoMonto = Math.max(0, Number(descuento) || 0);
@@ -97,7 +97,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
   // Validar que no exceda el subtotal
   descuentoMonto = Math.min(descuentoMonto, subtotalBruto);
 
-  // CÃ¡lculos finales
+  // Cálculos finales
   const subtotalNeto = Math.max(0, subtotalBruto - descuentoMonto);
   const iva = subtotalNeto * ivaRate;
   const totalConIva = subtotalNeto + iva;
@@ -132,18 +132,18 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-800">Agregar Ã­tem</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Agregar ítem</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100"><X size={18} /></button>
         </div>
 
-        {/* BÃºsqueda */}
+        {/* Búsqueda */}
         <div className="px-5 py-3 border-b border-gray-100">
           <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
             <Search size={15} className="text-gray-400" />
             <input
               autoFocus
               className="bg-transparent flex-1 text-sm outline-none placeholder-gray-400"
-              placeholder="Buscar producto o cÃ³digoâ€¦"
+              placeholder="Buscar producto o código…"
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
             />
@@ -167,14 +167,14 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
             >
               <div>
                 <div className="text-sm font-medium text-gray-800">{p.nombre}</div>
-                <div className="text-xs text-gray-400">{p.codigo_principal} Â· {p.tipo}</div>
+                <div className="text-xs text-gray-400">{p.codigo_principal} · {p.tipo}</div>
               </div>
               <div className="text-sm font-semibold text-indigo-600">${Number(p.precio_con_iva ?? p.precio).toFixed(2)}</div>
             </button>
           ))}
         </div>
 
-        {/* Panel de selecciÃ³n */}
+        {/* Panel de selección */}
         {seleccionado && (
           <div className="border-t border-gray-200 px-5 py-4 space-y-3">
             <p className="text-sm font-semibold text-gray-700 truncate">{seleccionado.nombre}</p>
@@ -183,7 +183,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                 <label className="block text-xs text-gray-500 mb-1">Cantidad</label>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setCantidad(c => Math.max(1, c - 1))}
-                    className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 text-lg font-light">âˆ’</button>
+                    className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 text-lg font-light">-</button>
                   <span className="w-8 text-center text-sm font-semibold">{cantidad}</span>
                   <button onClick={() => setCantidad(c => c + 1)}
                     className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 text-lg font-light">+</button>
@@ -235,7 +235,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  ðŸ’µ Por Monto
+                  Por Monto
                 </button>
                 <button
                   onClick={() => { setModoDescuento('porcentaje'); setDescuento('0'); setPrecioFinal(''); }}
@@ -245,7 +245,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  ðŸ“Š Por Porcentaje
+                  Por Porcentaje
                 </button>
                 <button
                   onClick={() => { setModoDescuento('precio_final'); setDescuento('0'); setPrecioFinal(subtotalBruto.toFixed(2)); }}
@@ -255,12 +255,12 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  ðŸŽ¯ Precio Final
+                  Precio Final
                 </button>
               </div>
             </div>
 
-            {/* Entrada segÃºn modo */}
+            {/* Entrada según modo */}
             {modoDescuento === 'monto' && (
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Descuento en $</label>
@@ -305,7 +305,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
 
             {modoDescuento === 'precio_final' && (
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Â¿CuÃ¡nto quieres cobrar (sin IVA)?</label>
+                <label className="block text-xs text-gray-500 mb-1">¿Cuánto quieres cobrar (sin IVA)?</label>
                 <input
                   type="number"
                   min="0"
@@ -316,7 +316,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
                   placeholder={subtotalBruto.toFixed(2)}
                 />
                 <p className="text-xs text-gray-400 mt-1">
-                  Sistema calcularÃ¡ automÃ¡ticamente el descuento necesario
+                  Sistema calculará automáticamente el descuento necesario
                 </p>
               </div>
             )}
@@ -344,7 +344,7 @@ function AgregarItemModal({ productos, onClose, onAdd }: AgregarItemModalProps) 
   );
 }
 
-// â”€â”€ Modal: Cobrar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Modal: Cobrar
 
 interface CobrarModalProps {
   pedido: Pedido;
@@ -459,7 +459,7 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
               onChange={e => setClienteId(Number(e.target.value))}
             >
               {clientes.map(c => (
-                <option key={c.id} value={c.id}>{c.razon_social} â€” {c.identificacion}</option>
+                <option key={c.id} value={c.id}>{c.razon_social} — {c.identificacion}</option>
               ))}
             </select>
           </div>
@@ -487,7 +487,7 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
             </div>
           </div>
 
-          {/* Efectivo recibido â†’ vuelto */}
+          {/* Efectivo recibido → vuelto */}
           {requiereCuenta && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta destino</label>
@@ -534,12 +534,12 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 value={referencia}
                 onChange={e => setReferencia(e.target.value)}
-                placeholder="NÃºmero de transacciÃ³nâ€¦"
+                placeholder="Número de transacción…"
               />
             </div>
           )}
 
-          {/* Factura electrÃ³nica */}
+          {/* Factura electrónica */}
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -548,7 +548,7 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
               onChange={e => setGeneraFactura(e.target.checked)}
               disabled={bloqueaFactura}
             />
-            <span className="text-sm text-gray-700">Generar factura electrÃ³nica SRI</span>
+            <span className="text-sm text-gray-700">Generar factura electrónica SRI</span>
           </label>
           {bloqueaFactura && (
             <p className="text-sm text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
@@ -561,7 +561,7 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
             disabled={saving}
             className="w-full py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition disabled:opacity-50"
           >
-            {saving ? 'Procesandoâ€¦' : `Cobrar $${Number(pedido.total).toFixed(2)}`}
+            {saving ? 'Procesando…' : `Cobrar $${Number(pedido.total).toFixed(2)}`}
           </button>
         </div>
       </div>
@@ -569,7 +569,7 @@ function CobrarModal({ pedido, cajas, clientes, onClose, onCobrado }: CobrarModa
   );
 }
 
-// â”€â”€ Ãtem de detalle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ítem de detalle
 
 interface DetalleItemProps {
   item: DetallePedido;
@@ -604,7 +604,7 @@ function DetalleItem({ item, onCambiarEstado, onEliminar, pedidoCerrado }: Detal
           <span className="text-sm font-medium text-gray-800 truncate">{item.producto_nombre}</span>
           <span className="text-sm font-semibold text-gray-700 shrink-0 ml-2">${Number(item.subtotal).toFixed(2)}</span>
         </div>
-        <div className="text-xs text-gray-400 mt-0.5">x{item.cantidad} Â· ${Number(item.precio_unitario).toFixed(2)} c/u</div>
+        <div className="text-xs text-gray-400 mt-0.5">x{item.cantidad} · ${Number(item.precio_unitario).toFixed(2)} c/u</div>
         {Number(item.descuento) > 0 && (
           <div className="text-xs text-red-500 mt-0.5">Descuento: -${Number(item.descuento).toFixed(2)}</div>
         )}
@@ -657,7 +657,7 @@ function DetalleItem({ item, onCambiarEstado, onEliminar, pedidoCerrado }: Detal
   );
 }
 
-// â”€â”€ PÃ¡gina principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Página principal
 
 export default function PedidoDetallePage() {
   const { id } = useParams<{ id: string }>();
@@ -738,7 +738,7 @@ export default function PedidoDetallePage() {
       <div className="p-6 text-center text-gray-500">
         <p>Pedido no encontrado.</p>
         <button onClick={() => navigate('/pedidos')} className="mt-3 text-indigo-600 hover:underline text-sm">
-          â† Volver a mesas
+          ← Volver a mesas
         </button>
       </div>
     );
@@ -772,8 +772,8 @@ export default function PedidoDetallePage() {
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
             {pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : pedido.tipo.replace('_', ' ')}
-            {pedido.zona_nombre ? ` Â· ${pedido.zona_nombre}` : ''}
-            {pedido.usuario_nombre ? ` Â· ${pedido.usuario_nombre}` : ''}
+            {pedido.zona_nombre ? ` · ${pedido.zona_nombre}` : ''}
+            {pedido.usuario_nombre ? ` · ${pedido.usuario_nombre}` : ''}
           </p>
         </div>
         <button
@@ -785,13 +785,13 @@ export default function PedidoDetallePage() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-5">
-        {/* Lista de Ã­tems */}
+        {/* Lista de ítems */}
         <div className="md:col-span-2 space-y-4">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 flex items-center gap-2">
                 <ShoppingBag size={16} className="text-indigo-600" />
-                Ãtems del pedido
+                Ítems del pedido
                 <span className="ml-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
                   {detallesActivos.length}
                 </span>
@@ -810,7 +810,7 @@ export default function PedidoDetallePage() {
               {pedido.detalles.length === 0 ? (
                 <div className="py-12 text-center text-gray-400">
                   <ShoppingBag size={40} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Sin Ã­tems aÃºn</p>
+                  <p className="text-sm">Sin ítems aún</p>
                 </div>
               ) : (
                 pedido.detalles.map(item => (

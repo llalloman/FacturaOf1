@@ -196,14 +196,14 @@ class FirmadorCertificado(models.Model):
     alias = models.CharField(_('alias'), max_length=120)
     original_file_name = models.CharField(_('archivo'), max_length=255)
     encrypted_content = models.BinaryField(_('contenido cifrado'))
-    file_size = models.BigIntegerField(_('tamaÃ±o'), default=0)
+    file_size = models.BigIntegerField(_('tamaño'), default=0)
     fingerprint = models.CharField(_('huella'), max_length=64)
     subject = models.TextField(_('sujeto'), blank=True)
     issuer = models.TextField(_('emisor'), blank=True)
     expires_at = models.DateTimeField(_('expira'))
     active = models.BooleanField(_('activo'), default=True)
-    created_at = models.DateTimeField(_('fecha de creaciÃ³n'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('fecha de actualizaciÃ³n'), auto_now=True)
+    created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('fecha de actualización'), auto_now=True)
 
     class Meta:
         verbose_name = _('certificado del firmador')

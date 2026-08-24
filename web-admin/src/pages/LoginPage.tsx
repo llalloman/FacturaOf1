@@ -23,7 +23,7 @@ export default function LoginPage() {
     ? {
         badge: 'Firmador PDF',
         title: 'Ingresa a OF1 Firmador',
-        subtitle: 'Firma, guarda y valida documentos PDF con certificado electronico.',
+        subtitle: 'Firma, guarda y valida documentos PDF con certificado electrónico.',
         registerCta: 'Crear cuenta de firmador',
         registerHint: 'Cuenta independiente para firmar documentos.',
         icon: FileSignature,
@@ -31,7 +31,7 @@ export default function LoginPage() {
     : {
         badge: 'FacturaOF1 ERP',
         title: 'Ingresa a FacturaOF1',
-        subtitle: 'Factura electronica, inventario, ventas y gestion de negocio.',
+        subtitle: 'Factura electrónica, inventario, ventas y gestión de negocio.',
         registerCta: 'Registrar empresa',
         registerHint: 'Empieza con una cuenta para tu negocio.',
         icon: UserPlus,
