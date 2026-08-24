@@ -65,8 +65,8 @@ const signModes: Array<{ key: SignMode; label: string; description: string; icon
 
 const signatureTypes: Array<{ key: SignatureType; label: string; description: string; icon: React.ElementType }> = [
   { key: 'SIMPLE', label: 'Simple', description: 'Firma digital sin marca visible.', icon: FileSignature },
-  { key: 'QR', label: 'QR', description: 'Reserva un espacio visible para verificacion.', icon: QrCode },
-  { key: 'AVANZADA', label: 'Avanzada', description: 'Firma visible con motivo y ubicacion.', icon: ShieldCheck },
+  { key: 'QR', label: 'QR', description: 'Firma visible con enlace de validacion.', icon: QrCode },
+  { key: 'AVANZADA', label: 'Avanzada', description: 'Firma visible con datos del certificado.', icon: ShieldCheck },
 ];
 
 const formatBytes = (bytes: number) => {
@@ -373,6 +373,13 @@ export default function FirmadorPage() {
   const copyValidationUrl = async (url: string) => {
     await navigator.clipboard.writeText(url);
     showToast('Enlace de validacion copiado.', 'success');
+  };
+
+  const handleSignatureTypeChange = (nextType: SignatureType) => {
+    setSignatureType(nextType);
+    if (nextType !== 'QR') {
+      setKeepFile(false);
+    }
   };
 
   const handleSign = async (event: React.FormEvent) => {
@@ -784,7 +791,7 @@ export default function FirmadorPage() {
                           <button
                             key={type.key}
                             type="button"
-                            onClick={() => setSignatureType(type.key)}
+                            onClick={() => handleSignatureTypeChange(type.key)}
                             className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
                               active ? 'border-blue-700 bg-blue-50' : 'border-slate-200 hover:border-blue-300'
                             }`}
@@ -843,14 +850,20 @@ export default function FirmadorPage() {
                     />
                     <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                       <Save className="h-4 w-4" />
-                      Guardar
+                      Guardar copia
                     </span>
                   </label>
                 </div>
 
                 {signatureType === 'QR' && (
                   <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">
-                    La firma QR guarda el documento obligatoriamente para mantener el enlace de validacion.
+                    La firma con QR requiere guardar una copia para que el enlace de validacion funcione durante el periodo seleccionado.
+                  </div>
+                )}
+
+                {signatureType !== 'QR' && (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                    Guardar copia es opcional y funciona como respaldo del cliente. No modifica la validez de la firma del PDF descargado.
                   </div>
                 )}
 
@@ -884,18 +897,27 @@ export default function FirmadorPage() {
                   </div>
                 )}
 
-                <label className="mt-5 block">
-                  <span className="text-sm font-bold text-slate-700">Retencion</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={maxRetentionDays}
-                    value={retentionDays}
-                    disabled={!keepFile}
-                    onChange={(event) => setRetentionDays(Number(event.target.value))}
-                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100"
-                  />
-                </label>
+                {keepFile && (
+                  <label className="mt-5 block">
+                    <span className="text-sm font-bold text-slate-700">Conservar copia por</span>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={maxRetentionDays}
+                        value={retentionDays}
+                        onChange={(event) => setRetentionDays(Number(event.target.value))}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                      />
+                      <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-600">
+                        dias
+                      </span>
+                    </div>
+                    <span className="mt-2 block text-xs text-slate-500">
+                      Define cuanto tiempo se guardara el PDF firmado en el sistema. No cambia la validez de la firma.
+                    </span>
+                  </label>
+                )}
 
                 <Button type="submit" loading={signing} icon={<FileSignature className="h-4 w-4" />} className="mt-6 w-full">
                   Firmar documento
