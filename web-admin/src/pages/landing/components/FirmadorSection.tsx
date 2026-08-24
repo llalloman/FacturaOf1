@@ -50,19 +50,19 @@ export default function FirmadorSection() {
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Link
-                to="/firmador/registro"
+              <a
+                href="https://firmador.of1solutions.com/firmador/registro"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3.5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-400"
               >
                 Crear cuenta de firmador
                 <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                to="/login"
+              </a>
+              <a
+                href="https://firmador.of1solutions.com/login"
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-white/10"
               >
                 Ingresar al firmador
-              </Link>
+              </a>
               <Link
                 to="/solicitar-firma-electronica"
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/30 px-6 py-3.5 text-sm font-bold text-emerald-100 transition hover:bg-emerald-400/10"

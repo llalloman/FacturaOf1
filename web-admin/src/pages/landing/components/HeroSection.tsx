@@ -188,12 +188,12 @@ export default function HeroSection() {
                 <FileSignature className="w-4 h-4" />
                 Solicitar firma electrónica
               </Link>
-              <Link
-                to="/firmador/registro"
+              <a
+                href="https://firmador.of1solutions.com/firmador/registro"
                 className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-emerald-300/30 text-emerald-100 hover:text-white hover:bg-emerald-400/10 font-semibold text-base rounded-xl transition-all"
               >
                 Crear cuenta de firmador
-              </Link>
+              </a>
             </div>
 
             <p className="text-slate-500 text-xs mt-4">

@@ -137,9 +137,9 @@ export default function LandingFooter() {
             <Link to="/solicitar-demo" className="text-blue-500 hover:text-blue-400 text-xs font-semibold transition-colors">
               Solicitar demostración →
             </Link>
-            <Link to="/firmador/registro" className="text-emerald-400 hover:text-emerald-300 text-xs font-semibold transition-colors">
+            <a href="https://firmador.of1solutions.com/firmador/registro" className="text-emerald-400 hover:text-emerald-300 text-xs font-semibold transition-colors">
               Crear cuenta de firmador →
-            </Link>
+            </a>
           </div>
         </div>
       </div>

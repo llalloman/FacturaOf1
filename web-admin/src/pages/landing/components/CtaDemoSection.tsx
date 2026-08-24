@@ -44,13 +44,13 @@ export default function CtaDemoSection() {
             <FileSignature className="w-4 h-4" />
             Solicitar firma electrónica
           </Link>
-          <Link
-            to="/firmador/registro"
+          <a
+            href="https://firmador.of1solutions.com/firmador/registro"
             className="inline-flex items-center justify-center gap-2.5 px-8 py-4 border-2 border-slate-300 text-slate-700 font-bold text-base rounded-xl hover:bg-white transition-all"
           >
             <FileSignature className="w-4 h-4" />
             Crear cuenta de firmador
-          </Link>
+          </a>
         </div>
 
         {/* Stats */}
