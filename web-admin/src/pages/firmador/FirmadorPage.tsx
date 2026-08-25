@@ -26,6 +26,7 @@ import {
 import Button from '../../components/ui/Button';
 import { useToast } from '../../hooks/useToast';
 import { firmadorService, type FirmadorCertificado, type FirmadorDocumento, type FirmadorPdfValidado } from '../../services/firmadorService';
+import { saveOrDownloadPdf } from '../../utils/downloadFile';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString();
 
@@ -98,17 +99,6 @@ const readApiError = async (error: unknown): Promise<string> => {
     if (firstValue) return String(firstValue);
   }
   return 'No se pudo completar la operacion.';
-};
-
-const downloadBlob = (blob: Blob, fileName: string) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 };
 
 const fileArray = (files: FileList | File[] | null) => Array.from(files ?? []);
@@ -333,7 +323,8 @@ export default function FirmadorPage() {
     setDownloadingDocumentId(doc.id);
     try {
       const result = await firmadorService.descargarDocumento(doc.id);
-      downloadBlob(result.blob, result.fileName);
+      const saveMode = await saveOrDownloadPdf(result.blob, result.fileName);
+      showToast(saveMode === 'native' ? 'PDF listo para guardar o compartir.' : 'PDF descargado.', 'success');
     } catch (error) {
       showToast(await readApiError(error), 'error');
     } finally {
@@ -420,13 +411,20 @@ export default function FirmadorPage() {
         location,
         retentionDays,
       });
-      downloadBlob(result.blob, result.fileName);
+      const saveMode = await saveOrDownloadPdf(result.blob, result.fileName);
       setPdf(null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['firmador-perfil'] }),
         queryClient.invalidateQueries({ queryKey: ['firmador-documentos'] }),
       ]);
-      showToast(result.keepFile ? 'PDF firmado y guardado.' : 'PDF firmado y descargado.', 'success');
+      showToast(
+        saveMode === 'native'
+          ? 'PDF firmado. Elige dónde guardarlo o compartirlo.'
+          : result.keepFile
+            ? 'PDF firmado y guardado.'
+            : 'PDF firmado y descargado.',
+        'success',
+      );
       setActiveTab('documentos');
     } catch (error) {
       showToast(await readApiError(error), 'error');
