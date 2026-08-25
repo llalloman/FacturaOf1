@@ -7,6 +7,7 @@ import {
   Copy,
   Download,
   Eye,
+  EyeOff,
   FileCheck2,
   FileSignature,
   FileText,
@@ -127,6 +128,7 @@ export default function FirmadorPage() {
   const [pdfPreviewError, setPdfPreviewError] = useState('');
   const [certificate, setCertificate] = useState<File | null>(null);
   const [certificatePassword, setCertificatePassword] = useState('');
+  const [showCertificatePassword, setShowCertificatePassword] = useState(false);
   const [certificateAlias, setCertificateAlias] = useState('');
   const [selectedCertificateId, setSelectedCertificateId] = useState<number | null>(null);
   const [uploadingCertificate, setUploadingCertificate] = useState(false);
@@ -262,11 +264,12 @@ export default function FirmadorPage() {
       return;
     }
 
+    const cleanCertificatePassword = certificatePassword.trim();
     setUploadingCertificate(true);
     try {
       const saved = await firmadorService.subirCertificado({
         certificate,
-        certificatePassword,
+        certificatePassword: cleanCertificatePassword,
         alias: certificateAlias.trim() || undefined,
       });
       setSelectedCertificateId(saved.id);
@@ -397,13 +400,14 @@ export default function FirmadorPage() {
       return;
     }
 
+    const cleanCertificatePassword = certificatePassword.trim();
     setSigning(true);
     try {
       const result = await firmadorService.firmarPdf({
         pdf,
         certificate: selectedCertificate ? null : certificate,
         certificateId: selectedCertificate?.id ?? null,
-        certificatePassword,
+        certificatePassword: cleanCertificatePassword,
         keepFile,
         visibleSignature,
         signatureType,
@@ -555,11 +559,24 @@ export default function FirmadorPage() {
                   <div className="relative mt-2">
                     <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <input
-                      type="password"
+                      type={showCertificatePassword ? 'text' : 'password'}
                       value={certificatePassword}
                       onChange={(event) => setCertificatePassword(event.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-12 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowCertificatePassword((value) => !value)}
+                      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                      aria-label={showCertificatePassword ? 'Ocultar clave' : 'Mostrar clave'}
+                      title={showCertificatePassword ? 'Ocultar clave' : 'Mostrar clave'}
+                    >
+                      {showCertificatePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                   <span className="mt-2 block text-xs text-slate-500">Esta clave se usa para validar el certificado. No se guarda.</span>
                 </label>
@@ -773,11 +790,24 @@ export default function FirmadorPage() {
                     <div className="relative mt-2">
                       <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <input
-                        type="password"
+                        type={showCertificatePassword ? 'text' : 'password'}
                         value={certificatePassword}
                         onChange={(event) => setCertificatePassword(event.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-12 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowCertificatePassword((value) => !value)}
+                        className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        aria-label={showCertificatePassword ? 'Ocultar clave' : 'Mostrar clave'}
+                        title={showCertificatePassword ? 'Ocultar clave' : 'Mostrar clave'}
+                      >
+                        {showCertificatePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
                   </label>
 

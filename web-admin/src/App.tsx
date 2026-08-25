@@ -9,7 +9,7 @@ import ConfirmModal from './components/ConfirmModal';
 import ModuloGuard from './components/ModuloGuard';
 import WhatsAppHelpWidget from './components/WhatsAppHelpWidget';
 import { useSubscriptionStatus } from './hooks/useSubscriptionStatus';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, LogOut } from 'lucide-react';
 
 // ─── Lazy-loaded pages ──────────────────────────────────────────────────────
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -434,14 +434,22 @@ function AppRoutes() {
 }
 
 function MobileAppMenuButton() {
+  const navigate = useNavigate();
   const location = useLocation();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const logout = useAuthStore((state) => state.logout);
   const hiddenPaths = new Set(['/firmador/inicio']);
   const shouldShow = import.meta.env.VITE_APP_TARGET === 'firmador' && !hiddenPaths.has(location.pathname);
 
   if (!shouldShow) return null;
 
+  const handleLogout = () => {
+    logout();
+    navigate('/firmador/inicio', { replace: true });
+  };
+
   return (
-    <div className="sticky top-0 z-[60] border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur">
+    <div className="sticky top-0 z-[60] flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur">
       <Link
         to="/firmador/inicio"
         className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm"
@@ -449,6 +457,16 @@ function MobileAppMenuButton() {
         <ArrowLeft className="h-4 w-4" />
         Menú
       </Link>
+      {isAuthenticated && (
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-white px-3 py-2 text-xs font-black text-red-600 shadow-sm"
+        >
+          <LogOut className="h-4 w-4" />
+          Cerrar sesión
+        </button>
+      )}
     </div>
   );
 }
