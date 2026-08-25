@@ -13,6 +13,8 @@ export default function LoginPage() {
   const isFirmadorMode = isFirmadorHost || isFirmadorApp;
   const registroPath = isFirmadorMode ? '/firmador/registro' : '/registro';
   const setAuth = useAuthStore((state) => state.setAuth);
+  const isAllowedReturnPath =
+    !!from && from !== '/login' && from !== '/registro' && from !== '/firmador/registro';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -60,14 +62,16 @@ export default function LoginPage() {
         navigate('/cambiar-password');
       } else if (!user.email_verificado) {
         navigate('/verificar-email');
-      } else if (isFirmadorMode) {
+      } else if (isAllowedReturnPath) {
+        navigate(from);
+      } else if (isFirmadorApp) {
         navigate('/firmador/inicio');
+      } else if (isFirmadorHost) {
+        navigate('/firmador');
       } else if (user.rol === 'FIRMADOR') {
         navigate('/firmador');
       } else if (user.rol === 'SUPER_ADMIN') {
         navigate('/');
-      } else if (from && from !== '/login' && from !== '/registro' && from !== '/firmador/registro') {
-        navigate(from);
       } else if (user.onboarding_completado) {
         navigate('/');
       } else {
@@ -83,7 +87,7 @@ export default function LoginPage() {
       } else if (status === 401) {
         setWrongPassword(true);
       } else {
-        setError(detail || 'Error al iniciar sesion. Intenta de nuevo.');
+        setError(detail || 'Error al iniciar sesión. Intenta de nuevo.');
       }
     } finally {
       setLoading(false);
@@ -127,7 +131,7 @@ export default function LoginPage() {
                   {product.badge}
                 </span>
               </div>
-              <h2 className="mt-6 text-2xl font-black text-slate-950">Iniciar sesion</h2>
+              <h2 className="mt-6 text-2xl font-black text-slate-950">Iniciar sesión</h2>
               <p className="mt-1 text-sm text-slate-500">{product.subtitle}</p>
             </div>
 
@@ -144,14 +148,14 @@ export default function LoginPage() {
             ) : wrongPassword ? (
               <StatePanel
                 icon={<Lock className="h-7 w-7 text-red-500" />}
-                title="Contrasena incorrecta"
-                text={`La contrasena ingresada no corresponde a ${email}.`}
+                title="Contraseña incorrecta"
+                text={`La contraseña ingresada no corresponde a ${email}.`}
                 primaryLabel="Intentar nuevamente"
                 onPrimary={() => {
                   setWrongPassword(false);
                   setPassword('');
                 }}
-                secondaryLabel="Recuperar contrasena"
+                secondaryLabel="Recuperar contraseña"
                 secondaryTo="/recuperar-password"
               />
             ) : (
@@ -177,13 +181,13 @@ export default function LoginPage() {
                     />
                   </Field>
 
-                  <Field label="Contrasena" icon={<Lock className="h-4 w-4" />}>
+                  <Field label="Contraseña" icon={<Lock className="h-4 w-4" />}>
                     <input
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className={inputClass}
-                      placeholder="Ingresa tu contrasena"
+                      placeholder="Ingresa tu contraseña"
                       required
                     />
                   </Field>
@@ -194,7 +198,7 @@ export default function LoginPage() {
                     className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-900/15 hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading && <Loader2 className="h-5 w-5 animate-spin" />}
-                    {loading ? 'Iniciando sesion...' : 'Iniciar sesion'}
+                    {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
                   </button>
                 </form>
 
@@ -214,7 +218,7 @@ export default function LoginPage() {
 
                 <p className="mt-4 text-center text-sm">
                   <Link to="/recuperar-password" className="font-semibold text-blue-700 hover:text-blue-900">
-                    Olvidaste tu contrasena?
+                    Olvidaste tu contraseña?
                   </Link>
                 </p>
               </>

@@ -122,7 +122,7 @@ export default function RegistroFirmadorPage() {
                 <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto object-contain lg:hidden" />
                 <Link to="/login" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900">
                   <ArrowLeft className="h-4 w-4" />
-                  Iniciar sesion
+                  Iniciar sesión
                 </Link>
               </div>
               <div className="mt-5">
@@ -267,7 +267,7 @@ export default function RegistroFirmadorPage() {
             <p className="mt-5 text-center text-xs text-slate-500">
               Ya tienes cuenta?{' '}
               <Link to="/login" className="font-bold text-blue-700 hover:text-blue-900">
-                Inicia sesion
+                Inicia sesión
               </Link>
             </p>
           </form>

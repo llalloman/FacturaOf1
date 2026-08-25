@@ -468,7 +468,7 @@ export default function FirmadorPage() {
       <section className="mx-auto max-w-7xl px-4 py-8">
         {(perfilError || documentosError || certificadosError) && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-            No se pudo cargar toda la informacion del firmador. Revisa tu conexion o vuelve a iniciar sesion.
+            No se pudo cargar toda la información del firmador. Revisa tu conexión o vuelve a iniciar sesión.
           </div>
         )}
 
@@ -551,7 +551,7 @@ export default function FirmadorPage() {
                 />
 
                 <label className="mt-5 block">
-                  <span className="text-sm font-bold text-slate-700">Contrasena del certificado *</span>
+                  <span className="text-sm font-bold text-slate-700">Contraseña del certificado *</span>
                   <div className="relative mt-2">
                     <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <input

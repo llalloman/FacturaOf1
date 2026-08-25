@@ -1,76 +1,71 @@
 import type { ElementType } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, FileSignature, LogOut, PenLine, ShieldCheck } from 'lucide-react';
+import { Building2, ChevronRight, FileSignature, PenLine, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
 export default function FirmadorInicioPage() {
-  const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
-  const displayName = `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim() || user?.email || 'Usuario';
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const firmarTo = isAuthenticated ? '/firmador' : '/login';
+  const firmarState = isAuthenticated ? undefined : { from: '/firmador' };
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-6 text-white">
-      <section className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-md flex-col">
+    <main className="min-h-screen bg-slate-50 text-slate-950">
+      <section
+        className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5"
+        style={{
+          paddingTop: 'max(1.25rem, env(safe-area-inset-top))',
+          paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))',
+        }}
+      >
         <header className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-12 w-auto rounded-xl bg-white p-2" />
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">OF1 Firmador</p>
-              <h1 className="text-lg font-black">Inicio</h1>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-slate-300 hover:bg-white/10"
-            aria-label="Cerrar sesion"
-            title="Cerrar sesion"
-          >
-            <LogOut className="h-5 w-5" />
-          </button>
+          <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-11 w-auto object-contain" />
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-600 shadow-sm">
+            Firmador
+          </span>
         </header>
 
         <div className="flex flex-1 flex-col justify-center py-8">
           <div className="mb-8">
-            <p className="text-sm text-slate-400">Hola,</p>
-            <h2 className="mt-1 text-3xl font-black leading-tight">{displayName}</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-300">
-              Elige que deseas hacer. Puedes firmar tus documentos, solicitar una firma electronica o entrar al ERP.
+            <p className="text-sm font-bold text-blue-700">OF1 Firmador</p>
+            <h1 className="mt-2 text-3xl font-black leading-tight text-slate-950">
+              ¿Qué deseas hacer?
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Elige una acción para continuar. Solo se pedirá usuario cuando necesites ingresar a firmar.
             </p>
           </div>
 
-          <div className="grid gap-4">
+          <div className="grid gap-3">
             <MenuAction
-              to="/firmador"
+              to={firmarTo}
+              state={firmarState}
               icon={FileSignature}
               title="Ingresar a firmar"
-              description="Sube tu certificado, selecciona un PDF y genera el documento firmado."
-              tone="emerald"
+              description="Accede con tu usuario para firmar documentos PDF."
+              tone="blue"
             />
             <MenuAction
               to="/solicitar-firma-electronica"
               icon={PenLine}
-              title="Solicitar firma electronica"
-              description="Compra o solicita tu certificado de firma electronica con OF1."
-              tone="blue"
+              title="Solicitar firma"
+              description="Pide tu certificado de firma electrónica sin iniciar sesión."
+              tone="emerald"
             />
             <MenuAction
               to="https://facturaof1.of1solutions.com"
               icon={Building2}
               title="Ingresar al ERP"
-              description="Abre FacturaOF1 para facturacion, ventas, inventario y administracion."
+              description="Abre FacturaOF1 para facturación, inventario y ventas."
               tone="slate"
             />
           </div>
         </div>
 
-        <footer className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-300" />
-            <p className="text-xs leading-5 text-slate-300">
-              La app usa el backend oficial de OF1. Si ves errores de conexion, revisa internet o la disponibilidad del servicio.
-            </p>
-          </div>
+        <footer className="flex items-start gap-3 border-t border-slate-200 pt-4">
+          <ShieldCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600" />
+          <p className="text-xs leading-5 text-slate-500">
+            La app usa los servicios oficiales de OF1 Solutions.
+          </p>
         </footer>
       </section>
     </main>
@@ -79,35 +74,39 @@ export default function FirmadorInicioPage() {
 
 function MenuAction({
   to,
+  state,
   icon: Icon,
   title,
   description,
   tone,
 }: {
   to: string;
+  state?: { from: string };
   icon: ElementType;
   title: string;
   description: string;
-  tone: 'emerald' | 'blue' | 'slate';
+  tone: 'blue' | 'emerald' | 'slate';
 }) {
   const toneClass = {
-    emerald: 'bg-emerald-400 text-slate-950',
-    blue: 'bg-blue-500 text-white',
-    slate: 'bg-white text-slate-950',
+    blue: 'bg-blue-700 text-white',
+    emerald: 'bg-emerald-600 text-white',
+    slate: 'bg-slate-900 text-white',
   }[tone];
 
   const content = (
-    <div className="flex items-center gap-4">
+    <>
       <span className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl ${toneClass}`}>
         <Icon className="h-6 w-6" />
       </span>
-      <div className="min-w-0 flex-1">
-        <h3 className="text-base font-black text-white">{title}</h3>
-        <p className="mt-1 text-sm leading-5 text-slate-400">{description}</p>
-      </div>
-    </div>
+      <span className="min-w-0 flex-1">
+        <span className="block text-base font-black text-slate-950">{title}</span>
+        <span className="mt-1 block text-sm leading-5 text-slate-500">{description}</span>
+      </span>
+      <ChevronRight className="h-5 w-5 flex-shrink-0 text-slate-300" />
+    </>
   );
-  const className = 'group rounded-2xl border border-white/10 bg-white/[0.06] p-4 transition hover:border-white/20 hover:bg-white/[0.1]';
+  const className =
+    'flex min-h-[5.5rem] items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition active:scale-[0.99] hover:border-slate-300 hover:shadow-md';
 
   if (to.startsWith('http')) {
     return (
@@ -118,10 +117,7 @@ function MenuAction({
   }
 
   return (
-    <Link
-      to={to}
-      className={className}
-    >
+    <Link to={to} state={state} className={className}>
       {content}
     </Link>
   );

@@ -8,7 +8,7 @@ La app Android esta creada con Capacitor dentro de `web-admin`. Esto empaqueta l
 
 Archivos principales:
 
-- `web-admin/capacitor.config.ts`: configuracion nativa de Capacitor.
+- `web-admin/capacitor.config.ts`: configuración nativa de Capacitor.
 - `web-admin/.env.android`: variables usadas solo para el build Android.
 - `web-admin/android/`: proyecto nativo Android generado.
 - `web-admin/package.json`: scripts para build, sync y apertura de Android Studio.
@@ -19,12 +19,12 @@ Configuracion actual:
 - Android package id: `com.of1solutions.firmador`
 - Build web Android: `vite build --mode android`
 - Backend API Android: `https://facturaof1-back.of1solutions.com/api`
-- Pantalla inicial Android: landing del Firmador mediante `VITE_APP_TARGET=firmador`
-- Despues de iniciar sesion: menu inicial en `/firmador/inicio`
+- Pantalla inicial Android: menu minimalista del Firmador en `/firmador/inicio`
+- Login Android: solo aparece cuando el usuario elige `Ingresar a firmar`
 
-## Flujo De Inicio
+## Flujo De Inicio En Android
 
-En Android, el login detecta `VITE_APP_TARGET=firmador` y redirige a:
+En Android, la primera pantalla detecta `VITE_APP_TARGET=firmador` y muestra:
 
 ```text
 /firmador/inicio
@@ -32,11 +32,23 @@ En Android, el login detecta `VITE_APP_TARGET=firmador` y redirige a:
 
 Esa pantalla muestra tres acciones principales:
 
-- `Ingresar a firmar`: abre `/firmador`.
-- `Solicitar firma electronica`: abre `/solicitar-firma-electronica`.
+- `Ingresar a firmar`: si no hay sesión, abre `/login`; después de autenticar redirige a `/firmador`.
+- `Solicitar firma electrónica`: abre `/solicitar-firma-electronica`.
 - `Ingresar al ERP`: abre `https://facturaof1.of1solutions.com`.
 
-Esto evita que el usuario caiga directamente en la home del ERP despues de iniciar sesion desde la app del Firmador.
+Esto evita que el usuario tenga que iniciar sesión para solicitar una firma y también evita que caiga directamente en la home del ERP desde la app del Firmador.
+
+En navegador web, incluso entrando desde `https://firmador.of1solutions.com`, no se muestra este menu. El subdominio web mantiene su landing y el login redirige directamente a `/firmador`.
+
+## Interfaz Movil
+
+La pantalla inicial del APK esta pensada como una entrada movil, no como la misma pantalla web completa:
+
+- selector publico antes del login
+- acciones grandes para tacto
+- layout estrecho tipo app
+- espaciado con `env(safe-area-inset-top)` y `env(safe-area-inset-bottom)`
+- configuración Android para respetar barra de estado y barra de navegación
 
 ## Requisitos
 
@@ -208,7 +220,7 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 ```
 
-Si el login desde el APK falla con `Network Error` y en navegador web funciona, revisar primero esta configuracion y desplegar el backend actualizado.
+Si el login desde el APK falla con `Network Error` y en navegador web funciona, revisar primero esta configuración y desplegar el backend actualizado.
 
 ## Que No Afecta
 
@@ -311,12 +323,12 @@ No guardar claves privadas de firma dentro del repo.
 Para que se sienta como app movil real, no solo web empaquetada:
 
 - Crear UI movil especifica para Firmador.
-- Simplificar la navegacion para tacto.
+- Simplificar la navegación para tacto.
 - Reemplazar tablas por listas/tarjetas en pantallas moviles.
 - Optimizar el flujo de subir certificado y PDF.
 - Revisar permisos nativos para archivos.
 - Definir icono y splash oficiales.
-- Agregar manejo mas claro de errores sin conexion.
+- Agregar manejo más claro de errores sin conexión.
 - Evaluar Flutter como proyecto separado si el producto movil va a crecer de forma independiente.
 
 ## Comandos Rapidos

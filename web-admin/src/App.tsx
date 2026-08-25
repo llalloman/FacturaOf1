@@ -243,7 +243,8 @@ function AppRoutes() {
   const authenticatedHome = (): string => {
     if (!user?.email_verificado) return '/verificar-email';
     if (user?.debe_cambiar_password) return '/cambiar-password';
-    if (isFirmadorHost || isFirmadorApp) return '/firmador/inicio';
+    if (isFirmadorApp) return '/firmador/inicio';
+    if (isFirmadorHost) return '/firmador';
     if (esSuperAdmin) return '/';
     if (user?.rol === 'FIRMADOR') return '/firmador';
     // Mientras cargamos la suscripción, mandamos a /bienvenida (página segura)
@@ -269,7 +270,15 @@ function AppRoutes() {
           />
           <Route
             path="/firmador/inicio"
-            element={isAuthenticated ? <FirmadorInicioPage /> : <Navigate to="/login" replace />}
+            element={
+              isFirmadorApp ? (
+                <FirmadorInicioPage />
+              ) : isAuthenticated ? (
+                <Navigate to={authenticatedHome()} replace />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
           />
           <Route path="/firmador/validar" element={<ValidarDocumentoPublicoPage />} />
 
@@ -371,10 +380,12 @@ function AppRoutes() {
           <Route
             path="/"
             element={
-              !isAuthenticated ? (
-                isFirmadorHost || isFirmadorApp ? <FirmadorLandingPage /> : <LandingPage />
-              ) : (isFirmadorHost || isFirmadorApp) && location.pathname === '/' ? (
-                <Navigate to="/firmador/inicio" replace />
+              isFirmadorApp && location.pathname === '/' ? (
+                <FirmadorInicioPage />
+              ) : !isAuthenticated ? (
+                isFirmadorHost ? <FirmadorLandingPage /> : <LandingPage />
+              ) : isFirmadorHost && location.pathname === '/' ? (
+                <Navigate to="/firmador" replace />
               ) : user?.rol === 'FIRMADOR' && location.pathname === '/' ? (
                 <Navigate to="/firmador" replace />
               ) : (

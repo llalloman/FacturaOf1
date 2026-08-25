@@ -30,7 +30,7 @@ const sections = [
     body: [
       'El usuario declara que la informacion ingresada es veraz, completa, actualizada y que cuenta con autorizacion para actuar en nombre propio o de la empresa indicada.',
       'El usuario es responsable por errores, omisiones, documentos falsos, informacion desactualizada o uso indebido del certificado emitido o cargado.',
-      'En el firmador PDF, el usuario es responsable de la custodia legal de su certificado, de la confidencialidad de la contrasena del certificado, de la licitud de los documentos que carga y de la ubicacion o visibilidad de la firma insertada.',
+      'En el firmador PDF, el usuario es responsable de la custodia legal de su certificado, de la confidencialidad de la contraseña del certificado, de la licitud de los documentos que carga y de la ubicación o visibilidad de la firma insertada.',
     ],
   },
   {
@@ -42,10 +42,10 @@ const sections = [
     ],
   },
   {
-    title: 'Certificados digitales y contrasenas',
+    title: 'Certificados digitales y contraseñas',
     body: [
       'El usuario puede cargar certificados digitales en formato .p12 o .pfx para firmar documentos. Si decide guardar certificados en la plataforma, estos se almacenan cifrados.',
-      'La contrasena del certificado se solicita para validar o ejecutar la firma y no debe ser compartida con terceros. OF1 Solutions S.A.S. no asume responsabilidad por el uso indebido derivado de claves reveladas por el usuario.',
+      'La contraseña del certificado se solicita para validar o ejecutar la firma y no debe ser compartida con terceros. OF1 Solutions S.A.S. no asume responsabilidad por el uso indebido derivado de claves reveladas por el usuario.',
     ],
   },
   {

@@ -26,10 +26,10 @@ const sections = [
     ],
   },
   {
-    title: 'Certificados digitales y contrasenas',
+    title: 'Certificados digitales y contraseñas',
     body: [
       'Los certificados .p12 o .pfx que el usuario decide guardar se almacenan cifrados y asociados a su cuenta o workspace de firmador.',
-      'La contrasena del certificado se usa para validar el certificado o ejecutar la firma solicitada. OF1 Solutions S.A.S. no debe almacenar dicha contrasena como dato persistente.',
+      'La contraseña del certificado se usa para validar el certificado o ejecutar la firma solicitada. OF1 Solutions S.A.S. no debe almacenar dicha contraseña como dato persistente.',
       'El usuario puede eliminar certificados guardados desde la plataforma. La eliminacion desactiva el certificado para usos futuros y puede conservar metadatos minimos para auditoria.',
     ],
   },
@@ -38,7 +38,7 @@ const sections = [
     body: [
       'Los PDFs cargados pueden contener datos personales, comerciales, tributarios, laborales o informacion confidencial del usuario o de terceros. El usuario debe contar con base legal o autorizacion suficiente para cargarlos y firmarlos.',
       'Cuando el usuario decide guardar un documento firmado, el archivo puede almacenarse en infraestructura propia o de proveedores tecnologicos, incluyendo almacenamiento compatible con objetos como Cloudflare R2 u otros servicios equivalentes.',
-      'Cuando se genera una firma con QR, el enlace de validacion puede mostrar informacion basica del documento firmado, como estado, tipo de firma, fecha, hash, nombre del archivo y disponibilidad del documento. El QR no debe revelar la contrasena del certificado ni el contenido completo del PDF salvo que el documento este disponible para descarga mediante el enlace correspondiente.',
+      'Cuando se genera una firma con QR, el enlace de validación puede mostrar información básica del documento firmado, como estado, tipo de firma, fecha, hash, nombre del archivo y disponibilidad del documento. El QR no debe revelar la contraseña del certificado ni el contenido completo del PDF salvo que el documento esté disponible para descarga mediante el enlace correspondiente.',
     ],
   },
   {
@@ -67,7 +67,7 @@ const sections = [
     title: 'Seguridad',
     body: [
       'Aplicamos controles razonables de seguridad, cifrado cuando corresponde, acceso restringido, separacion por usuarios o espacios de trabajo, registros de auditoria y medidas orientadas a reducir riesgos de acceso no autorizado, perdida, alteracion o divulgacion.',
-      'Ningun sistema es completamente infalible. El usuario debe proteger sus credenciales, su correo, su certificado digital y la contrasena de su certificado.',
+      'Ningún sistema es completamente infalible. El usuario debe proteger sus credenciales, su correo, su certificado digital y la contraseña de su certificado.',
     ],
   },
   {
