@@ -701,6 +701,12 @@ def recuperar_password(request):
         )
 
     # Guardamos usando hash — NUNCA texto plano en password_temporal
+    if not email_enviado:
+        return Response(
+            {'error': 'No se pudo enviar el correo automaticamente. Contacta a soporte para recuperar el acceso.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
     user.set_password(temp_pass)
     user.password_temporal = ''  # No almacenar en texto plano
     user.password_temporal_expira = timezone.now() + timedelta(hours=2)
