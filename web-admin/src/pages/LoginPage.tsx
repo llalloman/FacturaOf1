@@ -8,8 +8,10 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? null;
+  const isFirmadorApp = import.meta.env.VITE_APP_TARGET === 'firmador';
   const isFirmadorHost = typeof window !== 'undefined' && window.location.hostname.startsWith('firmador.');
-  const registroPath = isFirmadorHost ? '/firmador/registro' : '/registro';
+  const isFirmadorMode = isFirmadorHost || isFirmadorApp;
+  const registroPath = isFirmadorMode ? '/firmador/registro' : '/registro';
   const setAuth = useAuthStore((state) => state.setAuth);
 
   const [email, setEmail] = useState('');
@@ -19,7 +21,7 @@ export default function LoginPage() {
   const [notFound, setNotFound] = useState(false);
   const [wrongPassword, setWrongPassword] = useState(false);
 
-  const product = isFirmadorHost
+  const product = isFirmadorMode
     ? {
         badge: 'Firmador PDF',
         title: 'Ingresa a OF1 Firmador',
@@ -58,6 +60,8 @@ export default function LoginPage() {
         navigate('/cambiar-password');
       } else if (!user.email_verificado) {
         navigate('/verificar-email');
+      } else if (isFirmadorMode) {
+        navigate('/firmador/inicio');
       } else if (user.rol === 'FIRMADOR') {
         navigate('/firmador');
       } else if (user.rol === 'SUPER_ADMIN') {

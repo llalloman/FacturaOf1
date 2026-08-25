@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OF1 Firmador</string>
+    <string name="title_activity_main">OF1 Firmador</string>
+    <string name="package_name">com.of1solutions.firmador</string>
+    <string name="custom_url_scheme">com.of1solutions.firmador</string>
+</resources>

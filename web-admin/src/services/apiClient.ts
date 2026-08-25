@@ -2,8 +2,10 @@ import axios from 'axios';
 
 const resolveApiUrl = () => {
   const rawUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  const isFirmadorApp = import.meta.env.VITE_APP_TARGET === 'firmador';
   const fallback =
-    typeof window !== 'undefined' && window.location.hostname.endsWith('of1solutions.com')
+    isFirmadorApp ||
+    (typeof window !== 'undefined' && window.location.hostname.endsWith('of1solutions.com'))
       ? 'https://facturaof1-back.of1solutions.com/api'
       : 'http://localhost:8000/api';
   const baseUrl = rawUrl || fallback;

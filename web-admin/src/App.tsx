@@ -59,6 +59,7 @@ const SolicitarFirmaElectronicaPage = lazy(() => import('./pages/public/Solicita
 const FirmaPagoResultadoPage = lazy(() => import('./pages/public/FirmaPagoResultadoPage'));
 const FirmadorPage = lazy(() => import('./pages/firmador/FirmadorPage'));
 const FirmadorLandingPage = lazy(() => import('./pages/firmador/FirmadorLandingPage'));
+const FirmadorInicioPage = lazy(() => import('./pages/firmador/FirmadorInicioPage'));
 const RegistroFirmadorPage = lazy(() => import('./pages/firmador/RegistroFirmadorPage'));
 const ValidarDocumentoPublicoPage = lazy(() => import('./pages/firmador/ValidarDocumentoPublicoPage'));
 const FirmadorAdminPage = lazy(() => import('./pages/firmador/FirmadorAdminPage'));
@@ -222,6 +223,7 @@ function AppRoutes() {
   const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
   const { tieneAcceso, cargando: cargandoSuscripcion, esSuperAdmin } = useSubscriptionStatus();
+  const isFirmadorApp = import.meta.env.VITE_APP_TARGET === 'firmador';
   const isFirmadorHost = typeof window !== 'undefined' && window.location.hostname.startsWith('firmador.');
 
   // Handle token expiry signalled by apiClient (avoids hard window.location redirect)
@@ -239,9 +241,10 @@ function AppRoutes() {
    * Orden: cuenta → email → password → suscripción → onboarding → app
    */
   const authenticatedHome = (): string => {
-    if (esSuperAdmin) return '/';
     if (!user?.email_verificado) return '/verificar-email';
     if (user?.debe_cambiar_password) return '/cambiar-password';
+    if (isFirmadorHost || isFirmadorApp) return '/firmador/inicio';
+    if (esSuperAdmin) return '/';
     if (user?.rol === 'FIRMADOR') return '/firmador';
     // Mientras cargamos la suscripción, mandamos a /bienvenida (página segura)
     if (cargandoSuscripcion) return '/bienvenida';
@@ -263,6 +266,10 @@ function AppRoutes() {
           <Route
             path="/firmador/registro"
             element={isAuthenticated ? <Navigate to={authenticatedHome()} /> : <RegistroFirmadorPage />}
+          />
+          <Route
+            path="/firmador/inicio"
+            element={isAuthenticated ? <FirmadorInicioPage /> : <Navigate to="/login" replace />}
           />
           <Route path="/firmador/validar" element={<ValidarDocumentoPublicoPage />} />
 
@@ -365,7 +372,9 @@ function AppRoutes() {
             path="/"
             element={
               !isAuthenticated ? (
-                isFirmadorHost ? <FirmadorLandingPage /> : <LandingPage />
+                isFirmadorHost || isFirmadorApp ? <FirmadorLandingPage /> : <LandingPage />
+              ) : (isFirmadorHost || isFirmadorApp) && location.pathname === '/' ? (
+                <Navigate to="/firmador/inicio" replace />
               ) : user?.rol === 'FIRMADOR' && location.pathname === '/' ? (
                 <Navigate to="/firmador" replace />
               ) : (
