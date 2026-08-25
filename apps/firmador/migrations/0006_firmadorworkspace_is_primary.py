@@ -37,6 +37,7 @@ def assign_primary_workspaces(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    atomic = False
 
     dependencies = [
         ('firmador', '0005_firmadorconsentimientolegal'),
