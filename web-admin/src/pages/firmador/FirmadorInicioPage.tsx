@@ -10,13 +10,7 @@ export default function FirmadorInicioPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
-      <section
-        className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5"
-        style={{
-          paddingTop: 'max(1.25rem, env(safe-area-inset-top))',
-          paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))',
-        }}
-      >
+      <section className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 py-5">
         <header className="flex items-center justify-between gap-4">
           <img src="/logo-of1-1.png" alt="OF1 Solutions" className="h-11 w-auto object-contain" />
           <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-600 shadow-sm">

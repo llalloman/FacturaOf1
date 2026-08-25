@@ -16,6 +16,35 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html.of1-firmador-app {
+  --mobile-safe-top: max(24px, env(safe-area-inset-top));
+  --mobile-safe-bottom: max(10px, env(safe-area-inset-bottom));
+  background: #f8fafc;
+}
+
+html.of1-firmador-app body {
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+html.of1-firmador-app .mobile-app-safe-shell {
+  min-height: 100dvh;
+  padding-top: var(--mobile-safe-top);
+  padding-bottom: var(--mobile-safe-bottom);
+  box-sizing: border-box;
+  background: #f8fafc;
+  overflow: auto;
+}
+
+html.of1-firmador-app .mobile-app-safe-shell .min-h-screen {
+  min-height: calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom));
+}
+
+html.of1-firmador-app .mobile-app-safe-shell .h-screen {
+  height: calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom));
+}
+
 @keyframes blob {
   0%, 100% { 
     transform: translate(0px, 0px) scale(1);

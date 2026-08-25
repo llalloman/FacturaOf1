@@ -4,6 +4,10 @@ import './index.css'
 import App from './App.tsx'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
 
+if (import.meta.env.VITE_APP_TARGET === 'firmador') {
+  document.documentElement.classList.add('of1-firmador-app')
+}
+
 if (import.meta.env.VITE_ENABLE_PWA !== 'true' && 'serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations()
     .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))

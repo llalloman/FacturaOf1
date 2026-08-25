@@ -76,6 +76,24 @@ function AppLoader() {
   );
 }
 
+function FirmadorAppRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: '/firmador' }} replace />;
+  }
+
+  if (!user?.email_verificado) {
+    return <Navigate to="/verificar-email" replace />;
+  }
+
+  if (user?.debe_cambiar_password) {
+    return <Navigate to="/cambiar-password" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -225,6 +243,9 @@ function AppRoutes() {
   const { tieneAcceso, cargando: cargandoSuscripcion, esSuperAdmin } = useSubscriptionStatus();
   const isFirmadorApp = import.meta.env.VITE_APP_TARGET === 'firmador';
   const isFirmadorHost = typeof window !== 'undefined' && window.location.hostname.startsWith('firmador.');
+  const loginFrom = (location.state as { from?: string } | null)?.from ?? null;
+  const isAllowedLoginReturnPath =
+    !!loginFrom && loginFrom !== '/login' && loginFrom !== '/registro' && loginFrom !== '/firmador/registro';
 
   // Handle token expiry signalled by apiClient (avoids hard window.location redirect)
   useEffect(() => {
@@ -258,7 +279,7 @@ function AppRoutes() {
       <Routes>
           <Route
             path="/login"
-            element={isAuthenticated ? <Navigate to={authenticatedHome()} /> : <LoginPage />}
+            element={isAuthenticated ? <Navigate to={isAllowedLoginReturnPath ? loginFrom : authenticatedHome()} /> : <LoginPage />}
           />
           <Route
             path="/registro"
@@ -281,6 +302,16 @@ function AppRoutes() {
             }
           />
           <Route path="/firmador/validar" element={<ValidarDocumentoPublicoPage />} />
+          {isFirmadorApp && (
+            <Route
+              path="/firmador"
+              element={
+                <FirmadorAppRoute>
+                  <FirmadorPage />
+                </FirmadorAppRoute>
+              }
+            />
+          )}
 
           {/* Password recovery — public */}
           <Route path="/recuperar-password" element={<RecuperarPasswordPage />} />
@@ -403,13 +434,17 @@ function AppRoutes() {
 }
 
 function App() {
+  const isFirmadorApp = import.meta.env.VITE_APP_TARGET === 'firmador';
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AppRoutes />
-        <ToastContainer />
-        <ConfirmModal />
-        <WhatsAppHelpWidget />
+        <div className={isFirmadorApp ? 'mobile-app-safe-shell' : undefined}>
+          <AppRoutes />
+          <ToastContainer />
+          <ConfirmModal />
+          <WhatsAppHelpWidget />
+        </div>
       </BrowserRouter>
     </QueryClientProvider>
   );

@@ -1,6 +1,7 @@
 import hashlib
 import os
 import tempfile
+import uuid
 from io import BytesIO
 from dataclasses import dataclass
 
@@ -158,7 +159,7 @@ def sign_pdf_with_pkcs12(
         if signer is None:
             raise ValidationError('No se pudo abrir el certificado. Verifica que sea .p12/.pfx y que la clave sea correcta.')
 
-        field_name = 'FirmaOF1'
+        field_name = f'FirmaOF1-{uuid.uuid4().hex[:12]}'
         with open(pdf_path, 'rb') as inf:
             try:
                 writer = IncrementalPdfFileWriter(inf, strict=False)
