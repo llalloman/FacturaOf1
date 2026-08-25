@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
 import Layout from './components/Layout';
@@ -9,7 +9,7 @@ import ConfirmModal from './components/ConfirmModal';
 import ModuloGuard from './components/ModuloGuard';
 import WhatsAppHelpWidget from './components/WhatsAppHelpWidget';
 import { useSubscriptionStatus } from './hooks/useSubscriptionStatus';
-import { Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 
 // ─── Lazy-loaded pages ──────────────────────────────────────────────────────
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -433,6 +433,26 @@ function AppRoutes() {
   );
 }
 
+function MobileAppMenuButton() {
+  const location = useLocation();
+  const hiddenPaths = new Set(['/firmador/inicio']);
+  const shouldShow = import.meta.env.VITE_APP_TARGET === 'firmador' && !hiddenPaths.has(location.pathname);
+
+  if (!shouldShow) return null;
+
+  return (
+    <div className="sticky top-0 z-[60] border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur">
+      <Link
+        to="/firmador/inicio"
+        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Menú
+      </Link>
+    </div>
+  );
+}
+
 function App() {
   const isFirmadorApp = import.meta.env.VITE_APP_TARGET === 'firmador';
 
@@ -440,6 +460,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <div className={isFirmadorApp ? 'mobile-app-safe-shell' : undefined}>
+          <MobileAppMenuButton />
           <AppRoutes />
           <ToastContainer />
           <ConfirmModal />

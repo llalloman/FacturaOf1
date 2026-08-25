@@ -24,7 +24,8 @@ html.of1-firmador-app {
 
 html.of1-firmador-app body {
   min-height: 100dvh;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: #f8fafc;
 }
 
@@ -34,7 +35,7 @@ html.of1-firmador-app .mobile-app-safe-shell {
   padding-bottom: var(--mobile-safe-bottom);
   box-sizing: border-box;
   background: #f8fafc;
-  overflow: auto;
+  overflow: visible;
 }
 
 html.of1-firmador-app .mobile-app-safe-shell .min-h-screen {
