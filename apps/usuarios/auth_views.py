@@ -703,7 +703,7 @@ def recuperar_password(request):
     # Guardamos usando hash — NUNCA texto plano en password_temporal
     if not email_enviado:
         return Response(
-            {'error': 'No se pudo enviar el correo automaticamente. Contacta a soporte para recuperar el acceso.'},
+            {'error': 'No se pudo enviar el correo automáticamente. Contacta a soporte para recuperar el acceso.'},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
@@ -712,12 +712,6 @@ def recuperar_password(request):
     user.password_temporal_expira = timezone.now() + timedelta(hours=2)
     user.debe_cambiar_password = True
     user.save(update_fields=['password', 'password_temporal', 'password_temporal_expira', 'debe_cambiar_password'])
-
-    if not email_enviado:
-        return Response(
-            {'error': 'No se pudo enviar el correo automáticamente. Contacta a soporte para obtener tu contraseña temporal.'},
-            status=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
 
     return Response({'detail': 'Si existe una cuenta con ese correo, recibirás las instrucciones en breve.'})
 
