@@ -655,41 +655,60 @@ def recuperar_password(request):
     temp_pass = _generate_temp_password()
 
     # Intentar enviar el correo ANTES de persistir el cambio de contraseña.
-    # Usamos la API HTTP de Resend (puerto 443) para evitar bloqueos de SMTP en Railway.
+    # Si RESEND_API_KEY no está configurado o falla, usamos el backend SMTP de Django.
     email_enviado = False
+    resend_key = (getattr(settings, 'RESEND_API_KEY', '') or '').strip()
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
+    nombre_usuario = user.first_name or user.email
+    subject = "Contraseña temporal - OF1 Solutions"
+    message = (
+        f"Hola {nombre_usuario},\n\n"
+        f"Recibimos una solicitud para restablecer tu contraseña.\n\n"
+        f"Tu contraseña temporal es:\n\n"
+        f"    {temp_pass}\n\n"
+        f"Esta contraseña es válida por 2 horas. Al iniciar sesión te pediremos que la cambies.\n\n"
+        f"Si no solicitaste este cambio, ignora este mensaje y tu cuenta seguirá segura.\n\n"
+        f"— OF1 Solutions S.A.S."
+    )
+
     try:
-        resend_key = getattr(settings, 'RESEND_API_KEY', None)
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@of1solutions.com')
-        nombre_usuario = user.first_name or user.email
-        payload = {
-            "from": f"OF1 Solutions <{from_email}>",
-            "to": [email],
-            "subject": "Contraseña temporal - OF1 Solutions",
-            "text": (
-                f"Hola {nombre_usuario},\n\n"
-                f"Recibimos una solicitud para restablecer tu contraseña.\n\n"
-                f"Tu contraseña temporal es:\n\n"
-                f"    {temp_pass}\n\n"
-                f"Esta contraseña es válida por 2 horas. Al iniciar sesión te pediremos que la cambies.\n\n"
-                f"Si no solicitaste este cambio, ignora este mensaje y tu cuenta seguirá segura.\n\n"
-                f"— OF1 Solutions S.A.S."
-            ),
-        }
-        resp = http_requests.post(
-            'https://api.resend.com/emails',
-            json=payload,
-            headers={
-                'Authorization': f'Bearer {resend_key}',
-                'Content-Type': 'application/json',
-            },
-            timeout=15,
-        )
-        if resp.status_code in (200, 201):
-            email_enviado = True
-        else:
-            logger.error('recuperar_password Resend API error for %s: %s %s', email, resp.status_code, resp.text)
+        if resend_key:
+            payload = {
+                "from": f"OF1 Solutions <{from_email}>",
+                "to": [email],
+                "subject": subject,
+                "text": message,
+            }
+            resp = http_requests.post(
+                'https://api.resend.com/emails',
+                json=payload,
+                headers={
+                    'Authorization': f'Bearer {resend_key}',
+                    'Content-Type': 'application/json',
+                },
+                timeout=15,
+            )
+            if resp.status_code in (200, 201):
+                email_enviado = True
+            else:
+                logger.error('recuperar_password Resend API error for %s: %s %s', email, resp.status_code, resp.text)
     except Exception as exc:
-        logger.error('recuperar_password ZeptoMail API failed for %s: %s', email, exc)
+        logger.error('recuperar_password Resend API failed for %s: %s', email, exc)
+
+    if not email_enviado:
+        try:
+            from django.core.mail import send_mail
+
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=from_email,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+            email_enviado = True
+        except Exception as exc:
+            logger.error('recuperar_password SMTP failed for %s: %s', email, exc)
 
     if not email_enviado:
         # SEGURIDAD: NO logueamos la contraseña temporal en texto plano.
