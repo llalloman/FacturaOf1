@@ -698,12 +698,40 @@ export default function SolicitarFirmaElectronicaPage() {
         </section>
 
         {!confirmed && (
-          <div className="mb-4">
+          <div className="mb-4 space-y-3">
             <ValidityCards
               prices={preciosFirma}
               value={form.validity}
               onChange={changeValidity}
             />
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag size={17} className="text-blue-700" />
+                  <div>
+                    <p className="text-sm font-black text-slate-900">Cupón de descuento</p>
+                    <p className="text-xs text-slate-500">Aplícalo antes de confirmar tu solicitud.</p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row lg:min-w-[28rem]">
+                  <input
+                    value={couponInput}
+                    onChange={(e) => {
+                      setCouponInput(e.target.value.toUpperCase());
+                      setCouponQuote(null);
+                      setCouponMessage('');
+                      setField('coupon_code', '');
+                    }}
+                    placeholder="Ingresa tu código"
+                    className={`${inputClass} uppercase`}
+                  />
+                  <button type="button" onClick={applyCoupon} disabled={couponLoading || !couponInput.trim()} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">
+                    {couponLoading ? 'Validando...' : 'Aplicar cupón'}
+                  </button>
+                </div>
+              </div>
+              {couponMessage && <p className={`mt-2 text-sm ${couponQuote ? 'text-emerald-700' : 'text-red-600'}`}>{couponMessage}</p>}
+            </div>
           </div>
         )}
 
@@ -921,29 +949,6 @@ export default function SolicitarFirmaElectronicaPage() {
                     </Field>
                   </>
                 )}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-3">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Tag size={17} className="text-blue-700" />
-                    <p className="text-sm font-black text-slate-900">Cupón de descuento</p>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <input
-                      value={couponInput}
-                      onChange={(e) => {
-                        setCouponInput(e.target.value.toUpperCase());
-                        setCouponQuote(null);
-                        setCouponMessage('');
-                        setField('coupon_code', '');
-                      }}
-                      placeholder="Ingresa tu código"
-                      className={`${inputClass} uppercase sm:max-w-xs`}
-                    />
-                    <button type="button" onClick={applyCoupon} disabled={couponLoading || !couponInput.trim()} className="rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50">
-                      {couponLoading ? 'Validando...' : 'Aplicar cupón'}
-                    </button>
-                  </div>
-                  {couponMessage && <p className={`mt-2 text-sm ${couponQuote ? 'text-emerald-700' : 'text-red-600'}`}>{couponMessage}</p>}
-                </div>
               </div>
             </div>
           )}
