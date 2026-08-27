@@ -357,6 +357,7 @@ export default function SolicitarFirmaElectronicaPage() {
       requestNumber: solicitud.request_number ?? fallbackRequestNumber ?? '',
       message: 'Esta solicitud ya fue registrada. Puedes revisar la información, ver los datos de transferencia o reintentar el pago con tarjeta.',
     });
+    setShowLookup(false);
     setStep(3);
   };
 
@@ -645,9 +646,24 @@ export default function SolicitarFirmaElectronicaPage() {
           <Link to="/" className="flex items-center gap-3">
             <img src="/logo-of1-1.png" alt="FacturaOF1 ERP" className="h-10 w-auto" />
           </Link>
-          <Link to="/" className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-            Volver al inicio
-          </Link>
+          <div className="flex items-center gap-2">
+            {!confirmed && (
+              <button
+                type="button"
+                onClick={() => {
+                  setError('');
+                  setShowLookup(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+              >
+                <FileCheck2 size={16} />
+                Consultar estado
+              </button>
+            )}
+            <Link to="/" className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+              Volver al inicio
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -662,16 +678,6 @@ export default function SolicitarFirmaElectronicaPage() {
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                 Completa datos, documentos y confirmación en un flujo guiado.
               </p>
-              {!confirmed && (
-                <button
-                  type="button"
-                  onClick={() => setShowLookup((current) => !current)}
-                  className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-800"
-                >
-                  <FileCheck2 size={16} />
-                  ¿Ya tienes una solicitud? Consultar estado
-                </button>
-              )}
             </div>
             <div className="border-t border-slate-200 bg-slate-950 p-4 text-white lg:border-l lg:border-t-0">
               <p className="text-xs font-bold uppercase text-blue-200">Total</p>
@@ -691,6 +697,16 @@ export default function SolicitarFirmaElectronicaPage() {
           </div>
         </section>
 
+        {!confirmed && (
+          <div className="mb-4">
+            <ValidityCards
+              prices={preciosFirma}
+              value={form.validity}
+              onChange={changeValidity}
+            />
+          </div>
+        )}
+
         <section className="mb-7 hidden">
           <p className="text-sm font-bold uppercase text-blue-600">Firma electrónica</p>
           <h1 className="mt-2 text-3xl font-black text-slate-950">Solicitud de firma electrónica</h1>
@@ -700,13 +716,36 @@ export default function SolicitarFirmaElectronicaPage() {
         </section>
 
         {!confirmed && showLookup && (
-          <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="grid gap-3 lg:grid-cols-[0.9fr_1.4fr_auto] lg:items-end">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Ya tengo una solicitud</p>
-                <h2 className="mt-1 text-sm font-black text-slate-950">Consultar solicitud registrada</h2>
-                <p className="mt-1 text-xs leading-5 text-slate-500">Código de solicitud y dato registrado.</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6">
+            <button
+              type="button"
+              aria-label="Cerrar consulta"
+              className="absolute inset-0 cursor-default"
+              onClick={() => setShowLookup(false)}
+            />
+            <section className="relative w-full max-w-3xl rounded-2xl bg-white p-5 shadow-2xl">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Estado de solicitud</p>
+                  <h2 className="mt-1 text-lg font-black text-slate-950">Consultar solicitud registrada</h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">Ingresa el código de solicitud y un dato registrado.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLookup(false)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
+                >
+                  <X size={18} />
+                </button>
               </div>
+              {lookupLoading && (
+                <div className="mb-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">
+                  <Loader2 size={16} className="animate-spin" />
+                  Cargando información de la solicitud...
+                </div>
+              )}
+              {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+              <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Código de solicitud">
                   <input
@@ -734,15 +773,16 @@ export default function SolicitarFirmaElectronicaPage() {
                 {lookupLoading ? <Loader2 size={16} className="animate-spin" /> : <FileCheck2 size={16} />}
                 Consultar
               </button>
-            </div>
-          </section>
+              </div>
+            </section>
+          </div>
         )}
 
         <StepIndicator current={step} />
 
         <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          {error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-          {lookupLoading && (
+          {!showLookup && error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+          {!showLookup && lookupLoading && (
             <div className="mb-5 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">
               <Loader2 size={16} className="animate-spin" />
               Cargando información de la solicitud...
@@ -752,13 +792,8 @@ export default function SolicitarFirmaElectronicaPage() {
 
           {step === 0 && (
             <div className="space-y-5">
-              <StepTitle title="Paso 1 - Datos personales" subtitle="Elige el tipo de solicitud y la vigencia antes de completar tus datos." />
+              <StepTitle title="Paso 1 - Datos personales" subtitle="Elige el tipo de solicitud y completa tus datos." />
               <RequestTypeCards value={form.request_type as TipoSolicitudFirma} onChange={(value) => setField('request_type', value)} />
-              <ValidityCards
-                prices={preciosFirma}
-                value={form.validity}
-                onChange={changeValidity}
-              />
               <div className="grid gap-4 md:grid-cols-3">
                 <Field label="Tipo de identificación *" invalid={invalid('identification_type')}>
                   <select className={fieldInputClass(invalid('identification_type'))} value={form.identification_type} onChange={(e) => setField('identification_type', e.target.value)}>
