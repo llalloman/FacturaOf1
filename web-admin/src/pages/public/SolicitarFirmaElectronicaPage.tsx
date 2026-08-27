@@ -651,35 +651,35 @@ export default function SolicitarFirmaElectronicaPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="mb-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="grid gap-0 lg:grid-cols-[1fr_360px]">
-            <div className="p-6 sm:p-8">
-              <p className="text-sm font-bold uppercase text-blue-600">Firma electrónica</p>
-              <h1 className="mt-2 max-w-3xl text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+        <section className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="grid gap-0 lg:grid-cols-[1fr_280px]">
+            <div className="p-5 sm:p-6">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Firma electrónica</p>
+              <h1 className="mt-2 max-w-3xl text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                 Solicita tu firma electrónica sin perderte en el proceso
               </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Ingresa tus datos, sube documentos y revisa todo antes de confirmar. Al finalizar recibirás el número de solicitud para coordinar el pago por WhatsApp.
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                Completa datos, documentos y confirmación en un flujo guiado.
               </p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <MiniTrust icon={<ShieldCheck size={18} />} title="Datos seguros" text="Documentos protegidos." />
                 <MiniTrust icon={<Clock3 size={18} />} title="Proceso guiado" text="4 pasos claros." />
                 <MiniTrust icon={<FileCheck2 size={18} />} title="Revisión final" text="Nada se envía antes de confirmar." />
               </div>
             </div>
-            <div className="border-t border-slate-200 bg-slate-950 p-6 text-white lg:border-l lg:border-t-0">
+            <div className="border-t border-slate-200 bg-slate-950 p-5 text-white lg:border-l lg:border-t-0">
               <p className="text-xs font-bold uppercase text-blue-200">Total seleccionado</p>
-              <div className="mt-3 flex flex-wrap items-end gap-2">
+              <div className="mt-2 flex flex-wrap items-end gap-2">
                 {tieneDescuento && <span className="pb-1 text-sm font-semibold text-red-200 line-through">{money(precioSeleccionado?.regular_price)}</span>}
-                <strong className="text-4xl font-black">{money(totalMostrado)}</strong>
+                <strong className="text-3xl font-black">{money(totalMostrado)}</strong>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">IVA incluido</span>
                 {couponQuote?.applied && <span className="rounded-full bg-violet-400/15 px-3 py-1 text-xs font-bold text-violet-200">Cupón aplicado</span>}
                 {!couponQuote?.applied && tienePromocion && <span className="rounded-full bg-red-400/15 px-3 py-1 text-xs font-bold text-red-200">Promoción activa</span>}
               </div>
-              <p className="mt-4 text-sm leading-6 text-slate-300">
+              <p className="mt-3 text-sm leading-6 text-slate-300">
                 Vigencia: <strong className="text-white">{precioSeleccionado?.validity_display ?? form.validity}</strong>
               </p>
             </div>
@@ -695,12 +695,12 @@ export default function SolicitarFirmaElectronicaPage() {
         </section>
 
         {!confirmed && (
-          <section className="mb-7 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
-            <div className="grid gap-4 lg:grid-cols-[1fr_1.3fr_auto] lg:items-end">
+          <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="grid gap-3 lg:grid-cols-[0.9fr_1.4fr_auto] lg:items-end">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Ya tengo una solicitud</p>
-                <h2 className="mt-1 text-base font-black text-slate-950">Consultar solicitud registrada</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-600">Usa el código de solicitud junto con tu cédula, RUC, pasaporte, correo o teléfono registrado.</p>
+                <h2 className="mt-1 text-sm font-black text-slate-950">Consultar solicitud registrada</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Código de solicitud y dato registrado.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Código de solicitud">
@@ -735,7 +735,7 @@ export default function SolicitarFirmaElectronicaPage() {
 
         <StepIndicator current={step} />
 
-        <div className="mt-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           {error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
           {lookupLoading && (
             <div className="mb-5 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">
@@ -747,8 +747,13 @@ export default function SolicitarFirmaElectronicaPage() {
 
           {step === 0 && (
             <div className="space-y-5">
-              <StepTitle title="Paso 1 - Datos personales" subtitle="Primero elige el tipo de firma. El formulario y los documentos se ajustan automáticamente." />
+              <StepTitle title="Paso 1 - Datos personales" subtitle="Elige el tipo de solicitud y la vigencia antes de completar tus datos." />
               <RequestTypeCards value={form.request_type as TipoSolicitudFirma} onChange={(value) => setField('request_type', value)} />
+              <ValidityCards
+                prices={preciosFirma}
+                value={form.validity}
+                onChange={changeValidity}
+              />
               <div className="grid gap-4 md:grid-cols-3">
                 <Field label="Tipo de identificación *" invalid={invalid('identification_type')}>
                   <select className={fieldInputClass(invalid('identification_type'))} value={form.identification_type} onChange={(e) => setField('identification_type', e.target.value)}>
@@ -876,16 +881,6 @@ export default function SolicitarFirmaElectronicaPage() {
                     </Field>
                   </>
                 )}
-                <ValidityCards
-                  prices={preciosFirma}
-                  value={form.validity}
-                  selectedPrice={precioSeleccionado}
-                  total={totalMostrado}
-                  hasDiscount={tieneDescuento}
-                  hasCoupon={Boolean(couponQuote?.applied)}
-                  hasPromotion={tienePromocion}
-                  onChange={changeValidity}
-                />
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-3">
                   <div className="mb-3 flex items-center gap-2">
                     <Tag size={17} className="text-blue-700" />
@@ -1405,15 +1400,15 @@ function PublicLegalFooter() {
 
 function StepIndicator({ current }: { current: number }) {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+    <div className="grid grid-cols-4 gap-2">
       {steps.map((label, index) => {
         const active = index <= current;
         return (
-          <div key={label} className={`rounded-xl border p-3 ${active ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-white'}`}>
-            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${active ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+          <div key={label} className={`flex min-h-[3.25rem] items-center gap-2 rounded-xl border px-3 py-2 ${active ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+            <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${active ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
               {index < current ? <Check size={15} /> : index + 1}
             </div>
-            <p className={`mt-2 text-sm font-bold ${active ? 'text-blue-900' : 'text-slate-500'}`}>{label}</p>
+            <p className={`truncate text-xs font-bold sm:text-sm ${active ? 'text-blue-900' : 'text-slate-500'}`}>{label}</p>
           </div>
         );
       })}
@@ -1432,10 +1427,12 @@ function StepTitle({ title, subtitle }: { title: string; subtitle?: string }) {
 
 function MiniTrust({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">{icon}</div>
-      <p className="text-sm font-black text-slate-900">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-500">{text}</p>
+    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700">{icon}</span>
+      <span>
+        <span className="block text-xs font-black text-slate-900">{title}</span>
+        <span className="block text-[11px] leading-4 text-slate-500">{text}</span>
+      </span>
     </div>
   );
 }
@@ -1443,51 +1440,23 @@ function MiniTrust({ icon, title, text }: { icon: ReactNode; title: string; text
 function ValidityCards({
   prices,
   value,
-  selectedPrice,
-  total,
-  hasDiscount,
-  hasCoupon,
-  hasPromotion,
   onChange,
 }: {
   prices: PrecioFirma[];
   value?: string;
-  selectedPrice?: PrecioFirma;
-  total?: string | number;
-  hasDiscount: boolean;
-  hasCoupon: boolean;
-  hasPromotion: boolean;
   onChange: (value: VigenciaFirma) => void;
 }) {
   return (
-    <section className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 md:col-span-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase text-blue-700">Elige la vigencia</p>
-          <h3 className="mt-1 text-xl font-black text-slate-950">Selecciona por cuánto tiempo necesitas tu firma</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
-            La opción marcada es la que se usará para calcular el valor final de la solicitud.
-          </p>
+          <p className="text-xs font-bold uppercase text-blue-700">Vigencia y precio</p>
+          <h3 className="mt-1 text-base font-black text-slate-950">Elige cuánto tiempo durará tu firma</h3>
         </div>
-        <div className="rounded-2xl border border-blue-200 bg-white px-4 py-3 shadow-sm">
-          <p className="text-xs font-bold uppercase text-slate-500">Total seleccionado</p>
-          <div className="mt-1 flex flex-wrap items-end gap-2">
-            {hasDiscount && (
-              <span className="pb-1 text-sm font-semibold text-red-500 line-through">
-                {money(selectedPrice?.regular_price)}
-              </span>
-            )}
-            <strong className="text-3xl font-black text-slate-950">{money(total)}</strong>
-            <span className="mb-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">IVA incluido</span>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {hasCoupon && <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">Cupón aplicado</span>}
-            {!hasCoupon && hasPromotion && <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">Promoción activa</span>}
-          </div>
-        </div>
+        <p className="text-xs font-semibold text-slate-500">Puedes cambiarla antes de confirmar.</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {prices.map((price) => {
           const selected = value === price.validity;
           const discounted = Number(price.current_price) < Number(price.regular_price);
@@ -1496,29 +1465,24 @@ function ValidityCards({
               key={price.validity}
               type="button"
               onClick={() => onChange(price.validity)}
-              className={`min-h-[7rem] rounded-2xl border p-4 text-left transition ${
+              className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition ${
                 selected
-                  ? 'border-blue-600 bg-white shadow-md ring-4 ring-blue-100'
-                  : 'border-slate-200 bg-white/80 hover:border-blue-300 hover:bg-white'
+                  ? 'border-blue-600 bg-white shadow-sm ring-2 ring-blue-100'
+                  : 'border-slate-200 bg-white hover:border-blue-300'
               }`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-base font-black text-slate-950">{price.validity_display}</p>
-                  <div className="mt-2 flex flex-wrap items-end gap-2">
-                    {discounted && <span className="text-xs font-semibold text-red-500 line-through">{money(price.regular_price)}</span>}
-                    <span className="text-2xl font-black text-blue-700">{money(price.current_price)}</span>
-                  </div>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-slate-950">{price.validity_display}</p>
+                <div className="mt-1 flex flex-wrap items-end gap-2">
+                  {discounted && <span className="text-xs font-semibold text-red-500 line-through">{money(price.regular_price)}</span>}
+                  <span className="text-lg font-black text-blue-700">{money(price.current_price)}</span>
                 </div>
-                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
-                  selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 text-transparent'
-                }`}>
-                  <Check size={15} />
-                </span>
               </div>
-              <p className="mt-3 text-xs font-semibold text-slate-500">
-                {selected ? 'Vigencia seleccionada' : 'Toca para seleccionar'}
-              </p>
+              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 text-transparent'
+              }`}>
+                <Check size={14} />
+              </span>
             </button>
           );
         })}
