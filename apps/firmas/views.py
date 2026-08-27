@@ -3,7 +3,7 @@ import os
 import uuid
 
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives, send_mail
 from django.db import transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.shortcuts import redirect
 from django.urls import reverse
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils.html import escape
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action, api_view, parser_classes, permission_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -685,7 +686,73 @@ def payphone_firma_cancelado_publico(request):
     return redirect(_append_query(frontend_url, {'payment': 'cancelled'}))
 
 
-def notificar_solicitud_publica(request, solicitud):
+def _email_button(url, label, background='#2563eb'):
+    return (
+        f'<a href="{escape(url)}" '
+        f'style="display:inline-block;background:{background};color:#ffffff;text-decoration:none;'
+        'font-weight:700;border-radius:10px;padding:12px 18px;font-size:14px;">'
+        f'{escape(label)}</a>'
+    )
+
+
+def _email_layout(title, subtitle, body_html):
+    return f"""
+<!doctype html>
+<html>
+  <body style="margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;">
+            <tr>
+              <td style="background:#0f172a;padding:24px 28px;color:#ffffff;">
+                <div style="font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#93c5fd;">OF1 Solutions</div>
+                <h1 style="margin:8px 0 0;font-size:24px;line-height:1.25;">{escape(title)}</h1>
+                <p style="margin:8px 0 0;color:#cbd5e1;font-size:14px;line-height:1.6;">{escape(subtitle)}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                {body_html}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.6;">
+                Este correo fue generado automáticamente por OF1 Solutions. Si necesitas ayuda, responde este mensaje o contáctanos por WhatsApp.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
+
+
+def _detail_table(rows):
+    rendered_rows = ''.join(
+        '<tr>'
+        f'<td style="padding:10px 0;color:#64748b;font-size:13px;border-bottom:1px solid #e2e8f0;">{escape(str(label))}</td>'
+        f'<td style="padding:10px 0;color:#0f172a;font-size:13px;font-weight:700;text-align:right;border-bottom:1px solid #e2e8f0;">{escape(str(value or "-"))}</td>'
+        '</tr>'
+        for label, value in rows
+    )
+    return (
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+        'style="border-collapse:collapse;margin:16px 0 0;">'
+        f'{rendered_rows}'
+        '</table>'
+    )
+
+
+def _send_structured_email(subject, text_body, html_body, from_email, recipients):
+    email = EmailMultiAlternatives(subject, text_body, from_email, recipients)
+    email.attach_alternative(html_body, 'text/html')
+    return email.send(fail_silently=False)
+
+
+def _notificar_solicitud_publica_plain_legacy(request, solicitud):
     documents = ', '.join(solicitud.documents.values_list('document_type', flat=True)) or 'Sin documentos'
     admin_url = request.build_absolute_uri(f'/firmas-electronicas?solicitud={solicitud.id}')
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or 'info@of1solutions.com'
@@ -744,6 +811,132 @@ def notificar_solicitud_publica(request, solicitud):
             from_email,
             [solicitud.email],
             fail_silently=False,
+        )
+        email_status['client_sent'] = sent > 0
+    except Exception as exc:
+        email_status['client_error'] = str(exc)
+        logger.exception('No se pudo enviar correo al cliente de solicitud de firma %s', solicitud.request_number)
+
+    return email_status
+
+
+def notificar_solicitud_publica(request, solicitud):
+    documents = ', '.join(solicitud.documents.values_list('document_type', flat=True)) or 'Sin documentos'
+    admin_url = request.build_absolute_uri(f'/firmas-electronicas?solicitud={solicitud.id}')
+    firmador_url = (getattr(settings, 'FIRMADOR_PUBLIC_BASE_URL', '') or 'https://firmador.of1solutions.com').rstrip('/')
+    whatsapp_url = 'https://api.whatsapp.com/send/?phone=593991840854'
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or 'info@of1solutions.com'
+    email_status = {
+        'admin_sent': False,
+        'client_sent': False,
+        'admin_error': '',
+        'client_error': '',
+    }
+
+    admin_subject = f'Nueva solicitud de firma {solicitud.request_number}'
+    admin_message = (
+        'Nueva solicitud de firma electrónica\n\n'
+        f'Número: {solicitud.request_number}\n'
+        f'Tipo: {solicitud.get_request_type_display()}\n'
+        f'Cliente: {solicitud.full_name}\n'
+        f'Identificación: {solicitud.identification}\n'
+        f'RUC: {solicitud.ruc or "-"}\n'
+        f'Empresa: {solicitud.business_name or "-"}\n'
+        f'Correo: {solicitud.email}\n'
+        f'Teléfono: {solicitud.phone}\n'
+        f'Vigencia: {solicitud.get_validity_display()}\n'
+        f'Valor: ${solicitud.sale_price}\n'
+        f'Ubicación: {solicitud.parish or "-"}, {solicitud.city}, {solicitud.province}\n'
+        f'Documentos: {documents}\n\n'
+        f'Revisar en administración: {admin_url}\n'
+    )
+    admin_html = _email_layout(
+        f'Nueva solicitud {solicitud.request_number}',
+        'Hay una nueva solicitud pública de firma electrónica para revisar.',
+        (
+            '<p style="margin:0;color:#334155;font-size:15px;line-height:1.7;">'
+            'Se registró una solicitud desde el formulario público. Revisa la documentación y el pago para continuar el proceso.'
+            '</p>'
+            + _detail_table([
+                ('Número', solicitud.request_number),
+                ('Tipo', solicitud.get_request_type_display()),
+                ('Cliente', solicitud.full_name),
+                ('Identificación', solicitud.identification),
+                ('RUC', solicitud.ruc or '-'),
+                ('Empresa', solicitud.business_name or '-'),
+                ('Correo', solicitud.email),
+                ('Teléfono', solicitud.phone),
+                ('Vigencia', solicitud.get_validity_display()),
+                ('Valor', f'${solicitud.sale_price}'),
+                ('Ubicación', f'{solicitud.parish or "-"}, {solicitud.city}, {solicitud.province}'),
+                ('Documentos', documents),
+            ])
+            + f'<div style="margin-top:22px;">{_email_button(admin_url, "Revisar solicitud")}</div>'
+        ),
+    )
+
+    cliente_subject = f'Solicitud de firma electrónica recibida {solicitud.request_number}'
+    cliente_message = (
+        f'Hola {solicitud.full_name},\n\n'
+        'Hemos recibido tu solicitud de firma electrónica en OF1 Solutions.\n\n'
+        f'Número de solicitud: {solicitud.request_number}\n'
+        f'Tipo de solicitud: {solicitud.get_request_type_display()}\n'
+        f'Identificación: {solicitud.identification}\n'
+        f'Vigencia: {solicitud.get_validity_display()}\n'
+        f'Valor: ${solicitud.sale_price}\n'
+        f'Correo registrado: {solicitud.email}\n\n'
+        'Un asesor revisará la información y documentación cargada para continuar el proceso.\n'
+        'Cuando tengas tu firma emitida, también puedes usar OF1 Firmador para firmar PDFs desde el navegador o la app Android.\n\n'
+        f'Firmador OF1: {firmador_url}\n'
+        'Para confirmar el pago o consultar el estado de tu trámite, contáctanos por WhatsApp indicando tu número de solicitud.\n\n'
+        'Gracias por confiar en OF1 Solutions.\n'
+    )
+    cliente_html = _email_layout(
+        f'Recibimos tu solicitud {solicitud.request_number}',
+        'Tu solicitud de firma electrónica fue registrada correctamente.',
+        (
+            f'<p style="margin:0 0 16px;color:#334155;font-size:15px;line-height:1.7;">Hola <strong>{escape(solicitud.full_name)}</strong>, gracias por confiar en OF1 Solutions. '
+            'Un asesor revisará tus datos, documentos y pago para continuar con la emisión.</p>'
+            + _detail_table([
+                ('Número de solicitud', solicitud.request_number),
+                ('Tipo de solicitud', solicitud.get_request_type_display()),
+                ('Identificación', solicitud.identification),
+                ('Vigencia', solicitud.get_validity_display()),
+                ('Valor', f'${solicitud.sale_price}'),
+                ('Correo registrado', solicitud.email),
+            ])
+            + '<div style="margin-top:22px;padding:18px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:16px;">'
+            '<div style="font-size:12px;font-weight:800;text-transform:uppercase;color:#2563eb;letter-spacing:.04em;">También incluido en OF1</div>'
+            '<h2 style="margin:6px 0 8px;font-size:18px;color:#0f172a;">Usa OF1 Firmador para firmar tus PDFs</h2>'
+            '<p style="margin:0 0 14px;color:#334155;font-size:14px;line-height:1.7;">'
+            'Cuando tu firma electrónica esté emitida, puedes ingresar al firmador para cargar documentos PDF, firmarlos y descargarlos de forma sencilla.'
+            '</p>'
+            f'{_email_button(firmador_url, "Abrir OF1 Firmador")}'
+            '</div>'
+            + f'<div style="margin-top:18px;">{_email_button(whatsapp_url, "Contactar por WhatsApp", "#16a34a")}</div>'
+        ),
+    )
+
+    try:
+        sent = _send_structured_email(
+            admin_subject,
+            admin_message,
+            admin_html,
+            from_email,
+            ['info@of1solutions.com'],
+        )
+        email_status['admin_sent'] = sent > 0
+    except Exception as exc:
+        email_status['admin_error'] = str(exc)
+        logger.exception('No se pudo enviar correo interno de solicitud de firma %s', solicitud.request_number)
+
+    try:
+        sent = _send_structured_email(
+            cliente_subject,
+            cliente_message,
+            cliente_html,
+            from_email,
+            [solicitud.email],
         )
         email_status['client_sent'] = sent > 0
     except Exception as exc:

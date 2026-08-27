@@ -29,6 +29,7 @@ import {
   type PublicSignatureLookupResponse,
   type SolicitudFirmaPublicPayload,
   type TipoSolicitudFirma,
+  type VigenciaFirma,
 } from '../../services/firmasService';
 
 
@@ -875,29 +876,16 @@ export default function SolicitarFirmaElectronicaPage() {
                     </Field>
                   </>
                 )}
-                <Field label="Vigencia">
-                  <select className={inputClass} value={form.validity} onChange={(e) => changeValidity(e.target.value)}>
-                    {preciosFirma.map((precio) => (
-                      <option key={precio.validity} value={precio.validity}>{precio.validity_display}</option>
-                    ))}
-                  </select>
-                </Field>
-                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 md:col-span-2">
-                  <p className="text-xs font-bold uppercase text-blue-700">Total a pagar</p>
-                  <div className="mt-1 flex flex-wrap items-end gap-3">
-                    {tieneDescuento && (
-                      <span className="text-sm font-semibold text-red-500 line-through">
-                        {money(precioSeleccionado?.regular_price)}
-                      </span>
-                    )}
-                    <strong className="text-3xl font-black text-slate-950">
-                      {money(totalMostrado)}
-                    </strong>
-                    <span className="mb-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">IVA incluido</span>
-                    {couponQuote?.applied && <span className="mb-1 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">Cupón aplicado</span>}
-                    {!couponQuote?.applied && tienePromocion && <span className="mb-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">Promoción activa</span>}
-                  </div>
-                </div>
+                <ValidityCards
+                  prices={preciosFirma}
+                  value={form.validity}
+                  selectedPrice={precioSeleccionado}
+                  total={totalMostrado}
+                  hasDiscount={tieneDescuento}
+                  hasCoupon={Boolean(couponQuote?.applied)}
+                  hasPromotion={tienePromocion}
+                  onChange={changeValidity}
+                />
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-3">
                   <div className="mb-3 flex items-center gap-2">
                     <Tag size={17} className="text-blue-700" />
@@ -1449,6 +1437,93 @@ function MiniTrust({ icon, title, text }: { icon: ReactNode; title: string; text
       <p className="text-sm font-black text-slate-900">{title}</p>
       <p className="mt-1 text-xs leading-5 text-slate-500">{text}</p>
     </div>
+  );
+}
+
+function ValidityCards({
+  prices,
+  value,
+  selectedPrice,
+  total,
+  hasDiscount,
+  hasCoupon,
+  hasPromotion,
+  onChange,
+}: {
+  prices: PrecioFirma[];
+  value?: string;
+  selectedPrice?: PrecioFirma;
+  total?: string | number;
+  hasDiscount: boolean;
+  hasCoupon: boolean;
+  hasPromotion: boolean;
+  onChange: (value: VigenciaFirma) => void;
+}) {
+  return (
+    <section className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 md:col-span-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase text-blue-700">Elige la vigencia</p>
+          <h3 className="mt-1 text-xl font-black text-slate-950">Selecciona por cuánto tiempo necesitas tu firma</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            La opción marcada es la que se usará para calcular el valor final de la solicitud.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-blue-200 bg-white px-4 py-3 shadow-sm">
+          <p className="text-xs font-bold uppercase text-slate-500">Total seleccionado</p>
+          <div className="mt-1 flex flex-wrap items-end gap-2">
+            {hasDiscount && (
+              <span className="pb-1 text-sm font-semibold text-red-500 line-through">
+                {money(selectedPrice?.regular_price)}
+              </span>
+            )}
+            <strong className="text-3xl font-black text-slate-950">{money(total)}</strong>
+            <span className="mb-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">IVA incluido</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {hasCoupon && <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">Cupón aplicado</span>}
+            {!hasCoupon && hasPromotion && <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">Promoción activa</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {prices.map((price) => {
+          const selected = value === price.validity;
+          const discounted = Number(price.current_price) < Number(price.regular_price);
+          return (
+            <button
+              key={price.validity}
+              type="button"
+              onClick={() => onChange(price.validity)}
+              className={`min-h-[7rem] rounded-2xl border p-4 text-left transition ${
+                selected
+                  ? 'border-blue-600 bg-white shadow-md ring-4 ring-blue-100'
+                  : 'border-slate-200 bg-white/80 hover:border-blue-300 hover:bg-white'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-base font-black text-slate-950">{price.validity_display}</p>
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    {discounted && <span className="text-xs font-semibold text-red-500 line-through">{money(price.regular_price)}</span>}
+                    <span className="text-2xl font-black text-blue-700">{money(price.current_price)}</span>
+                  </div>
+                </div>
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
+                  selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 text-transparent'
+                }`}>
+                  <Check size={15} />
+                </span>
+              </div>
+              <p className="mt-3 text-xs font-semibold text-slate-500">
+                {selected ? 'Vigencia seleccionada' : 'Toca para seleccionar'}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
