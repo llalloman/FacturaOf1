@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
-  Clock3,
   CreditCard,
   FileCheck2,
   FileUp,
@@ -301,6 +300,7 @@ export default function SolicitarFirmaElectronicaPage() {
   const [payphoneModalOpen, setPayphoneModalOpen] = useState(false);
   const [payphonePayment, setPayphonePayment] = useState<PayPhoneFirmaPaymentResponse | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [showLookup, setShowLookup] = useState(false);
   const [lookupForm, setLookupForm] = useState({ requestNumber: '', verification: '' });
   const [recoveredLookup, setRecoveredLookup] = useState<PublicSignatureLookupResponse | null>(null);
   const [confirmed, setConfirmed] = useState<{
@@ -653,33 +653,38 @@ export default function SolicitarFirmaElectronicaPage() {
 
       <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
         <section className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="grid gap-0 lg:grid-cols-[1fr_280px]">
+          <div className="grid gap-0 lg:grid-cols-[1fr_240px]">
             <div className="p-5 sm:p-6">
               <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Firma electrónica</p>
               <h1 className="mt-2 max-w-3xl text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-                Solicita tu firma electrónica sin perderte en el proceso
+                Solicita tu firma electrónica
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                 Completa datos, documentos y confirmación en un flujo guiado.
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <MiniTrust icon={<ShieldCheck size={18} />} title="Datos seguros" text="Documentos protegidos." />
-                <MiniTrust icon={<Clock3 size={18} />} title="Proceso guiado" text="4 pasos claros." />
-                <MiniTrust icon={<FileCheck2 size={18} />} title="Revisión final" text="Nada se envía antes de confirmar." />
-              </div>
+              {!confirmed && (
+                <button
+                  type="button"
+                  onClick={() => setShowLookup((current) => !current)}
+                  className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-800"
+                >
+                  <FileCheck2 size={16} />
+                  ¿Ya tienes una solicitud? Consultar estado
+                </button>
+              )}
             </div>
-            <div className="border-t border-slate-200 bg-slate-950 p-5 text-white lg:border-l lg:border-t-0">
-              <p className="text-xs font-bold uppercase text-blue-200">Total seleccionado</p>
+            <div className="border-t border-slate-200 bg-slate-950 p-4 text-white lg:border-l lg:border-t-0">
+              <p className="text-xs font-bold uppercase text-blue-200">Total</p>
               <div className="mt-2 flex flex-wrap items-end gap-2">
                 {tieneDescuento && <span className="pb-1 text-sm font-semibold text-red-200 line-through">{money(precioSeleccionado?.regular_price)}</span>}
-                <strong className="text-3xl font-black">{money(totalMostrado)}</strong>
+                <strong className="text-2xl font-black">{money(totalMostrado)}</strong>
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">IVA incluido</span>
                 {couponQuote?.applied && <span className="rounded-full bg-violet-400/15 px-3 py-1 text-xs font-bold text-violet-200">Cupón aplicado</span>}
                 {!couponQuote?.applied && tienePromocion && <span className="rounded-full bg-red-400/15 px-3 py-1 text-xs font-bold text-red-200">Promoción activa</span>}
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-300">
+              <p className="mt-2 text-xs leading-5 text-slate-300">
                 Vigencia: <strong className="text-white">{precioSeleccionado?.validity_display ?? form.validity}</strong>
               </p>
             </div>
@@ -694,7 +699,7 @@ export default function SolicitarFirmaElectronicaPage() {
           </p>
         </section>
 
-        {!confirmed && (
+        {!confirmed && showLookup && (
           <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="grid gap-3 lg:grid-cols-[0.9fr_1.4fr_auto] lg:items-end">
               <div>
@@ -1421,18 +1426,6 @@ function StepTitle({ title, subtitle }: { title: string; subtitle?: string }) {
     <div>
       <h2 className="text-lg font-black text-slate-950">{title}</h2>
       {subtitle && <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>}
-    </div>
-  );
-}
-
-function MiniTrust({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700">{icon}</span>
-      <span>
-        <span className="block text-xs font-black text-slate-900">{title}</span>
-        <span className="block text-[11px] leading-4 text-slate-500">{text}</span>
-      </span>
     </div>
   );
 }
