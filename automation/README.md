@@ -103,6 +103,7 @@ No documentar valores reales. Solo nombres esperados:
 - `docs/whatsapp-gateway.md`: contrato del gateway Baileys.
 - `docs/whatsapp-contact-identity.md`: manejo correcto de `phone`, `contact_key`, `reply_to_jid` y JIDs `@lid`.
 - `docs/n8n-workflows.md`: detalle n8n del flujo `01_whatsapp_inbound` y nuevos workflows.
+- `docs/n8n-session-recovery.md`: recuperacion de sesion n8n, reconexion de WhatsApp Gateway y checklist operativo.
 - `docs/deepseek-prompts.md`: prompts y reglas para clasificacion controlada.
 - `docs/technical-plan.md`: plan tecnico consolidado para revision antes de implementar.
 - `docs/backend-endpoints.md`: endpoints internos ya preparados para integración con n8n.
