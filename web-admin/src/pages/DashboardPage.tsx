@@ -114,14 +114,15 @@ function getDefaultView(user?: User | null): DashboardView {
 function getAvailableViews(user?: User | null): DashboardView[] {
   switch (user?.rol) {
     case 'CONTADOR':
+      return ['contador'];
     case 'CONSULTOR':
-      return ['contador', 'gerencia'];
+      return ['gerencia'];
     case 'VENDEDOR':
-      return ['operativo', 'comerciante'];
+      return ['operativo'];
     case 'ADMIN_EMPRESA':
-      return ['comerciante', 'gerencia', 'contador', 'operativo'];
+      return ['comerciante', 'gerencia'];
     default:
-      return ['comerciante', 'gerencia', 'contador', 'operativo'];
+      return ['comerciante'];
   }
 }
 
@@ -525,9 +526,11 @@ function DashboardTenantView({
           </div>
         </div>
 
-        <div className="mt-5">
-          <DashboardViewSelector activeView={activeView} onChange={setActiveView} availableViews={availableViews} />
-        </div>
+        {availableViews.length > 1 ? (
+          <div className="mt-5">
+            <DashboardViewSelector activeView={activeView} onChange={setActiveView} availableViews={availableViews} />
+          </div>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -710,97 +713,107 @@ function DashboardTenantView({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionTitle title="Stock bajo" subtitle="Productos que ya requieren reposición." />
-          {data.stock_bajo.length === 0 ? (
-            <EmptyState>Sin alertas de stock</EmptyState>
-          ) : (
-            <div className="space-y-3">
-              {data.stock_bajo.map((producto) => (
-                <div key={producto.id} className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-medium text-slate-900">{producto.nombre}</p>
-                      <p className="text-xs text-slate-500">Mínimo esperado: {Number(producto.stock_minimo).toFixed(2)}</p>
+      {(activeView === 'comerciante' || activeView === 'operativo' || activeView === 'gerencia') && (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          {(activeView === 'comerciante' || activeView === 'operativo') && (
+            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <SectionTitle title="Stock bajo" subtitle="Productos que ya requieren reposición." />
+              {data.stock_bajo.length === 0 ? (
+                <EmptyState>Sin alertas de stock</EmptyState>
+              ) : (
+                <div className="space-y-3">
+                  {data.stock_bajo.map((producto) => (
+                    <div key={producto.id} className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="font-medium text-slate-900">{producto.nombre}</p>
+                          <p className="text-xs text-slate-500">Mínimo esperado: {Number(producto.stock_minimo).toFixed(2)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-amber-800">{Number(producto.stock_actual).toFixed(2)}</p>
+                          <p className="text-xs text-amber-700">stock actual</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-amber-800">{Number(producto.stock_actual).toFixed(2)}</p>
-                      <p className="text-xs text-amber-700">stock actual</p>
-                    </div>
-                  </div>
+                  ))}
+                  <Link to="/inventarios" className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900">
+                    Ver inventario <ArrowRight className="h-4 w-4" />
+                  </Link>
                 </div>
-              ))}
-              <Link to="/inventarios" className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900">
-                Ver inventario <ArrowRight className="h-4 w-4" />
-              </Link>
+              )}
+            </div>
+          )}
+
+          {(activeView === 'comerciante' || activeView === 'gerencia') && (
+            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <SectionTitle title="Top productos" subtitle="Ordenados por ingreso generado en el rango." />
+              <div className="space-y-3">
+                {data.top_productos.length === 0 ? (
+                  <div className="py-12 text-center text-sm text-slate-400">Sin ventas registradas en el período</div>
+                ) : (
+                  data.top_productos.map((producto, index) => (
+                    <div key={producto.id} className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">{producto.nombre}</p>
+                          <p className="text-xs text-slate-500">{producto.cantidad_vendida.toFixed(2)} unidades vendidas</p>
+                        </div>
+                      </div>
+                      <span className="font-semibold text-emerald-700">{money(producto.ingreso)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {(activeView === 'comerciante' || activeView === 'gerencia') && (
+            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <SectionTitle title="Top clientes" subtitle="Clientes con mayor volumen de compra en el rango." />
+              <div className="space-y-3">
+                {data.top_clientes.length === 0 ? (
+                  <div className="py-12 text-center text-sm text-slate-400">Sin ventas por cliente en el período</div>
+                ) : (
+                  data.top_clientes.map((cliente) => (
+                    <div key={cliente.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                      <div>
+                        <p className="font-medium text-slate-900">{cliente.nombre}</p>
+                        <p className="text-xs text-slate-500">{cliente.cantidad} documento(s)</p>
+                      </div>
+                      <span className="font-semibold text-slate-900">{money(cliente.total)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>
+      )}
 
+      {(activeView === 'contador' || activeView === 'gerencia') && (
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionTitle title="Top productos" subtitle="Ordenados por ingreso generado en el rango." />
-          <div className="space-y-3">
-            {data.top_productos.length === 0 ? (
-              <div className="py-12 text-center text-sm text-slate-400">Sin ventas registradas en el período</div>
-            ) : (
-              data.top_productos.map((producto, index) => (
-                <div key={producto.id} className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-900">{producto.nombre}</p>
-                      <p className="text-xs text-slate-500">{producto.cantidad_vendida.toFixed(2)} unidades vendidas</p>
-                    </div>
+          <SectionTitle title="Actividad reciente SRI" subtitle="Últimas facturas emitidas y su estado actual." />
+          {data.facturas_recientes.length === 0 ? (
+            <EmptyState>Sin facturas recientes</EmptyState>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {data.facturas_recientes.map((factura) => (
+                <div key={factura.id} className="rounded-xl border border-slate-100 px-4 py-3">
+                  <p className="font-medium text-slate-900">{factura.numero_factura}</p>
+                  <p className="mt-1 truncate text-xs text-slate-500">{factura.cliente_nombre}</p>
+                  <div className="mt-3 flex items-end justify-between gap-3">
+                    <p className="text-sm font-semibold text-slate-900">{money(factura.total)}</p>
+                    <p className="text-xs text-slate-500">{factura.estado}</p>
                   </div>
-                  <span className="font-semibold text-emerald-700">{money(producto.ingreso)}</span>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionTitle title="Top clientes" subtitle="Clientes con mayor volumen de compra en el rango." />
-          <div className="space-y-3">
-            {data.top_clientes.length === 0 ? (
-              <div className="py-12 text-center text-sm text-slate-400">Sin ventas por cliente en el período</div>
-            ) : (
-              data.top_clientes.map((cliente) => (
-                <div key={cliente.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
-                  <div>
-                    <p className="font-medium text-slate-900">{cliente.nombre}</p>
-                    <p className="text-xs text-slate-500">{cliente.cantidad} documento(s)</p>
-                  </div>
-                  <span className="font-semibold text-slate-900">{money(cliente.total)}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <SectionTitle title="Actividad reciente SRI" subtitle="Últimas facturas emitidas y su estado actual." />
-        {data.facturas_recientes.length === 0 ? (
-          <EmptyState>Sin facturas recientes</EmptyState>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            {data.facturas_recientes.map((factura) => (
-              <div key={factura.id} className="rounded-xl border border-slate-100 px-4 py-3">
-                <p className="font-medium text-slate-900">{factura.numero_factura}</p>
-                <p className="mt-1 truncate text-xs text-slate-500">{factura.cliente_nombre}</p>
-                <div className="mt-3 flex items-end justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-900">{money(factura.total)}</p>
-                  <p className="text-xs text-slate-500">{factura.estado}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
