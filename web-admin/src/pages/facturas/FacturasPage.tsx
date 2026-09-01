@@ -7,7 +7,6 @@ import {
   FiEdit2,
   FiFileText,
   FiMail,
-  FiMoreVertical,
   FiPlus,
   FiRefreshCw,
   FiSearch,
@@ -45,7 +44,6 @@ const FacturasPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedFactura, setSelectedFactura] = useState<Factura | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'duplicate'>('create');
-  const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
   const { data: facturas, isLoading } = useQuery({
@@ -271,6 +269,93 @@ const FacturasPage: React.FC = () => {
     setCurrentPage(1);
   };
 
+  const renderFacturaActions = (factura: Factura, compact = false) => (
+    <div className={`flex ${compact ? 'flex-wrap justify-start' : 'justify-end'} gap-1`}>
+      <ActionButton title="Duplicar como borrador" onClick={() => handleDuplicate(factura)}>
+        <FiCopy />
+      </ActionButton>
+
+      {factura.estado === 'BORRADOR' && (
+        <>
+          <ActionButton title="Editar" onClick={() => handleEdit(factura)} tone="blue">
+            <FiEdit2 />
+          </ActionButton>
+          <ActionButton title="Enviar al SRI" onClick={() => handleEnviarSRI(factura.id)} tone="emerald">
+            <FiSend />
+          </ActionButton>
+          <ActionButton title="Eliminar" onClick={() => handleDelete(factura.id)} tone="red">
+            <FiXCircle />
+          </ActionButton>
+        </>
+      )}
+
+      {factura.estado === 'AUTORIZADO' && (
+        <>
+          <ActionButton title="Descargar PDF" onClick={() => handleDescargarPDF(factura.id, factura.numero_factura)} tone="blue">
+            <FiDownload />
+          </ActionButton>
+          <ActionButton title="Descargar XML" onClick={() => handleDescargarXML(factura.id, factura.numero_factura)}>
+            <FiFileText />
+          </ActionButton>
+          <ActionButton
+            title="Reenviar por email"
+            onClick={async () => {
+              if (await confirmDialog('¿Reenviar PDF+XML al email del cliente?')) {
+                reenviarEmailMutation.mutate(factura.id);
+              }
+            }}
+            tone="teal"
+          >
+            <FiMail />
+          </ActionButton>
+          <ActionButton title="Anular" onClick={() => handleAnular(factura.id, factura.estado)} tone="red">
+            <FiXCircle />
+          </ActionButton>
+        </>
+      )}
+
+      {factura.estado === 'FIRMADO' && (
+        <ActionButton title="Enviar al SRI" onClick={() => handleEnviarSRI(factura.id)} tone="emerald">
+          <FiSend />
+        </ActionButton>
+      )}
+
+      {factura.estado === 'ENVIADO' && (
+        <ActionButton
+          title="Reintentar autorización SRI"
+          disabled={reprocesarMutation.isPending}
+          onClick={async () => {
+            if (await confirmDialog('¿Consultar y reintentar autorización SRI?', 'Puede tardar hasta ~30 segundos.')) {
+              reprocesarMutation.mutate(factura.id);
+            }
+          }}
+          tone="blue"
+        >
+          <FiRefreshCw className={reprocesarMutation.isPending ? 'animate-spin' : ''} />
+        </ActionButton>
+      )}
+
+      {(factura.estado === 'RECHAZADO' || factura.estado === 'NO_AUTORIZADO') && (
+        <>
+          <ActionButton
+            title="Reenviar al SRI"
+            onClick={async () => {
+              if (await confirmDialog('¿Reenviar esta factura al SRI?')) {
+                enviarSRIMutation.mutate(factura.id);
+              }
+            }}
+            tone="emerald"
+          >
+            <FiSend />
+          </ActionButton>
+          <ActionButton title="Anular" onClick={() => handleAnular(factura.id, factura.estado)} tone="red">
+            <FiXCircle />
+          </ActionButton>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6 bg-slate-50 p-6">
       <FiscalReadinessBanner />
@@ -386,17 +471,18 @@ const FacturasPage: React.FC = () => {
               <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-blue-700" />
             </div>
           ) : (
-            <div className="overflow-visible">
-              <table className="w-full table-fixed">
+            <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[1120px] table-fixed">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-400">
                     <th className="w-[18%] px-4 py-4 text-left">Número</th>
-                    <th className="w-[30%] px-4 py-4 text-left">Cliente</th>
+                    <th className="w-[23%] px-4 py-4 text-left">Cliente</th>
                     <th className="w-[10%] px-4 py-4 text-left">Fecha</th>
                     <th className="w-[10%] px-4 py-4 text-right">Total</th>
                     <th className="w-[14%] px-4 py-4 text-center">Estado</th>
-                    <th className="w-[13%] px-4 py-4 text-center">Autorización</th>
-                    <th className="w-[5%] px-4 py-4 text-right">Acciones</th>
+                    <th className="w-[7%] px-4 py-4 text-center">Autorización</th>
+                    <th className="w-[18%] px-4 py-4 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -456,173 +542,85 @@ const FacturasPage: React.FC = () => {
                           {factura.numero_autorizacion || factura.clave_acceso || '-'}
                         </div>
                       </td>
-                      <td className="relative px-4 py-4 text-right">
-                        <div className="relative inline-block">
-                          <button
-                            type="button"
-                            onClick={() => setOpenActionMenuId(openActionMenuId === factura.id ? null : factura.id)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                            title="Ver acciones"
-                            aria-label={`Ver acciones de la factura ${factura.numero_factura}`}
-                          >
-                            <FiMoreVertical />
-                          </button>
-
-                          {openActionMenuId === factura.id && (
-                            <div className="absolute right-0 top-11 z-30 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-left shadow-xl">
-                              <ActionMenuItem
-                                icon={<FiCopy />}
-                                label="Duplicar como borrador"
-                                onClick={() => {
-                                  setOpenActionMenuId(null);
-                                  handleDuplicate(factura);
-                                }}
-                              />
-
-                              {factura.estado === 'BORRADOR' && (
-                                <>
-                                  <ActionMenuItem
-                                    icon={<FiEdit2 />}
-                                    label="Editar borrador"
-                                    tone="blue"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      handleEdit(factura);
-                                    }}
-                                  />
-                                  <ActionMenuItem
-                                    icon={<FiSend />}
-                                    label="Enviar al SRI"
-                                    tone="emerald"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      handleEnviarSRI(factura.id);
-                                    }}
-                                  />
-                                  <ActionMenuItem
-                                    icon={<FiXCircle />}
-                                    label="Eliminar borrador"
-                                    tone="red"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      handleDelete(factura.id);
-                                    }}
-                                  />
-                                </>
-                              )}
-
-                              {factura.estado === 'AUTORIZADO' && (
-                                <>
-                                  <div className="my-1 border-t border-slate-100" />
-                                  <ActionMenuItem
-                                    icon={<FiDownload />}
-                                    label="Descargar PDF"
-                                    tone="blue"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      handleDescargarPDF(factura.id, factura.numero_factura);
-                                    }}
-                                  />
-                                  <ActionMenuItem
-                                    icon={<FiFileText />}
-                                    label="Descargar XML"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      handleDescargarXML(factura.id, factura.numero_factura);
-                                    }}
-                                  />
-                                  <ActionMenuItem
-                                    icon={<FiMail />}
-                                    label="Reenviar por email"
-                                    tone="teal"
-                                    onClick={async () => {
-                                      setOpenActionMenuId(null);
-                                      if (await confirmDialog('¿Reenviar PDF+XML al email del cliente?')) {
-                                        reenviarEmailMutation.mutate(factura.id);
-                                      }
-                                    }}
-                                  />
-                                  <div className="my-1 border-t border-slate-100" />
-                                  <ActionMenuItem
-                                    icon={<FiXCircle />}
-                                    label="Anular factura"
-                                    tone="red"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      handleAnular(factura.id, factura.estado);
-                                    }}
-                                  />
-                                </>
-                              )}
-
-                              {factura.estado === 'FIRMADO' && (
-                                <ActionMenuItem
-                                  icon={<FiSend />}
-                                  label="Enviar al SRI"
-                                  tone="emerald"
-                                  onClick={() => {
-                                    setOpenActionMenuId(null);
-                                    handleEnviarSRI(factura.id);
-                                  }}
-                                />
-                              )}
-
-                              {factura.estado === 'ENVIADO' && (
-                                <ActionMenuItem
-                                  icon={<FiRefreshCw className={reprocesarMutation.isPending ? 'animate-spin' : ''} />}
-                                  label="Reintentar autorización SRI"
-                                  disabled={reprocesarMutation.isPending}
-                                  tone="blue"
-                                  onClick={async () => {
-                                    setOpenActionMenuId(null);
-                                    if (await confirmDialog('¿Consultar y reintentar autorización SRI?', 'Puede tardar hasta ~30 segundos.')) {
-                                      reprocesarMutation.mutate(factura.id);
-                                    }
-                                  }}
-                                />
-                              )}
-
-                              {(factura.estado === 'RECHAZADO' || factura.estado === 'NO_AUTORIZADO') && (
-                                <>
-                                  <ActionMenuItem
-                                    icon={<FiSend />}
-                                    label="Reenviar al SRI"
-                                    tone="emerald"
-                                    onClick={async () => {
-                                      setOpenActionMenuId(null);
-                                      if (await confirmDialog('¿Reenviar esta factura al SRI?')) {
-                                        enviarSRIMutation.mutate(factura.id);
-                                      }
-                                    }}
-                                  />
-                                  <ActionMenuItem
-                                    icon={<FiXCircle />}
-                                    label="Anular factura"
-                                    tone="red"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      handleAnular(factura.id, factura.estado);
-                                    }}
-                                  />
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                      <td className="px-4 py-4">
+                        {renderFacturaActions(factura)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-
-              {filteredFacturas.length === 0 && (
-                <div className="py-14 text-center">
-                  <FiFileText className="mx-auto h-10 w-10 text-slate-300" />
-                  <p className="mt-3 text-sm font-bold text-slate-600">No se encontraron facturas</p>
-                  <p className="mt-1 text-xs text-slate-400">Ajusta los filtros o crea una nueva factura.</p>
-                </div>
-              )}
             </div>
+
+            <div className="divide-y divide-slate-100 md:hidden">
+              {paginatedFacturas.map((factura) => (
+                <article key={factura.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-sm font-black text-slate-950">{factura.numero_factura}</p>
+                      <p className="mt-1 truncate text-sm font-semibold text-slate-600">
+                        {factura.cliente_nombre || `Cliente #${factura.cliente}`}
+                      </p>
+                    </div>
+                    <span className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-black ${getEstadoColor(factura.estado)}`}>
+                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                      {statusLabels[factura.estado] ?? factura.estado}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Fecha</p>
+                      <p className="mt-1 font-semibold text-slate-700">{formatFechaLocal(factura.fecha_emision)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Total</p>
+                      <p className="mt-1 font-black text-slate-950">{formatMoney(factura.total)}</p>
+                    </div>
+                  </div>
+
+                  {(factura.numero_autorizacion || factura.clave_acceso) && (
+                    <div className="mt-4 rounded-lg bg-slate-50 p-3">
+                      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Autorización / clave</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <p className="min-w-0 flex-1 truncate font-mono text-xs text-slate-500">
+                          {factura.numero_autorizacion || factura.clave_acceso}
+                        </p>
+                        {factura.clave_acceso && (
+                          <button
+                            type="button"
+                            onClick={() => void navigator.clipboard.writeText(factura.clave_acceso ?? '')}
+                            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-blue-700"
+                            title="Copiar clave de acceso"
+                            aria-label="Copiar clave de acceso"
+                          >
+                            <FiCopy />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {(factura.estado === 'RECHAZADO' || factura.estado === 'NO_AUTORIZADO' || factura.estado === 'BORRADOR') && factura.mensajes_sri && (
+                    <p className={`mt-3 rounded-lg px-3 py-2 text-xs leading-5 ${factura.estado === 'BORRADOR' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>
+                      {factura.mensajes_sri}
+                    </p>
+                  )}
+
+                  <div className="mt-4 border-t border-slate-100 pt-3">
+                    {renderFacturaActions(factura, true)}
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {filteredFacturas.length === 0 && (
+              <div className="py-14 text-center">
+                <FiFileText className="mx-auto h-10 w-10 text-slate-300" />
+                <p className="mt-3 text-sm font-bold text-slate-600">No se encontraron facturas</p>
+                <p className="mt-1 text-xs text-slate-400">Ajusta los filtros o crea una nueva factura.</p>
+              </div>
+            )}
+            </>
           )}
 
           {!isLoading && filteredFacturas.length > 0 && (
@@ -739,25 +737,25 @@ function MetricCard({
   );
 }
 
-function ActionMenuItem({
-  icon,
-  label,
+function ActionButton({
+  children,
+  title,
   onClick,
   disabled,
   tone = 'slate',
 }: {
-  icon: React.ReactNode;
-  label: string;
+  children: React.ReactNode;
+  title: string;
   onClick: () => void | Promise<void>;
   disabled?: boolean;
   tone?: 'slate' | 'blue' | 'emerald' | 'red' | 'teal';
 }) {
   const toneClass = {
-    slate: 'text-slate-700 hover:bg-slate-50',
-    blue: 'text-blue-700 hover:bg-blue-50',
-    emerald: 'text-emerald-700 hover:bg-emerald-50',
-    red: 'text-red-600 hover:bg-red-50',
-    teal: 'text-teal-700 hover:bg-teal-50',
+    slate: 'text-slate-400 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700',
+    blue: 'text-blue-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-800',
+    emerald: 'text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800',
+    red: 'text-red-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700',
+    teal: 'text-teal-600 hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800',
   }[tone];
 
   return (
@@ -765,10 +763,11 @@ function ActionMenuItem({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+      className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-sm transition disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
+      title={title}
+      aria-label={title}
     >
-      <span className="flex h-5 w-5 items-center justify-center">{icon}</span>
-      <span>{label}</span>
+      {children}
     </button>
   );
 }
