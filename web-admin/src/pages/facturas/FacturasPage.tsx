@@ -273,7 +273,7 @@ const FacturasPage: React.FC = () => {
     <div className="space-y-6 bg-slate-50 p-6">
       <FiscalReadinessBanner />
 
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="w-full space-y-6">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-black tracking-tight text-slate-950">Facturación Electrónica</h1>
@@ -291,7 +291,7 @@ const FacturasPage: React.FC = () => {
           </button>
         </header>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
           <MetricCard title="Total facturas" value={totalFacturas} amount={formatMoney(totalMonto)} icon={<FiFileText />} tone="blue" />
           <MetricCard title="Autorizadas" value={totalAutorizadas} amount={formatMoney(totalMontoAutorizadas)} icon={<FiCheckCircle />} tone="emerald" />
           <MetricCard title="Borradores" value={totalBorradores} amount={formatMoney(totalMontoBorradores)} icon={<FiFileText />} tone="amber" />
@@ -385,26 +385,26 @@ const FacturasPage: React.FC = () => {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px]">
+              <table className="w-full table-fixed">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-400">
-                    <th className="px-5 py-4 text-left">Número</th>
-                    <th className="px-5 py-4 text-left">Cliente</th>
-                    <th className="px-5 py-4 text-left">Fecha</th>
-                    <th className="px-5 py-4 text-right">Total</th>
-                    <th className="px-5 py-4 text-center">Estado</th>
-                    <th className="px-5 py-4 text-center">Autorización</th>
-                    <th className="px-5 py-4 text-right">Acciones</th>
+                    <th className="w-[18%] px-4 py-4 text-left">Número</th>
+                    <th className="w-[28%] px-4 py-4 text-left">Cliente</th>
+                    <th className="w-[10%] px-4 py-4 text-left">Fecha</th>
+                    <th className="w-[10%] px-4 py-4 text-right">Total</th>
+                    <th className="w-[14%] px-4 py-4 text-center">Estado</th>
+                    <th className="w-[10%] px-4 py-4 text-center">Autorización</th>
+                    <th className="w-[10%] px-4 py-4 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {paginatedFacturas.map((factura) => (
                     <tr key={factura.id} className="transition hover:bg-slate-50">
-                      <td className="px-5 py-4">
-                        <div className="font-mono text-sm font-black text-slate-950">{factura.numero_factura}</div>
+                      <td className="px-4 py-4">
+                        <div className="truncate font-mono text-sm font-black text-slate-950">{factura.numero_factura}</div>
                         {factura.clave_acceso && (
                           <div className="mt-1 flex items-center gap-2 font-mono text-[11px] text-slate-400">
-                            <span>{factura.clave_acceso.slice(0, 18)}...</span>
+                            <span className="truncate">{factura.clave_acceso.slice(0, 18)}...</span>
                             <button
                               type="button"
                               onClick={() => void navigator.clipboard.writeText(factura.clave_acceso ?? '')}
@@ -416,19 +416,19 @@ const FacturasPage: React.FC = () => {
                           </div>
                         )}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[11px] font-black text-blue-700">
                             {(factura.cliente_nombre || 'CL').slice(0, 2).toUpperCase()}
                           </span>
-                          <span className="max-w-[320px] truncate text-sm font-semibold text-slate-700">
+                          <span className="min-w-0 truncate text-sm font-semibold text-slate-700">
                             {factura.cliente_nombre || `Cliente #${factura.cliente}`}
                           </span>
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-sm font-medium text-slate-500">{formatFechaLocal(factura.fecha_emision)}</td>
-                      <td className="px-5 py-4 text-right text-sm font-black text-slate-950">{formatMoney(factura.total)}</td>
-                      <td className="px-5 py-4 text-center">
+                      <td className="px-4 py-4 text-sm font-medium text-slate-500">{formatFechaLocal(factura.fecha_emision)}</td>
+                      <td className="px-4 py-4 text-right text-sm font-black text-slate-950">{formatMoney(factura.total)}</td>
+                      <td className="px-4 py-4 text-center">
                         <div className="flex flex-col items-center gap-1">
                           <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-black ${getEstadoColor(factura.estado)}`}>
                             <span className="h-1.5 w-1.5 rounded-full bg-current" />
@@ -446,7 +446,7 @@ const FacturasPage: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-center text-xs text-slate-500">
+                      <td className="px-4 py-4 text-center text-xs text-slate-500">
                         {factura.numero_autorizacion
                           ? <span title={factura.clave_acceso ?? ''}>{factura.numero_autorizacion}</span>
                           : factura.clave_acceso
@@ -454,8 +454,8 @@ const FacturasPage: React.FC = () => {
                             : '-'
                         }
                       </td>
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap justify-end gap-1">
                           <ActionButton title="Duplicar como borrador" onClick={() => handleDuplicate(factura)}>
                             <FiCopy />
                           </ActionButton>
@@ -647,21 +647,21 @@ function MetricCard({
   tone: 'blue' | 'emerald' | 'amber' | 'red';
 }) {
   const toneClass = {
-    blue: 'border-blue-400 bg-blue-50 text-blue-700',
-    emerald: 'border-emerald-400 bg-emerald-50 text-emerald-700',
-    amber: 'border-amber-400 bg-amber-50 text-amber-700',
-    red: 'border-red-400 bg-red-50 text-red-700',
+    blue: 'border-blue-500 text-blue-700',
+    emerald: 'border-emerald-500 text-emerald-700',
+    amber: 'border-amber-500 text-amber-700',
+    red: 'border-red-500 text-red-700',
   }[tone];
 
   return (
-    <div className={`rounded-xl border-t-2 border-slate-200 bg-white p-5 shadow-sm ${toneClass}`}>
+    <div className={`rounded-xl border-l-4 bg-white p-6 shadow-lg ${toneClass}`}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{title}</p>
           <p className="mt-2 text-3xl font-black text-slate-950">{value}</p>
           <p className="mt-1 text-sm font-semibold text-slate-600">{amount}</p>
         </div>
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/70 text-xl">
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-2xl">
           {icon}
         </span>
       </div>
