@@ -54,7 +54,7 @@ class FacturaSerializer(serializers.ModelSerializer):
             'mensajes_sri',
             'detalles', 'detalles_input',
         ]
-        read_only_fields = ['subtotal_sin_impuestos', 'total', 'total_descuento']
+        read_only_fields = ['subtotal_sin_impuestos', 'total']
 
     # ── Getters proyectados ──────────────────────────────────────────────────────
     def get_numero_factura(self, obj):
@@ -64,7 +64,9 @@ class FacturaSerializer(serializers.ModelSerializer):
         return obj.comprobante.estado
 
     def get_fecha_emision(self, obj):
-        return obj.comprobante.fecha_emision
+        if not obj.comprobante.fecha_emision:
+            return None
+        return timezone.localtime(obj.comprobante.fecha_emision).date().isoformat()
 
     def get_clave_acceso(self, obj):
         return obj.comprobante.clave_acceso
@@ -242,7 +244,8 @@ class FacturaSerializer(serializers.ModelSerializer):
         factura.subtotal_15 = subtotal_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.iva_12 = iva_12.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.iva_15 = iva_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        factura.total = (subtotal_total + iva_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_descuento = Decimal(str(factura.total_descuento or 0))
+        factura.total = (subtotal_total + iva_total - total_descuento).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.save(update_fields=[
             'subtotal_sin_impuestos',
             'subtotal_0',
@@ -256,7 +259,7 @@ class FacturaSerializer(serializers.ModelSerializer):
         total_objetivo = sum(
             Decimal(str(item.get('total', 0) or 0))
             for item in detalles_data
-        )
+        ) - Decimal(str(factura.total_descuento or 0))
         aplicar_ajuste_centavos_factura(factura, total_objetivo)
         recalcular_totales_factura_desde_detalles(factura)
 
@@ -271,6 +274,153 @@ class FacturaSerializer(serializers.ModelSerializer):
             })
 
         return factura
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        from datetime import datetime, date as date_type
+        from apps.productos.models import Producto
+        from apps.facturacion.services.factura_service import (
+            aplicar_ajuste_centavos_factura,
+            recalcular_totales_factura_desde_detalles,
+        )
+
+        comprobante = instance.comprobante
+        if comprobante.estado != ComprobanteElectronico.EstadoChoices.BORRADOR:
+            raise serializers.ValidationError({
+                'estado': 'Solo se pueden editar facturas en borrador.'
+            })
+
+        detalles_data = validated_data.pop('detalles_input', None)
+        fecha_raw = validated_data.pop('fecha_emision_input', None)
+
+        if 'cliente' in validated_data:
+            instance.cliente = validated_data.pop('cliente')
+        if 'total_descuento' in validated_data:
+            instance.total_descuento = Decimal(str(validated_data.pop('total_descuento') or 0)).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP
+            )
+        if 'forma_pago' in validated_data:
+            instance.forma_pago = validated_data.pop('forma_pago') or instance.forma_pago
+        if 'observaciones' in validated_data:
+            instance.observaciones = validated_data.pop('observaciones') or ''
+
+        if fecha_raw:
+            if isinstance(fecha_raw, date_type):
+                comprobante.fecha_emision = timezone.make_aware(
+                    datetime.combine(fecha_raw, datetime.min.time())
+                )
+                comprobante.save(update_fields=['fecha_emision'])
+
+        if detalles_data is not None:
+            instance.detalles.all().delete()
+
+            subtotal_total = Decimal('0.00')
+            iva_total = Decimal('0.00')
+            subtotal_0 = Decimal('0.00')
+            subtotal_12 = Decimal('0.00')
+            subtotal_15 = Decimal('0.00')
+            iva_12 = Decimal('0.00')
+            iva_15 = Decimal('0.00')
+            iva_tarifa_map = {
+                '0': Decimal('0'),
+                '2': Decimal('12'),
+                '3': Decimal('14'),
+                '4': Decimal('15'),
+                '6': Decimal('0'),
+                '7': Decimal('0'),
+            }
+
+            for item in detalles_data:
+                producto_id = item.get('producto')
+                producto = None
+                codigo_principal = 'SIN-COD'
+                descripcion = item.get('descripcion', 'Ítem')
+                tarifa = Decimal('15.00')
+                codigo_porcentaje = '4'
+
+                if producto_id:
+                    try:
+                        producto = Producto.objects.get(id=producto_id)
+                        codigo_principal = producto.codigo_principal
+                        descripcion = producto.nombre
+                        if producto.aplica_iva:
+                            codigo_porcentaje = producto.porcentaje_iva
+                            tarifa = iva_tarifa_map.get(codigo_porcentaje, Decimal('15'))
+                        else:
+                            tarifa = Decimal('0.00')
+                            codigo_porcentaje = '0'
+                    except Producto.DoesNotExist:
+                        pass
+
+                cantidad = Decimal(str(item.get('cantidad', 1)))
+                precio_unitario = Decimal(str(item.get('precio_unitario', 0))).quantize(
+                    Decimal('0.000001'), rounding=ROUND_HALF_UP
+                )
+                descuento = Decimal(str(item.get('descuento', 0)))
+
+                detalle = DetalleFactura.objects.create(
+                    factura=instance,
+                    producto=producto,
+                    codigo_principal=codigo_principal,
+                    descripcion=descripcion,
+                    cantidad=cantidad,
+                    precio_unitario=precio_unitario,
+                    descuento=descuento,
+                    tarifa=tarifa,
+                    codigo_porcentaje=codigo_porcentaje,
+                )
+                subtotal_total += detalle.precio_total_sin_impuesto
+                iva_total += detalle.valor_impuesto
+                if codigo_porcentaje in ('0', '6', '7'):
+                    subtotal_0 += detalle.precio_total_sin_impuesto
+                elif codigo_porcentaje == '2':
+                    subtotal_12 += detalle.precio_total_sin_impuesto
+                    iva_12 += detalle.valor_impuesto
+                elif codigo_porcentaje == '4':
+                    subtotal_15 += detalle.precio_total_sin_impuesto
+                    iva_15 += detalle.valor_impuesto
+
+            instance.subtotal_sin_impuestos = subtotal_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            instance.subtotal_0 = subtotal_0.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            instance.subtotal_12 = subtotal_12.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            instance.subtotal_15 = subtotal_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            instance.iva_12 = iva_12.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            instance.iva_15 = iva_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            instance.total = (subtotal_total + iva_total - instance.total_descuento).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP
+            )
+
+            total_objetivo = sum(
+                Decimal(str(item.get('total', 0) or 0))
+                for item in detalles_data
+            ) - instance.total_descuento
+            aplicar_ajuste_centavos_factura(instance, total_objetivo)
+            recalcular_totales_factura_desde_detalles(instance)
+
+            total_objetivo = Decimal(str(total_objetivo or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_fiscal = Decimal(str(instance.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            if total_fiscal != total_objetivo:
+                raise serializers.ValidationError({
+                    'total': (
+                        f'El total solicitado ({total_objetivo}) no coincide con el total fiscal calculado ({total_fiscal}). '
+                        'Revise precios, descuentos o detalle de impuestos antes de actualizar la factura.'
+                    )
+                })
+
+        instance.save(update_fields=[
+            'cliente',
+            'subtotal_sin_impuestos',
+            'subtotal_0',
+            'subtotal_12',
+            'subtotal_15',
+            'iva_12',
+            'iva_15',
+            'total_descuento',
+            'total',
+            'forma_pago',
+            'observaciones',
+        ])
+        return instance
 
 
 class ComprobanteElectronicoSerializer(serializers.ModelSerializer):

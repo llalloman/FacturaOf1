@@ -98,6 +98,57 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save()
 
+    @transaction.atomic
+    def destroy(self, request, *args, **kwargs):
+        factura = self.get_object()
+        comp = factura.comprobante
+        es_borrador_limpio = (
+            comp.estado == ComprobanteElectronico.EstadoChoices.BORRADOR
+            and not comp.clave_acceso
+            and not comp.numero_autorizacion
+            and not comp.xml_generado
+            and not comp.xml_firmado
+        )
+
+        if not es_borrador_limpio:
+            return Response(
+                {
+                    'error': (
+                        'Solo se pueden eliminar borradores que no tengan clave de acceso, '
+                        'XML, firma, autorización ni envío al SRI.'
+                    )
+                },
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+
+        secuencial = Secuencial.objects.select_for_update().filter(
+            empresa=comp.empresa,
+            tipo_comprobante=comp.tipo_comprobante,
+            establecimiento=comp.establecimiento,
+            punto_emision=comp.punto_emision,
+        ).first()
+        reutilizo_secuencial = False
+
+        if secuencial:
+            try:
+                numero_borrador = int(comp.secuencial)
+            except (TypeError, ValueError):
+                numero_borrador = None
+
+            if numero_borrador and secuencial.secuencial_actual == numero_borrador:
+                secuencial.secuencial_actual = max(0, secuencial.secuencial_actual - 1)
+                secuencial.save(update_fields=['secuencial_actual'])
+                reutilizo_secuencial = True
+
+        factura.delete()
+        return Response(
+            {
+                'mensaje': 'Borrador eliminado.',
+                'reutilizo_secuencial': reutilizo_secuencial,
+            },
+            status=status.HTTP_200_OK,
+        )
+
     @action(detail=True, methods=['post'])
     def enviar_sri(self, request, pk=None):
         """Genera XML, firma y envía la factura al SRI."""

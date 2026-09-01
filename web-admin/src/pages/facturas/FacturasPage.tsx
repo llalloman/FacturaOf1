@@ -198,6 +198,13 @@ const FacturasPage: React.FC = () => {
     }
   };
 
+  const formatFechaLocal = (fecha?: string) => {
+    const value = (fecha ?? '').split('T')[0].split(' ')[0];
+    if (!value) return '-';
+    const [year, month, day] = value.split('-');
+    return year && month && day ? `${day}/${month}/${year}` : value;
+  };
+
   const totalFacturas = facturasArray.length;
   const totalAutorizadas = facturasArray.filter(f => f.estado === 'AUTORIZADO').length;
   const totalBorradores = facturasArray.filter(f => f.estado === 'BORRADOR').length;
@@ -359,7 +366,7 @@ const FacturasPage: React.FC = () => {
                   <tr key={factura.id} className="border-b hover:bg-gray-50 transition-colors">
                     <td className="p-4 font-medium text-gray-900">{factura.numero_factura}</td>
                     <td className="p-4 text-gray-700">{factura.cliente_nombre || `Cliente #${factura.cliente}`}</td>
-                    <td className="p-4 text-gray-700">{new Date(factura.fecha_emision).toLocaleDateString()}</td>
+                    <td className="p-4 text-gray-700">{formatFechaLocal(factura.fecha_emision)}</td>
                     <td className="p-4 text-right font-semibold text-gray-900">${Number(factura.total).toFixed(2)}</td>
                     <td className="p-4 text-center">
                       <div className="flex flex-col items-center gap-1">

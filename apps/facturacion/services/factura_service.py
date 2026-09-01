@@ -119,8 +119,9 @@ def recalcular_totales_factura_desde_detalles(factura):
     factura.subtotal_15 = subtotal_15.quantize(Decimal('0.01'))
     factura.iva_12 = iva_12.quantize(Decimal('0.01'))
     factura.iva_15 = iva_15.quantize(Decimal('0.01'))
+    total_descuento = Decimal(str(factura.total_descuento or 0)).quantize(Decimal('0.01'))
     factura.total = (
-        factura.subtotal_sin_impuestos + factura.iva_12 + factura.iva_15
+        factura.subtotal_sin_impuestos + factura.iva_12 + factura.iva_15 - total_descuento
     ).quantize(Decimal('0.01'))
     factura.save(update_fields=[
         'subtotal_sin_impuestos',
