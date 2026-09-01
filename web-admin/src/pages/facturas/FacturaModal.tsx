@@ -1,47 +1,62 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { FiAlertTriangle, FiPlus, FiTrash2, FiX } from 'react-icons/fi';
+
 import { facturasService } from '../../services/facturasService';
 import { clientesService } from '../../services/clientesService';
 import { productosService } from '../../services/productosService';
 import type { Factura, DetalleFactura } from '../../types';
-import { FiX, FiPlus, FiTrash2 } from 'react-icons/fi';
+
+type FacturaModalMode = 'create' | 'edit' | 'duplicate';
 
 interface FacturaModalProps {
   factura: Factura | null;
+  mode?: FacturaModalMode;
   onClose: () => void;
 }
 
-const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
+const todayISO = () => new Date().toISOString().split('T')[0];
+
+const normalizeDate = (value?: string) => {
+  if (!value) return todayISO();
+  return value.split('T')[0].split(' ')[0];
+};
+
+const mapDetalles = (factura: Factura | null): DetalleFactura[] => {
+  if (!factura?.detalles?.length) return [];
+
+  return factura.detalles.map((d) => {
+    const raw = d as DetalleFactura & { precio_total_sin_impuesto?: number; valor_impuesto?: number };
+    const subtotal = Number(raw.subtotal ?? raw.precio_total_sin_impuesto ?? 0);
+    const impuestos = Number(raw.impuestos ?? raw.valor_impuesto ?? 0);
+
+    return {
+      id: raw.id,
+      producto: raw.producto,
+      producto_nombre: raw.producto_nombre ?? '',
+      cantidad: Number(raw.cantidad),
+      precio_unitario: Number(raw.precio_unitario),
+      descuento: Number(raw.descuento ?? 0),
+      subtotal,
+      impuestos,
+      total: subtotal + impuestos,
+    };
+  });
+};
+
+const FacturaModal: React.FC<FacturaModalProps> = ({ factura, mode, onClose }) => {
+  const modalMode: FacturaModalMode = mode ?? (factura ? 'edit' : 'create');
+  const isEdit = modalMode === 'edit' && !!factura;
+  const isDuplicate = modalMode === 'duplicate';
   const round2 = (value: number) => Math.round(value * 100) / 100;
   const queryClient = useQueryClient();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     cliente: factura?.cliente || 0,
-    fecha_emision: factura?.fecha_emision || new Date().toISOString().split('T')[0],
-    total_descuento: '',
+    fecha_emision: isDuplicate ? todayISO() : normalizeDate(factura?.fecha_emision),
+    total_descuento: factura?.total_descuento ? String(factura.total_descuento) : '',
   });
-
-  const [detalles, setDetalles] = useState<DetalleFactura[]>(() => {
-    if (!factura?.detalles?.length) return [];
-    // El backend devuelve precio_total_sin_impuesto / valor_impuesto;
-    // los mapeamos al formato interno del modal.
-    return factura.detalles.map((d) => {
-      const raw = d as DetalleFactura & { precio_total_sin_impuesto?: number; valor_impuesto?: number };
-      const subtotal = Number(raw.subtotal ?? raw.precio_total_sin_impuesto ?? 0);
-      const impuestos = Number(raw.impuestos ?? raw.valor_impuesto ?? 0);
-      return {
-        id: raw.id,
-        producto: raw.producto,
-        producto_nombre: raw.producto_nombre ?? '',
-        cantidad: Number(raw.cantidad),
-        precio_unitario: Number(raw.precio_unitario),
-        descuento: Number(raw.descuento ?? 0),
-        subtotal,
-        impuestos,
-        total: subtotal + impuestos,
-      };
-    });
-  });
+  const [detalles, setDetalles] = useState<DetalleFactura[]>(() => mapDetalles(factura));
   const [productoSeleccionado, setProductoSeleccionado] = useState(0);
   const [cantidad, setCantidad] = useState('');
 
@@ -57,7 +72,7 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
 
   const mutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => {
-      if (factura) {
+      if (isEdit) {
         return facturasService.update(factura.id, data);
       }
       return facturasService.create(data);
@@ -82,30 +97,30 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
   const productosArray = Array.isArray(productos) ? productos : [];
 
   const agregarDetalle = () => {
-    const producto = productosArray.find(p => p.id === productoSeleccionado);
+    const producto = productosArray.find((p) => p.id === productoSeleccionado);
     const cantidadNum = parseFloat(cantidad) || 0;
     if (!producto || cantidadNum <= 0) return;
 
     const precio_unitario = Number(producto.precio);
     const subtotal = round2(precio_unitario * cantidadNum);
-    // porcentaje_iva es el código SRI ('0'=0%, '2'=12%, '4'=15%) – no es el % real
     const IVA_PCT: Record<string, number> = { '0': 0, '2': 12, '3': 14, '4': 15, '6': 0, '7': 0 };
     const ivaRate = producto.aplica_iva ? (IVA_PCT[producto.porcentaje_iva] ?? 15) : 0;
     const impuestos = round2(subtotal * (ivaRate / 100));
     const total = round2(subtotal + impuestos);
 
-    const nuevoDetalle: DetalleFactura = {
-      producto: producto.id,
-      producto_nombre: producto.nombre,
-      cantidad: cantidadNum,
-      precio_unitario,
-      descuento: 0,
-      subtotal,
-      impuestos,
-      total,
-    };
-
-    setDetalles([...detalles, nuevoDetalle]);
+    setDetalles([
+      ...detalles,
+      {
+        producto: producto.id,
+        producto_nombre: producto.nombre,
+        cantidad: cantidadNum,
+        precio_unitario,
+        descuento: 0,
+        subtotal,
+        impuestos,
+        total,
+      },
+    ]);
     setProductoSeleccionado(0);
     setCantidad('');
   };
@@ -115,10 +130,11 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
   };
 
   const calcularTotales = () => {
-    const subtotal = round2(detalles.reduce((sum, d) => sum + d.subtotal, 0));
-    const impuestos = round2(detalles.reduce((sum, d) => sum + d.impuestos, 0));
-    const total = round2(subtotal + impuestos - (parseFloat(formData.total_descuento) || 0));
-    return { subtotal, impuestos, total };
+    const subtotal = round2(detalles.reduce((sum, d) => sum + Number(d.subtotal || 0), 0));
+    const impuestos = round2(detalles.reduce((sum, d) => sum + Number(d.impuestos || 0), 0));
+    const descuento = round2(parseFloat(formData.total_descuento) || 0);
+    const total = round2(subtotal + impuestos - descuento);
+    return { subtotal, impuestos, descuento, total };
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -128,198 +144,260 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, onClose }) => {
       cliente: formData.cliente,
       fecha_emision_input: formData.fecha_emision,
       total_descuento: parseFloat(formData.total_descuento) || 0,
-      detalles_input: detalles,
+      detalles_input: detalles.map(({ id: _id, ...detalle }) => detalle),
     });
   };
 
+  const title =
+    modalMode === 'duplicate'
+      ? 'Duplicar factura'
+      : isEdit
+        ? 'Editar borrador'
+        : 'Nueva factura';
+  const subtitle =
+    modalMode === 'duplicate'
+      ? `Copia basada en ${factura?.numero_factura ?? 'la factura seleccionada'}. Se guardará como borrador.`
+      : isEdit
+        ? 'Revisa la información antes de enviar al SRI.'
+        : 'Crea un borrador y envíalo al SRI cuando esté revisado.';
+  const submitText = mutation.isPending ? 'Guardando...' : isEdit ? 'Actualizar borrador' : 'Guardar borrador';
   const totales = calcularTotales();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-gradient-to-r from-blue-700 to-blue-900 text-white p-6 flex justify-between items-center">
-          <h2 className="text-2xl font-bold">
-            {factura ? 'Editar Factura' : 'Nueva Factura'}
-          </h2>
+    <div className="fixed inset-0 z-50 bg-slate-950/60 p-3 sm:p-5">
+      <div className="mx-auto flex h-full max-w-7xl flex-col overflow-hidden rounded-xl bg-slate-50 shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-bold text-slate-950">{title}</h2>
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                Borrador
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors"
+            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            aria-label="Cerrar"
           >
-            <FiX size={24} />
+            <FiX size={22} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Cliente *
-              </label>
-              <select
-                value={formData.cliente}
-                onChange={(e) => setFormData({ ...formData, cliente: Number(e.target.value) })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value={0}>Seleccione un cliente</option>
-                {clientesArray.map((cliente) => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.razon_social}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
+              <div className="space-y-5">
+                <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4">
+                    <h3 className="text-base font-semibold text-slate-950">Datos de emisión</h3>
+                    <p className="mt-1 text-sm text-slate-500">Selecciona el cliente y confirma la fecha del comprobante.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Cliente *</label>
+                      <select
+                        value={formData.cliente}
+                        onChange={(e) => setFormData({ ...formData, cliente: Number(e.target.value) })}
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value={0}>Seleccione un cliente</option>
+                        {clientesArray.map((cliente) => (
+                          <option key={cliente.id} value={cliente.id}>
+                            {cliente.razon_social}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fecha Emisión *
-              </label>
-              <input
-                type="date"
-                value={formData.fecha_emision}
-                onChange={(e) => setFormData({ ...formData, fecha_emision: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Fecha emisión *</label>
+                      <input
+                        type="date"
+                        value={formData.fecha_emision}
+                        onChange={(e) => setFormData({ ...formData, fecha_emision: e.target.value })}
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-950">Productos y servicios</h3>
+                      <p className="mt-1 text-sm text-slate-500">Agrega, revisa o elimina líneas antes de guardar el borrador.</p>
+                    </div>
+                    <span className="text-xs font-medium text-slate-500">{detalles.length} línea(s)</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_160px_auto]">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Producto</label>
+                      <select
+                        value={productoSeleccionado}
+                        onChange={(e) => setProductoSeleccionado(Number(e.target.value))}
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value={0}>Seleccione un producto</option>
+                        {productosArray.map((producto) => (
+                          <option key={producto.id} value={producto.id}>
+                            {producto.nombre} - ${Number(producto.precio_con_iva ?? producto.precio).toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Cantidad</label>
+                      <input
+                        type="number"
+                        value={cantidad}
+                        onChange={(e) => setCantidad(e.target.value)}
+                        min="1"
+                        step="0.01"
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={agregarDetalle}
+                      className="self-end rounded-lg bg-emerald-600 px-4 py-2 text-white transition hover:bg-emerald-700"
+                      aria-label="Agregar producto"
+                    >
+                      <FiPlus />
+                    </button>
+                  </div>
+
+                  <div className="mt-5 overflow-x-auto rounded-xl border border-slate-100">
+                    {detalles.length === 0 ? (
+                      <div className="px-4 py-12 text-center text-sm text-slate-400">Agrega al menos un producto o servicio.</div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                            <th className="px-4 py-3 text-left">Producto</th>
+                            <th className="px-4 py-3 text-center">Cantidad</th>
+                            <th className="px-4 py-3 text-right">P. Unit</th>
+                            <th className="px-4 py-3 text-right">Subtotal</th>
+                            <th className="px-4 py-3 text-right">IVA</th>
+                            <th className="px-4 py-3 text-right">Total</th>
+                            <th className="px-4 py-3 text-center">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {detalles.map((detalle, index) => (
+                            <tr key={`${detalle.producto}-${index}`} className="bg-white">
+                              <td className="min-w-[260px] px-4 py-3 font-medium text-slate-900">{detalle.producto_nombre}</td>
+                              <td className="px-4 py-3 text-center text-slate-700">{detalle.cantidad}</td>
+                              <td className="px-4 py-3 text-right text-slate-700">${Number(detalle.precio_unitario).toFixed(2)}</td>
+                              <td className="px-4 py-3 text-right text-slate-700">${Number(detalle.subtotal).toFixed(2)}</td>
+                              <td className="px-4 py-3 text-right text-slate-700">${Number(detalle.impuestos).toFixed(2)}</td>
+                              <td className="px-4 py-3 text-right font-semibold text-slate-950">${Number(detalle.total).toFixed(2)}</td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => eliminarDetalle(index)}
+                                  className="rounded-lg p-2 text-rose-600 transition hover:bg-rose-50 hover:text-rose-800"
+                                  aria-label="Eliminar línea"
+                                >
+                                  <FiTrash2 />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              <aside className="space-y-4 xl:sticky xl:top-0 xl:self-start">
+                <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h3 className="text-base font-semibold text-slate-950">Resumen</h3>
+                  <div className="mt-4 space-y-3 text-sm">
+                    <div className="flex justify-between gap-4 text-slate-600">
+                      <span>Subtotal</span>
+                      <span className="font-medium text-slate-950">${totales.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between gap-4 text-slate-600">
+                      <span>IVA</span>
+                      <span className="font-medium text-slate-950">${totales.impuestos.toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Descuento</label>
+                      <input
+                        type="number"
+                        value={formData.total_descuento}
+                        onChange={(e) => setFormData({ ...formData, total_descuento: e.target.value })}
+                        min="0"
+                        step="0.01"
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="border-t border-slate-200 pt-4">
+                      <div className="flex items-end justify-between gap-4">
+                        <span className="text-sm font-semibold uppercase text-slate-500">Total</span>
+                        <span className="text-3xl font-bold text-blue-700">${totales.total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  <div className="flex gap-3">
+                    <FiAlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                    <div>
+                      <p className="font-semibold">El envío al SRI es manual</p>
+                      <p className="mt-1 leading-5">
+                        Al guardar se crea un borrador. Revisa cliente, fecha, productos e impuestos antes de enviarlo.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                {isDuplicate ? (
+                  <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                    <p className="font-semibold">Copia segura</p>
+                    <p className="mt-1 leading-5">
+                      No se copiarán clave de acceso, autorización ni estado SRI de la factura original.
+                    </p>
+                  </section>
+                ) : null}
+              </aside>
             </div>
           </div>
 
-          <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold mb-4 text-gray-800">Agregar Productos</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Producto
-                </label>
-                <select
-                  value={productoSeleccionado}
-                  onChange={(e) => setProductoSeleccionado(Number(e.target.value))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value={0}>Seleccione un producto</option>
-                  {productosArray.map((producto) => (
-                    <option key={producto.id} value={producto.id}>
-                      {producto.nombre} - ${Number(producto.precio_con_iva ?? producto.precio).toFixed(2)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cantidad
-                  </label>
-                  <input
-                    type="number"
-                    value={cantidad}
-                    onChange={(e) => setCantidad(e.target.value)}
-                    min="1"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+          <div className="border-t border-slate-200 bg-white px-5 py-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              {errorMsg ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                  {errorMsg}
                 </div>
+              ) : (
+                <p className="text-sm text-slate-500">Guarda el borrador y envíalo al SRI desde el listado cuando esté revisado.</p>
+              )}
+              <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={agregarDetalle}
-                  className="self-end px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  onClick={onClose}
+                  className="rounded-lg border border-slate-300 px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                  <FiPlus />
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={mutation.isPending || detalles.length === 0}
+                  className="rounded-lg bg-blue-700 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submitText}
                 </button>
               </div>
             </div>
-
-            {detalles.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="text-left p-3 text-sm font-semibold text-gray-700">Producto</th>
-                      <th className="text-center p-3 text-sm font-semibold text-gray-700">Cantidad</th>
-                      <th className="text-right p-3 text-sm font-semibold text-gray-700">P. Unit</th>
-                      <th className="text-right p-3 text-sm font-semibold text-gray-700">Subtotal</th>
-                      <th className="text-right p-3 text-sm font-semibold text-gray-700">IVA</th>
-                      <th className="text-right p-3 text-sm font-semibold text-gray-700">Total</th>
-                      <th className="text-center p-3 text-sm font-semibold text-gray-700">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detalles.map((detalle, index) => (
-                      <tr key={index} className="border-b">
-                        <td className="p-3">{detalle.producto_nombre}</td>
-                        <td className="p-3 text-center">{detalle.cantidad}</td>
-                        <td className="p-3 text-right">${Number(detalle.precio_unitario).toFixed(2)}</td>
-                        <td className="p-3 text-right">${Number(detalle.subtotal).toFixed(2)}</td>
-                        <td className="p-3 text-right">${Number(detalle.impuestos).toFixed(2)}</td>
-                        <td className="p-3 text-right font-semibold">${Number(detalle.total).toFixed(2)}</td>
-                        <td className="p-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => eliminarDetalle(index)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <FiTrash2 />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <div className="border-t pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div></div>
-              <div className="space-y-3">
-                <div className="flex justify-between text-lg">
-                  <span className="font-medium">Subtotal:</span>
-                  <span>${totales.subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-lg">
-                  <span className="font-medium">IVA:</span>
-                  <span>${totales.impuestos.toFixed(2)}</span>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Descuento
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.total_descuento}
-                    onChange={(e) => setFormData({ ...formData, total_descuento: e.target.value })}
-                    min="0"
-                    step="0.01"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="flex justify-between text-2xl font-bold text-blue-600 pt-3 border-t-2">
-                  <span>TOTAL:</span>
-                  <span>${totales.total.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-4 justify-end pt-6 border-t">
-            {errorMsg && (
-              <div className="flex-1 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm self-center">
-                {errorMsg}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending || detalles.length === 0}
-              className="px-6 py-2 bg-gradient-to-r from-blue-700 to-blue-900 text-white rounded-lg hover:from-blue-800 hover:to-blue-950 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50"
-            >
-              {mutation.isPending ? 'Guardando...' : factura ? 'Actualizar' : 'Crear'}
-            </button>
           </div>
         </form>
       </div>

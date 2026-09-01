@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { facturasService } from '../../services/facturasService';
 import type { Factura } from '../../types';
-import { FiPlus, FiSearch, FiFileText, FiCheckCircle, FiXCircle, FiDownload, FiSend, FiRefreshCw, FiMail } from 'react-icons/fi';
+import { FiCopy, FiPlus, FiSearch, FiFileText, FiCheckCircle, FiXCircle, FiDownload, FiSend, FiRefreshCw, FiMail } from 'react-icons/fi';
 import ExportButtons from '../../components/ui/ExportButtons';
 import FacturaModal from './FacturaModal';
 import { toast } from '../../store/toastStore';
@@ -16,6 +16,7 @@ const FacturasPage: React.FC = () => {
   const [filtroFechaHasta, setFiltroFechaHasta] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedFactura, setSelectedFactura] = useState<Factura | null>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'duplicate'>('create');
   const queryClient = useQueryClient();
 
   const { data: facturas, isLoading } = useQuery({
@@ -126,6 +127,13 @@ const FacturasPage: React.FC = () => {
 
   const handleEdit = (factura: Factura) => {
     setSelectedFactura(factura);
+    setModalMode('edit');
+    setIsModalOpen(true);
+  };
+
+  const handleDuplicate = (factura: Factura) => {
+    setSelectedFactura(factura);
+    setModalMode('duplicate');
     setIsModalOpen(true);
   };
 
@@ -220,6 +228,7 @@ const FacturasPage: React.FC = () => {
         <button
           onClick={() => {
             setSelectedFactura(null);
+            setModalMode('create');
             setIsModalOpen(true);
           }}
           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-700 to-blue-900 text-white rounded-lg hover:from-blue-800 hover:to-blue-950 transition-all duration-300 shadow-lg hover:shadow-xl"
@@ -379,6 +388,13 @@ const FacturasPage: React.FC = () => {
                     </td>
                     <td className="p-4">
                       <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => handleDuplicate(factura)}
+                          className="text-slate-600 hover:text-blue-800 transition-colors"
+                          title="Duplicar como borrador"
+                        >
+                          <FiCopy />
+                        </button>
                         {factura.estado === 'BORRADOR' && (
                           <>
                             <button
@@ -506,7 +522,9 @@ const FacturasPage: React.FC = () => {
           onClose={() => {
             setIsModalOpen(false);
             setSelectedFactura(null);
+            setModalMode('create');
           }}
+          mode={modalMode}
         />
       )}
     </div>
