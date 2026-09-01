@@ -1,6 +1,17 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Eye, EyeOff, FileSignature, Loader2, Lock, Mail, UserPlus } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  FileSignature,
+  Loader2,
+  Lock,
+  Mail,
+  UserPlus,
+} from 'lucide-react';
 import { authService } from '../services/authService';
 import { useAuthStore } from '../store/authStore';
 
@@ -29,7 +40,7 @@ export default function LoginPage() {
         badge: 'Firmador PDF',
         title: 'Ingresa a OF1 Firmador',
         subtitle: 'Firma, guarda y valida documentos PDF con certificado electrónico.',
-        registerCta: 'Crear cuenta de firmador',
+        registerCta: 'Crear cuenta',
         registerHint: 'Cuenta independiente para firmar documentos.',
         icon: FileSignature,
       }
@@ -96,44 +107,65 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-6">
-      <section className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-5xl items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl lg:grid-cols-[0.9fr_1.1fr]">
-          <aside className="hidden bg-blue-950 p-8 text-white lg:flex lg:flex-col lg:justify-between">
-            <div>
-              <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto rounded-xl bg-white object-contain p-2" />
-              <div className="mt-10 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-blue-100">
-                <ProductIcon className="h-4 w-4" />
-                {product.badge}
+    <main className="min-h-screen bg-white text-slate-950">
+      <section className="grid min-h-screen lg:grid-cols-[0.82fr_1fr]">
+        <aside className="hidden bg-[#172b4d] p-10 text-white lg:flex lg:flex-col lg:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-sm font-black text-blue-950">
+                OF1
               </div>
-              <h1 className="mt-5 text-3xl font-black leading-tight">{product.title}</h1>
-              <p className="mt-3 max-w-sm text-sm leading-6 text-blue-100">{product.subtitle}</p>
+              <div>
+                <p className="text-lg font-black leading-tight">FacturaOF1</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-300">
+                  {isFirmadorMode ? 'Firmador' : 'ERP'}
+                </p>
+              </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-              <p className="text-sm font-bold">No tienes cuenta?</p>
-              <p className="mt-1 text-xs text-blue-100">{product.registerHint}</p>
-              <Link
-                to={registroPath}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-900 hover:bg-blue-50"
-              >
-                <UserPlus className="h-4 w-4" />
-                {product.registerCta}
-              </Link>
+            <div className="mt-16 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold text-blue-100">
+              <ProductIcon className="h-4 w-4" />
+              {product.badge}
             </div>
-          </aside>
+            <h1 className="mt-8 max-w-sm text-4xl font-black leading-tight">
+              {product.title}
+            </h1>
+            <p className="mt-5 max-w-sm text-base leading-7 text-blue-100">{product.subtitle}</p>
+          </div>
 
-          <div className="p-6 sm:p-8 lg:p-10">
+          <div className="space-y-5 border-t border-white/15 pt-8">
+            <LoginBenefit title="Certificados seguros" text="Los archivos se almacenan cifrados y la clave no se guarda." />
+            <LoginBenefit title="Firma electrónica legal" text="Firma documentos PDF con certificados vigentes." />
+            <LoginBenefit title="Validación en tiempo real" text="Genera enlaces QR para verificar documentos firmados." />
+          </div>
+        </aside>
+
+        <div className="flex items-center justify-center px-5 py-8">
+          <div className="w-full max-w-md">
             <div className="mb-7">
               <div className="flex items-center justify-between gap-4">
-                <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto object-contain lg:hidden" />
-                <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                <div className="flex items-center gap-3 lg:hidden">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xs font-black text-blue-950 shadow-sm">
+                    OF1
+                  </div>
+                  <div>
+                    <p className="text-base font-black leading-tight">FacturaOF1</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-blue-600">
+                      {isFirmadorMode ? 'Firmador' : 'ERP'}
+                    </p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 lg:hidden">
                   <ProductIcon className="h-3.5 w-3.5" />
                   {product.badge}
                 </span>
               </div>
-              <h2 className="mt-6 text-2xl font-black text-slate-950">Iniciar sesión</h2>
-              <p className="mt-1 text-sm text-slate-500">{product.subtitle}</p>
+              <div className="hidden items-center gap-2 text-sm font-bold text-blue-700 lg:flex">
+                <ProductIcon className="h-4 w-4" />
+                {product.badge}
+              </div>
+              <h2 className="mt-8 text-3xl font-black text-slate-950">Iniciar sesión</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">{product.subtitle}</p>
             </div>
 
             {notFound ? (
@@ -171,13 +203,17 @@ export default function LoginPage() {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <Field label="Correo electronico" icon={<Mail className="h-4 w-4" />}>
+                  <Field label="Correo electrónico" icon={<Mail className="h-4 w-4" />}>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className={inputClass}
-                      placeholder="correo@ejemplo.com"
+                      placeholder="correo@empresa.com"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      autoComplete="email"
+                      spellCheck={false}
                       required
                     />
                   </Field>
@@ -216,9 +252,9 @@ export default function LoginPage() {
                   </button>
                 </form>
 
-                <div className="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center sm:grid-cols-[1fr_auto] sm:text-left">
+                <div className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-center sm:grid-cols-[1fr_auto] sm:text-left">
                   <div>
-                    <p className="text-sm font-bold text-slate-900">No tienes cuenta?</p>
+                    <p className="text-sm font-bold text-slate-900">¿No tienes cuenta?</p>
                     <p className="text-xs text-slate-500">{product.registerHint}</p>
                   </div>
                   <Link
@@ -230,9 +266,9 @@ export default function LoginPage() {
                   </Link>
                 </div>
 
-                <p className="mt-4 text-center text-sm">
+                <p className="mt-5 text-center text-sm">
                   <Link to="/recuperar-password" className="font-semibold text-blue-700 hover:text-blue-900">
-                    Olvidaste tu contraseña?
+                    ¿Olvidaste tu contraseña?
                   </Link>
                 </p>
               </>
@@ -246,6 +282,20 @@ export default function LoginPage() {
 
 const inputClass =
   'w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500';
+
+function LoginBenefit({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="flex gap-3">
+      <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-200">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+      </span>
+      <div>
+        <p className="text-sm font-black text-white">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-blue-200">{text}</p>
+      </div>
+    </div>
+  );
+}
 
 function Field({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -279,8 +329,8 @@ function StatePanel({
   secondaryTo?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">{icon}</div>
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-center">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-white shadow-sm">{icon}</div>
       <h2 className="mt-4 text-xl font-black text-slate-950">{title}</h2>
       <p className="mt-2 break-words text-sm text-slate-500">{text}</p>
       <button

@@ -51,15 +51,15 @@ const signModes: Array<{ key: SignMode; label: string; description: string; icon
   },
   {
     key: 'multiples_documentos',
-    label: 'Multiples Documentos',
-    description: 'Aplica la misma firma en la misma posicion a varios archivos PDF.',
+    label: 'Múltiples Documentos',
+    description: 'Aplica la misma firma en la misma posición a varios archivos PDF.',
     icon: FileText,
     enabled: false,
   },
   {
     key: 'multiples_firmantes',
-    label: 'Multiples Firmantes',
-    description: 'Diferentes personas firman en un unico documento PDF.',
+    label: 'Múltiples Firmantes',
+    description: 'Diferentes personas firman en un único documento PDF.',
     icon: FileCheck2,
     enabled: false,
   },
@@ -67,7 +67,7 @@ const signModes: Array<{ key: SignMode; label: string; description: string; icon
 
 const signatureTypes: Array<{ key: SignatureType; label: string; description: string; icon: React.ElementType }> = [
   { key: 'SIMPLE', label: 'Simple', description: 'Firma digital sin marca visible.', icon: FileSignature },
-  { key: 'QR', label: 'QR', description: 'Firma visible con enlace de validacion.', icon: QrCode },
+  { key: 'QR', label: 'QR', description: 'Firma visible con enlace de validación.', icon: QrCode },
   { key: 'AVANZADA', label: 'Avanzada', description: 'Firma visible con datos del certificado.', icon: ShieldCheck },
 ];
 
@@ -87,7 +87,7 @@ const readApiError = async (error: unknown): Promise<string> => {
       const parsed = JSON.parse(text) as { detail?: string };
       return parsed.detail ?? text;
     } catch {
-      return 'No se pudo completar la operacion.';
+      return 'No se pudo completar la operación.';
     }
   }
   if (data && typeof data === 'object' && 'detail' in data) {
@@ -98,7 +98,7 @@ const readApiError = async (error: unknown): Promise<string> => {
     if (Array.isArray(firstValue)) return String(firstValue[0]);
     if (firstValue) return String(firstValue);
   }
-  return 'No se pudo completar la operacion.';
+  return 'No se pudo completar la operación.';
 };
 
 const fileArray = (files: FileList | File[] | null) => Array.from(files ?? []);
@@ -130,7 +130,7 @@ export default function FirmadorPage() {
   const [signatureType, setSignatureType] = useState<SignatureType>('AVANZADA');
   const [signaturePage, setSignaturePage] = useState(1);
   const [signaturePosition, setSignaturePosition] = useState({ x: 62, y: 6, width: 32, height: 12 });
-  const [reason, setReason] = useState('Firmado electronicamente');
+  const [reason, setReason] = useState('Firmado electrónicamente');
   const [location, setLocation] = useState('Ecuador');
   const [retentionDays, setRetentionDays] = useState(30);
   const [signing, setSigning] = useState(false);
@@ -356,7 +356,7 @@ export default function FirmadorPage() {
     try {
       const results = await firmadorService.validarPdfs(validationFiles);
       setValidationResults(results);
-      showToast('Validacion completada.', 'success');
+      showToast('Validación completada.', 'success');
     } catch (error) {
       showToast(await readApiError(error), 'error');
     } finally {
@@ -366,7 +366,7 @@ export default function FirmadorPage() {
 
   const copyValidationUrl = async (url: string) => {
     await navigator.clipboard.writeText(url);
-    showToast('Enlace de validacion copiado.', 'success');
+    showToast('Enlace de validación copiado.', 'success');
   };
 
   const handleSignatureTypeChange = (nextType: SignatureType) => {
@@ -442,10 +442,10 @@ export default function FirmadorPage() {
   const recentDocs = storedDocs.slice(0, 10);
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-100">
       <nav className="sticky top-0 z-20 border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4">
-          <div className="grid grid-cols-2 gap-1 md:grid-cols-4">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="flex gap-1 overflow-x-auto">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.key;
@@ -454,7 +454,7 @@ export default function FirmadorPage() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex h-12 items-center justify-center gap-2 border-b-2 text-sm font-semibold transition-colors ${
+                  className={`flex h-12 min-w-max items-center justify-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors ${
                     active ? 'border-blue-700 text-blue-800' : 'border-transparent text-slate-400 hover:text-slate-700'
                   }`}
                 >
@@ -467,7 +467,7 @@ export default function FirmadorPage() {
         </div>
       </nav>
 
-      <section className="mx-auto max-w-7xl px-4 py-8">
+      <section className="mx-auto max-w-6xl px-4 py-8">
         {(perfilError || documentosError || certificadosError) && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
             No se pudo cargar toda la información del firmador. Revisa tu conexión o vuelve a iniciar sesión.
@@ -587,7 +587,7 @@ export default function FirmadorPage() {
                     placeholder="Ej: FIRMA PERSONAL, FIRMA DE EMPRESA..."
                     className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                   />
-                  <span className="mt-2 block text-xs text-slate-500">Nombre para identificar esta firma rapidamente.</span>
+                  <span className="mt-2 block text-xs text-slate-500">Nombre para identificar esta firma rápidamente.</span>
                 </label>
 
                 <Button
@@ -710,7 +710,7 @@ export default function FirmadorPage() {
                         {mode.label}
                         {!mode.enabled && (
                           <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
-                            Proximamente
+                            Próximamente
                           </span>
                         )}
                       </span>
@@ -723,7 +723,7 @@ export default function FirmadorPage() {
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[0.9fr_1.4fr]">
               <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-black text-slate-950">Configuracion</h2>
+                <h2 className="text-lg font-black text-slate-950">Configuración</h2>
 
                 <button
                   type="button"
@@ -885,7 +885,7 @@ export default function FirmadorPage() {
 
                 {signatureType === 'QR' && (
                   <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">
-                    La firma con QR requiere guardar una copia para que el enlace de validacion funcione durante el periodo seleccionado.
+                    La firma con QR requiere guardar una copia para que el enlace de validación funcione durante el periodo seleccionado.
                   </div>
                 )}
 
@@ -898,7 +898,7 @@ export default function FirmadorPage() {
                 {visibleSignature && signatureType !== 'SIMPLE' && (
                   <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <label className="block">
-                      <span className="text-sm font-bold text-slate-700">Pagina</span>
+                      <span className="text-sm font-bold text-slate-700">Página</span>
                       <input
                         type="number"
                         min={1}
@@ -908,7 +908,7 @@ export default function FirmadorPage() {
                       />
                     </label>
                     <label className="block">
-                      <span className="text-sm font-bold text-slate-700">Tamano visible</span>
+                      <span className="text-sm font-bold text-slate-700">Tamaño visible</span>
                       <select
                         value={`${signaturePosition.width}-${signaturePosition.height}`}
                         onChange={(event) => {
@@ -938,11 +938,11 @@ export default function FirmadorPage() {
                         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                       />
                       <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-600">
-                        dias
+                        días
                       </span>
                     </div>
                     <span className="mt-2 block text-xs text-slate-500">
-                      Define cuanto tiempo se guardara el PDF firmado en el sistema. No cambia la validez de la firma.
+                      Define cuánto tiempo se guardará el PDF firmado en el sistema. No cambia la validez de la firma.
                     </span>
                   </label>
                 )}
@@ -965,7 +965,7 @@ export default function FirmadorPage() {
                   {visibleSignature && signatureType !== 'SIMPLE' && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                       <Move className="h-3.5 w-3.5" />
-                      Pagina {signaturePage}
+                      Página {signaturePage}
                     </span>
                   )}
                 </div>
@@ -978,7 +978,7 @@ export default function FirmadorPage() {
                         return (
                           <div key={pageNumber} className="mx-auto max-w-[820px]">
                             <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500">
-                              <span>Pagina {pageNumber}</span>
+                              <span>Página {pageNumber}</span>
                               {visibleSignature && signatureType !== 'SIMPLE' && (
                                 <button
                                   type="button"
@@ -1050,7 +1050,7 @@ export default function FirmadorPage() {
           <div className="space-y-6">
             <header>
               <h1 className="text-3xl font-black text-slate-950">Documentos Firmados</h1>
-              <p className="mt-2 text-slate-500">Gestiona todos tus documentos firmados electronicamente</p>
+              <p className="mt-2 text-slate-500">Gestiona todos tus documentos firmados electrónicamente.</p>
             </header>
 
             <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -1108,7 +1108,7 @@ export default function FirmadorPage() {
                             type="button"
                             onClick={() => void copyValidationUrl(doc.validation_url || '')}
                             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-100 text-blue-700 hover:bg-blue-50"
-                            title="Copiar enlace de validacion"
+                            title="Copiar enlace de validación"
                           >
                             <Copy className="h-4 w-4" />
                           </button>

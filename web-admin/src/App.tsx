@@ -449,10 +449,10 @@ function MobileAppMenuButton() {
   };
 
   return (
-    <div className="sticky top-0 z-[60] flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur">
+    <div className="sticky top-0 z-[60] flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur">
       <Link
         to="/firmador/inicio"
-        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm"
+        className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
       >
         <ArrowLeft className="h-4 w-4" />
         Menú
@@ -461,7 +461,7 @@ function MobileAppMenuButton() {
         <button
           type="button"
           onClick={handleLogout}
-          className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-white px-3 py-2 text-xs font-black text-red-600 shadow-sm"
+        className="inline-flex h-10 items-center gap-2 rounded-full border border-red-100 bg-white px-3 text-xs font-black text-red-600 shadow-sm"
         >
           <LogOut className="h-4 w-4" />
           Cerrar sesión
