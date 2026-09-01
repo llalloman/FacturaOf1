@@ -55,7 +55,7 @@ export default function RegistroFirmadorPage() {
       return;
     }
     if (!form.accepted_terms || !form.accepted_privacy) {
-      setError('Debes aceptar los terminos y la politica de privacidad para crear tu cuenta.');
+      setError('Debes aceptar los términos y la política de privacidad para crear tu cuenta.');
       return;
     }
 
@@ -87,52 +87,50 @@ export default function RegistroFirmadorPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-6">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-5xl items-center justify-center">
-        <section className="grid max-h-[calc(100vh-3rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl lg:grid-cols-[0.9fr_1.1fr]">
-          <aside className="relative hidden border-r border-slate-100 bg-blue-950 p-7 text-white lg:flex lg:flex-col lg:justify-between">
-            <div>
-              <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto rounded-xl bg-white object-contain p-2" />
-              <div className="mt-8 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white">
-                <FileSignature className="h-7 w-7" />
-              </div>
-              <h1 className="mt-5 text-2xl font-black leading-tight">
-                Crea tu cuenta de OF1 Firmador
-              </h1>
-              <p className="mt-3 max-w-sm text-sm leading-6 text-blue-100">
-                Acceso independiente para firmar documentos PDF con certificado electrónico, sin crear una empresa en el ERP.
-              </p>
-            </div>
+    <main className="min-h-screen bg-white text-slate-950">
+      <section className="grid min-h-screen lg:grid-cols-[0.82fr_1fr]">
+        <aside className="hidden bg-[#172b4d] p-10 text-white lg:flex lg:flex-col lg:justify-between">
+          <div>
+            <BrandMark mode="Firmador" dark />
 
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
-                <Shield className="h-5 w-5 text-blue-100" />
-                <span className="text-sm font-semibold text-white">Certificados protegidos</span>
-              </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
-                <CheckCircle2 className="h-5 w-5 text-blue-100" />
-                <span className="text-sm font-semibold text-white">Cuenta solo para firmador</span>
-              </div>
+            <div className="mt-16 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold text-blue-100">
+              <FileSignature className="h-4 w-4" />
+              Firmador PDF
             </div>
-          </aside>
+            <h1 className="mt-8 max-w-sm text-4xl font-black leading-tight">
+              Crea tu cuenta de OF1 Firmador
+            </h1>
+            <p className="mt-5 max-w-sm text-base leading-7 text-blue-100">
+              Una cuenta independiente para firmar, guardar y validar documentos PDF sin crear una empresa en el ERP.
+            </p>
+          </div>
 
-          <form onSubmit={handleSubmit} className="p-6 sm:p-8">
-            <div className="mb-6">
+          <div className="space-y-5 border-t border-white/15 pt-8">
+            <SideBenefit icon={Shield} title="Certificados protegidos" text="Tus archivos se almacenan cifrados y la clave no se guarda." />
+            <SideBenefit icon={CheckCircle2} title="Cuenta para firmador" text="Acceso directo al firmador PDF y al historial de documentos." />
+            <SideBenefit icon={FileSignature} title="Validación QR" text="Genera enlaces verificables cuando guardas una copia del documento." />
+          </div>
+        </aside>
+
+        <div className="flex items-center justify-center px-5 py-8">
+          <form onSubmit={handleSubmit} className="w-full max-w-md">
+            <div className="mb-7">
               <div className="flex items-center justify-between gap-4">
-                <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-14 w-auto object-contain lg:hidden" />
-                <Link to="/login" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900">
+                <BrandMark mode="Firmador" />
+                <Link to="/login" className="inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-900">
                   <ArrowLeft className="h-4 w-4" />
                   Iniciar sesión
                 </Link>
               </div>
-              <div className="mt-5">
-                <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                  <FileSignature className="h-3.5 w-3.5" />
-                  OF1 Firmador
-                </span>
-                <h2 className="mt-4 text-2xl font-black text-slate-950">Registro de usuario</h2>
-                <p className="mt-1 text-sm text-slate-500">Usa estos datos para ingresar al firmador PDF de OF1 Solutions.</p>
+
+              <div className="mt-8 flex items-center gap-2 text-sm font-bold text-blue-700">
+                <FileSignature className="h-4 w-4" />
+                OF1 Firmador
               </div>
+              <h2 className="mt-4 text-3xl font-black text-slate-950">Crear cuenta</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Usa estos datos para ingresar al firmador PDF de OF1 Solutions.
+              </p>
             </div>
 
             {error && (
@@ -145,80 +143,74 @@ export default function RegistroFirmadorPage() {
             )}
 
             <div className="space-y-4">
-              <Field label="Correo electrónico *" icon={Mail}>
+              <Field label="Correo electrónico" icon={Mail}>
                 <input
                   type="email"
                   required
                   value={form.email}
                   onChange={(event) => updateField('email', event.target.value)}
-                  placeholder="tu@correo.com"
+                  placeholder="correo@empresa.com"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  autoComplete="email"
+                  spellCheck={false}
                   className={inputClass}
                 />
               </Field>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Nombres *" icon={User}>
+                <Field label="Nombres" icon={User}>
                   <input
                     type="text"
                     required
                     value={form.nombre}
                     onChange={(event) => updateField('nombre', event.target.value)}
                     placeholder="Juan"
+                    autoComplete="given-name"
                     className={inputClass}
                   />
                 </Field>
-                <Field label="Apellidos *">
+                <Field label="Apellidos">
                   <input
                     type="text"
                     required
                     value={form.apellido}
                     onChange={(event) => updateField('apellido', event.target.value)}
-                    placeholder="Perez"
+                    placeholder="Pérez"
+                    autoComplete="family-name"
                     className={plainInputClass}
                   />
                 </Field>
               </div>
 
-              <Field label="Contraseña *" icon={Lock}>
+              <Field label="Contraseña" icon={Lock}>
                 <input
                   type={showPass ? 'text' : 'password'}
                   required
                   value={form.password}
                   onChange={(event) => updateField('password', event.target.value)}
-                  placeholder="Min. 8 caracteres"
-                  className={`${inputClass} pr-10`}
+                  placeholder="Mínimo 8 caracteres"
+                  autoComplete="new-password"
+                  className={`${inputClass} pr-12`}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPass((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                >
-                  {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+                <PasswordToggle show={showPass} onClick={() => setShowPass((value) => !value)} />
               </Field>
 
-              <Field label="Confirmar contraseña *" icon={Lock}>
+              <Field label="Confirmar contraseña" icon={Lock}>
                 <input
                   type={showConfirm ? 'text' : 'password'}
                   required
                   value={form.confirm_password}
                   onChange={(event) => updateField('confirm_password', event.target.value)}
                   placeholder="Repite la contraseña"
-                  className={`${inputClass} pr-10 ${
+                  autoComplete="new-password"
+                  className={`${inputClass} pr-12 ${
                     form.confirm_password && form.confirm_password !== form.password
                       ? 'border-red-300 focus:ring-red-400'
                       : ''
                   }`}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  aria-label={showConfirm ? 'Ocultar confirmacion' : 'Mostrar confirmacion'}
-                >
-                  {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+                <PasswordToggle show={showConfirm} onClick={() => setShowConfirm((value) => !value)} />
               </Field>
             </div>
 
@@ -233,7 +225,7 @@ export default function RegistroFirmadorPage() {
                 <span>
                   Acepto los{' '}
                   <Link to="/terminos-y-condiciones" target="_blank" className="font-bold text-blue-700 hover:underline">
-                    Terminos y Condiciones
+                    Términos y Condiciones
                   </Link>{' '}
                   de OF1 Firmador.
                 </span>
@@ -248,7 +240,7 @@ export default function RegistroFirmadorPage() {
                 <span>
                   Autorizo el tratamiento de mis datos personales conforme a la{' '}
                   <Link to="/politica-privacidad" target="_blank" className="font-bold text-blue-700 hover:underline">
-                    Politica de Privacidad
+                    Política de Privacidad
                   </Link>
                   , incluyendo el uso del servicio OF1 Firmador.
                 </span>
@@ -258,21 +250,21 @@ export default function RegistroFirmadorPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-blue-900 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-900/20 transition hover:from-blue-800 hover:to-blue-950 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-900/15 hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <UserPlus className="h-5 w-5" />}
-              Crear cuenta de firmador
+              {loading ? 'Creando cuenta...' : 'Crear cuenta de firmador'}
             </button>
 
-            <p className="mt-5 text-center text-xs text-slate-500">
-              Ya tienes cuenta?{' '}
+            <p className="mt-5 text-center text-sm text-slate-500">
+              ¿Ya tienes cuenta?{' '}
               <Link to="/login" className="font-bold text-blue-700 hover:text-blue-900">
                 Inicia sesión
               </Link>
             </p>
           </form>
-        </section>
-      </div>
+        </div>
+      </section>
     </main>
   );
 }
@@ -282,6 +274,44 @@ const inputClass =
 
 const plainInputClass =
   'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500';
+
+function BrandMark({ mode, dark = false }: { mode: string; dark?: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl ${dark ? 'bg-white' : 'border border-slate-200 bg-white shadow-sm'}`}>
+        <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-full w-full object-contain p-1" />
+      </div>
+      <div>
+        <p className={`text-lg font-black leading-tight ${dark ? 'text-white' : 'text-slate-950'}`}>FacturaOF1</p>
+        <p className={`text-xs font-bold uppercase tracking-wide ${dark ? 'text-blue-300' : 'text-blue-600'}`}>
+          {mode}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SideBenefit({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: React.ElementType;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="flex gap-3">
+      <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-200">
+        <Icon className="h-3.5 w-3.5" />
+      </span>
+      <div>
+        <p className="text-sm font-black text-white">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-blue-200">{text}</p>
+      </div>
+    </div>
+  );
+}
 
 function Field({
   label,
@@ -300,5 +330,19 @@ function Field({
         {children}
       </div>
     </label>
+  );
+}
+
+function PasswordToggle({ show, onClick }: { show: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+      aria-label={show ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+      title={show ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+    >
+      {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+    </button>
   );
 }

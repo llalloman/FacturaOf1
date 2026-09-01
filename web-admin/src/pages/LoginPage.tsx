@@ -112,8 +112,8 @@ export default function LoginPage() {
         <aside className="hidden bg-[#172b4d] p-10 text-white lg:flex lg:flex-col lg:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-sm font-black text-blue-950">
-                OF1
+              <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-white">
+                <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-full w-full object-contain p-1" />
               </div>
               <div>
                 <p className="text-lg font-black leading-tight">FacturaOF1</p>
@@ -145,8 +145,8 @@ export default function LoginPage() {
             <div className="mb-7">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 lg:hidden">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xs font-black text-blue-950 shadow-sm">
-                    OF1
+                  <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <img src="/logo-of1-1.png" alt="FacturaOF1" className="h-full w-full object-contain p-1" />
                   </div>
                   <div>
                     <p className="text-base font-black leading-tight">FacturaOF1</p>

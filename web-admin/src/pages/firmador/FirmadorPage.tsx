@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import {
+  AlertTriangle,
   CheckCircle2,
   Copy,
   Download,
@@ -76,6 +77,62 @@ const formatBytes = (bytes: number) => {
   const units = ['B', 'KB', 'MB', 'GB'];
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return `${(bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+};
+
+const formatCertificateDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'fecha no disponible';
+  return date.toLocaleDateString('es-EC', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
+
+const getCertificateExpiryStatus = (certificado: FirmadorCertificado) => {
+  const expiresAt = new Date(certificado.expires_at);
+  if (Number.isNaN(expiresAt.getTime())) {
+    return {
+      tone: 'neutral',
+      label: 'Sin fecha',
+      message: 'No se pudo leer la fecha de vencimiento.',
+      days: null,
+      shouldRenew: false,
+    } as const;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiresAt.setHours(0, 0, 0, 0);
+  const days = Math.ceil((expiresAt.getTime() - today.getTime()) / 86_400_000);
+
+  if (certificado.is_expired || days < 0) {
+    return {
+      tone: 'danger',
+      label: 'Expirado',
+      message: 'Este certificado ya venció. Solicita uno nuevo para seguir firmando.',
+      days,
+      shouldRenew: true,
+    } as const;
+  }
+
+  if (days <= 60) {
+    return {
+      tone: 'warning',
+      label: 'Por vencer',
+      message: `Vence en ${days} día${days === 1 ? '' : 's'}. Considera renovarlo a tiempo.`,
+      days,
+      shouldRenew: true,
+    } as const;
+  }
+
+  return {
+    tone: 'success',
+    label: 'Vigente',
+    message: null,
+    days,
+    shouldRenew: false,
+  } as const;
 };
 
 const readApiError = async (error: unknown): Promise<string> => {
@@ -620,30 +677,74 @@ export default function FirmadorPage() {
                   ) : (
                     certificados.map((certificado) => {
                       const active = selectedCertificate?.id === certificado.id;
+                      const expiry = getCertificateExpiryStatus(certificado);
+                      const statusClass = {
+                        danger: 'border-red-200 bg-red-50 text-red-700',
+                        warning: 'border-amber-200 bg-amber-50 text-amber-700',
+                        success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                        neutral: 'border-slate-200 bg-slate-50 text-slate-600',
+                      }[expiry.tone];
+                      const cardClass = active
+                        ? 'border-blue-700 bg-blue-50'
+                        : expiry.tone === 'danger'
+                          ? 'border-red-200 bg-red-50/40 hover:border-red-300'
+                          : expiry.tone === 'warning'
+                            ? 'border-amber-200 bg-amber-50/40 hover:border-amber-300'
+                            : 'border-slate-200 hover:border-blue-300';
                       return (
                         <div
                           key={certificado.id}
                           onClick={() => setSelectedCertificateId(certificado.id)}
                           className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-lg border px-4 py-4 text-left transition-colors ${
-                            active ? 'border-blue-700 bg-blue-50' : 'border-slate-200 hover:border-blue-300'
+                            cardClass
                           }`}
                         >
-                          <div className="flex min-w-0 items-center gap-4">
-                            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-800">
+                          <div className="flex min-w-0 flex-1 items-start gap-4">
+                            <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg ${
+                              expiry.tone === 'danger'
+                                ? 'bg-red-100 text-red-700'
+                                : expiry.tone === 'warning'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-blue-50 text-blue-800'
+                            }`}>
                               <FileSignature className="h-5 w-5" />
                             </div>
                             <div className="min-w-0">
                               <p className="truncate text-sm font-bold text-slate-950">{certificado.alias}</p>
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${
-                                  certificado.is_expired ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
-                                }`}>
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  {certificado.is_expired ? 'Expirado' : 'Vigente'}
+                                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${statusClass}`}>
+                                  {expiry.tone === 'warning' || expiry.tone === 'danger' ? (
+                                    <AlertTriangle className="h-3 w-3" />
+                                  ) : (
+                                    <CheckCircle2 className="h-3 w-3" />
+                                  )}
+                                  {expiry.label}
                                 </span>
-                                <span>hasta {new Date(certificado.expires_at).toLocaleDateString()}</span>
+                                <span>hasta {formatCertificateDate(certificado.expires_at)}</span>
                                 <span>{formatBytes(certificado.file_size)}</span>
                               </div>
+                              {expiry.message && (
+                                <div className={`mt-3 rounded-lg border px-3 py-2 text-xs font-semibold ${
+                                  expiry.tone === 'danger'
+                                    ? 'border-red-200 bg-white text-red-700'
+                                    : 'border-amber-200 bg-white text-amber-700'
+                                }`}>
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span>{expiry.message}</span>
+                                    {expiry.shouldRenew && (
+                                      <a
+                                        href="/solicitar-firma-electronica"
+                                        onClick={(event) => event.stopPropagation()}
+                                        className={`font-black underline-offset-2 hover:underline ${
+                                          expiry.tone === 'danger' ? 'text-red-700' : 'text-amber-700'
+                                        }`}
+                                      >
+                                        Solicitar nueva firma
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
