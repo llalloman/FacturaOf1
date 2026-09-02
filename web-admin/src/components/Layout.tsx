@@ -46,6 +46,7 @@ import {
   FileSignature,
   BadgeDollarSign,
   Bot,
+  Inbox,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
@@ -107,6 +108,7 @@ const ICONOS_POR_NOMBRE: Record<string, React.ElementType> = {
 };
 
 const EXTRA_MENU_ITEMS: Array<MenuItem & { grupo: string; roles?: string[] }> = [
+  { icon: Inbox, label: 'Bandeja Tributaria', path: '/documentos-recibidos', grupo: 'Facturación Electrónica', roles: ['ADMIN_EMPRESA', 'CONTADOR'] },
   { icon: Users, label: 'Usuarios', path: '/usuarios', grupo: 'Administración', roles: ['ADMIN_EMPRESA'] },
   { icon: Settings, label: 'Configuración', path: '/configuracion', grupo: 'Administración', roles: ['ADMIN_EMPRESA'] },
   { icon: CreditCard, label: 'Suscripción', path: '/suscripcion', grupo: 'Administración' },
@@ -146,8 +148,8 @@ const buildMenuGroups = (modulos: Array<ModuloInfo | ModuloSistema>, rol: string
 
 // Menú por rol (paths permitidos en el sidebar)
 const ROL_PATHS: Record<string, string[]> = {
-  ADMIN_EMPRESA: ['/', '/pos', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/contabilidad', '/bancos', '/nomina', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion', '/pagos-online', '/usuarios'],
-  CONTADOR:      ['/', '/facturacion', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/contabilidad', '/bancos', '/nomina', '/clientes', '/reportes'],
+  ADMIN_EMPRESA: ['/', '/pos', '/facturacion', '/documentos-recibidos', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/cotizaciones', '/contabilidad', '/bancos', '/nomina', '/inventarios', '/proveedores', '/productos', '/clientes', '/ventas', '/pedidos', '/reportes', '/configuracion', '/suscripcion', '/pagos-online', '/usuarios'],
+  CONTADOR:      ['/', '/facturacion', '/documentos-recibidos', '/retenciones', '/guias-remision', '/notas-debito', '/notas-credito', '/cartera', '/declaraciones', '/contabilidad', '/bancos', '/nomina', '/clientes', '/reportes'],
   VENDEDOR:      ['/', '/pos', '/ventas', '/pedidos', '/cotizaciones', '/clientes', '/productos'],
   CONSULTOR:     ['/', '/facturacion', '/retenciones', '/ventas', '/reportes'],
   FIRMADOR:      ['/firmador'],

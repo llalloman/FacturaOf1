@@ -21,6 +21,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ProductosPage = lazy(() => import('./pages/productos/ProductosPage'));
 const ClientesPage = lazy(() => import('./pages/clientes/ClientesPage'));
 const FacturasPage = lazy(() => import('./pages/facturas/FacturasPage'));
+const DocumentosRecibidosPage = lazy(() => import('./pages/documentos-recibidos/DocumentosRecibidosPage'));
 const InventariosPage = lazy(() => import('./pages/inventarios/InventariosPage'));
 const ProveedoresPage = lazy(() => import('./pages/proveedores/ProveedoresPage'));
 const VentasPage = lazy(() => import('./pages/ventas/VentasPage'));
@@ -109,6 +110,9 @@ const appLayoutRoutes = (
     <Route index element={<DashboardPage />} />
     <Route path="facturacion" element={
       <ModuloGuard modulo="facturacion"><FacturasPage /></ModuloGuard>
+    } />
+    <Route path="documentos-recibidos" element={
+      <ModuloGuard modulo="facturacion"><DocumentosRecibidosPage /></ModuloGuard>
     } />
     <Route path="inventarios" element={
       <ProtectedRoute allowedRoles={['ADMIN_EMPRESA', 'VENDEDOR']}>

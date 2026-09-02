@@ -19,6 +19,8 @@ cryptography==41.0.7
 pyOpenSSL==23.3.0
 zeep==4.2.1
 requests==2.31.0
+charset-normalizer==3.3.2
+chardet==5.2.0
 
 # PDF Generation (RIDE)
 reportlab==4.0.9

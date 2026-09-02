@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     'apps.empresas',
     'apps.suscripciones',
     'apps.facturacion',
+    'apps.documentos_recibidos',
     'apps.productos',
     'apps.clientes',
     'apps.inventarios',

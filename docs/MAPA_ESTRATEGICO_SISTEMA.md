@@ -1,6 +1,8 @@
-# Mapa estrategico del ecosistema OF1
+# Mapa estratégico y biblia del ecosistema OF1
 
-Este documento resume el sistema actual para tomar decisiones de ventas, producto y desarrollo.
+Este documento resume el sistema actual y define hacia dónde debe evolucionar OF1. Debe usarse como guía viva para tomar decisiones de ventas, producto, UX, arquitectura y desarrollo.
+
+La visión principal es que FacturaOF1 no sea solamente un sistema de facturación electrónica, sino un **ERP tributario ecuatoriano** conectado con ventas, compras, SRI, retenciones, ATS, cartera, bancos, contabilidad, firma electrónica, firmador PDF y automatización comercial.
 
 ## Vision general
 
@@ -61,6 +63,37 @@ OF1 Solutions se organiza como un ecosistema con cuatro frentes:
 - Base para seguimiento automatico y atencion con IA.
 - Guia operativa de recuperacion: `automation/docs/n8n-session-recovery.md`.
 
+## Principios rectores del producto
+
+1. **El ERP debe ahorrar trabajo real**
+   - Cada módulo debe reducir digitación, reproceso o incertidumbre operativa.
+   - La meta no es solo registrar información, sino convertirla en decisiones y acciones.
+
+2. **FacturaOF1 debe funcionar por ciclos**
+   - Ciclo de venta: cotización -> pedido -> factura -> cobro -> contabilidad.
+   - Ciclo de compra: documento recibido -> compra/gasto -> cuenta por pagar -> retención -> contabilidad.
+   - Ciclo tributario: emitidos + recibidos -> IVA -> retenciones -> ATS -> declaración asistida.
+   - Ciclo documental: firma electrónica -> firmador -> validación -> historial.
+
+3. **No depender de automatizaciones frágiles**
+   - No basar funciones críticas en scraping del portal del SRI.
+   - Preferir XML, ZIP, correo receptor, APIs, Web Services oficiales y validación por clave de acceso.
+   - Cualquier integración sensible debe cuidar credenciales, trazabilidad y seguridad.
+
+4. **UX por rol y por intención**
+   - Un comerciante quiere saber cuánto vendió, qué debe cobrar, qué stock falta y qué está pendiente con SRI.
+   - Un contador quiere revisar documentos emitidos/recibidos, ATS, IVA, retenciones, libros y diferencias.
+   - Un administrador quiere ver usuarios, módulos, suscripción, permisos y salud del negocio.
+   - Un firmador quiere subir certificado, firmar PDF, descargar y validar sin entrar al ERP completo.
+
+5. **Todo documento debe tener trazabilidad**
+   - Factura, nota de crédito, nota de débito, retención, guía, compra, pago, cobro, asiento, XML, RIDE y autorización deben poder relacionarse.
+   - El usuario debe poder responder: qué pasó, cuándo pasó, quién lo hizo, qué documento lo originó y en qué estado está.
+
+6. **Primero robustez, luego automatización avanzada**
+   - Antes de IA o automatización completa, deben existir modelos claros, estados confiables, auditoría y procesos manuales bien resueltos.
+   - La IA debe asistir clasificación, sugerencias y revisión, no reemplazar controles tributarios críticos sin confirmación del usuario.
+
 ## Productos comerciales
 
 ### Producto 1: FacturaOF1 ERP
@@ -74,15 +107,21 @@ OF1 Solutions se organiza como un ecosistema con cuatro frentes:
 - Facturacion electronica SRI integrada.
 - POS, inventario, cartera y reportes en un solo sistema.
 - Control operativo para duenos, contadores y vendedores.
+- Ciclo tributario ecuatoriano: emitidos, recibidos, retenciones, ATS, declaraciones y control SRI.
 
 **Mensaje comercial**
 - "Factura, vende y controla tu negocio desde una sola plataforma."
 - "ERP ecuatoriano preparado para SRI."
+- "Controla tu mes tributario antes de declarar."
 
 **Mejoras prioritarias**
 - Dashboard por rol.
 - Flujo cotizacion -> pedido -> factura -> cobro.
-- Centro de control SRI.
+- Centro de Control SRI.
+- Bandeja de documentos recibidos.
+- ATS automatico.
+- Liquidacion de compra.
+- Libros de compras y ventas.
 - Onboarding guiado.
 - Correos HTML profesionales.
 - Reportes gerenciales vendibles.
@@ -183,9 +222,12 @@ OF1 Solutions se organiza como un ecosistema con cuatro frentes:
 - Notas de debito.
 - Retenciones.
 - Guias de remision.
+- Liquidacion de compra pendiente.
 - Secuenciales.
 - Certificado digital.
 - Integracion SRI.
+- Centro de Control SRI en roadmap.
+- Conciliacion SRI vs ERP pendiente.
 
 ### Inventario
 
@@ -200,6 +242,9 @@ OF1 Solutions se organiza como un ecosistema con cuatro frentes:
 - Ordenes de compra.
 - Recepciones.
 - Cuentas por pagar en evolucion.
+- Bandeja de documentos recibidos pendiente.
+- Libro de compras pendiente.
+- Sustento tributario por compra pendiente.
 
 ### Finanzas
 
@@ -208,6 +253,9 @@ OF1 Solutions se organiza como un ecosistema con cuatro frentes:
 - Contabilidad.
 - Declaraciones.
 - Nomina.
+- ATS automatico pendiente.
+- Declaraciones prearmadas en evolucion.
+- Libro de ventas pendiente.
 
 ### Administracion
 
@@ -231,6 +279,471 @@ OF1 Solutions se organiza como un ecosistema con cuatro frentes:
 - Precios de firma.
 - Leads de automatizacion.
 - Pagos online.
+
+## Estrategia tributaria FacturaOF1
+
+La siguiente evolución del ERP debe ir más allá de emitir comprobantes. El objetivo comercial y de producto es convertir FacturaOF1 en un **ERP tributario ecuatoriano**, capaz de conectar ventas, compras, SRI, retenciones, declaraciones, cartera, bancos y contabilidad.
+
+### Ciclo tributario objetivo
+
+```text
+FacturaOF1
+  -> SRI
+      -> Comprobantes emitidos
+          -> Facturas
+          -> Notas de crédito
+          -> Notas de débito
+          -> Retenciones
+          -> Guías de remisión
+          -> Liquidaciones de compra
+      -> Comprobantes recibidos
+          -> Facturas de proveedores
+          -> Notas de crédito recibidas
+          -> Notas de débito recibidas
+          -> Retenciones recibidas
+          -> Liquidaciones recibidas
+      -> Tributación
+          -> IVA
+          -> ATS
+          -> Retenciones
+          -> Libros de compras y ventas
+          -> Conciliación SRI vs ERP
+      -> Contabilidad y finanzas
+          -> Cuentas por cobrar
+          -> Cuentas por pagar
+          -> Bancos
+          -> Cartera
+          -> Asientos contables
+```
+
+### Estado actual vs oportunidad
+
+| Documento / proceso | Estado actual | Prioridad |
+|---|---|---|
+| Factura electrónica | Implementado | Fundamental |
+| Nota de crédito | Implementado | Fundamental |
+| Nota de débito | Implementado | Fundamental |
+| Comprobante de retención | Implementado | Fundamental |
+| Guía de remisión | Implementado | Fundamental |
+| Liquidación de compra | Pendiente | Alta |
+| Documentos recibidos del SRI | Parcial / pendiente de consolidar | Altísima |
+| Anulación y documentos relacionados | En evolución | Alta |
+| ATS automático | Pendiente / por validar alcance actual | Altísima |
+| Declaración IVA asistida | Módulo declaraciones existe, falta integración tributaria completa | Alta |
+| Declaración de retenciones | Módulo declaraciones existe, falta integración tributaria completa | Alta |
+| Conciliación tributaria SRI vs ERP | Pendiente | Alta |
+| Libro de compras | Derivable desde compras/documentos recibidos | Alta |
+| Libro de ventas | Derivable desde facturación/ventas | Alta |
+| Retenciones inteligentes | Pendiente | Media alta |
+
+### Prioridad tributaria recomendada
+
+1. **Bandeja de documentos recibidos del SRI**
+   - Importar facturas de proveedores, notas de crédito, notas de débito, retenciones recibidas y liquidaciones.
+   - Reconocer proveedor, clave de acceso, autorización, fechas, bases imponibles, IVA y totales.
+   - Permitir convertir un documento recibido en compra, cuenta por pagar, gasto o asiento contable.
+
+2. **Liquidación de compra**
+   - Completar el catálogo principal de comprobantes electrónicos reconocidos por el SRI.
+   - Flujo esperado: crear liquidación -> generar XML -> firmar -> enviar al SRI -> autorizar -> generar RIDE -> contabilizar -> vincular retención si aplica.
+
+3. **Centro de Control SRI**
+   - Mostrar autorizados, pendientes, rechazados, devueltos y sin enviar.
+   - Mostrar ventas gravadas, ventas tarifa 0%, IVA generado, IVA compras, crédito tributario, retenciones recibidas, retenciones emitidas e IVA estimado a pagar.
+   - Responder una pregunta clave del dueño o contador: "¿Cuánto voy a pagar al SRI este mes?"
+
+4. **ATS automático**
+   - Generar un resumen mensual con estado de preparación.
+   - Validar errores antes de exportar.
+   - Exportar XML cuando el periodo esté listo.
+   - Mostrar documentos que requieren revisión.
+
+5. **Retenciones inteligentes**
+   - Sugerir porcentajes de retención según proveedor, tipo de contribuyente, concepto, IVA y reglas tributarias vigentes.
+   - Mantener catálogo tributario versionado por vigencia.
+   - Permitir que el usuario confirme o ajuste antes de emitir.
+
+6. **Libros de compras y ventas**
+   - Consolidar documentos por periodo.
+   - Incluir bases 0%, bases gravadas, IVA, ICE, retenciones, cobrado, pendiente y estado SRI.
+   - Exportar Excel, PDF y CSV.
+
+7. **Conciliación SRI vs ERP**
+   - Comparar lo registrado en FacturaOF1 contra lo que consta en SRI.
+   - Detectar documentos presentes en SRI pero no en ERP, diferencias de IVA, retenciones no vinculadas, documentos no autorizados o notas de crédito sin relación clara.
+
+8. **Declaraciones prearmadas**
+   - Preparar IVA y retenciones desde ventas, compras, notas de crédito, notas de débito, retenciones y crédito tributario.
+   - Mostrar el origen de cada valor para generar confianza.
+
+### Recepción de comprobantes electrónicos recibidos
+
+La automatización de documentos recibidos debe construirse por etapas, evitando depender como base principal del portal web del SRI cuando exista CAPTCHA, cambios de interfaz o manejo sensible de credenciales.
+
+**Canales recomendados**
+
+1. **Carga manual XML/ZIP**
+   - El usuario descarga sus comprobantes recibidos o recibe XML de proveedores.
+   - FacturaOF1 permite arrastrar XML, ZIP o reportes compatibles.
+   - El sistema detecta documentos nuevos, duplicados e inconsistentes.
+
+2. **Importación masiva SRI**
+   - El usuario carga archivos descargados desde SRI en Línea.
+   - FacturaOF1 procesa por periodo, tipo de documento y proveedor.
+   - Útil para contadores que manejan muchas empresas.
+
+3. **Correo receptor de la empresa**
+   - Cada empresa configura un correo como `compras@empresa.com`.
+   - Workers revisan adjuntos XML/PDF/ZIP mediante IMAP u OAuth.
+   - Cada XML se valida, clasifica y se convierte en compra, gasto, cuenta por pagar o documento pendiente de revisión.
+
+4. **Correo tributario OF1**
+   - Cada empresa podría tener un correo propio del tipo `ruc@documentos.facturaof1.com`.
+   - Los proveedores envían comprobantes a ese buzón.
+   - FacturaOF1 enruta automáticamente el documento al workspace correcto.
+
+**Flujo objetivo**
+
+```text
+Comprobante recibido
+  -> detectar XML / ZIP / clave de acceso
+  -> parsear comprobante SRI
+  -> validar receptor contra empresa
+  -> consultar autorización por clave de acceso
+  -> identificar proveedor
+  -> clasificar compra o gasto
+  -> crear cuenta por pagar
+  -> sugerir retención
+  -> preparar ATS, IVA y contabilidad
+```
+
+**Arquitectura sugerida**
+
+- `celery beat` para programar revisiones.
+- Worker `check_supplier_email()` para correos configurados.
+- Worker `process_incoming_xml()` para XML/ZIP.
+- Worker `validate_sri_authorization()` para validar autorización.
+- Worker `classify_purchase()` para sugerir proveedor, gasto, cuenta contable y sustento tributario.
+- Worker `generate_tax_suggestion()` para retenciones, ATS e IVA.
+- Guardar siempre el XML original como evidencia documental.
+
+**Regla de producto**
+
+La descarga automatizada directa desde SRI en Línea no debe ser el núcleo de la solución si depende de scraping, CAPTCHA o credenciales sensibles. La base robusta debe ser: XML recibido, ZIP importado, correo tributario y validación por clave de acceso.
+
+### Implementación general de la Bandeja Tributaria
+
+La Bandeja Tributaria OF1 debe ser el corazón del crecimiento tributario del ERP. Su función no es solo listar documentos, sino convertir comprobantes recibidos en procesos útiles para compras, cuentas por pagar, retenciones, ATS, IVA y contabilidad.
+
+**Modelos principales sugeridos**
+
+- `DocumentoRecibidoSRI`
+  - Empresa/workspace.
+  - Tipo de comprobante.
+  - Clave de acceso.
+  - Número de autorización.
+  - RUC y razón social del emisor.
+  - RUC y razón social del receptor.
+  - Fecha de emisión.
+  - Fecha de autorización.
+  - Estado SRI.
+  - Estado interno: recibido, validado, duplicado, requiere revisión, convertido, descartado.
+  - Totales tributarios.
+  - Archivo XML original.
+  - Archivo RIDE/PDF si existe.
+
+- `DocumentoRecibidoDetalle`
+  - Producto, descripción o concepto.
+  - Cantidad.
+  - Precio unitario.
+  - Descuento.
+  - Base imponible.
+  - IVA.
+  - ICE.
+  - Total.
+
+- `DocumentoRecibidoImpuesto`
+  - Código de impuesto.
+  - Código de porcentaje.
+  - Tarifa.
+  - Base imponible.
+  - Valor.
+
+- `DocumentoRecibidoRelacion`
+  - Relación con compra, gasto, cuenta por pagar, retención, asiento contable o documento relacionado.
+
+- `ConfiguracionRecepcionComprobantes`
+  - Empresa/workspace.
+  - Correo receptor.
+  - Método de conexión: IMAP u OAuth.
+  - Última sincronización.
+  - Estado de conexión.
+  - Reglas de clasificación.
+
+**Servicios backend necesarios**
+
+- Parser XML por tipo de comprobante.
+- Validador de estructura y receptor.
+- Servicio de validación por clave de acceso.
+- Detector de duplicados.
+- Clasificador de proveedor.
+- Clasificador de gasto/sustento tributario.
+- Conversor a compra.
+- Conversor a cuenta por pagar.
+- Sugeridor de retenciones.
+- Generador de resumen tributario mensual.
+
+**Endpoints principales**
+
+- `POST /api/documentos-recibidos/importar/`
+  - Recibe XML o ZIP.
+  - Procesa lote.
+  - Devuelve resumen de nuevos, duplicados y errores.
+
+- `GET /api/documentos-recibidos/`
+  - Lista por empresa, periodo, proveedor, tipo, estado y monto.
+
+- `GET /api/documentos-recibidos/{id}/`
+  - Muestra XML, resumen tributario, detalle, validaciones y relaciones.
+
+- `POST /api/documentos-recibidos/{id}/validar-sri/`
+  - Consulta autorización por clave de acceso.
+
+- `POST /api/documentos-recibidos/{id}/convertir-compra/`
+  - Crea compra, gasto o cuenta por pagar después de revisión.
+
+- `POST /api/documentos-recibidos/sincronizar-correo/`
+  - Dispara revisión manual del correo configurado.
+
+**Pantallas principales**
+
+- Bandeja Tributaria.
+- Importador XML/ZIP.
+- Detalle de documento recibido.
+- Revisión antes de convertir.
+- Configuración de correo receptor.
+- Centro de Control SRI.
+- Libros de compras y ventas.
+- ATS mensual.
+- Conciliación SRI vs ERP.
+
+**Estados mínimos del flujo**
+
+```text
+recibido
+  -> validando
+  -> validado
+  -> requiere_revision
+  -> convertido
+  -> contabilizado
+  -> incluido_en_ats
+```
+
+Estados alternos:
+
+```text
+duplicado
+rechazado_por_receptor
+sin_autorizacion
+xml_invalido
+descartado
+```
+
+**Regla UX**
+
+El usuario nunca debe sentir que el sistema hizo cambios tributarios importantes sin revisión. La automatización puede preparar, sugerir y llenar datos, pero las acciones críticas deben confirmarse:
+
+- Convertir en compra.
+- Crear cuenta por pagar.
+- Emitir retención.
+- Contabilizar.
+- Incluir en ATS definitivo.
+
+### Fases de implementación técnica
+
+**Fase 1: Base documental recibida**
+
+- Crear modelos de documentos recibidos.
+- Implementar carga XML individual.
+- Implementar carga ZIP.
+- Parsear factura, nota de crédito, nota de débito, retención, guía y liquidación.
+- Guardar XML original.
+- Detectar duplicados por clave de acceso.
+- Crear pantalla de bandeja básica.
+
+**Fase 2: Validación tributaria**
+
+- Validar que el receptor del XML corresponda a la empresa activa.
+- Consultar autorización por clave de acceso.
+- Mostrar estado SRI y errores.
+- Agregar bitácora de validaciones.
+- Permitir reintento manual.
+
+**Fase 3: Conversión operativa**
+
+- Convertir documento recibido en compra o gasto.
+- Crear proveedor si no existe, con confirmación.
+- Crear cuenta por pagar.
+- Vincular compra con XML recibido.
+- Preparar retención sugerida sin emitirla automáticamente.
+
+**Fase 4: Centro de Control SRI**
+
+- Consolidar documentos emitidos y recibidos.
+- Mostrar pendientes, rechazados, autorizados, sin enviar y duplicados.
+- Calcular IVA generado, IVA compras, crédito tributario, retenciones emitidas y recibidas.
+- Mostrar estimado mensual a pagar.
+
+**Fase 5: Libros y ATS**
+
+- Generar libro de ventas.
+- Generar libro de compras.
+- Validar datos faltantes para ATS.
+- Crear vista mensual de preparación.
+- Exportar ATS cuando el periodo esté completo.
+
+**Fase 6: Automatización por correo**
+
+- Configurar correo receptor por empresa.
+- Procesar adjuntos XML/PDF/ZIP.
+- Evitar duplicados.
+- Notificar documentos nuevos o con errores.
+- Crear correo tributario OF1 por empresa como producto premium.
+
+**Fase 7: Automatización inteligente**
+
+- Clasificar gastos según proveedor y descripción.
+- Sugerir cuenta contable.
+- Sugerir sustento tributario.
+- Sugerir retenciones.
+- Alertar inconsistencias antes del cierre mensual.
+
+### Decisiones explícitas sobre scraping SRI
+
+El scraping del portal SRI queda descartado como base del producto.
+
+Puede evaluarse únicamente como herramienta temporal de investigación interna o asistencia puntual, nunca como flujo crítico del cliente, porque:
+
+- El portal puede cambiar sin aviso.
+- Puede tener CAPTCHA.
+- Requiere credenciales sensibles del cliente.
+- Puede generar bloqueos.
+- Es difícil de monitorear y mantener.
+- Puede romper el cierre tributario en fechas críticas.
+
+La estrategia correcta es:
+
+```text
+XML / ZIP / correo receptor / correo tributario OF1
+  -> parser
+  -> validación por clave de acceso
+  -> Bandeja Tributaria
+  -> compra / CxP / retención / ATS / IVA / contabilidad
+```
+
+### Datos clave para compras y documentos recibidos
+
+Para que ATS, IVA, libros y contabilidad salgan con menos reproceso, cada compra o documento recibido debería conservar:
+
+- Tipo de comprobante.
+- Tipo de identificación.
+- RUC, cédula o pasaporte.
+- Número de autorización.
+- Clave de acceso.
+- Fecha de emisión.
+- Fecha de autorización.
+- Sustento tributario.
+- Tipo de gasto.
+- Base 0%.
+- Base gravada.
+- Base no objeto de IVA.
+- Base exenta.
+- IVA.
+- ICE.
+- Retención de renta.
+- Retención de IVA.
+- Documento relacionado, cuando aplique.
+
+### Propuesta comercial tributaria
+
+Mensaje sugerido:
+
+"FacturaOF1 administra tu ciclo tributario y operativo: ventas, compras, comprobantes electrónicos, retenciones, ATS, cartera, inventario y control de impuestos en un solo lugar."
+
+Este posicionamiento permite vender el ERP no solo como facturador, sino como herramienta de control mensual para dueños, administradores y contadores.
+
+### MVP recomendado del ERP tributario
+
+El primer objetivo no debe ser construir todo el sistema tributario completo, sino entregar una primera versión vendible y útil para contadores y empresas.
+
+**MVP funcional**
+
+- Bandeja de documentos recibidos.
+- Importación XML individual.
+- Importación ZIP.
+- Validación de duplicados.
+- Validación de receptor.
+- Resumen del documento recibido.
+- Conversión manual a compra o gasto.
+- Creación de cuenta por pagar.
+- Vinculación del XML original con la compra.
+- Reporte básico de compras por periodo.
+
+**MVP comercial**
+
+- Mensaje: "Importa tus XML y arma tus compras sin digitar todo de nuevo".
+- Cliente ideal inicial: contador o empresa con muchas facturas de proveedores.
+- Beneficio visible: menos digitación, menos errores y documentos listos para revisión tributaria.
+
+**MVP UX**
+
+- Una bandeja simple con filtros por periodo, proveedor, tipo, estado y monto.
+- Botón principal: `Importar XML/ZIP`.
+- Estados visuales: nuevo, duplicado, requiere revisión, validado, convertido.
+- Vista de detalle con XML, resumen, impuestos y acción `Convertir en compra`.
+- Nada debe contabilizarse ni emitirse automáticamente sin confirmación.
+
+**Después del MVP**
+
+- Validación SRI por clave de acceso.
+- Correo receptor por empresa.
+- Retenciones sugeridas.
+- Libro de compras.
+- Centro de Control SRI.
+- ATS.
+- Conciliación SRI vs ERP.
+- Correo tributario OF1 por empresa.
+
+### Matriz de prioridad para desarrollo
+
+| Prioridad | Bloque | Motivo | Resultado esperado |
+|---|---|---|---|
+| 1 | Importador XML/ZIP | Ahorra digitación desde el primer uso | Documentos recibidos cargados en lote |
+| 2 | Bandeja Tributaria | Ordena el trabajo del contador | Control por estado, periodo y proveedor |
+| 3 | Conversión a compra/CxP | Conecta SRI con operación real | Compra y cuenta por pagar creadas desde XML |
+| 4 | Validación por clave de acceso | Genera confianza documental | Documento confirmado contra autorización SRI |
+| 5 | Centro de Control SRI | Da visión mensual al dueño/contador | IVA, retenciones y pendientes visibles |
+| 6 | Libros compras/ventas | Facilita revisión y exportación | Reportes tributarios por periodo |
+| 7 | ATS | Producto muy vendible para contadores | Periodo tributario preparado para revisión |
+| 8 | Correo receptor | Automatiza recepción recurrente | XML procesados sin carga manual |
+| 9 | Correo tributario OF1 | Diferenciador SaaS | Recepción multiempresa ordenada |
+| 10 | IA tributaria | Acelera clasificación | Sugerencias de gasto, cuenta y sustento |
+
+### Definición de terminado para funciones tributarias
+
+Una función tributaria no debe considerarse terminada solo porque guarda datos. Debe cumplir:
+
+- Tiene modelo de datos claro.
+- Tiene estados auditables.
+- Tiene permisos por rol.
+- Tiene filtros por empresa y periodo.
+- Conserva XML original cuando aplica.
+- Tiene trazabilidad con documentos relacionados.
+- Maneja duplicados.
+- Muestra errores entendibles.
+- Permite revisión antes de acciones críticas.
+- Tiene exportación cuando el usuario naturalmente la espera.
+- Está documentada en este mapa si cambia el alcance del producto.
 
 ## Flujos de venta
 
@@ -308,13 +821,15 @@ Nichos:
 - Restaurantes: mesas, pedidos, POS, facturacion.
 - Comercios: stock, ventas, SRI.
 - Servicios profesionales: clientes, facturacion, cartera.
-- Contadores: multiempresa, SRI, reportes.
+- Contadores: multiempresa, SRI, documentos recibidos, ATS, retenciones y reportes tributarios.
 
 Acciones:
 - Mensajes por industria.
 - Demos con datos precargados.
 - Plan de entrada accesible.
 - Migracion asistida desde Excel.
+- Mensaje tributario para contadores: "cierra compras, ventas, retenciones y ATS con menos reproceso".
+- Demo por periodo mensual: documentos emitidos, recibidos, IVA estimado y pendientes SRI.
 
 ### Prioridad 4: vender automatizacion/IA como servicio premium
 
@@ -338,8 +853,17 @@ Acciones:
 
 ### Alto impacto
 
-- Centro de control SRI.
+- Centro de Control SRI.
 - Dashboard por rol.
+- Bandeja de documentos recibidos del SRI.
+- Carga XML/ZIP de comprobantes recibidos.
+- Correo receptor para comprobantes de proveedores.
+- Correo tributario OF1 por empresa.
+- Liquidacion de compra.
+- ATS automatico.
+- Libros de compras y ventas.
+- Conciliacion SRI vs ERP.
+- Retenciones inteligentes.
 - Onboarding mas guiado.
 - Reportes exportables mas comerciales.
 - Mejor trazabilidad de pagos y solicitudes.
@@ -404,6 +928,16 @@ Acciones:
 - Empresas activas.
 - Conversion a plan pago.
 - Churn mensual.
+- Documentos recibidos importados.
+- XML recibidos por correo.
+- XML/ZIP procesados por lote.
+- Documentos duplicados detectados.
+- Documentos recibidos convertidos en compra o cuenta por pagar.
+- Periodos ATS generados.
+- Periodos tributarios cerrados.
+- Rechazos SRI resueltos.
+- Diferencias detectadas en conciliacion SRI vs ERP.
+- Tiempo promedio de cierre mensual.
 
 ### Software/IA
 
@@ -431,21 +965,34 @@ Acciones:
 - APK listo para Play Store.
 - Validacion publica reforzada.
 
-### Fase 3: ERP por nichos
+### Fase 3: ERP tributario por nichos
 
 - Demos por industria.
 - Dashboard por rol.
-- Centro de control SRI.
+- Centro de Control SRI.
+- Bandeja de documentos recibidos.
+- Importación XML/ZIP de documentos recibidos.
+- Validación de autorización por clave de acceso.
+- Liquidacion de compra.
+- ATS automatico.
+- Libros de compras y ventas.
 - Onboarding guiado.
 - Reportes ejecutivos.
 
-### Fase 4: automatizacion comercial
+### Fase 4: automatizacion comercial y tributaria
 
 - CRM de leads.
 - WhatsApp automatizado.
 - Recordatorios de pago.
 - Campanas por cupon.
 - Scoring de prospectos.
+- Retenciones inteligentes.
+- Conciliacion SRI vs ERP.
+- Declaraciones prearmadas.
+- Alertas tributarias mensuales.
+- Correo receptor de comprobantes por empresa.
+- Correo tributario OF1 tipo `ruc@documentos.facturaof1.com`.
+- Clasificación automática de compras, gastos y sustentos tributarios.
 
 ## Recomendacion principal
 

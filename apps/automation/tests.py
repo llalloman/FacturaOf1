@@ -1,8 +1,8 @@
 from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory
 
-from .models import AutomationPrivacyConsent, CommercialLead
-from .views import PrivacyConsentCreateView
+from .models import AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
+from .views import InteractionCreateView, PrivacyConsentCreateView, WebhookEventCreateView
 
 
 @override_settings(AUTOMATION_API_TOKEN='test-token')
@@ -76,3 +76,51 @@ class AutomationPrivacyConsentTests(TestCase):
         consent = AutomationPrivacyConsent.objects.get()
         self.assertEqual(consent.contact_key, '279868742840481@lid')
         self.assertEqual(consent.phone, '')
+
+
+@override_settings(AUTOMATION_API_TOKEN='test-token')
+class AutomationIdempotencyTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.interaction_view = InteractionCreateView.as_view()
+        self.webhook_view = WebhookEventCreateView.as_view()
+
+    def test_interaction_accepts_long_idempotency_key_from_n8n(self):
+        long_key = 'whatsapp:inbound:593999999999:' + ('a' * 260)
+        response = self.interaction_view(self.factory.post(
+            '/api/automation/interactions/',
+            {
+                'direction': 'INBOUND',
+                'phone': '593999999999',
+                'channel': 'whatsapp',
+                'message': 'Hola',
+                'message_id': 'msg-test-1',
+                'idempotency_key': long_key,
+            },
+            format='json',
+            HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+
+        self.assertEqual(response.status_code, 201)
+        interaction = WhatsAppInteraction.objects.get()
+        self.assertLessEqual(len(interaction.idempotency_key), 220)
+        self.assertTrue(interaction.idempotency_key.startswith('whatsapp:whatsapp:INBOUND:'))
+
+    def test_webhook_event_accepts_long_idempotency_key(self):
+        long_key = 'webhook:' + ('b' * 260)
+        response = self.webhook_view(self.factory.post(
+            '/api/automation/webhook-events/',
+            {
+                'event_type': 'signature.status_changed',
+                'event_id': 'event-test-1',
+                'idempotency_key': long_key,
+                'payload': {'data': {'entity_type': 'signature_order', 'order_id': 10}},
+            },
+            format='json',
+            HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+
+        self.assertEqual(response.status_code, 201)
+        event = AutomationWebhookEvent.objects.get()
+        self.assertLessEqual(len(event.idempotency_key), 220)
+        self.assertTrue(event.idempotency_key.startswith('automation:webhook:'))

@@ -108,6 +108,15 @@ def build_hash(*parts):
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
+def normalize_idempotency_key(value, *, prefix='automation'):
+    key = str(value or '').strip()
+    if not key:
+        return ''
+    if len(key) <= 220:
+        return key
+    return f'{prefix}:{build_hash(key)}'
+
+
 class CommercialLeadSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     normalized_phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
@@ -206,6 +215,7 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
     lead_id = serializers.IntegerField(read_only=True)
     signature_order_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
     upsert_lead = serializers.BooleanField(required=False, default=True, write_only=True)
+    idempotency_key = serializers.CharField(required=False, allow_blank=True, max_length=None, validators=[])
 
     class Meta:
         model = WhatsAppInteraction
@@ -262,12 +272,21 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
         if attrs.get('ai_confidence') in ('', None):
             attrs['ai_confidence'] = None
 
+        if attrs.get('idempotency_key'):
+            attrs['idempotency_key'] = normalize_idempotency_key(
+                attrs['idempotency_key'],
+                prefix=f"whatsapp:{attrs.get('channel')}:{attrs.get('direction')}",
+            )
+
         if not attrs.get('idempotency_key'):
             message_key = attrs.get('message_id') or build_hash(
                 attrs.get('direction'), attrs.get('normalized_phone') or attrs.get('contact_key'), attrs.get('message_body'), attrs.get('raw_payload')
             )
             identity_key = attrs.get('normalized_phone') or attrs.get('contact_key')
-            attrs['idempotency_key'] = f"whatsapp:{attrs.get('channel')}:{attrs.get('direction')}:{identity_key}:{message_key}"
+            attrs['idempotency_key'] = normalize_idempotency_key(
+                f"whatsapp:{attrs.get('channel')}:{attrs.get('direction')}:{identity_key}:{message_key}",
+                prefix=f"whatsapp:{attrs.get('channel')}:{attrs.get('direction')}",
+            )
         return attrs
 
     def create(self, validated_data):
@@ -503,6 +522,9 @@ class SignatureOrderStatusSerializer(serializers.Serializer):
 
 
 class AutomationWebhookEventSerializer(serializers.ModelSerializer):
+    event_id = serializers.CharField(required=False, allow_blank=True)
+    idempotency_key = serializers.CharField(required=False, allow_blank=True, max_length=None, validators=[])
+
     class Meta:
         model = AutomationWebhookEvent
         fields = '__all__'
@@ -519,7 +541,11 @@ class AutomationWebhookEventSerializer(serializers.ModelSerializer):
         if not attrs.get('event_type'):
             raise serializers.ValidationError({'event_type': 'Debe enviar event_type.'})
         attrs['event_id'] = attrs.get('event_id') or payload.get('event_id') or build_hash(attrs['event_type'], payload)[:32]
-        attrs['idempotency_key'] = attrs.get('idempotency_key') or payload.get('idempotency_key') or attrs['event_id']
+        attrs['event_id'] = normalize_idempotency_key(attrs['event_id'], prefix='automation:event')[:80]
+        attrs['idempotency_key'] = normalize_idempotency_key(
+            attrs.get('idempotency_key') or payload.get('idempotency_key') or attrs['event_id'],
+            prefix='automation:webhook',
+        )
         data = payload.get('data') or {}
         attrs['entity_type'] = attrs.get('entity_type') or data.get('entity_type') or ''
         attrs['entity_id'] = attrs.get('entity_id') or str(data.get('order_id') or data.get('lead_id') or data.get('entity_id') or '')
