@@ -241,8 +241,8 @@ OF1 Solutions se organiza como un ecosistema con cuatro frentes:
 - Proveedores.
 - Ordenes de compra.
 - Recepciones.
-- Cuentas por pagar en evolucion.
-- Bandeja de documentos recibidos pendiente.
+- Cuentas por pagar con registro de pagos en evolucion.
+- Bandeja de documentos recibidos con MVP implementado.
 - Libro de compras pendiente.
 - Sustento tributario por compra pendiente.
 
@@ -253,6 +253,8 @@ OF1 Solutions se organiza como un ecosistema con cuatro frentes:
 - Contabilidad.
 - Declaraciones.
 - Nomina.
+- Trazabilidad bancaria por origen generada desde ventas, proveedores y nomina.
+- Conciliacion bancaria en evolucion.
 - ATS automatico pendiente.
 - Declaraciones prearmadas en evolucion.
 - Libro de ventas pendiente.
@@ -744,6 +746,148 @@ Una función tributaria no debe considerarse terminada solo porque guarda datos.
 - Permite revisión antes de acciones críticas.
 - Tiene exportación cuando el usuario naturalmente la espera.
 - Está documentada en este mapa si cambia el alcance del producto.
+
+## Diagnostico operativo del flujo ERP
+
+Fecha de revision: 2026-09-03.
+
+Este diagnostico se basa en la revision del codigo actual y una consulta general de conteos de la base disponible en el entorno local. No incluye datos sensibles; solo volumenes, estados y brechas de flujo.
+
+### Foto actual de uso
+
+| Area | Observacion |
+|---|---|
+| Empresas y usuarios | Existen 4 empresas y 8 usuarios; el enfoque multiempresa ya es necesario desde permisos, filtros y reportes. |
+| Ventas | Existen 96 ventas completadas por 4109.48; el flujo comercial esta activo. |
+| Facturacion SRI | Existen 48 comprobantes autorizados, 7 borradores, 3 anulados, 1 enviado, 1 rechazado y 1 no autorizado; se necesita un Centro de Control SRI visible. |
+| Bancos | Existen 34 movimientos por 3791.20; 21 conciliados y 13 pendientes. |
+| Cartera | Existen modelos y pantallas de cuentas por cobrar, pero la base consultada tiene 0 CxC; se debe validar que venta/factura a credito genere cartera en casos reales. |
+| Proveedores | Existen proveedores y CxP, pero la base consultada tiene 0 CxP y 0 pagos proveedor; el nuevo flujo documento recibido -> CxP debe probarse con XML reales. |
+| Documentos recibidos | Existen 5 documentos recibidos por 253.18, todos en estado recibido; falta empujarlos a conversion, pago, libro y control tributario. |
+| Automation/WhatsApp | Existen leads e interacciones; el canal comercial ya puede alimentar CRM, seguimiento y ventas asistidas. |
+
+### Flujo financiero recomendado
+
+El flujo correcto no es registrar todo primero en bancos. Bancos debe ser la consecuencia financiera o la conciliacion de una operacion, no el punto de partida unico.
+
+```mermaid
+flowchart LR
+    V[Venta] --> F[Factura SRI]
+    V --> P[Pago cliente]
+    P -->|Contado / transferencia / tarjeta| MB1[Movimiento bancario entrada]
+    V -->|Credito| CXC[Cuenta por cobrar]
+    CXC --> PC[Pago de cliente]
+    PC --> MB2[Movimiento bancario entrada]
+
+    XML[XML proveedor / ZIP / correo] --> DR[Bandeja Tributaria]
+    DR --> CXP[Cuenta por pagar]
+    CXP --> PP[Pago proveedor]
+    PP --> MB3[Movimiento bancario salida]
+
+    MB1 --> CONC[Conciliacion bancaria]
+    MB2 --> CONC
+    MB3 --> CONC
+    DR --> TAX[IVA / ATS / libros / control SRI]
+    F --> TAX
+```
+
+### Regla contable-operativa
+
+- Si entra dinero por venta contado: se registra pago y el sistema crea movimiento bancario de entrada.
+- Si la venta queda a credito: se crea cuenta por cobrar; cuando el cliente paga, se registra el cobro y se crea movimiento bancario.
+- Si llega factura de proveedor: entra por Bandeja Tributaria; se convierte a compra/gasto o cuenta por pagar.
+- Si se paga al proveedor: se registra pago proveedor y el sistema crea movimiento bancario de salida.
+- Si se carga un movimiento bancario manual: debe usarse para ajustes, saldos iniciales, comisiones, transferencias, gastos menores o movimientos no originados en ventas/compras.
+- La conciliacion bancaria debe comparar banco real contra movimientos generados por el ERP y marcar diferencias.
+
+### Brechas detectadas
+
+1. **Cartera sin datos reales**
+   - El modulo existe, pero no se observan cuentas por cobrar en la data consultada.
+   - Riesgo: ventas a credito pueden no estar cerrando el ciclo venta -> CxC -> cobro -> banco.
+
+2. **CxP recien conectado**
+   - Ya existe el flujo base documento recibido -> cuenta por pagar -> pago proveedor -> banco.
+   - Falta validarlo con XML reales, pagos parciales, pagos totales y notas de credito.
+
+3. **Bancos usado como registro general**
+   - El sistema permite movimientos manuales y movimientos generados.
+   - Debe reforzarse visualmente el origen para que el usuario sepa si un movimiento viene de venta, proveedor, nomina o ajuste manual.
+
+4. **Documentos recibidos todavia no llegan al cierre tributario**
+   - La bandeja importa XML/ZIP y puede convertir a CxP.
+   - Falta libro de compras, sustento tributario, validacion SRI por clave, retenciones sugeridas y ATS.
+
+5. **Centro de Control SRI pendiente**
+   - Hay suficientes estados de comprobantes para justificar una pantalla de control mensual.
+   - Debe mostrar pendientes, rechazados, no autorizados, autorizados, IVA ventas, IVA compras, retenciones y estimado a pagar.
+
+### Mejoras prioritarias desde el diagnostico
+
+1. **Cerrar flujo de cartera**
+   - Revisar creacion automatica de CxC desde ventas/facturas a credito.
+   - Mostrar CxC vinculada desde venta y factura.
+   - Registrar cobro contra CxC y generar movimiento bancario.
+   - Permitir pagos parciales, anulaciones y trazabilidad.
+
+2. **Cerrar flujo de proveedores**
+   - Probar documentos recibidos convertidos a CxP con XML reales.
+   - Permitir pago parcial o total desde CxP.
+   - Mostrar movimiento bancario generado desde pago proveedor.
+   - Manejar nota de credito como cruce contra CxP sin movimiento bancario.
+
+3. **Reforzar bancos como conciliador**
+   - Separar visualmente movimientos manuales y movimientos generados.
+   - Bloquear eliminacion directa de movimientos generados desde ventas, proveedores o nomina.
+   - Agregar filtros por origen: manual, venta, proveedor, nomina, transferencia, ajuste.
+   - Preparar importacion de extracto bancario CSV/Excel para conciliacion futura.
+
+4. **Convertir Bandeja Tributaria en modulo operativo**
+   - Estados visibles: recibido, requiere revision, validado, convertido, pagado, incluido en libro, incluido en ATS.
+   - Acciones claras: convertir a compra/gasto, crear CxP, asociar proveedor, marcar no deducible, descartar.
+   - Resumen por periodo: total compras, IVA compras, documentos pendientes y duplicados.
+
+5. **Centro de Control SRI**
+   - Unificar emitidos y recibidos por periodo.
+   - Mostrar alertas de comprobantes sin autorizar, rechazados, anulados o con diferencias.
+   - Mostrar estimacion mensual de IVA y retenciones.
+
+6. **Libro de compras y ventas**
+   - Generar reportes desde facturas emitidas y documentos recibidos.
+   - Exportar Excel/CSV/PDF.
+   - Preparar datos para ATS y declaraciones.
+
+7. **CRM y automatizacion comercial**
+   - Convertir leads de WhatsApp/landing en pipeline: nuevo, contactado, interesado, demo, propuesta, cerrado.
+   - Medir origen, respuesta, conversion y producto de interes.
+   - Conectar firma electronica, firmador, ERP y automatizacion con seguimiento por campana.
+
+### Decision de arquitectura
+
+El ERP debe evolucionar con esta regla:
+
+```text
+Operacion real
+  -> documento comercial o tributario
+  -> cuenta por cobrar / cuenta por pagar si aplica
+  -> pago o cobro
+  -> movimiento bancario
+  -> conciliacion
+  -> reporte tributario / contable
+```
+
+Bancos no debe reemplazar ventas, compras, CxC ni CxP. Bancos debe confirmar y conciliar el movimiento de dinero.
+
+### Proxima meta tecnica recomendada
+
+La siguiente meta de desarrollo debe ser **cerrar el circuito financiero basico**:
+
+1. Venta contado -> pago -> banco.
+2. Venta credito -> CxC -> cobro -> banco.
+3. XML proveedor -> documento recibido -> CxP -> pago proveedor -> banco.
+4. Banco -> conciliacion -> reporte.
+
+Cuando ese circuito este estable, el Centro de Control SRI, libros y ATS tendran datos confiables para crecer.
 
 ## Flujos de venta
 

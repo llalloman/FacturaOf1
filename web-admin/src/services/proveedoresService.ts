@@ -10,6 +10,60 @@ import type {
 
 export type ProveedorProductoPayload = Pick<ProveedorProducto, 'proveedor' | 'producto' | 'codigo_proveedor' | 'costo_referencia' | 'dias_entrega' | 'es_preferido' | 'activo'>;
 
+export interface CuentaPorPagarProveedor {
+  id: number;
+  uuid: string;
+  proveedor: number;
+  proveedor_nombre: string;
+  recepcion: number | null;
+  recepcion_numero: string | null;
+  numero_cuenta: string;
+  fecha_emision: string;
+  fecha_vencimiento: string;
+  dias_vencidos: number;
+  monto_total: string | number;
+  monto_pagado: string | number;
+  saldo: string | number;
+  estado: 'PENDIENTE' | 'PARCIAL' | 'PAGADA' | 'ANULADA';
+  notas: string;
+  creado_en: string;
+  actualizado_en: string;
+}
+
+export interface PagoProveedor {
+  id: number;
+  uuid: string;
+  proveedor: number;
+  proveedor_nombre: string;
+  cuenta_por_pagar: number;
+  cuenta_numero: string;
+  numero_pago: string;
+  fecha_pago: string;
+  forma_pago: 'EFECTIVO' | 'CHEQUE' | 'TRANSFERENCIA' | 'TARJETA' | 'NOTA_CREDITO';
+  monto: string | number;
+  numero_documento: string;
+  banco: string;
+  cuenta_bancaria: number | null;
+  movimiento_bancario: number | null;
+  notas: string;
+  registrado_por: number;
+  registrado_por_nombre: string;
+  creado_en: string;
+  actualizado_en: string;
+}
+
+export interface PagoProveedorPayload {
+  proveedor: number;
+  cuenta_por_pagar: number;
+  fecha_pago: string;
+  forma_pago: PagoProveedor['forma_pago'];
+  monto: number;
+  numero_documento?: string;
+  banco?: string;
+  cuenta_bancaria?: number | null;
+  notas?: string;
+}
+
 export interface RecepcionCompraPayload {
   orden_compra: number;
   bodega: number;
@@ -87,5 +141,28 @@ export const proveedoresService = {
   getBodegas: async (): Promise<Bodega[]> => {
     const { data } = await apiClient.get('/inventarios/bodegas/', { params: { page_size: 200 } });
     return Array.isArray(data) ? data : (data.results ?? []);
+  },
+
+  getCuentasPorPagar: async (params?: Record<string, unknown>): Promise<CuentaPorPagarProveedor[]> => {
+    const { data } = await apiClient.get('/proveedores/cuentas-por-pagar/', {
+      params: { page_size: 500, ...params },
+    });
+    return Array.isArray(data) ? data : (data.results ?? []);
+  },
+
+  getResumenCuentasPorPagar: async (): Promise<{
+    total_deuda: string | number;
+    cuentas_pendientes: number;
+    cuentas_vencidas: number;
+    total_vencido: string | number;
+    por_vencer_7dias: number;
+  }> => {
+    const { data } = await apiClient.get('/proveedores/cuentas-por-pagar/resumen/');
+    return data;
+  },
+
+  registrarPagoProveedor: async (payload: PagoProveedorPayload): Promise<PagoProveedor> => {
+    const { data } = await apiClient.post('/proveedores/pagos/', payload);
+    return data;
   },
 };
