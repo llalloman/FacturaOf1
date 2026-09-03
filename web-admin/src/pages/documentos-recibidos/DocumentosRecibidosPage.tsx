@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Copy,
+  CreditCard,
   FileArchive,
   FileSearch,
   FileText,
@@ -77,6 +78,19 @@ export default function DocumentosRecibidosPage() {
     },
   });
 
+  const convertirMutation = useMutation({
+    mutationFn: documentosRecibidosService.convertirCxp,
+    onSuccess: (documento) => {
+      queryClient.invalidateQueries({ queryKey: ['documentos-recibidos'] });
+      setSelectedDoc(documento);
+      toast.success('Cuenta por pagar creada', documento.cuenta_por_pagar_numero || 'Documento convertido correctamente.');
+    },
+    onError: (error: unknown) => {
+      const message = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(message || 'No se pudo convertir el documento.');
+    },
+  });
+
   const filtered = data.filter((doc) => {
     const search = searchTerm.toLowerCase();
     const matchText =
@@ -117,6 +131,11 @@ export default function DocumentosRecibidosPage() {
     await navigator.clipboard.writeText(clave);
     toast.success('Clave de acceso copiada');
   };
+
+  const canConvert = (doc: DocumentoRecibidoSRI) => (
+    !doc.cuenta_por_pagar &&
+    ['01', '03', '05'].includes(doc.tipo_comprobante)
+  );
 
   return (
     <div className="space-y-6">
@@ -252,14 +271,27 @@ export default function DocumentosRecibidosPage() {
                     )}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDoc(doc)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                    >
-                      <FileSearch className="h-4 w-4" />
-                      Ver
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      {canConvert(doc) && (
+                        <button
+                          type="button"
+                          onClick={() => convertirMutation.mutate(doc.id)}
+                          disabled={convertirMutation.isPending}
+                          className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <CreditCard className="h-4 w-4" />
+                          CxP
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDoc(doc)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <FileSearch className="h-4 w-4" />
+                        Ver
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -269,7 +301,13 @@ export default function DocumentosRecibidosPage() {
       </section>
 
       {selectedDoc && (
-        <DocumentoDetalleModal doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
+        <DocumentoDetalleModal
+          doc={selectedDoc}
+          onClose={() => setSelectedDoc(null)}
+          onConvert={() => convertirMutation.mutate(selectedDoc.id)}
+          canConvert={canConvert(selectedDoc)}
+          isConverting={convertirMutation.isPending}
+        />
       )}
     </div>
   );
@@ -307,7 +345,19 @@ function StatCard({
   );
 }
 
-function DocumentoDetalleModal({ doc, onClose }: { doc: DocumentoRecibidoSRI; onClose: () => void }) {
+function DocumentoDetalleModal({
+  doc,
+  onClose,
+  onConvert,
+  canConvert,
+  isConverting,
+}: {
+  doc: DocumentoRecibidoSRI;
+  onClose: () => void;
+  onConvert: () => void;
+  canConvert: boolean;
+  isConverting: boolean;
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4">
       <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-xl bg-white shadow-2xl">
@@ -322,6 +372,16 @@ function DocumentoDetalleModal({ doc, onClose }: { doc: DocumentoRecibidoSRI; on
           </button>
         </div>
         <div className="max-h-[70vh] overflow-y-auto p-6">
+          {doc.cuenta_por_pagar && (
+            <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+              <p className="font-semibold">Cuenta por pagar creada</p>
+              <p className="mt-1">
+                {doc.cuenta_por_pagar_numero || `CxP #${doc.cuenta_por_pagar}`}
+                {doc.proveedor_nombre ? ` - ${doc.proveedor_nombre}` : ''}
+              </p>
+            </div>
+          )}
+
           {doc.errores.length > 0 && (
             <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               <p className="font-semibold">Pendiente de revisión</p>
@@ -340,6 +400,8 @@ function DocumentoDetalleModal({ doc, onClose }: { doc: DocumentoRecibidoSRI; on
             <Info label="IVA" value={formatCurrency(doc.iva)} />
             <Info label="Subtotal 0%" value={formatCurrency(doc.subtotal_0)} />
             <Info label="Total" value={formatCurrency(doc.total)} strong />
+            <Info label="Proveedor vinculado" value={doc.proveedor_nombre || 'Sin vincular'} />
+            <Info label="Cuenta por pagar" value={doc.cuenta_por_pagar_numero || 'No creada'} />
           </div>
 
           <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200">
@@ -367,6 +429,27 @@ function DocumentoDetalleModal({ doc, onClose }: { doc: DocumentoRecibidoSRI; on
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-slate-200 px-4 py-2.5 font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
+              Cerrar
+            </button>
+            {canConvert && (
+              <button
+                type="button"
+                onClick={onConvert}
+                disabled={isConverting}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+              >
+                <CreditCard className="h-4 w-4" />
+                {isConverting ? 'Convirtiendo...' : 'Crear cuenta por pagar'}
+              </button>
+            )}
           </div>
         </div>
       </div>

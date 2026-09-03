@@ -24,6 +24,8 @@ class DocumentoRecibidoSRISerializer(serializers.ModelSerializer):
     tipo_comprobante_display = serializers.CharField(source='get_tipo_comprobante_display', read_only=True)
     estado_interno_display = serializers.CharField(source='get_estado_interno_display', read_only=True)
     estado_sri_display = serializers.CharField(source='get_estado_sri_display', read_only=True)
+    proveedor_nombre = serializers.CharField(source='proveedor.razon_social', read_only=True, allow_null=True)
+    cuenta_por_pagar_numero = serializers.CharField(source='cuenta_por_pagar.numero_cuenta', read_only=True, allow_null=True)
 
     class Meta:
         model = DocumentoRecibidoSRI
@@ -37,6 +39,8 @@ class DocumentoRecibidoSRISerializer(serializers.ModelSerializer):
             'subtotal_0', 'subtotal_iva', 'subtotal_no_objeto', 'subtotal_exento',
             'iva', 'ice', 'total',
             'nombre_archivo', 'observaciones', 'errores', 'metadata',
+            'proveedor', 'proveedor_nombre',
+            'cuenta_por_pagar', 'cuenta_por_pagar_numero', 'fecha_conversion',
             'fecha_creacion', 'fecha_modificacion',
             'detalles', 'impuestos',
         ]

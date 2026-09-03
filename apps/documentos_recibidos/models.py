@@ -88,6 +88,24 @@ class DocumentoRecibidoSRI(models.Model):
     errores = models.JSONField(_('errores'), default=list, blank=True)
     metadata = models.JSONField(_('metadata'), default=dict, blank=True)
 
+    proveedor = models.ForeignKey(
+        'proveedores.Proveedor',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documentos_recibidos_sri',
+        verbose_name=_('proveedor'),
+    )
+    cuenta_por_pagar = models.OneToOneField(
+        'proveedores.CuentaPorPagar',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documento_recibido_sri',
+        verbose_name=_('cuenta por pagar'),
+    )
+    fecha_conversion = models.DateTimeField(_('fecha de conversion'), null=True, blank=True)
+
     fecha_creacion = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
     fecha_modificacion = models.DateTimeField(_('fecha de modificación'), auto_now=True)
 

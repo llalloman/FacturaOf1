@@ -1,4 +1,5 @@
 import zipfile
+from datetime import timedelta
 from io import BytesIO
 from xml.etree import ElementTree as ET
 
@@ -13,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.permissions import HasModuleAccess
+from apps.proveedores.models import CuentaPorPagar, Proveedor
 
 from .models import DocumentoRecibidoDetalle, DocumentoRecibidoImpuesto, DocumentoRecibidoSRI
 from .serializers import DocumentoRecibidoSRISerializer
@@ -53,6 +55,7 @@ class DocumentoRecibidoSRIViewSet(viewsets.ReadOnlyModelViewSet):
         return (
             DocumentoRecibidoSRI.objects
             .filter(empresa=empresa)
+            .select_related('proveedor', 'cuenta_por_pagar')
             .prefetch_related('detalles', 'impuestos')
         )
 
@@ -68,12 +71,113 @@ class DocumentoRecibidoSRIViewSet(viewsets.ReadOnlyModelViewSet):
 
         resultado = {'creados': 0, 'duplicados': 0, 'errores': 0, 'documentos': []}
         for archivo in archivos:
-            for nombre, contenido in _expandir_archivo(archivo):
+            try:
+                items = list(_expandir_archivo(archivo))
+            except zipfile.BadZipFile:
+                resultado['errores'] += 1
+                resultado['documentos'].append({
+                    'resultado': 'errores',
+                    'nombre_archivo': archivo.name,
+                    'error': 'El ZIP no es válido o está dañado.',
+                })
+                continue
+
+            for nombre, contenido in items:
                 item = self._importar_xml(empresa, request.user, nombre, contenido)
                 resultado[item['resultado']] += 1
                 resultado['documentos'].append(item)
 
         return Response(resultado, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='convertir-cxp')
+    @transaction.atomic
+    def convertir_cxp(self, request, pk=None):
+        empresa = _get_empresa_from_request(request)
+        if not empresa:
+            return Response({'error': 'No hay empresa configurada para este usuario.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        documento = (
+            self.get_queryset()
+            .select_for_update()
+            .filter(pk=pk)
+            .first()
+        )
+        if not documento:
+            return Response({'error': 'Documento recibido no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if documento.cuenta_por_pagar_id:
+            return Response(self.get_serializer(documento).data, status=status.HTTP_200_OK)
+
+        tipos_convertibles = {
+            DocumentoRecibidoSRI.TipoComprobanteChoices.FACTURA,
+            DocumentoRecibidoSRI.TipoComprobanteChoices.LIQUIDACION_COMPRA,
+            DocumentoRecibidoSRI.TipoComprobanteChoices.NOTA_DEBITO,
+        }
+        if documento.tipo_comprobante not in tipos_convertibles:
+            return Response(
+                {'error': 'Solo facturas, liquidaciones de compra y notas de débito pueden convertirse en cuenta por pagar.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if documento.total <= 0:
+            return Response({'error': 'El documento no tiene un total válido para cuenta por pagar.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not documento.ruc_emisor:
+            return Response({'error': 'El XML no contiene RUC del proveedor.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if any('receptor del XML no coincide' in str(error) for error in documento.errores):
+            return Response(
+                {'error': 'El receptor del XML no coincide con la empresa activa. Revisa el documento antes de convertir.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        proveedor, proveedor_creado = Proveedor.objects.get_or_create(
+            empresa=empresa,
+            identificacion=documento.ruc_emisor,
+            defaults={
+                'tipo_identificacion': Proveedor.TipoIdentificacionChoices.RUC if len(documento.ruc_emisor) == 13 else Proveedor.TipoIdentificacionChoices.CEDULA,
+                'razon_social': documento.razon_social_emisor or documento.ruc_emisor,
+                'nombre_comercial': documento.razon_social_emisor or '',
+                'notas': 'Creado automáticamente desde Bandeja Tributaria.',
+            },
+        )
+
+        fecha_emision = documento.fecha_emision or timezone.localdate()
+        dias_credito = max(proveedor.dias_credito or 0, 0)
+        numero_cuenta = _generar_numero_cuenta(empresa, documento)
+        cuenta = CuentaPorPagar.objects.create(
+            empresa=empresa,
+            proveedor=proveedor,
+            numero_cuenta=numero_cuenta,
+            fecha_emision=fecha_emision,
+            fecha_vencimiento=fecha_emision + timedelta(days=dias_credito),
+            monto_total=documento.total,
+            monto_pagado=0,
+            saldo=documento.total,
+            estado=CuentaPorPagar.EstadoChoices.PENDIENTE,
+            notas=(
+                f'Generada desde documento recibido SRI {documento.numero_comprobante or documento.clave_acceso}. '
+                f'Clave de acceso: {documento.clave_acceso}.'
+            ),
+        )
+
+        metadata = dict(documento.metadata or {})
+        metadata['conversion_cxp'] = {
+            'proveedor_creado': proveedor_creado,
+            'usuario_id': request.user.id,
+            'fecha': timezone.now().isoformat(),
+        }
+        documento.proveedor = proveedor
+        documento.cuenta_por_pagar = cuenta
+        documento.estado_interno = DocumentoRecibidoSRI.EstadoInternoChoices.CONVERTIDO
+        documento.fecha_conversion = timezone.now()
+        documento.metadata = metadata
+        documento.save(update_fields=[
+            'proveedor', 'cuenta_por_pagar', 'estado_interno',
+            'fecha_conversion', 'metadata', 'fecha_modificacion',
+        ])
+
+        return Response(self.get_serializer(documento).data, status=status.HTTP_201_CREATED)
 
     @transaction.atomic
     def _importar_xml(self, empresa, usuario, nombre_archivo, xml_text):
@@ -171,6 +275,20 @@ def _expandir_archivo(archivo):
                 yield item.filename, _decode_bytes(zip_file.read(item))
     else:
         yield nombre, _decode_bytes(contenido)
+
+
+def _generar_numero_cuenta(empresa, documento):
+    base = documento.numero_comprobante or f'DOC-{documento.id}'
+    numero = f'DR-{empresa.id}-{base}'[:50]
+    if not CuentaPorPagar.objects.filter(empresa=empresa, numero_cuenta=numero).exists():
+        return numero
+
+    suffix = 2
+    while True:
+        candidate = f'{numero[:45]}-{suffix:02d}'
+        if not CuentaPorPagar.objects.filter(empresa=empresa, numero_cuenta=candidate).exists():
+            return candidate
+        suffix += 1
 
 
 def _decode_bytes(contenido: bytes) -> str:

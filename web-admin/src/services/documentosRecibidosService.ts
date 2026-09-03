@@ -41,6 +41,11 @@ export interface DocumentoRecibidoSRI {
   observaciones: string;
   errores: string[];
   metadata: Record<string, unknown>;
+  proveedor: number | null;
+  proveedor_nombre: string | null;
+  cuenta_por_pagar: number | null;
+  cuenta_por_pagar_numero: string | null;
+  fecha_conversion: string | null;
   fecha_creacion: string;
   fecha_modificacion: string;
   detalles: DocumentoRecibidoDetalle[];
@@ -95,6 +100,13 @@ export const documentosRecibidosService = {
       '/documentos-recibidos/importar/',
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return response.data;
+  },
+
+  convertirCxp: async (id: number) => {
+    const response = await apiClient.post<DocumentoRecibidoSRI>(
+      `/documentos-recibidos/${id}/convertir-cxp/`,
     );
     return response.data;
   },
