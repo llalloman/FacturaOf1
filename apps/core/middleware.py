@@ -31,6 +31,9 @@ class PublicApiCorsMiddleware:
                 request.headers.get('Access-Control-Request-Headers')
                 or 'authorization, content-type, x-automation-token, x-empresa-id'
             )
+            expose_headers = getattr(settings, 'CORS_EXPOSE_HEADERS', [])
+            if expose_headers:
+                response['Access-Control-Expose-Headers'] = ', '.join(expose_headers)
             response['Access-Control-Max-Age'] = '86400'
         return response
 

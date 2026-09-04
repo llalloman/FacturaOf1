@@ -283,6 +283,11 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.of1solutions\.com$",
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_EXPOSE_HEADERS = [
+    'Content-Disposition',
+    'X-Firmador-Document-Id',
+    'X-Firmador-Keep-File',
+]
 
 _csrf_extra = config('CSRF_TRUSTED_ORIGINS', default='')
 _csrf_extra_list = [o.strip() for o in _csrf_extra.split(',') if o.strip()]

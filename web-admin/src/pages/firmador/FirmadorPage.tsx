@@ -379,7 +379,7 @@ export default function FirmadorPage() {
   const handleDownloadDocument = async (doc: FirmadorDocumento) => {
     setDownloadingDocumentId(doc.id);
     try {
-      const result = await firmadorService.descargarDocumento(doc.id);
+      const result = await firmadorService.descargarDocumento(doc.id, doc.signed_file_name || doc.original_file_name);
       const saveMode = await saveOrDownloadPdf(result.blob, result.fileName);
       showToast(saveMode === 'native' ? 'PDF listo para guardar o compartir.' : 'PDF descargado.', 'success');
     } catch (error) {

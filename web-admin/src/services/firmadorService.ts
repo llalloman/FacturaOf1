@@ -214,6 +214,12 @@ const fileNameFromDisposition = (header?: string): string | null => {
   return match?.[1] ?? null;
 };
 
+const signedFileNameFromOriginal = (originalName?: string): string => {
+  const cleanName = (originalName || 'documento.pdf').split(/[\\/]/).pop() || 'documento.pdf';
+  const baseName = cleanName.replace(/\.[^.]+$/, '').trim() || 'documento';
+  return `${baseName}-SIGNED.pdf`;
+};
+
 export const firmadorService = {
   getPerfil: async (): Promise<FirmadorWorkspace> => {
     const { data } = await apiClient.get('/firmador/perfil/');
@@ -273,13 +279,13 @@ export const firmadorService = {
     await apiClient.delete(`/firmador/documentos/${id}/`);
   },
 
-  descargarDocumento: async (id: number): Promise<{ blob: Blob; fileName: string }> => {
+  descargarDocumento: async (id: number, fallbackFileName?: string): Promise<{ blob: Blob; fileName: string }> => {
     const response = await apiClient.get(`/firmador/documentos/${id}/descargar/`, {
       responseType: 'blob',
     });
     return {
       blob: response.data,
-      fileName: fileNameFromDisposition(response.headers['content-disposition']) ?? 'documento-SIGNED.pdf',
+      fileName: fileNameFromDisposition(response.headers['content-disposition']) ?? fallbackFileName ?? 'documento-SIGNED.pdf',
     };
   },
 
@@ -322,7 +328,7 @@ export const firmadorService = {
 
     return {
       blob: response.data,
-      fileName: fileNameFromDisposition(response.headers['content-disposition']) ?? 'documento-SIGNED.pdf',
+      fileName: fileNameFromDisposition(response.headers['content-disposition']) ?? signedFileNameFromOriginal(payload.pdf.name),
       documentId: response.headers['x-firmador-document-id'],
       keepFile: response.headers['x-firmador-keep-file'] === 'true',
     };
