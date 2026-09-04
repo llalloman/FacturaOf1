@@ -27,6 +27,7 @@ from .serializers import (
 )
 from .services.certificates import decrypt_certificate, parse_and_encrypt_certificate
 from .services.pdf_signer import (
+    build_signed_pdf_filename,
     inspect_signed_pdf,
     sign_pdf_with_pkcs12,
     validate_certificate_upload,
@@ -224,7 +225,7 @@ class FirmadorDocumentoViewSet(viewsets.ModelViewSet):
         return FileResponse(
             documento.signed_file.open('rb'),
             as_attachment=True,
-            filename=documento.signed_file_name or 'documento-firmado.pdf',
+            filename=documento.signed_file_name or build_signed_pdf_filename(documento.original_file_name),
             content_type='application/pdf',
         )
 
@@ -572,7 +573,7 @@ def descargar_documento_publico(request, pk):
     return FileResponse(
         documento.signed_file.open('rb'),
         as_attachment=True,
-        filename=documento.signed_file_name or 'documento-firmado.pdf',
+        filename=documento.signed_file_name or build_signed_pdf_filename(documento.original_file_name),
         content_type='application/pdf',
     )
 

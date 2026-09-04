@@ -24,6 +24,13 @@ def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def build_signed_pdf_filename(original_file_name: str) -> str:
+    original_name = os.path.basename(original_file_name or 'documento.pdf')
+    base_name, _ = os.path.splitext(original_name)
+    base_name = (base_name or 'documento').strip()
+    return f'{base_name}-SIGNED.pdf'
+
+
 def inspect_signed_pdf(file) -> dict:
     content = _read_file(file)
     result = {
@@ -135,9 +142,7 @@ def sign_pdf_with_pkcs12(
     pdf_content = _read_file(pdf_file)
     cert_content = _read_file(certificate_file)
     original_hash = sha256_bytes(pdf_content)
-    original_name = os.path.basename(getattr(pdf_file, 'name', '') or 'documento.pdf')
-    base_name, _ = os.path.splitext(original_name)
-    signed_file_name = f'{base_name}-firmado.pdf'
+    signed_file_name = build_signed_pdf_filename(getattr(pdf_file, 'name', '') or 'documento.pdf')
 
     with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as pdf_tmp:
         pdf_tmp.write(pdf_content)

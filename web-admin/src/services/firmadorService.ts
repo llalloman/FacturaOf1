@@ -202,6 +202,14 @@ export interface FirmarPdfResponse {
 
 const fileNameFromDisposition = (header?: string): string | null => {
   if (!header) return null;
+  const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
   const match = header.match(/filename="?([^"]+)"?/i);
   return match?.[1] ?? null;
 };
@@ -271,7 +279,7 @@ export const firmadorService = {
     });
     return {
       blob: response.data,
-      fileName: fileNameFromDisposition(response.headers['content-disposition']) ?? 'documento-firmado.pdf',
+      fileName: fileNameFromDisposition(response.headers['content-disposition']) ?? 'documento-SIGNED.pdf',
     };
   },
 
@@ -314,7 +322,7 @@ export const firmadorService = {
 
     return {
       blob: response.data,
-      fileName: fileNameFromDisposition(response.headers['content-disposition']) ?? 'documento-firmado.pdf',
+      fileName: fileNameFromDisposition(response.headers['content-disposition']) ?? 'documento-SIGNED.pdf',
       documentId: response.headers['x-firmador-document-id'],
       keepFile: response.headers['x-firmador-keep-file'] === 'true',
     };
