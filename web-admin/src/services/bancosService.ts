@@ -34,7 +34,7 @@ export interface MovimientoBancario {
   notas: string;
   created_at: string;
   es_entrada: boolean;
-  origen: 'MANUAL' | 'VENTA' | 'PAGO_PROVEEDOR' | 'NOMINA';
+  origen: 'MANUAL' | 'VENTA' | 'CARTERA' | 'PAGO_PROVEEDOR' | 'NOMINA';
   origen_referencia: string;
   eliminable: boolean;
 }
@@ -51,7 +51,7 @@ export interface ExtractoRow {
   salida: number;
   saldo: number;
   conciliado: boolean;
-  origen: 'MANUAL' | 'VENTA' | 'PAGO_PROVEEDOR' | 'NOMINA';
+  origen: 'MANUAL' | 'VENTA' | 'CARTERA' | 'PAGO_PROVEEDOR' | 'NOMINA';
   origen_referencia: string;
   eliminable: boolean;
 }

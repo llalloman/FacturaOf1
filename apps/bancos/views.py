@@ -58,10 +58,31 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
         ).select_related(
             'cuenta',
             'pago_venta__venta',
+            'pago_cliente__cuenta',
             'pago_proveedor',
             'pago_nomina__rol__empleado',
         )
 
+    @transaction.atomic
+    def perform_create(self, serializer):
+        movimiento = serializer.save()
+        from apps.core.audit import audit_event
+        audit_event(
+            empresa=movimiento.cuenta.empresa,
+            usuario=self.request.user,
+            accion='CREAR_MOVIMIENTO_BANCARIO_MANUAL',
+            modulo='bancos',
+            referencia=str(movimiento.pk),
+            datos={
+                'cuenta_id': movimiento.cuenta_id,
+                'fecha': movimiento.fecha.isoformat(),
+                'tipo': movimiento.tipo,
+                'descripcion': movimiento.descripcion,
+                'referencia': movimiento.referencia,
+                'monto': str(movimiento.monto),
+                'conciliado': movimiento.conciliado,
+            },
+        )
 
     @transaction.atomic
     def perform_update(self, serializer):
@@ -113,6 +134,13 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
                     'Anula la operación de origen para mantener la trazabilidad.'
                 )
             })
+        if hasattr(instance, 'pago_cliente'):
+            raise serializers.ValidationError({
+                'detail': (
+                    'Este movimiento fue generado por un cobro de cartera. '
+                    'Anula o elimina el cobro de origen para mantener la trazabilidad.'
+                )
+            })
         if hasattr(instance, 'pago_proveedor'):
             raise serializers.ValidationError({
                 'detail': (
@@ -150,8 +178,25 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def conciliar(self, request, pk=None):
         mov = self.get_object()
+        estado_anterior = mov.conciliado
         mov.conciliado = not mov.conciliado
         mov.save()
+        from apps.core.audit import audit_event
+        audit_event(
+            empresa=mov.cuenta.empresa,
+            usuario=request.user,
+            accion='CONCILIAR_MOVIMIENTO_BANCARIO' if mov.conciliado else 'DESCONCILIAR_MOVIMIENTO_BANCARIO',
+            modulo='bancos',
+            referencia=str(mov.pk),
+            datos={
+                'estado_anterior': estado_anterior,
+                'estado_nuevo': mov.conciliado,
+                'cuenta_id': mov.cuenta_id,
+                'tipo': mov.tipo,
+                'monto': str(mov.monto),
+                'origen': MovimientoBancarioSerializer(mov).data.get('origen'),
+            },
+        )
         return Response({
             'conciliado': mov.conciliado,
             'detail': 'Conciliado' if mov.conciliado else 'Marcado como no conciliado',
@@ -162,10 +207,34 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
         """Concilia varios movimientos a la vez. Body: {ids: [1,2,...], conciliado: true}"""
         ids        = request.data.get('ids', [])
         conciliado = request.data.get('conciliado', True)
+        movimientos = list(MovimientoBancario.objects.filter(
+            pk__in=ids,
+            cuenta__empresa=request.user.empresa,
+        ).values('id', 'conciliado', 'cuenta_id', 'tipo', 'monto'))
         updated = MovimientoBancario.objects.filter(
             pk__in=ids,
             cuenta__empresa=request.user.empresa,
         ).update(conciliado=conciliado)
+        from apps.core.audit import audit_event
+        audit_event(
+            empresa=request.user.empresa,
+            usuario=request.user,
+            accion='CONCILIAR_MOVIMIENTOS_BANCARIOS' if conciliado else 'DESCONCILIAR_MOVIMIENTOS_BANCARIOS',
+            modulo='bancos',
+            referencia=f'lote:{updated}',
+            datos={
+                'ids': ids,
+                'actualizados': updated,
+                'conciliado': conciliado,
+                'movimientos_antes': [
+                    {
+                        **mov,
+                        'monto': str(mov['monto']),
+                    }
+                    for mov in movimientos
+                ],
+            },
+        )
         return Response({'actualizados': updated})
 
     @action(detail=False, methods=['get'])

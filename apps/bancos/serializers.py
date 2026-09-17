@@ -56,6 +56,8 @@ class MovimientoBancarioSerializer(serializers.ModelSerializer):
     def get_origen(self, obj):
         if hasattr(obj, 'pago_venta'):
             return 'VENTA'
+        if hasattr(obj, 'pago_cliente'):
+            return 'CARTERA'
         if hasattr(obj, 'pago_proveedor'):
             return 'PAGO_PROVEEDOR'
         if hasattr(obj, 'pago_nomina'):
@@ -65,6 +67,8 @@ class MovimientoBancarioSerializer(serializers.ModelSerializer):
     def get_origen_referencia(self, obj):
         if hasattr(obj, 'pago_venta'):
             return obj.pago_venta.venta.numero_venta
+        if hasattr(obj, 'pago_cliente'):
+            return obj.pago_cliente.cuenta.numero_cuenta or f'CXC-{obj.pago_cliente.cuenta_id}'
         if hasattr(obj, 'pago_proveedor'):
             return obj.pago_proveedor.numero_pago
         if hasattr(obj, 'pago_nomina'):

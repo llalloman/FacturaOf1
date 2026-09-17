@@ -144,6 +144,22 @@ class PagoCliente(models.Model):
     fecha_pago  = models.DateField(_('fecha de pago'))
     monto       = models.DecimalField(_('monto'), max_digits=12, decimal_places=2)
     forma_pago  = models.CharField(_('forma de pago'), max_length=20, choices=FORMA_PAGO_CHOICES, default='EFECTIVO')
+    cuenta_bancaria = models.ForeignKey(
+        'bancos.CuentaBancaria',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagos_clientes',
+        verbose_name=_('cuenta destino'),
+    )
+    movimiento_bancario = models.OneToOneField(
+        'bancos.MovimientoBancario',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pago_cliente',
+        verbose_name=_('movimiento bancario'),
+    )
     referencia  = models.CharField(_('referencia'), max_length=200, blank=True)
     notas       = models.TextField(_('notas'), blank=True)
     created_at  = models.DateTimeField(auto_now_add=True)

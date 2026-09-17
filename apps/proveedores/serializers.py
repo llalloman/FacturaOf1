@@ -431,14 +431,28 @@ class PagoProveedorSerializer(serializers.ModelSerializer):
         validated_data['numero_pago'] = f"{empresa.id}-PP-{siguiente_num:06d}"
         
         pago = PagoProveedor.objects.create(**validated_data)
-        
-        # Actualizar cuenta por pagar
-        cuenta = pago.cuenta_por_pagar
-        cuenta.monto_pagado += pago.monto
-        cuenta.actualizar_estado_pago()
-        cuenta.save()
 
         from apps.proveedores.finance import registrar_movimiento_bancario_pago_proveedor
-        registrar_movimiento_bancario_pago_proveedor(pago)
+        movimiento = registrar_movimiento_bancario_pago_proveedor(pago)
+
+        pago.cuenta_por_pagar.refresh_from_db()
+        from apps.core.audit import audit_event
+        audit_event(
+            empresa=pago.empresa,
+            usuario=self.context['request'].user,
+            accion='REGISTRAR_PAGO_PROVEEDOR',
+            modulo='proveedores',
+            referencia=pago.numero_pago,
+            datos={
+                'pago_id': pago.id,
+                'proveedor_id': pago.proveedor_id,
+                'cuenta_por_pagar_id': pago.cuenta_por_pagar_id,
+                'monto': str(pago.monto),
+                'forma_pago': pago.forma_pago,
+                'cuenta_bancaria_id': pago.cuenta_bancaria_id,
+                'movimiento_bancario_id': movimiento.id if movimiento else None,
+                'saldo_actual': str(pago.cuenta_por_pagar.saldo),
+            },
+        )
         
         return pago

@@ -490,6 +490,8 @@ export interface PagoCliente {
   fecha_pago: string;
   monto: number;
   forma_pago: 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA_DEBITO' | 'TARJETA_CREDITO' | 'CHEQUE' | 'OTRO';
+  cuenta_bancaria?: number | null;
+  movimiento_bancario?: number | null;
   referencia: string;
   notas: string;
   created_at: string;

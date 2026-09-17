@@ -7,9 +7,10 @@ class PagoClienteSerializer(serializers.ModelSerializer):
         model = PagoCliente
         fields = [
             'id', 'cuenta', 'fecha_pago', 'monto',
-            'forma_pago', 'referencia', 'notas', 'created_at',
+            'forma_pago', 'cuenta_bancaria', 'movimiento_bancario',
+            'referencia', 'notas', 'created_at',
         ]
-        read_only_fields = ['created_at']
+        read_only_fields = ['movimiento_bancario', 'created_at']
 
     def validate_monto(self, value):
         if value <= 0:
@@ -19,11 +20,41 @@ class PagoClienteSerializer(serializers.ModelSerializer):
     def validate(self, data):
         cuenta = data.get('cuenta') or getattr(self.instance, 'cuenta', None)
         monto = data.get('monto', 0)
+        cuenta_bancaria = data.get('cuenta_bancaria')
         if cuenta and monto > cuenta.saldo:
             raise serializers.ValidationError(
                 f'El monto ({monto}) supera el saldo pendiente ({cuenta.saldo}).'
             )
+        if cuenta_bancaria and cuenta and cuenta_bancaria.empresa_id != cuenta.empresa_id:
+            raise serializers.ValidationError({'cuenta_bancaria': 'La cuenta bancaria no pertenece a la empresa de la cuenta por cobrar.'})
+        if cuenta_bancaria and not cuenta_bancaria.activa:
+            raise serializers.ValidationError({'cuenta_bancaria': 'La cuenta bancaria seleccionada esta inactiva.'})
         return data
+
+    def create(self, validated_data):
+        pago = super().create(validated_data)
+        from apps.cartera.finance import registrar_movimiento_bancario_pago_cliente
+        movimiento = registrar_movimiento_bancario_pago_cliente(pago)
+
+        request = self.context.get('request')
+        from apps.core.audit import audit_event
+        audit_event(
+            empresa=pago.cuenta.empresa,
+            usuario=getattr(request, 'user', None),
+            accion='REGISTRAR_COBRO_CARTERA',
+            modulo='cartera',
+            referencia=pago.cuenta.numero_cuenta or str(pago.cuenta_id),
+            datos={
+                'pago_id': pago.id,
+                'cuenta_por_cobrar_id': pago.cuenta_id,
+                'monto': str(pago.monto),
+                'forma_pago': pago.forma_pago,
+                'cuenta_bancaria_id': pago.cuenta_bancaria_id,
+                'movimiento_bancario_id': movimiento.id if movimiento else None,
+                'saldo_actual': str(pago.cuenta.saldo),
+            },
+        )
+        return pago
 
 
 class MovimientoCuentaPorCobrarSerializer(serializers.ModelSerializer):
@@ -107,4 +138,22 @@ class CuentaPorCobrarCreateSerializer(serializers.ModelSerializer):
         empresa = getattr(request.user, 'empresa', None) if request else None
         validated_data['empresa'] = empresa
         validated_data['saldo'] = validated_data['monto_total']
-        return super().create(validated_data)
+        cuenta = super().create(validated_data)
+        from apps.core.audit import audit_event
+        audit_event(
+            empresa=empresa,
+            usuario=getattr(request, 'user', None),
+            accion='CREAR_CUENTA_POR_COBRAR',
+            modulo='cartera',
+            referencia=cuenta.numero_cuenta or str(cuenta.id),
+            datos={
+                'cuenta_por_cobrar_id': cuenta.id,
+                'cliente_id': cuenta.cliente_id,
+                'factura_id': cuenta.factura_id,
+                'monto_total': str(cuenta.monto_total),
+                'saldo': str(cuenta.saldo),
+                'fecha_emision': cuenta.fecha_emision.isoformat(),
+                'fecha_vencimiento': cuenta.fecha_vencimiento.isoformat(),
+            },
+        )
+        return cuenta

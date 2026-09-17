@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.db import transaction
 from django.db.models import Sum, Q
 from django.utils import timezone
 from rest_framework import viewsets, status
@@ -168,7 +169,33 @@ class PagoClienteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return PagoCliente.objects.filter(
             cuenta__empresa=self.request.user.empresa
-        ).select_related('cuenta__cliente')
+        ).select_related('cuenta__cliente', 'cuenta_bancaria', 'movimiento_bancario')
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        cuenta = instance.cuenta
+        movimiento = getattr(instance, 'movimiento_bancario', None)
+        datos = {
+            'pago_id': instance.id,
+            'cuenta_por_cobrar_id': cuenta.id,
+            'monto': str(instance.monto),
+            'forma_pago': instance.forma_pago,
+            'cuenta_bancaria_id': instance.cuenta_bancaria_id,
+            'movimiento_bancario_id': movimiento.id if movimiento else None,
+        }
+        if movimiento:
+            movimiento.delete()
+        instance.delete()
+        cuenta.refresh_from_db()
+        from apps.core.audit import audit_event
+        audit_event(
+            empresa=cuenta.empresa,
+            usuario=self.request.user,
+            accion='ELIMINAR_COBRO_CARTERA',
+            modulo='cartera',
+            referencia=cuenta.numero_cuenta or str(cuenta.id),
+            datos={**datos, 'saldo_actual': str(cuenta.saldo)},
+        )
 
 
 class MovimientoCuentaPorCobrarViewSet(viewsets.ReadOnlyModelViewSet):

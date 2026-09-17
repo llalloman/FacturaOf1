@@ -889,6 +889,63 @@ La siguiente meta de desarrollo debe ser **cerrar el circuito financiero basico*
 
 Cuando ese circuito este estable, el Centro de Control SRI, libros y ATS tendran datos confiables para crecer.
 
+### Alineacion implementada del circuito financiero basico
+
+Fecha de implementacion: 2026-09-07.
+
+Esta alineacion convierte el diagnostico anterior en comportamiento operativo base del ERP. El objetivo es que ventas, cartera, proveedores, documentos recibidos y bancos trabajen como un circuito trazable.
+
+**Cambios implementados**
+
+- Auditoria transversal reusable mediante helper `audit_event()`, para registrar acciones criticas sin romper la operacion principal si la auditoria falla.
+- Venta a credito -> cuenta por cobrar: cuando una venta genera CxC, se registra auditoria con venta, factura, cliente, monto y cuenta creada.
+- Cobro de cartera -> banco: el pago de cliente permite seleccionar cuenta bancaria o caja destino y genera movimiento bancario de entrada.
+- Cobro de cartera -> auditoria: cada cobro queda registrado con cuenta por cobrar, monto, forma de pago, cuenta bancaria, movimiento bancario y saldo posterior.
+- Eliminacion de cobro -> reverso operativo: al eliminar un cobro de cartera tambien se elimina el movimiento bancario relacionado y se recalcula el saldo de la CxC.
+- Bancos -> origen visible: los movimientos generados por cobros de cartera se identifican como origen `CARTERA`.
+- Bancos -> proteccion de trazabilidad: no se permite eliminar directamente movimientos generados por ventas, cartera, proveedores o nomina; debe corregirse desde el origen.
+- Bancos -> auditoria de conciliacion: conciliacion individual y masiva registra usuario, estado anterior/nuevo, cuenta, monto y origen.
+- Documentos recibidos -> auditoria: la importacion XML/ZIP y la conversion a CxP quedan auditadas.
+- Proveedores -> pago consistente: el pago proveedor usa una sola fuente de recalculo de CxP para evitar duplicar montos pagados.
+
+**Flujo funcional esperado despues de esta alineacion**
+
+```text
+Venta credito
+  -> Cuenta por cobrar
+  -> Cobro cliente con cuenta destino
+  -> Movimiento bancario entrada
+  -> Conciliacion bancaria
+  -> Auditoria
+
+XML proveedor
+  -> Documento recibido
+  -> Cuenta por pagar
+  -> Pago proveedor con cuenta origen
+  -> Movimiento bancario salida
+  -> Conciliacion bancaria
+  -> Auditoria
+```
+
+**Validacion de negocio requerida**
+
+- Crear una venta a credito y confirmar que nace una CxC.
+- Registrar un cobro parcial y confirmar que baja el saldo y aparece movimiento bancario de entrada.
+- Registrar un segundo cobro hasta completar saldo y confirmar estado `PAGADO`.
+- Importar XML real de proveedor, convertirlo a CxP y registrar pago parcial/total.
+- Verificar que bancos muestre origen `CARTERA` o `PAGO_PROVEEDOR` segun corresponda.
+- Conciliar y desconciliar movimientos para revisar la bitacora.
+
+**Pendiente despues de esta alineacion**
+
+- Mostrar en pantalla una bitacora/auditoria filtrable por modulo, usuario, empresa y referencia.
+- Vincular visualmente desde venta/factura hacia su CxC y desde CxC hacia sus movimientos bancarios.
+- Implementar cruce de notas de credito contra CxP y CxC sin generar movimiento bancario.
+- Importar extractos bancarios CSV/Excel para conciliacion real contra banco.
+- Construir Centro de Control SRI con emitidos, recibidos, IVA, retenciones y alertas.
+- Generar Libro de Compras y Libro de Ventas desde documentos emitidos/recibidos.
+- Preparar ATS mensual solo cuando documentos y sustentos tributarios esten completos.
+
 ## Flujos de venta
 
 ### Flujo A: firma electronica

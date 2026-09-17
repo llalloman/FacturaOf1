@@ -87,6 +87,21 @@ class DocumentoRecibidoSRIViewSet(viewsets.ReadOnlyModelViewSet):
                 resultado[item['resultado']] += 1
                 resultado['documentos'].append(item)
 
+        from apps.core.audit import audit_event
+        audit_event(
+            empresa=empresa,
+            usuario=request.user,
+            accion='IMPORTAR_DOCUMENTOS_RECIBIDOS',
+            modulo='documentos_recibidos',
+            referencia=f'lote:{len(resultado["documentos"])}',
+            datos={
+                'creados': resultado['creados'],
+                'duplicados': resultado['duplicados'],
+                'errores': resultado['errores'],
+                'archivos': [getattr(archivo, 'name', '') for archivo in archivos],
+            },
+        )
+
         return Response(resultado, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='convertir-cxp')
@@ -176,6 +191,25 @@ class DocumentoRecibidoSRIViewSet(viewsets.ReadOnlyModelViewSet):
             'proveedor', 'cuenta_por_pagar', 'estado_interno',
             'fecha_conversion', 'metadata', 'fecha_modificacion',
         ])
+
+        from apps.core.audit import audit_event
+        audit_event(
+            empresa=empresa,
+            usuario=request.user,
+            accion='CONVERTIR_DOCUMENTO_RECIBIDO_CXP',
+            modulo='documentos_recibidos',
+            referencia=documento.clave_acceso or str(documento.id),
+            datos={
+                'documento_recibido_id': documento.id,
+                'tipo_comprobante': documento.tipo_comprobante,
+                'numero_comprobante': documento.numero_comprobante,
+                'proveedor_id': proveedor.id,
+                'proveedor_creado': proveedor_creado,
+                'cuenta_por_pagar_id': cuenta.id,
+                'numero_cuenta': cuenta.numero_cuenta,
+                'total': str(documento.total),
+            },
+        )
 
         return Response(self.get_serializer(documento).data, status=status.HTTP_201_CREATED)
 

@@ -80,7 +80,7 @@ def crear_cartera_credito_venta(venta):
             cuenta.save(update_fields=['factura'])
         return cuenta
 
-    return CuentaPorCobrar.objects.create(
+    cuenta = CuentaPorCobrar.objects.create(
         empresa=venta.empresa,
         numero_cuenta=numero_cuenta,
         cliente=venta.cliente,
@@ -91,6 +91,25 @@ def crear_cartera_credito_venta(venta):
         saldo=monto_credito,
         notas=f'Generada automáticamente desde la venta {venta.numero_venta}.',
     )
+
+    from apps.core.audit import audit_event
+
+    audit_event(
+        empresa=venta.empresa,
+        usuario=getattr(venta, 'usuario', None),
+        accion='CREAR_CUENTA_POR_COBRAR_VENTA',
+        modulo='ventas',
+        referencia=numero_cuenta,
+        datos={
+            'venta_id': venta.id,
+            'numero_venta': venta.numero_venta,
+            'factura_id': venta.factura_id,
+            'cliente_id': venta.cliente_id,
+            'monto_credito': str(monto_credito),
+            'cuenta_por_cobrar_id': cuenta.id,
+        },
+    )
+    return cuenta
 
 
 
@@ -148,4 +167,21 @@ def confirmar_pago_venta(pago, *, cuenta=None, fecha_pago=None, referencia='', u
         )
         pago.movimiento_bancario = movimiento
         pago.save(update_fields=['movimiento_bancario'])
+        from apps.core.audit import audit_event
+
+        audit_event(
+            empresa=venta.empresa,
+            usuario=usuario,
+            accion='CONFIRMAR_PAGO_VENTA',
+            modulo='ventas',
+            referencia=venta.numero_venta,
+            datos={
+                'venta_id': venta.id,
+                'pago_id': pago.id,
+                'forma_pago': pago.forma_pago,
+                'monto': str(pago.monto),
+                'cuenta_bancaria_id': cuenta.id,
+                'movimiento_bancario_id': movimiento.id,
+            },
+        )
         return movimiento

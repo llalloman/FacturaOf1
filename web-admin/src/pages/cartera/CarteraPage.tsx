@@ -3,8 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FiSearch, FiPlus, FiChevronDown, FiChevronUp, FiDollarSign } from 'react-icons/fi';
 import { Landmark, AlertTriangle, CheckCircle2, TrendingUp } from 'lucide-react';
 import { carteraService } from '../../services/carteraService';
+import { getCuentas as getCuentasBancarias } from '../../services/bancosService';
 import { toast } from '../../store/toastStore';
 import type { CuentaPorCobrar } from '../../types/index';
+import type { CuentaBancaria } from '../../services/bancosService';
 
 const fmtCurrency = (v: number) =>
   new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(v);
@@ -49,18 +51,33 @@ const PagoModal: React.FC<PagoModalProps> = ({ cuenta, onClose, onSuccess }) => 
     fecha_pago: today,
     monto: cuenta.saldo,
     forma_pago: 'EFECTIVO',
+    cuenta_bancaria: '',
     referencia: '',
     notas: '',
   });
   const [loading, setLoading] = useState(false);
+  const { data: cuentasBancarias = [] } = useQuery<CuentaBancaria[]>({
+    queryKey: ['bancos-cuentas'],
+    queryFn: getCuentasBancarias,
+  });
+  const cuentasActivas = cuentasBancarias.filter((c) => c.activa);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.monto <= 0) { toast.error('El monto debe ser mayor a cero'); return; }
     if (form.monto > cuenta.saldo) { toast.error(`Monto supera el saldo (${fmtCurrency(cuenta.saldo)})`); return; }
+    if (!form.cuenta_bancaria) { toast.error('Seleccione la cuenta bancaria o caja donde ingreso el cobro'); return; }
     setLoading(true);
     try {
-      await carteraService.registrarPago({ cuenta: cuenta.id, ...form });
+      await carteraService.registrarPago({
+        cuenta: cuenta.id,
+        fecha_pago: form.fecha_pago,
+        monto: form.monto,
+        forma_pago: form.forma_pago,
+        cuenta_bancaria: Number(form.cuenta_bancaria),
+        referencia: form.referencia,
+        notas: form.notas,
+      });
       toast.success('Pago registrado correctamente');
       onSuccess();
     } catch {
@@ -72,7 +89,7 @@ const PagoModal: React.FC<PagoModalProps> = ({ cuenta, onClose, onSuccess }) => 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-1">Registrar Pago</h2>
         <p className="text-sm text-gray-500 mb-4">
           {cuenta.cliente_nombre} — Saldo: <span className="font-semibold text-gray-800">{fmtCurrency(cuenta.saldo)}</span>
@@ -120,6 +137,26 @@ const PagoModal: React.FC<PagoModalProps> = ({ cuenta, onClose, onSuccess }) => 
               <option value="CHEQUE">Cheque</option>
               <option value="OTRO">Otro</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Cuenta destino</label>
+            <select
+              required
+              value={form.cuenta_bancaria}
+              onChange={(e) => setForm({ ...form, cuenta_bancaria: e.target.value })}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Seleccione banco o caja</option>
+              {cuentasActivas.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.banco} - {c.numero_cuenta} ({c.tipo})
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              El cobro generara un movimiento bancario de entrada para conciliacion.
+            </p>
           </div>
 
           <div>

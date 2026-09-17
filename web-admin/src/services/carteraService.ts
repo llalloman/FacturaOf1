@@ -62,6 +62,7 @@ export const carteraService = {
     fecha_pago: string;
     monto: number;
     forma_pago: string;
+    cuenta_bancaria?: number | null;
     referencia?: string;
     notas?: string;
   }): Promise<PagoCliente> => {
