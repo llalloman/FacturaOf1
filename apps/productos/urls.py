@@ -10,9 +10,10 @@ from .models import Producto
 from .serializers import ProductoSerializer
 from apps.core.export_mixin import ExportMixin
 from apps.core.permissions import HasModuleAccess
+from apps.core.tenant import ActiveCompanyWriteMixin, require_active_empresa, tenant_queryset
 
 
-class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
+class ProductoViewSet(ActiveCompanyWriteMixin, ExportMixin, viewsets.ModelViewSet):
     serializer_class = ProductoSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'productos'
@@ -44,33 +45,26 @@ class ProductoViewSet(ExportMixin, viewsets.ModelViewSet):
         ('activo', 'Activo'),
     ]
 
-    def _get_empresa_contexto(self):
-        empresa = getattr(self.request, 'tenant', None) or getattr(self.request.user, 'empresa', None)
-        empresa_id = self.request.headers.get('X-Empresa-ID')
-        if not empresa and empresa_id and getattr(self.request.user, 'es_super_admin', False):
-            from apps.empresas.models import Empresa
-            empresa = Empresa.objects.filter(id=empresa_id).first()
-        return empresa
-
     def get_queryset(self):
-        empresa = self._get_empresa_contexto()
-        if empresa:
-            queryset = Producto.objects.filter(empresa=empresa)
-            include_inactive = str(self.request.query_params.get('include_inactive', '')).lower() in ('1', 'true', 'yes')
-            if self.action == 'list' and not include_inactive and 'activo' not in self.request.query_params:
-                queryset = queryset.filter(activo=True)
-            return queryset
-        return Producto.objects.none()
+        queryset = tenant_queryset(self.request, Producto.objects.all())
+        include_inactive = str(self.request.query_params.get('include_inactive', '')).lower() in ('1', 'true', 'yes')
+        if self.action == 'list' and not include_inactive and 'activo' not in self.request.query_params:
+            queryset = queryset.filter(activo=True)
+        return queryset
 
     def perform_create(self, serializer):
-        empresa = self._get_empresa_contexto()
-        if not empresa:
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError({'empresa': 'Selecciona una empresa para crear el producto.'})
+        serializer.save(empresa=require_active_empresa(self.request))
+
+    def perform_update(self, serializer):
+        empresa = require_active_empresa(self.request)
+        if serializer.instance.empresa_id != empresa.id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('El producto no pertenece a la empresa activa.')
         serializer.save(empresa=empresa)
 
     def destroy(self, request, *args, **kwargs):
         producto = self.get_object()
+        self._require_instance_active_empresa(producto)
         try:
             return super().destroy(request, *args, **kwargs)
         except ProtectedError:

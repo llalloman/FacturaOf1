@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BadgeDollarSign,
@@ -398,15 +399,26 @@ function CouponsPanel({ precios, coupons }: { precios: PrecioFirma[]; coupons: C
 }
 
 export default function PreciosFirmaPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const user = useAuthStore((state) => state.user);
+  const activeEmpresaId = useAuthStore((state) => state.activeEmpresaId);
   const isSuperAdmin = user?.rol === 'SUPER_ADMIN';
-  const [tab, setTab] = useState<'prices' | 'promotions' | 'coupons'>('prices');
-  const [selectedEmpresaId, setSelectedEmpresaId] = useState<string>(user?.empresa_id ? String(user.empresa_id) : '');
+  const tabFromPath = location.pathname.endsWith('/promociones')
+    ? 'promotions'
+    : location.pathname.endsWith('/cupones')
+      ? 'coupons'
+      : 'prices';
+  const [tab, setTab] = useState<'prices' | 'promotions' | 'coupons'>(tabFromPath);
+  useEffect(() => {
+    setTab(tabFromPath);
+  }, [tabFromPath]);
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState<string>(activeEmpresaId ? String(activeEmpresaId) : '');
   const { data: precios = [], isLoading } = useQuery({ queryKey: ['precios-firma-admin'], queryFn: firmasService.listPreciosFirma });
   const { data: promociones = [] } = useQuery({ queryKey: ['promociones-firma-admin'], queryFn: firmasService.listPromocionesFirma });
   const { data: coupons = [] } = useQuery({ queryKey: ['cupones-firma-admin'], queryFn: firmasService.listCuponesFirma });
-  const empresaDestino = isSuperAdmin ? selectedEmpresaId : user?.empresa_id;
+  const empresaDestino = isSuperAdmin ? selectedEmpresaId : activeEmpresaId ? String(activeEmpresaId) : '';
   const { data: empresas = [] } = useQuery({ queryKey: ['empresas-firma-productos'], queryFn: empresasService.getAll, enabled: isSuperAdmin });
   const { data: productos = [] } = useQuery({
     queryKey: ['productos-servicio-firma-precios', empresaDestino],
@@ -460,7 +472,10 @@ export default function PreciosFirmaPage() {
         {tabs.map((item) => {
           const Icon = item.icon;
           return (
-            <button key={item.id} onClick={() => setTab(item.id)} className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold ${tab === item.id ? 'bg-blue-700 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+            <button key={item.id} onClick={() => {
+              setTab(item.id);
+              navigate(item.id === 'promotions' ? '/firmas-electronicas/promociones' : item.id === 'coupons' ? '/firmas-electronicas/cupones' : '/firmas-electronicas/precios');
+            }} className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold ${tab === item.id ? 'bg-blue-700 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
               <Icon size={16} /> {item.label}
             </button>
           );

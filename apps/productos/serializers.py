@@ -1,6 +1,7 @@
 from decimal import Decimal, ROUND_HALF_UP
 from rest_framework import serializers
 from .models import Producto
+from apps.core.tenant import active_empresa
 
 
 class ProductoSerializer(serializers.ModelSerializer):
@@ -38,13 +39,10 @@ class ProductoSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         empresa = None
         if request:
-            empresa = getattr(request, 'tenant', None) or getattr(getattr(request, 'user', None), 'empresa', None)
-            user = getattr(request, 'user', None)
-            empresa_id = request.headers.get('X-Empresa-ID')
-            if not empresa and empresa_id and getattr(user, 'es_super_admin', False):
-                from apps.empresas.models import Empresa
-                empresa = Empresa.objects.filter(id=empresa_id).first()
+            empresa = active_empresa(request)
         instance = self.instance
+        if not empresa and instance:
+            empresa = instance.empresa
 
         if instance:
             if Producto.objects.filter(

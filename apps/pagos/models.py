@@ -27,6 +27,14 @@ class PagoConfiguracion(models.Model):
         related_name='configuraciones_pagos',
         verbose_name=_('caja para ventas online'),
     )
+    establecimiento_fiscal = models.ForeignKey(
+        'empresas.Establecimiento', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='configuraciones_pagos', verbose_name=_('establecimiento fiscal para ventas online'),
+    )
+    punto_emision_fiscal = models.ForeignKey(
+        'empresas.PuntoEmision', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='configuraciones_pagos', verbose_name=_('punto de emisión para ventas online'),
+    )
     usuario_ventas = models.ForeignKey(
         'usuarios.Usuario',
         on_delete=models.SET_NULL,

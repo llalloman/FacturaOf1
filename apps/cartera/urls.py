@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.routers import DefaultRouter
 
 from apps.core.permissions import IsAuthenticated, IsTenantUser, HasModuleAccess
+from apps.core.tenant import ActiveCompanyWriteMixin, require_active_empresa, tenant_queryset
 from .models import CuentaPorCobrar, PagoCliente, MovimientoCuentaPorCobrar
 from .serializers import (
     CuentaPorCobrarSerializer,
@@ -17,7 +18,7 @@ from .serializers import (
 )
 
 
-class CuentaPorCobrarViewSet(viewsets.ModelViewSet):
+class CuentaPorCobrarViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión de Cuentas por Cobrar.
 
@@ -41,8 +42,8 @@ class CuentaPorCobrarViewSet(viewsets.ModelViewSet):
         return CuentaPorCobrarSerializer
 
     def get_queryset(self):
-        return CuentaPorCobrar.objects.filter(
-            empresa=self.request.user.empresa
+        return tenant_queryset(
+            self.request, CuentaPorCobrar.objects.all()
         ).select_related('cliente', 'factura').prefetch_related('pagos', 'movimientos')
 
     @action(detail=False, methods=['get'])
@@ -51,10 +52,7 @@ class CuentaPorCobrarViewSet(viewsets.ModelViewSet):
         Retorna el análisis de vencimiento (aging) agrupado por bucket.
         """
         hoy = timezone.now().date()
-        empresa = request.user.empresa
-
-        qs = CuentaPorCobrar.objects.filter(
-            empresa=empresa,
+        qs = tenant_queryset(request, CuentaPorCobrar.objects.all()).filter(
             estado__in=[
                 CuentaPorCobrar.EstadoChoices.PENDIENTE,
                 CuentaPorCobrar.EstadoChoices.PARCIAL,
@@ -100,11 +98,10 @@ class CuentaPorCobrarViewSet(viewsets.ModelViewSet):
         """
         KPIs rápidos de cartera para el dashboard.
         """
-        empresa = request.user.empresa
         hoy = timezone.now().date()
         mes_actual = hoy.replace(day=1)
 
-        qs = CuentaPorCobrar.objects.filter(empresa=empresa)
+        qs = tenant_queryset(request, CuentaPorCobrar.objects.all())
 
         pendientes = qs.filter(estado__in=[
             CuentaPorCobrar.EstadoChoices.PENDIENTE,
@@ -120,8 +117,7 @@ class CuentaPorCobrarViewSet(viewsets.ModelViewSet):
             fecha_vencimiento__lt=hoy,
         )
 
-        cobrado_mes = PagoCliente.objects.filter(
-            cuenta__empresa=empresa,
+        cobrado_mes = tenant_queryset(request, PagoCliente.objects.all(), 'cuenta__empresa').filter(
             fecha_pago__gte=mes_actual,
         ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
 
@@ -150,7 +146,8 @@ class CuentaPorCobrarViewSet(viewsets.ModelViewSet):
         return Response({'detail': 'Cuenta marcada como incobrable.'})
 
 
-class PagoClienteViewSet(viewsets.ModelViewSet):
+class PagoClienteViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
+    tenant_relation = 'cuenta'
     """
     ViewSet para registrar/listar pagos de clientes.
 
@@ -167,12 +164,13 @@ class PagoClienteViewSet(viewsets.ModelViewSet):
     ordering = ['-fecha_pago']
 
     def get_queryset(self):
-        return PagoCliente.objects.filter(
-            cuenta__empresa=self.request.user.empresa
+        return tenant_queryset(
+            self.request, PagoCliente.objects.all(), 'cuenta__empresa'
         ).select_related('cuenta__cliente', 'cuenta_bancaria', 'movimiento_bancario')
 
     @transaction.atomic
     def perform_destroy(self, instance):
+        self._require_instance_active_empresa(instance)
         cuenta = instance.cuenta
         movimiento = getattr(instance, 'movimiento_bancario', None)
         datos = {
@@ -208,8 +206,8 @@ class MovimientoCuentaPorCobrarViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-fecha_movimiento', '-created_at']
 
     def get_queryset(self):
-        return MovimientoCuentaPorCobrar.objects.filter(
-            cuenta__empresa=self.request.user.empresa
+        return tenant_queryset(
+            self.request, MovimientoCuentaPorCobrar.objects.all(), 'cuenta__empresa'
         ).select_related('cuenta__cliente', 'cuenta__factura')
 
 

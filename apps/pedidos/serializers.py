@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from decimal import Decimal
 from .models import Zona, Mesa, Pedido, DetallePedido
+from apps.core.tenant import active_empresa, require_active_empresa
 
 
 class ZonaSerializer(serializers.ModelSerializer):
@@ -78,7 +79,7 @@ class PedidoSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         import uuid as uuid_lib
         request = self.context['request']
-        empresa = request.user.empresa if hasattr(request.user, 'empresa') else None
+        empresa = active_empresa(request)
         # SUPER_ADMIN must pass empresa explicitly — infer from mesa or caja
         if not empresa:
             mesa = validated_data.get('mesa')
@@ -87,6 +88,13 @@ class PedidoSerializer(serializers.ModelSerializer):
                 empresa = mesa.empresa
             elif caja:
                 empresa = caja.empresa
+
+        if not empresa:
+            empresa = require_active_empresa(request)
+        if mesa and mesa.empresa_id != empresa.id:
+            raise serializers.ValidationError({'mesa': 'La mesa no pertenece a la empresa activa.'})
+        if caja and caja.empresa_id != empresa.id:
+            raise serializers.ValidationError({'caja': 'La caja no pertenece a la empresa activa.'})
 
         validated_data['empresa'] = empresa
         validated_data['usuario'] = request.user

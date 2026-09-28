@@ -672,13 +672,13 @@ function BillingToggle({ anual, onChange }: { anual: boolean; onChange: (v: bool
 // --- Pagina principal ---------------------------------------------------------
 export default function SuscripcionesPage() {
   const queryClient = useQueryClient();
-  const user = useAuthStore((s) => s.user);
+  const activeEmpresaId = useAuthStore((s) => s.activeEmpresaId);
 
   const { data: suscripcion, isLoading: loadingSus, error: errorSus } = useQuery({
-    queryKey: ['suscripcion-activa'],
+    queryKey: ['suscripcion-activa', activeEmpresaId],
     queryFn: suscripcionesService.getSuscripcionActiva,
     retry: false,
-    enabled: Boolean(user?.empresa_id),
+    enabled: Boolean(activeEmpresaId),
   });
 
   const { data: planes = [], isLoading: loadingPlanes } = useQuery({

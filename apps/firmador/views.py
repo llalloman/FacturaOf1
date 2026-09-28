@@ -33,6 +33,8 @@ from .services.pdf_signer import (
     validate_certificate_upload,
     validate_pdf_upload,
 )
+from apps.core.permissions import is_global_platform_user, is_platform_user
+from apps.core.tenant import active_empresa
 
 
 logger = logging.getLogger(__name__)
@@ -81,8 +83,10 @@ def _mark_primary_workspace(workspace):
     return workspace
 
 
-def get_or_create_workspace(user):
+def get_or_create_workspace(user, empresa=None):
     user_workspaces = FirmadorWorkspace.objects.filter(owner_user=user)
+    if empresa:
+        user_workspaces = user_workspaces.filter(empresa=empresa)
     workspace = _workspace_with_data_order(user_workspaces.filter(activo=True)).first()
     if workspace:
         return _mark_primary_workspace(workspace)
@@ -91,7 +95,7 @@ def get_or_create_workspace(user):
     if workspace:
         return _mark_primary_workspace(workspace)
 
-    empresa = getattr(user, 'empresa', None)
+    empresa = empresa or getattr(user, 'empresa', None)
     if empresa:
         return FirmadorWorkspace.objects.create(
             owner_user=user,
@@ -213,8 +217,11 @@ class FirmadorDocumentoViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = FirmadorDocumento.objects.select_related('workspace', 'user', 'certificado').exclude(status=FirmadorDocumento.Estado.ELIMINADO)
-        if user.is_superuser or getattr(user, 'rol', '') == 'SUPER_ADMIN':
+        if is_global_platform_user(user):
             return qs
+        empresa = active_empresa(self.request)
+        if is_platform_user(user, 'firmador') and empresa:
+            return qs.filter(workspace__empresa=empresa)
         return qs.filter(workspace__owner_user=user)
 
     @action(detail=True, methods=['get'], url_path='descargar')
@@ -249,11 +256,11 @@ class FirmadorCertificadoViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'delete', 'head', 'options']
 
     def get_queryset(self):
-        workspace = get_or_create_workspace(self.request.user)
+        workspace = get_or_create_workspace(self.request.user, active_empresa(self.request))
         return FirmadorCertificado.objects.filter(workspace=workspace, active=True)
 
     def create(self, request, *args, **kwargs):
-        workspace = get_or_create_workspace(request.user)
+        workspace = get_or_create_workspace(request.user, active_empresa(request))
         cert_file = request.FILES.get('certificate')
         password = request.data.get('certificate_password', '')
         alias = (request.data.get('alias') or '').strip()
@@ -300,7 +307,7 @@ class FirmadorCertificadoViewSet(viewsets.ModelViewSet):
 
 
 def _is_super_admin_user(user):
-    return bool(user and user.is_authenticated and (user.is_superuser or getattr(user, 'rol', '') == 'SUPER_ADMIN'))
+    return bool(user and user.is_authenticated and is_platform_user(user, 'firmador'))
 
 
 class FirmadorAdminWorkspaceViewSet(viewsets.ModelViewSet):
@@ -319,6 +326,11 @@ class FirmadorAdminWorkspaceViewSet(viewsets.ModelViewSet):
             )
             .order_by('-created_at')
         )
+        if not is_global_platform_user(self.request.user):
+            empresa = active_empresa(self.request)
+            if not empresa:
+                return qs.none()
+            qs = qs.filter(empresa=empresa)
         search = (self.request.query_params.get('search') or '').strip()
         estado = (self.request.query_params.get('estado') or '').strip().lower()
         tipo = (self.request.query_params.get('tipo') or '').strip()
@@ -374,8 +386,9 @@ class FirmadorAdminWorkspaceViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='metricas')
     def metricas(self, request):
         qs = self.get_queryset()
-        documentos = FirmadorDocumento.objects.exclude(status=FirmadorDocumento.Estado.ELIMINADO)
-        certificados = FirmadorCertificado.objects.filter(active=True)
+        workspace_ids = qs.values('id')
+        documentos = FirmadorDocumento.objects.filter(workspace_id__in=workspace_ids).exclude(status=FirmadorDocumento.Estado.ELIMINADO)
+        certificados = FirmadorCertificado.objects.filter(workspace_id__in=workspace_ids, active=True)
         return Response({
             'workspaces': qs.count(),
             'workspaces_activos': qs.filter(activo=True, owner_user__is_active=True).count(),
@@ -389,7 +402,7 @@ class FirmadorAdminWorkspaceViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def perfil_firmador(request):
-    workspace = get_or_create_workspace(request.user)
+    workspace = get_or_create_workspace(request.user, active_empresa(request))
     return Response(FirmadorWorkspaceSerializer(workspace).data)
 
 
@@ -397,7 +410,7 @@ def perfil_firmador(request):
 @permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])
 def firmar_documento(request):
-    workspace = get_or_create_workspace(request.user)
+    workspace = get_or_create_workspace(request.user, active_empresa(request))
     pdf_file = request.FILES.get('pdf')
     cert_file = request.FILES.get('certificate')
     certificate_id = request.data.get('certificate_id')
@@ -583,7 +596,7 @@ def descargar_documento_publico(request, pk):
 @parser_classes([MultiPartParser, FormParser])
 def validar_documentos_pdf(request):
     is_authenticated = bool(request.user and request.user.is_authenticated)
-    workspace = get_or_create_workspace(request.user) if is_authenticated else None
+    workspace = get_or_create_workspace(request.user, active_empresa(request)) if is_authenticated else None
     max_file_size = workspace.max_file_size_bytes if workspace else _default_limit('FIRMADOR_MAX_FILE_SIZE_BYTES', 25)
     files = request.FILES.getlist('documents') or request.FILES.getlist('pdfs') or request.FILES.getlist('files')
     if not files and request.FILES.get('document'):
@@ -603,8 +616,7 @@ def validar_documentos_pdf(request):
             inspected['of1_document'] = _public_document_payload(document, token_valid=False) if document else None
             if is_authenticated and document and document.signed_file and workspace and (
                 document.workspace_id == workspace.id
-                or request.user.is_superuser
-                or getattr(request.user, 'rol', '') == 'SUPER_ADMIN'
+                or is_platform_user(request.user, 'firmador')
             ):
                 inspected['download_url'] = request.build_absolute_uri(f'/api/firmador/documentos/{document.id}/descargar/')
             results.append(inspected)

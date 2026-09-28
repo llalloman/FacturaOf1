@@ -12,6 +12,8 @@ from .views import (
     SignatureOrderDetailView,
     SignatureOrderStatusView,
     WebhookEventCreateView,
+    WebhookEventAcknowledgeView,
+    WebhookEventRetryView,
 )
 
 router = DefaultRouter()
@@ -26,5 +28,7 @@ urlpatterns = [
     path('signature-orders/<str:identifier>/', SignatureOrderDetailView.as_view(), name='automation-signature-order-detail'),
     path('signature-orders/<str:identifier>/status/', SignatureOrderStatusView.as_view(), name='automation-signature-order-status'),
     path('webhook-events/', WebhookEventCreateView.as_view(), name='automation-webhook-events'),
+    path('webhook-events/<str:event_id>/ack/', WebhookEventAcknowledgeView.as_view(), name='automation-webhook-event-ack'),
+    path('webhook-events/<str:event_id>/retry/', WebhookEventRetryView.as_view(), name='automation-webhook-event-retry'),
     path('audit-events/', AuditLogCreateView.as_view(), name='automation-audit-events'),
 ] + router.urls

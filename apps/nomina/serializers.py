@@ -12,6 +12,7 @@ from .models import (
     RolPago,
     RubroNomina,
 )
+from apps.core.tenant import active_empresa
 
 
 class EmpleadoSerializer(serializers.ModelSerializer):
@@ -80,7 +81,7 @@ class ConceptoEmpleadoNominaSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         request = self.context['request']
-        empresa = request.user.empresa
+        empresa = active_empresa(request)
         empleado = data.get('empleado') or getattr(self.instance, 'empleado', None)
         rubro = data.get('rubro') or getattr(self.instance, 'rubro', None)
         if empleado and empleado.empresa_id != empresa.id:
@@ -132,13 +133,13 @@ class DetalleRolPagoSerializer(serializers.ModelSerializer):
 
     def validate_rubro(self, rubro):
         request = self.context.get('request')
-        if request and rubro.empresa_id != request.user.empresa_id:
+        if request and rubro.empresa_id != getattr(active_empresa(request), 'id', None):
             raise serializers.ValidationError('El rubro no pertenece a la empresa.')
         return rubro
 
     def validate_rol(self, rol):
         request = self.context.get('request')
-        if request and rol.empresa_id != request.user.empresa_id:
+        if request and rol.empresa_id != getattr(active_empresa(request), 'id', None):
             raise serializers.ValidationError('El rol no pertenece a la empresa.')
         return rol
 
@@ -196,7 +197,7 @@ class RolPagoCreateSerializer(serializers.ModelSerializer):
     def validate(self, data):
         request = self.context['request']
         empleado = data.get('empleado') or getattr(self.instance, 'empleado', None)
-        if empleado and empleado.empresa_id != request.user.empresa_id:
+        if empleado and empleado.empresa_id != getattr(active_empresa(request), 'id', None):
             raise serializers.ValidationError({'empleado': 'El empleado no pertenece a la empresa.'})
         if self.instance and self.instance.estado != RolPago.EstadoChoices.BORRADOR:
             raise serializers.ValidationError({'detail': 'Solo se pueden editar roles en borrador.'})
@@ -215,7 +216,7 @@ class RolPagoCreateSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         detalles_data = validated_data.pop('detalles', None)
-        empresa = self.context['request'].user.empresa
+        empresa = active_empresa(self.context['request'])
         rol = RolPago.objects.create(empresa=empresa, **validated_data)
         self._sync_detalles(rol, detalles_data)
         return rol

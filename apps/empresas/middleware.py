@@ -25,19 +25,55 @@ class TenantMiddleware(MiddlewareMixin):
 
     def process_request(self, request):
         request.tenant = None
+        request.active_membership = None
+        request.tenant_context_error = False
 
         if hasattr(request, 'user') and request.user.is_authenticated:
-            if hasattr(request.user, 'empresa') and request.user.empresa:
+            from apps.core.permissions import is_platform_user
+            # La empresa legacy sigue siendo fallback para usuarios
+            # operativos. Las identidades de plataforma deben seleccionar
+            # explícitamente un tenant; sin selección permanecen globales o
+            # sin alcance según su rol.
+            if (
+                not is_platform_user(request.user)
+                and hasattr(request.user, 'empresa')
+                and request.user.empresa
+            ):
                 request.tenant = request.user.empresa
 
         empresa_id = request.headers.get('X-Empresa-ID')
         if empresa_id and hasattr(request, 'user') and request.user.is_authenticated:
-            if request.user.es_super_admin:
-                from apps.empresas.models import Empresa
+            from apps.empresas.models import Empresa
+            from apps.core.permissions import is_platform_user
+            empresa_id = str(empresa_id).strip()
+            if not empresa_id.isdigit():
+                request.tenant_context_error = True
+            elif is_platform_user(request.user, 'empresas'):
                 try:
-                    request.tenant = Empresa.objects.get(id=empresa_id)
+                    request.tenant = Empresa.objects.get(id=empresa_id, activa=True)
                 except Empresa.DoesNotExist:
-                    pass
+                    request.tenant_context_error = True
+            else:
+                from apps.usuarios.models import EmpresaMembresia
+                request.tenant = Empresa.objects.filter(
+                    id=empresa_id,
+                    activa=True,
+                    membresias__usuario=request.user,
+                    membresias__activa=True,
+                ).first()
+                # Fallback temporal para usuarios aún no migrados a membresías.
+                if not request.tenant and str(request.user.empresa_id) == str(empresa_id):
+                    request.tenant = request.user.empresa
+                if not request.tenant:
+                    request.tenant_context_error = True
+
+        if request.tenant and hasattr(request, 'user') and request.user.is_authenticated:
+            from apps.usuarios.models import EmpresaMembresia
+            request.active_membership = EmpresaMembresia.objects.filter(
+                usuario=request.user,
+                empresa=request.tenant,
+                activa=True,
+            ).select_related('empresa').first()
 
         return None
 
@@ -53,8 +89,15 @@ class TenantMiddleware(MiddlewareMixin):
         if not hasattr(request, 'user') or not request.user.is_authenticated:
             return None
 
+        if request.tenant_context_error:
+            return JsonResponse({
+                'error': 'empresa_no_autorizada',
+                'mensaje': 'El usuario no tiene acceso a la empresa solicitada.',
+            }, status=403)
+
         # Super admins pasan siempre
-        if request.user.es_super_admin:
+        from apps.core.permissions import is_platform_user
+        if is_platform_user(request.user):
             return None
 
         # ── Validar suscripción activa ────────────────────────────────────────

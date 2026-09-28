@@ -1,0 +1,69 @@
+services:
+  db:
+    image: ${STAGING_POSTGRES_IMAGE:-postgres:16-alpine}
+    environment:
+      POSTGRES_DB: facturaof1_staging
+      POSTGRES_USER: facturaof1_staging
+      POSTGRES_PASSWORD: facturaof1_staging
+    ports:
+      - "${STAGING_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - facturaof1_staging_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U facturaof1_staging -d facturaof1_staging"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: ${STAGING_REDIS_IMAGE:-redis:7-alpine}
+    ports:
+      - "${STAGING_REDIS_PORT:-56379}:6379"
+    volumes:
+      - facturaof1_staging_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  back:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    environment:
+      SECRET_KEY: facturaof1-staging-only-change-me
+      DEBUG: "True"
+      ALLOWED_HOSTS: localhost,127.0.0.1,back
+      DATABASE_URL: postgresql://facturaof1_staging:facturaof1_staging@db:5432/facturaof1_staging
+      DB_HOST: db
+      DB_NAME: facturaof1_staging
+      DB_USER: facturaof1_staging
+      DB_PASSWORD: facturaof1_staging
+      DB_PORT: 5432
+      DJANGO_TEST_DB_NAME: facturaof1_staging_test
+      REDIS_URL: redis://redis:6379/0
+      SRI_AMBIENTE: PRUEBAS
+      EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+      SIGNATURE_DOCUMENTS_STORAGE: local
+      INVENTORY_ALLOW_NEGATIVE_STOCK: "false"
+      CORS_ALLOWED_ORIGINS: http://localhost:5176,http://localhost:5177,http://localhost:5178
+      CSRF_TRUSTED_ORIGINS: http://localhost:5176,http://localhost:5177,http://localhost:5178
+      PORT: 8000
+      GUNICORN_WORKERS: 1
+    ports:
+      - "${STAGING_BACKEND_PORT:-18000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - facturaof1_staging_media:/app/media
+      - facturaof1_staging_static:/app/staticfiles
+
+volumes:
+  facturaof1_staging_postgres:
+  facturaof1_staging_redis:
+  facturaof1_staging_media:
+  facturaof1_staging_static:

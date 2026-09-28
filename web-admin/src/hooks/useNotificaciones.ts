@@ -5,13 +5,15 @@ import { notificacionesService } from '../services/notificacionesService';
 export function useNotificaciones() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
+  const activeEmpresaId = useAuthStore((s) => s.activeEmpresaId);
   // SUPER_ADMIN no tiene empresa → no tiene notificaciones de facturación
-  const enabled = isAuthenticated && !!user && user.rol !== 'SUPER_ADMIN' && user.rol !== 'FIRMADOR';
+  const enabled = isAuthenticated && !!user && user.rol !== 'FIRMADOR' &&
+    (user.es_plataforma !== true || activeEmpresaId != null);
 
   const queryClient = useQueryClient();
 
   const { data: notificaciones = [] } = useQuery({
-    queryKey: ['notificaciones'],
+    queryKey: ['notificaciones', activeEmpresaId],
     queryFn: notificacionesService.getNotificaciones,
     enabled,
     refetchInterval: 30_000,       // refresca cada 30 s
@@ -23,12 +25,12 @@ export function useNotificaciones() {
 
   const { mutate: marcarLeida } = useMutation({
     mutationFn: notificacionesService.marcarLeida,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notificaciones'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notificaciones', activeEmpresaId] }),
   });
 
   const { mutate: marcarTodasLeidas } = useMutation({
     mutationFn: notificacionesService.marcarTodasLeidas,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notificaciones'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notificaciones', activeEmpresaId] }),
   });
 
   return { notificaciones, noLeidas, marcarLeida, marcarTodasLeidas };

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Cliente
+from apps.core.tenant import active_empresa
 
 
 class ClienteSerializer(serializers.ModelSerializer):
@@ -11,7 +12,7 @@ class ClienteSerializer(serializers.ModelSerializer):
     def validate_identificacion(self, value):
         """Validar que la identificación sea única para la empresa"""
         request = self.context.get('request')
-        empresa = request.user.empresa if request else None
+        empresa = active_empresa(request)
         instance = self.instance
 
         if instance:

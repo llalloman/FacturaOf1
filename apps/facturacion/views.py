@@ -7,10 +7,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import django_filters
 from django.db import transaction
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
-    Factura, DetalleFactura, Retencion, GuiaRemision,
+    ComprobanteElectronico, Factura, DetalleFactura, Retencion, GuiaRemision,
     NotaDebito, NotaCredito, Secuencial,
 )
 from .serializers import (
@@ -19,17 +20,15 @@ from .serializers import (
     SecuencialSerializer,
 )
 from apps.core.export_mixin import ExportMixin
-from apps.core.permissions import HasModuleAccess
+from apps.core.permissions import HasModuleAccess, is_global_platform_user, is_platform_user
+from apps.core.tenant import active_empresa, require_active_empresa
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _get_empresa_from_request(request):
     """Utility shared by all ViewSets to resolve the current tenant."""
-    empresa = getattr(request, 'tenant', None)
-    if not empresa and request.user.is_authenticated:
-        empresa = getattr(request.user, 'empresa', None)
-    return empresa
+    return active_empresa(request)
 
 
 def _desvincular_venta(factura):
@@ -246,6 +245,37 @@ class FacturaViewSet(ExportMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def reprocesar(self, request, pk=None):
+        """Consulta/reprocesa sin competir con el poller de autorizaciones."""
+        factura = self.get_object()
+        comp = factura.comprobante
+        if comp.estado == 'ENVIADO':
+            from django.db.models import Q
+            claim_before = timezone.now() - timezone.timedelta(minutes=10)
+            claimed = ComprobanteElectronico.objects.filter(
+                pk=comp.pk,
+                estado=ComprobanteElectronico.EstadoChoices.ENVIADO,
+            ).filter(
+                Q(procesamiento_en_curso=False)
+                | Q(procesamiento_iniciado_at__lt=claim_before),
+            ).update(
+                procesamiento_en_curso=True,
+                procesamiento_iniciado_at=timezone.now(),
+            )
+            if not claimed:
+                return Response(
+                    {'estado': comp.estado, 'mensaje': 'El comprobante ya está siendo consultado por otro proceso.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            try:
+                return self._reprocesar_claimed(request, pk=pk)
+            finally:
+                ComprobanteElectronico.objects.filter(pk=comp.pk).update(
+                    procesamiento_en_curso=False,
+                    procesamiento_iniciado_at=None,
+                )
+        return self._reprocesar_claimed(request, pk=pk)
+
+    def _reprocesar_claimed(self, request, pk=None):
         """
         Consulta la autorización del SRI para comprobantes con clave registrada o
         reprocesa documentos rechazados/no autorizados.
@@ -883,10 +913,14 @@ class SecuencialViewSet(viewsets.ModelViewSet):
         return _get_empresa_from_request(self.request)
 
     def _is_super_admin(self):
-        return getattr(self.request.user, 'rol', None) == 'SUPER_ADMIN'
+        return is_platform_user(self.request.user, 'facturacion_admin')
 
     def get_queryset(self):
         if self._is_super_admin():
+            if getattr(self.request, 'tenant', None):
+                return Secuencial.objects.filter(empresa=self.request.tenant)
+            if not is_global_platform_user(self.request.user):
+                return Secuencial.objects.none()
             empresa_id = self.request.query_params.get('empresa')
             if empresa_id:
                 return Secuencial.objects.filter(empresa_id=empresa_id)
@@ -897,11 +931,12 @@ class SecuencialViewSet(viewsets.ModelViewSet):
         return Secuencial.objects.none()
 
     def perform_create(self, serializer):
-        if self._is_super_admin():
+        if self._is_super_admin() and getattr(self.request, 'tenant', None):
+            serializer.save(empresa=self.request.tenant)
+        elif self._is_super_admin() and is_global_platform_user(self.request.user):
             serializer.save()
         else:
-            empresa = self._get_empresa()
-            serializer.save(empresa=empresa)
+            serializer.save(empresa=require_active_empresa(self.request))
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -923,7 +958,7 @@ class SecuencialViewSet(viewsets.ModelViewSet):
         """
         Crea los 5 registros de secuenciales por defecto para la empresa.
         """
-        if self._is_super_admin():
+        if self._is_super_admin() and is_global_platform_user(request.user):
             empresa_id = request.data.get('empresa')
             if not empresa_id:
                 return Response({'detail': 'Se requiere el campo empresa.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -933,9 +968,7 @@ class SecuencialViewSet(viewsets.ModelViewSet):
             except Empresa.DoesNotExist:
                 return Response({'detail': 'Empresa no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
         else:
-            empresa = self._get_empresa()
-            if not empresa:
-                return Response({'detail': 'Sin empresa asociada.'}, status=status.HTTP_403_FORBIDDEN)
+            empresa = require_active_empresa(request)
 
         establecimiento = getattr(empresa, 'establecimiento_codigo', None) or '001'
         punto_emision = getattr(empresa, 'punto_emision_codigo', None) or '001'

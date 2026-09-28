@@ -104,6 +104,9 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
         numero_venta: numeroVenta,
         empresa_id: config.empresa_id,
         caja_id: config.caja_id,
+        bodega_id: config.bodega_id,
+        establecimiento_id: config.establecimiento_id,
+        punto_emision_id: config.punto_emision_id,
         usuario_id: config.usuario_id,
         cliente_id: cliente.id,
         fecha_venta: now.toISOString(),
@@ -111,6 +114,7 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
         descuento: getDescuentoTotal(),
         iva: getIVATotal(),
         total: getTotal(),
+        genera_factura: generaFactura,
         estado: 'COMPLETADA',
         detalles: items,
         pagos: pagos,
@@ -140,7 +144,10 @@ export default function PaymentModal({ onClose }: PaymentModalProps) {
 
           if (syncResult.success && syncResult.data?.id) {
             setMensajeProceso('Enviando al SRI… (puede tardar hasta 30 s)');
-            const factResult = await apiService.generarFactura(syncResult.data.id);
+            const factResult = await apiService.generarFactura(syncResult.data.id, {
+              establecimiento_id: ventaData.establecimiento_id,
+              punto_emision_id: ventaData.punto_emision_id,
+            });
 
             if (factResult.success) {
               const sri = factResult.data?.sri ?? {};

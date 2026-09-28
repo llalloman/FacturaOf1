@@ -8,9 +8,10 @@ from .models import Cliente
 from .serializers import ClienteSerializer
 from apps.core.export_mixin import ExportMixin
 from apps.core.permissions import HasModuleAccess
+from apps.core.tenant import ActiveCompanyWriteMixin, require_active_empresa, tenant_queryset
 
 
-class ClienteViewSet(ExportMixin, viewsets.ModelViewSet):
+class ClienteViewSet(ActiveCompanyWriteMixin, ExportMixin, viewsets.ModelViewSet):
     serializer_class = ClienteSerializer
     permission_classes = [permissions.IsAuthenticated, HasModuleAccess]
     module_required = 'clientes'
@@ -32,13 +33,14 @@ class ClienteViewSet(ExportMixin, viewsets.ModelViewSet):
     ]
 
     def get_queryset(self):
-        return Cliente.objects.filter(empresa=self.request.user.empresa)
+        return tenant_queryset(self.request, Cliente.objects.all())
 
     def perform_create(self, serializer):
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
     def destroy(self, request, *args, **kwargs):
         cliente = self.get_object()
+        self._require_instance_active_empresa(cliente)
         try:
             return super().destroy(request, *args, **kwargs)
         except ProtectedError:

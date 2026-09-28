@@ -98,10 +98,12 @@ def recalcular_totales_factura_desde_detalles(factura):
     subtotal_15 = Decimal('0.00')
     iva_12 = Decimal('0.00')
     iva_15 = Decimal('0.00')
+    descuento_lineas = Decimal('0.00')
 
     for detalle in factura.detalles.all():
         base = Decimal(str(detalle.precio_total_sin_impuesto or 0)).quantize(Decimal('0.01'))
         impuesto = Decimal(str(detalle.valor_impuesto or 0)).quantize(Decimal('0.01'))
+        descuento_lineas += Decimal(str(detalle.descuento or 0)).quantize(Decimal('0.01'))
         subtotal_sin_impuestos += base
 
         if detalle.codigo_porcentaje in ('0', '6', '7'):
@@ -119,9 +121,15 @@ def recalcular_totales_factura_desde_detalles(factura):
     factura.subtotal_15 = subtotal_15.quantize(Decimal('0.01'))
     factura.iva_12 = iva_12.quantize(Decimal('0.01'))
     factura.iva_15 = iva_15.quantize(Decimal('0.01'))
-    total_descuento = Decimal(str(factura.total_descuento or 0)).quantize(Decimal('0.01'))
+    # Si el descuento vive en las líneas, la base ya es neta. Si el documento
+    # antiguo usa descuento global, la base conserva el bruto y se descuenta
+    # una sola vez en cabecera.
+    descuento_global = (
+        Decimal(str(factura.total_descuento or 0)).quantize(Decimal('0.01'))
+        if descuento_lineas == Decimal('0.00') else Decimal('0.00')
+    )
     factura.total = (
-        factura.subtotal_sin_impuestos + factura.iva_12 + factura.iva_15 - total_descuento
+        factura.subtotal_sin_impuestos + factura.iva_12 + factura.iva_15 - descuento_global
     ).quantize(Decimal('0.01'))
     factura.save(update_fields=[
         'subtotal_sin_impuestos',
@@ -304,7 +312,7 @@ def _consultar_autorizacion_inmediata(sri, comprobante, result):
 
 
 @transaction.atomic
-def crear_factura_desde_venta(venta):
+def crear_factura_desde_venta(venta, establecimiento_id=None, punto_emision_id=None):
     """
     Crea un ComprobanteElectronico + Factura + DetalleFactura a partir de una Venta.
     Vincula venta.factura al nuevo objeto y retorna la Factura creada.
@@ -314,8 +322,14 @@ def crear_factura_desde_venta(venta):
     )
 
     empresa = venta.empresa
-    estab = (empresa.establecimiento_codigo or '001').zfill(3)
-    pemi  = (empresa.punto_emision_codigo  or '001').zfill(3)
+    from apps.facturacion.services.fiscal_context import resolve_fiscal_context
+    fiscal_context = resolve_fiscal_context(
+        empresa,
+        establecimiento_id=establecimiento_id or getattr(venta, 'establecimiento_fiscal_id', None),
+        punto_emision_id=punto_emision_id or getattr(venta, 'punto_emision_fiscal_id', None),
+    )
+    estab = fiscal_context.establecimiento_codigo
+    pemi = fiscal_context.punto_emision_codigo
 
     # Secuencial atómico
     secuencial_obj, _ = Secuencial.objects.get_or_create(
@@ -330,6 +344,8 @@ def crear_factura_desde_venta(venta):
 
     comprobante = ComprobanteElectronico.objects.create(
         empresa=empresa,
+        establecimiento_ref=fiscal_context.establecimiento,
+        punto_emision_ref=fiscal_context.punto_emision,
         usuario_creador=venta.usuario,
         tipo_comprobante='01',
         establecimiento=estab,
@@ -431,6 +447,68 @@ def crear_factura_desde_venta(venta):
 
 
 def procesar_factura_sri(factura):
+    """Procesa una factura con claim atómico para evitar envíos duplicados."""
+    from django.db import transaction
+    from apps.facturacion.models import ComprobanteElectronico
+
+    comprobante = ComprobanteElectronico.objects.get(pk=factura.comprobante_id)
+    if comprobante.estado == ComprobanteElectronico.EstadoChoices.AUTORIZADO:
+        return {
+            'success': True,
+            'estado': comprobante.estado,
+            'mensaje': f'Ya autorizada: {comprobante.numero_autorizacion}',
+            'numero_comprobante': comprobante.numero_comprobante,
+        }
+    if comprobante.estado == ComprobanteElectronico.EstadoChoices.ENVIADO:
+        return {
+            'success': True,
+            'estado': comprobante.estado,
+            'mensaje': 'Ya enviada al SRI. La autorización continúa pendiente.',
+            'numero_comprobante': comprobante.numero_comprobante,
+        }
+
+    estados_procesables = [
+        ComprobanteElectronico.EstadoChoices.BORRADOR,
+        ComprobanteElectronico.EstadoChoices.FIRMADO,
+        ComprobanteElectronico.EstadoChoices.RECHAZADO,
+        ComprobanteElectronico.EstadoChoices.NO_AUTORIZADO,
+    ]
+    from django.db.models import Q
+    from django.utils import timezone
+    claim_before = timezone.now() - timezone.timedelta(minutes=10)
+    with transaction.atomic():
+        claimed = ComprobanteElectronico.objects.filter(
+            pk=comprobante.pk,
+            estado__in=estados_procesables,
+        ).filter(
+            Q(procesamiento_en_curso=False)
+            | Q(procesamiento_iniciado_at__lt=claim_before),
+        ).update(
+            procesamiento_en_curso=True,
+            procesamiento_iniciado_at=timezone.now(),
+        )
+    if not claimed:
+        comprobante.refresh_from_db(fields=['estado', 'numero_autorizacion', 'numero_comprobante'])
+        return {
+            'success': False,
+            'estado': comprobante.estado,
+            'mensaje': 'El comprobante ya está siendo procesado por otro worker.',
+            'numero_comprobante': comprobante.numero_comprobante,
+        }
+
+    try:
+        factura.comprobante = ComprobanteElectronico.objects.get(pk=comprobante.pk)
+        return _procesar_factura_sri_claimed(factura)
+    finally:
+        # La marca no es un estado fiscal; siempre se libera incluso ante
+        # errores de firma, red o respuestas inesperadas del SRI.
+        ComprobanteElectronico.objects.filter(pk=comprobante.pk).update(
+            procesamiento_en_curso=False,
+            procesamiento_iniciado_at=None,
+        )
+
+
+def _procesar_factura_sri_claimed(factura):
     """
     Orquesta el flujo completo hacia el SRI:
       1. Generar XML
@@ -765,8 +843,15 @@ def crear_retencion(empresa, usuario, proveedor, periodo_fiscal, impuestos_data,
     from decimal import Decimal as _D
     from django.utils import timezone as tz
 
-    estab = (empresa.establecimiento_codigo or '001').zfill(3)
-    pemi  = (empresa.punto_emision_codigo  or '001').zfill(3)
+    if not empresa:
+        raise ValueError('No hay empresa configurada.')
+    if not proveedor or proveedor.empresa_id != empresa.id:
+        raise ValueError('El proveedor no pertenece a la empresa emisora.')
+
+    from apps.facturacion.services.fiscal_context import resolve_fiscal_context
+    fiscal_context = resolve_fiscal_context(empresa)
+    estab = fiscal_context.establecimiento_codigo
+    pemi = fiscal_context.punto_emision_codigo
 
     secuencial_obj, _ = Secuencial.objects.get_or_create(
         empresa=empresa,
@@ -781,6 +866,8 @@ def crear_retencion(empresa, usuario, proveedor, periodo_fiscal, impuestos_data,
 
     comprobante = ComprobanteElectronico.objects.create(
         empresa=empresa,
+        establecimiento_ref=fiscal_context.establecimiento,
+        punto_emision_ref=fiscal_context.punto_emision,
         usuario_creador=usuario,
         tipo_comprobante='07',
         establecimiento=estab,
@@ -915,18 +1002,23 @@ def crear_guia_remision(
     if not empresa:
         raise ValueError('No hay empresa configurada.')
 
+    from apps.facturacion.services.fiscal_context import resolve_fiscal_context
+    fiscal_context = resolve_fiscal_context(empresa)
+    estab = fiscal_context.establecimiento_codigo
+    pemi = fiscal_context.punto_emision_codigo
+
     # ── Secuencial ────────────────────────────────────────────────────────────
     secuencial_obj, _ = Secuencial.objects.get_or_create(
         empresa=empresa,
         tipo_comprobante='06',
-        establecimiento=empresa.establecimiento_codigo,
-        punto_emision=empresa.punto_emision_codigo,
+        establecimiento=estab,
+        punto_emision=pemi,
         defaults={'secuencial_actual': 0},
     )
     siguiente = secuencial_obj.get_siguiente()
     numero_comprobante = (
-        f"{empresa.establecimiento_codigo}-"
-        f"{empresa.punto_emision_codigo}-"
+        f"{estab}-"
+        f"{pemi}-"
         f"{siguiente}"
     )
 
@@ -937,10 +1029,12 @@ def crear_guia_remision(
 
     comprobante = ComprobanteElectronico.objects.create(
         empresa=empresa,
+        establecimiento_ref=fiscal_context.establecimiento,
+        punto_emision_ref=fiscal_context.punto_emision,
         usuario_creador=usuario,
         tipo_comprobante='06',
-        establecimiento=empresa.establecimiento_codigo,
-        punto_emision=empresa.punto_emision_codigo,
+        establecimiento=estab,
+        punto_emision=pemi,
         secuencial=siguiente,
         numero_comprobante=numero_comprobante,
         fecha_emision=fecha_emision,
@@ -1065,18 +1159,29 @@ def crear_nota_debito(
 
     if not empresa:
         raise ValueError('No hay empresa configurada.')
+    if not cliente or cliente.empresa_id != empresa.id:
+        raise ValueError('El cliente no pertenece a la empresa emisora.')
+    if factura_origen and factura_origen.comprobante.empresa_id != empresa.id:
+        raise ValueError('La factura de origen no pertenece a la empresa emisora.')
+    if factura_origen and factura_origen.cliente_id != cliente.id:
+        raise ValueError('La factura de origen pertenece a otro cliente.')
+
+    from apps.facturacion.services.fiscal_context import resolve_fiscal_context
+    fiscal_context = resolve_fiscal_context(empresa)
+    estab = fiscal_context.establecimiento_codigo
+    pemi = fiscal_context.punto_emision_codigo
 
     secuencial_obj, _ = Secuencial.objects.get_or_create(
         empresa=empresa,
         tipo_comprobante='05',
-        establecimiento=empresa.establecimiento_codigo,
-        punto_emision=empresa.punto_emision_codigo,
+        establecimiento=estab,
+        punto_emision=pemi,
         defaults={'secuencial_actual': 0},
     )
     siguiente = secuencial_obj.get_siguiente()
     numero_comprobante = (
-        f"{empresa.establecimiento_codigo}-"
-        f"{empresa.punto_emision_codigo}-"
+        f"{estab}-"
+        f"{pemi}-"
         f"{siguiente}"
     )
 
@@ -1087,10 +1192,12 @@ def crear_nota_debito(
 
     comprobante = ComprobanteElectronico.objects.create(
         empresa=empresa,
+        establecimiento_ref=fiscal_context.establecimiento,
+        punto_emision_ref=fiscal_context.punto_emision,
         usuario_creador=usuario,
         tipo_comprobante='05',
-        establecimiento=empresa.establecimiento_codigo,
-        punto_emision=empresa.punto_emision_codigo,
+        establecimiento=estab,
+        punto_emision=pemi,
         secuencial=siguiente,
         numero_comprobante=numero_comprobante,
         fecha_emision=fecha_emision,

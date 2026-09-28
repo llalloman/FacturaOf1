@@ -21,7 +21,7 @@ const InventariosPage: React.FC = () => {
   });
 
   const { data: movimientos } = useQuery({
-    queryKey: ['movimientos'],
+    queryKey: ['movimientos-inventario'],
     queryFn: inventariosService.getMovimientos,
   });
 
@@ -30,8 +30,14 @@ const InventariosPage: React.FC = () => {
   const movimientosArray = Array.isArray(movimientos) ? movimientos : [];
 
   const today = new Date().toISOString().split('T')[0];
-  const entradasHoy = movimientosArray.filter(m => m.tipo_movimiento === 'ENTRADA' && m.fecha?.startsWith(today)).length;
-  const salidasHoy  = movimientosArray.filter(m => m.tipo_movimiento === 'SALIDA'  && m.fecha?.startsWith(today)).length;
+  const entradasHoy = movimientosArray.filter(m =>
+    ['ENTRADA_COMPRA', 'AJUSTE_ENTRADA', 'TRANSFERENCIA_ENTRADA', 'DEVOLUCION_ENTRADA'].includes(m.tipo_movimiento)
+    && m.fecha_movimiento?.startsWith(today)
+  ).length;
+  const salidasHoy  = movimientosArray.filter(m =>
+    ['SALIDA_VENTA', 'AJUSTE_SALIDA', 'TRANSFERENCIA_SALIDA', 'DEVOLUCION_SALIDA'].includes(m.tipo_movimiento)
+    && m.fecha_movimiento?.startsWith(today)
+  ).length;
 
   return (
     <div className="p-6 space-y-6">

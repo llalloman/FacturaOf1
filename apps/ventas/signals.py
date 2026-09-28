@@ -8,6 +8,7 @@ from django.dispatch import receiver
 from django.db import transaction
 from .models import Venta, DetalleVenta
 from apps.inventarios.models import LoteInventario, MovimientoInventario, StockProducto
+from apps.inventarios.valuation import project_stock
 import logging
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ def actualizar_inventario_venta(sender, instance, created, **kwargs):
             registrar_inventario_venta(instance)
         except Exception:
             logger.exception('Error actualizando inventario para venta %s', instance.numero_venta)
+            raise
 
 
 @receiver(post_save, sender=MovimientoInventario)
@@ -62,8 +64,14 @@ def actualizar_stock_movimiento(sender, instance, created, **kwargs):
                     defaults={'cantidad': 0}
                 )
                 
-                # Actualizar cantidad
-                stock.cantidad += instance.cantidad
+                # El kardex es la fuente de verdad; la proyección conserva el
+                # costo promedio ponderado de las entradas.
+                stock.cantidad, stock.costo_promedio = project_stock(
+                    stock.cantidad,
+                    stock.costo_promedio,
+                    instance.cantidad,
+                    instance.costo_unitario,
+                )
                 
                 # Advertir si queda negativo
                 if stock.cantidad < 0:
@@ -78,6 +86,7 @@ def actualizar_stock_movimiento(sender, instance, created, **kwargs):
                 
         except Exception:
             logger.exception('Error actualizando stock para movimiento %s', instance.id)
+            raise
 
 
 @receiver(post_delete, sender=MovimientoInventario)
@@ -96,3 +105,4 @@ def revertir_stock_movimiento_eliminado(sender, instance, **kwargs):
             sincronizar_stock_total_producto(instance.producto)
     except Exception:
         logger.exception('Error revirtiendo stock de movimiento eliminado %s', instance.id)
+        raise

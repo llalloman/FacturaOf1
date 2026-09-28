@@ -10,14 +10,21 @@ interface MovimientoModalProps {
   onClose: () => void;
 }
 
+type MovimientoManual =
+  | 'ENTRADA_COMPRA'
+  | 'SALIDA_VENTA'
+  | 'AJUSTE_ENTRADA'
+  | 'AJUSTE_SALIDA'
+  | 'DEVOLUCION_ENTRADA'
+  | 'DEVOLUCION_SALIDA';
+
 const MovimientoModal: React.FC<MovimientoModalProps> = ({ onClose }) => {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     bodega: 0,
     producto: 0,
-    tipo_movimiento: 'ENTRADA' as 'ENTRADA' | 'SALIDA' | 'AJUSTE' | 'TRANSFERENCIA',
+    tipo_movimiento: 'ENTRADA_COMPRA' as MovimientoManual,
     cantidad: '',
-    fecha: new Date().toISOString().split('T')[0],
     observaciones: '',
   });
 
@@ -47,7 +54,18 @@ const MovimientoModal: React.FC<MovimientoModalProps> = ({ onClose }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutation.mutate({ ...formData, cantidad: parseFloat(formData.cantidad) || 0 });
+    const cantidad = Math.abs(parseFloat(formData.cantidad) || 0);
+    const esSalida = formData.tipo_movimiento === 'SALIDA_VENTA'
+      || formData.tipo_movimiento === 'AJUSTE_SALIDA'
+      || formData.tipo_movimiento === 'DEVOLUCION_SALIDA';
+    mutation.mutate({
+      bodega: formData.bodega,
+      producto: formData.producto,
+      tipo_movimiento: formData.tipo_movimiento,
+      cantidad: esSalida ? -cantidad : cantidad,
+      observaciones: formData.observaciones,
+      idempotency_key: globalThis.crypto?.randomUUID?.(),
+    });
   };
 
   return (
@@ -71,28 +89,17 @@ const MovimientoModal: React.FC<MovimientoModalProps> = ({ onClose }) => {
               </label>
               <select
                 value={formData.tipo_movimiento}
-                onChange={(e) => setFormData({ ...formData, tipo_movimiento: e.target.value as 'ENTRADA' | 'SALIDA' | 'AJUSTE' | 'TRANSFERENCIA' })}
+                onChange={(e) => setFormData({ ...formData, tipo_movimiento: e.target.value as MovimientoManual })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               >
-                <option value="ENTRADA">Entrada</option>
-                <option value="SALIDA">Salida</option>
-                <option value="AJUSTE">Ajuste</option>
-                <option value="TRANSFERENCIA">Transferencia</option>
+                <option value="ENTRADA_COMPRA">Entrada por compra</option>
+                <option value="SALIDA_VENTA">Salida</option>
+                <option value="AJUSTE_ENTRADA">Ajuste de entrada</option>
+                <option value="AJUSTE_SALIDA">Ajuste de salida</option>
+                <option value="DEVOLUCION_ENTRADA">Devolución de cliente</option>
+                <option value="DEVOLUCION_SALIDA">Devolución a proveedor</option>
               </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fecha *
-              </label>
-              <input
-                type="date"
-                value={formData.fecha}
-                onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
             </div>
           </div>
 

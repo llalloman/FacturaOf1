@@ -537,6 +537,9 @@ class AutomationWebhookEventSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         payload = attrs.get('payload') or self.initial_data or {}
         attrs['payload'] = payload
+        attrs['contract_version'] = attrs.get('contract_version') or payload.get('contract_version') or 'v1'
+        if attrs['contract_version'] not in ('v1', 'v2'):
+            raise serializers.ValidationError({'contract_version': 'Versión de contrato no soportada.'})
         attrs['event_type'] = attrs.get('event_type') or payload.get('event_type')
         if not attrs.get('event_type'):
             raise serializers.ValidationError({'event_type': 'Debe enviar event_type.'})
@@ -547,15 +550,38 @@ class AutomationWebhookEventSerializer(serializers.ModelSerializer):
             prefix='automation:webhook',
         )
         data = payload.get('data') or {}
+        empresa_id = data.get('empresa_id') or payload.get('empresa_id')
+        empresa = attrs.get('empresa')
+        if empresa_id:
+            from apps.empresas.models import Empresa
+            empresa = Empresa.objects.filter(pk=empresa_id, activa=True).first()
+            if not empresa:
+                raise serializers.ValidationError({'empresa': 'La empresa del evento no existe o está inactiva.'})
+        if empresa and empresa_id and str(empresa.pk) != str(empresa_id):
+            raise serializers.ValidationError({'empresa': 'La empresa no coincide con empresa_id del payload.'})
+        if empresa:
+            attrs['empresa'] = empresa
         attrs['entity_type'] = attrs.get('entity_type') or data.get('entity_type') or ''
         attrs['entity_id'] = attrs.get('entity_id') or str(data.get('order_id') or data.get('lead_id') or data.get('entity_id') or '')
         return attrs
 
     def create(self, validated_data):
-        event, _ = AutomationWebhookEvent.objects.get_or_create(
+        event, created = AutomationWebhookEvent.objects.get_or_create(
             idempotency_key=validated_data['idempotency_key'],
             defaults=validated_data,
         )
+        if not created:
+            same_context = event.empresa_id == getattr(validated_data.get('empresa'), 'id', None)
+            same_contract = (
+                event.event_type == validated_data.get('event_type')
+                and event.entity_type == validated_data.get('entity_type', '')
+                and event.entity_id == validated_data.get('entity_id', '')
+                and event.contract_version == validated_data.get('contract_version')
+            )
+            if not (same_context and same_contract):
+                raise serializers.ValidationError({
+                    'idempotency_key': 'La clave ya fue usada con otro evento o empresa.'
+                })
         return event
 
 

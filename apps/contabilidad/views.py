@@ -13,9 +13,10 @@ from .serializers import (
     AsientoContableCreateSerializer,
 )
 from apps.core.permissions import HasModuleAccess
+from apps.core.tenant import ActiveCompanyWriteMixin, require_active_empresa, tenant_queryset
 
 
-class CuentaContableViewSet(viewsets.ModelViewSet):
+class CuentaContableViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'contabilidad'
     serializer_class = CuentaContableSerializer
@@ -27,18 +28,15 @@ class CuentaContableViewSet(viewsets.ModelViewSet):
     pagination_class = None  # Plan de cuentas needs full tree
 
     def get_queryset(self):
-        return CuentaContable.objects.filter(
-            empresa=self.request.user.empresa
-        ).select_related('padre')
+        return tenant_queryset(self.request, CuentaContable.objects.all()).select_related('padre')
 
     def perform_create(self, serializer):
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
     @action(detail=False, methods=['get'])
     def arbol(self, request):
         """Devuelve el plan de cuentas como árbol (nodos raíz con hijos anidados)."""
-        raices = CuentaContable.objects.filter(
-            empresa=request.user.empresa,
+        raices = tenant_queryset(request, CuentaContable.objects.all()).filter(
             padre=None,
             activa=True,
         ).order_by('codigo')
@@ -47,7 +45,7 @@ class CuentaContableViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def inicializar(self, request):
         """Crea el plan de cuentas estándar NEC Ecuador si no existe."""
-        empresa = request.user.empresa
+        empresa = require_active_empresa(request)
         if CuentaContable.objects.filter(empresa=empresa).exists():
             return Response({'detail': 'El plan de cuentas ya existe.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -126,7 +124,7 @@ class CuentaContableViewSet(viewsets.ModelViewSet):
         return Response({'detail': f'{len(PLAN)} cuentas creadas correctamente.'}, status=status.HTTP_201_CREATED)
 
 
-class AsientoContableViewSet(viewsets.ModelViewSet):
+class AsientoContableViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'contabilidad'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -136,9 +134,7 @@ class AsientoContableViewSet(viewsets.ModelViewSet):
     ordering = ['-fecha']
 
     def get_queryset(self):
-        return AsientoContable.objects.filter(
-            empresa=self.request.user.empresa
-        ).prefetch_related('lineas__cuenta')
+        return tenant_queryset(self.request, AsientoContable.objects.all()).prefetch_related('lineas__cuenta')
 
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):
@@ -161,10 +157,9 @@ class AsientoContableViewSet(viewsets.ModelViewSet):
         Query params: al=YYYY-MM-DD (fecha corte, default hoy)
         """
         from django.utils import timezone
-        empresa = request.user.empresa
         al = request.query_params.get('al')
 
-        cuentas_qs = CuentaContable.objects.filter(empresa=empresa, activa=True)
+        cuentas_qs = tenant_queryset(request, CuentaContable.objects.all()).filter(activa=True)
 
         def _saldo(cuenta):
             lineas = cuenta.lineas.all()
@@ -204,11 +199,10 @@ class AsientoContableViewSet(viewsets.ModelViewSet):
         Estado de Resultados para un período.
         Query params: anio, mes (opcional)
         """
-        empresa = request.user.empresa
         anio = request.query_params.get('anio')
         mes  = request.query_params.get('mes')
 
-        cuentas_qs = CuentaContable.objects.filter(empresa=empresa, activa=True, es_hoja=True)
+        cuentas_qs = tenant_queryset(request, CuentaContable.objects.all()).filter(activa=True, es_hoja=True)
 
         def _filtrar_lineas(tipo):
             rows = []
@@ -253,7 +247,7 @@ class AsientoContableViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Se requiere cuenta_id.'}, status=400)
 
         try:
-            cuenta = CuentaContable.objects.get(pk=cuenta_id, empresa=request.user.empresa)
+            cuenta = tenant_queryset(request, CuentaContable.objects.filter(pk=cuenta_id)).get()
         except CuentaContable.DoesNotExist:
             return Response({'detail': 'Cuenta no encontrada.'}, status=404)
 

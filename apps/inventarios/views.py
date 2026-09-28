@@ -1,10 +1,12 @@
-from rest_framework import viewsets, filters, status
+from rest_framework import mixins, viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db import transaction
 from django.db.models import Q, Sum, F
+from django.shortcuts import get_object_or_404
 from datetime import timedelta
 from django.utils import timezone
 from .models import Bodega, StockProducto, LoteInventario, MovimientoInventario, TransferenciaInventario
@@ -12,10 +14,11 @@ from .serializers import (
     BodegaSerializer, StockProductoSerializer, LoteInventarioSerializer, MovimientoInventarioSerializer,
     TransferenciaInventarioSerializer
 )
-from apps.core.permissions import HasModuleAccess
+from apps.core.permissions import HasModuleAccess, is_global_platform_user, is_platform_user
+from apps.core.tenant import ActiveCompanyWriteMixin, active_empresa, require_active_empresa, tenant_queryset
 
 
-class BodegaViewSet(viewsets.ModelViewSet):
+class BodegaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     serializer_class = BodegaSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'inventarios'
@@ -26,16 +29,17 @@ class BodegaViewSet(viewsets.ModelViewSet):
     ordering = ['nombre']
     
     def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return Bodega.objects.all()
-        return Bodega.objects.filter(empresa=user.empresa)
+        return tenant_queryset(self.request, Bodega.objects.all())
 
     def perform_create(self, serializer):
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
 
-class StockProductoViewSet(viewsets.ModelViewSet):
+class StockProductoViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
     serializer_class = StockProductoSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'inventarios'
@@ -46,11 +50,11 @@ class StockProductoViewSet(viewsets.ModelViewSet):
     ordering = ['-ultima_actualizacion']
     
     def get_queryset(self):
-        user = self.request.user
-        queryset = StockProducto.objects.select_related('producto', 'bodega')
-        
-        if not user.is_superuser:
-            queryset = queryset.filter(bodega__empresa=user.empresa)
+        queryset = tenant_queryset(
+            self.request,
+            StockProducto.objects.select_related('producto', 'bodega'),
+            'bodega__empresa',
+        )
         
         # Filtro por stock bajo
         stock_bajo = self.request.query_params.get('stock_bajo', None)
@@ -70,8 +74,26 @@ class StockProductoViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['get'])
+    def reconciliacion(self, request):
+        """Compara el saldo material con el kardex sin modificar producción."""
+        rows = []
+        for stock in self.get_queryset().select_related('producto', 'bodega'):
+            saldo_kardex = MovimientoInventario.objects.filter(
+                empresa=stock.bodega.empresa, producto=stock.producto, bodega=stock.bodega,
+            ).aggregate(total=Sum('cantidad'))['total'] or 0
+            diferencia = stock.cantidad - saldo_kardex
+            if diferencia:
+                rows.append({
+                    'producto_id': stock.producto_id, 'producto': stock.producto.nombre,
+                    'bodega_id': stock.bodega_id, 'bodega': stock.bodega.nombre,
+                    'stock_registrado': str(stock.cantidad), 'saldo_kardex': str(saldo_kardex),
+                    'diferencia': str(diferencia),
+                })
+        return Response({'empresa_id': active_empresa(request).id if active_empresa(request) else None, 'inconsistencias': rows, 'total': len(rows)})
 
-class LoteInventarioViewSet(viewsets.ModelViewSet):
+
+class LoteInventarioViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     serializer_class = LoteInventarioSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'inventarios'
@@ -82,14 +104,21 @@ class LoteInventarioViewSet(viewsets.ModelViewSet):
     ordering = ['fecha_caducidad', 'numero_lote']
 
     def get_queryset(self):
-        user = self.request.user
-        queryset = LoteInventario.objects.select_related('producto', 'bodega')
-        if not user.is_superuser:
-            queryset = queryset.filter(empresa=user.empresa)
-        return queryset
+        return tenant_queryset(
+            self.request,
+            LoteInventario.objects.select_related('producto', 'bodega'),
+        )
 
     def perform_create(self, serializer):
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
+
+    def perform_destroy(self, instance):
+        self._require_instance_active_empresa(instance)
+        if instance.movimientos.exists():
+            raise ValidationError({
+                'detail': 'No se puede eliminar un lote con movimientos; desactívelo.'
+            })
+        instance.delete()
 
     @action(detail=False, methods=['get'])
     def alertas_caducidad(self, request):
@@ -106,7 +135,12 @@ class LoteInventarioViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class MovimientoInventarioViewSet(viewsets.ModelViewSet):
+class MovimientoInventarioViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
     serializer_class = MovimientoInventarioSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'inventarios'
@@ -117,11 +151,11 @@ class MovimientoInventarioViewSet(viewsets.ModelViewSet):
     ordering = ['-fecha_movimiento']
     
     def get_queryset(self):
-        user = self.request.user
-        queryset = MovimientoInventario.objects.select_related('producto', 'bodega', 'lote', 'usuario')
-        
-        if not user.is_superuser:
-            queryset = queryset.filter(bodega__empresa=user.empresa)
+        queryset = tenant_queryset(
+            self.request,
+            MovimientoInventario.objects.select_related('producto', 'bodega', 'lote', 'usuario'),
+            'bodega__empresa',
+        )
         
         # Filtros adicionales
         fecha_desde = self.request.query_params.get('fecha_desde', None)
@@ -159,7 +193,7 @@ class MovimientoInventarioViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class TransferenciaInventarioViewSet(viewsets.ModelViewSet):
+class TransferenciaInventarioViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     serializer_class = TransferenciaInventarioSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'inventarios'
@@ -171,27 +205,43 @@ class TransferenciaInventarioViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
+        empresa = active_empresa(self.request)
         queryset = TransferenciaInventario.objects.select_related(
             'bodega_origen', 'bodega_destino', 'usuario_envia', 'usuario_recibe'
         ).prefetch_related('detalles__producto')
         
-        if not user.is_superuser:
-            queryset = queryset.filter(bodega_origen__empresa=user.empresa)
-        
+        if empresa:
+            queryset = queryset.filter(bodega_origen__empresa=empresa)
+        elif not is_global_platform_user(user):
+            # El permiso de módulo no convierte a soporte/auditoría en
+            # administrador consolidado; deben seleccionar una empresa.
+            queryset = queryset.none()
+
         return queryset
     
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def aprobar(self, request, pk=None):
         """Aprobar transferencia (TRANSACCIÓN ATÓMICA con LOCKS)"""
-        transferencia = self.get_object()
+        transferencia = get_object_or_404(
+            # PostgreSQL no permite bloquear el lado nullable de los
+            # `select_related` (usuario_recibe). Lock solo de la transferencia;
+            # los stocks se bloquean individualmente más abajo.
+            self.get_queryset().select_for_update(of=('self',)),
+            pk=pk,
+        )
         
+        if transferencia.estado in (
+            TransferenciaInventario.EstadoChoices.EN_TRANSITO,
+            TransferenciaInventario.EstadoChoices.RECIBIDA,
+        ):
+            return Response(self.get_serializer(transferencia).data)
         if transferencia.estado != 'PENDIENTE':
             return Response(
                 {'error': 'Solo se pueden aprobar transferencias pendientes'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
             # Verificar stock disponible ANTES de aprobar (con lock para evitar race conditions)
             from apps.inventarios.models import StockProducto
@@ -211,30 +261,20 @@ class TransferenciaInventarioViewSet(viewsets.ModelViewSet):
             transferencia.estado = TransferenciaInventario.EstadoChoices.EN_TRANSITO
             transferencia.save()
             
-            # Crear movimientos de inventario
+            # El despacho solo descuenta el origen. La bodega destino no debe
+            # disponer del stock hasta confirmar la recepcion fisica.
             for detalle in transferencia.detalles.all():
-                # Salida de bodega origen
-                MovimientoInventario.objects.create(
+                MovimientoInventario.objects.get_or_create(
                     empresa=transferencia.empresa,
                     bodega=transferencia.bodega_origen,
                     producto=detalle.producto,
                     tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.TRANSFERENCIA_SALIDA,
-                    cantidad=-detalle.cantidad_enviada,
-                    costo_unitario=detalle.producto.costo,
-                    documento_referencia=f'Transferencia #{transferencia.id}',
-                    usuario=request.user
-                )
-                
-                # Entrada a bodega destino
-                MovimientoInventario.objects.create(
-                    empresa=transferencia.empresa,
-                    bodega=transferencia.bodega_destino,
-                    producto=detalle.producto,
-                    tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.TRANSFERENCIA_ENTRADA,
-                    cantidad=detalle.cantidad_enviada,
-                    costo_unitario=detalle.producto.costo,
-                    documento_referencia=f'Transferencia #{transferencia.id}',
-                    usuario=request.user
+                    documento_referencia=f'Transferencia #{transferencia.id} - salida',
+                    defaults={
+                        'cantidad': -detalle.cantidad_enviada,
+                        'costo_unitario': detalle.producto.costo,
+                        'usuario': request.user,
+                    },
                 )
             
             serializer = self.get_serializer(transferencia)
@@ -250,11 +290,80 @@ class TransferenciaInventarioViewSet(viewsets.ModelViewSet):
                 {'error': f'Error en transacción: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def recibir(self, request, pk=None):
+        """Confirmar la recepción física de una transferencia en tránsito."""
+        transferencia = get_object_or_404(
+            # PostgreSQL no permite bloquear el lado nullable de la relación
+            # usuario_recibe; el stock se materializa en los movimientos y
+            # queda protegido por la transacción del despacho/recepción.
+            self.get_queryset().select_for_update(of=('self',)),
+            pk=pk,
+        )
+        if transferencia.estado == TransferenciaInventario.EstadoChoices.RECIBIDA:
+            return Response(self.get_serializer(transferencia).data)
+        if transferencia.estado != TransferenciaInventario.EstadoChoices.EN_TRANSITO:
+            return Response(
+                {'error': 'Solo se pueden recibir transferencias en tránsito.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        transferencia.estado = TransferenciaInventario.EstadoChoices.RECIBIDA
+        transferencia.fecha_recepcion = timezone.now()
+        transferencia.usuario_recibe = request.user
+        transferencia.save(update_fields=['estado', 'fecha_recepcion', 'usuario_recibe'])
+
+        # La recepcion es el momento en que el inventario llega a destino.
+        # get_or_create mantiene el endpoint seguro ante reintentos y permite
+        # convivir con transferencias antiguas ya procesadas.
+        for detalle in transferencia.detalles.all():
+            referencia_entrada = f'Transferencia #{transferencia.id} - entrada'
+            referencia_legacy = f'Transferencia #{transferencia.id}'
+            if MovimientoInventario.objects.filter(
+                empresa=transferencia.empresa,
+                bodega=transferencia.bodega_destino,
+                producto=detalle.producto,
+                tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.TRANSFERENCIA_ENTRADA,
+                documento_referencia__in=[referencia_entrada, referencia_legacy],
+            ).exists():
+                detalle.cantidad_recibida = detalle.cantidad_enviada
+                detalle.save(update_fields=['cantidad_recibida'])
+                continue
+            movimiento_salida = MovimientoInventario.objects.filter(
+                empresa=transferencia.empresa,
+                bodega=transferencia.bodega_origen,
+                producto=detalle.producto,
+                tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.TRANSFERENCIA_SALIDA,
+                documento_referencia=f'Transferencia #{transferencia.id} - salida',
+            ).first()
+            MovimientoInventario.objects.get_or_create(
+                empresa=transferencia.empresa,
+                bodega=transferencia.bodega_destino,
+                producto=detalle.producto,
+                tipo_movimiento=MovimientoInventario.TipoMovimientoChoices.TRANSFERENCIA_ENTRADA,
+                documento_referencia=referencia_entrada,
+                defaults={
+                    'cantidad': detalle.cantidad_enviada,
+                    'costo_unitario': (
+                        movimiento_salida.costo_unitario
+                        if movimiento_salida else detalle.producto.costo
+                    ),
+                    'usuario': request.user,
+                },
+            )
+            detalle.cantidad_recibida = detalle.cantidad_enviada
+            detalle.save(update_fields=['cantidad_recibida'])
+        return Response(self.get_serializer(transferencia).data)
     
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def rechazar(self, request, pk=None):
         """Rechazar transferencia"""
-        transferencia = self.get_object()
+        transferencia = get_object_or_404(
+            self.get_queryset().select_for_update(),
+            pk=pk,
+        )
         
         if transferencia.estado != 'PENDIENTE':
             return Response(

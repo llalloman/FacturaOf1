@@ -4,6 +4,7 @@ import { Producto, Cliente, Venta } from '../types';
 class APIService {
   private client: AxiosInstance;
   private baseURL: string;
+  private empresaId: number | null = null;
 
   constructor() {
     this.baseURL = 'http://localhost:8000/api';
@@ -17,17 +18,28 @@ class APIService {
 
     // Interceptor para agregar token
     this.client.interceptors.request.use(async (config) => {
-      const token = await window.electron.config.get('token_auth');
+      const token = await window.electron?.config?.get('token_auth');
       if (token?.value) {
         config.headers.Authorization = `Bearer ${token.value}`;
+      }
+      const empresa = await window.electron?.config?.get('empresa_id');
+      const empresaId = Number(empresa?.value || this.empresaId || 0);
+      if (empresaId > 0) {
+        config.headers['X-Empresa-ID'] = String(empresaId);
       }
       return config;
     });
   }
 
   setBaseURL(url: string) {
-    this.baseURL = url;
-    this.client.defaults.baseURL = url;
+    const normalized = url.trim().replace(/\/+$/, '');
+    this.baseURL = normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+    this.client.defaults.baseURL = this.baseURL;
+  }
+
+  setEmpresaId(empresaId: number | null | undefined) {
+    const value = Number(empresaId || 0);
+    this.empresaId = value > 0 ? value : null;
   }
 
   // Autenticación
@@ -40,11 +52,17 @@ class APIService {
   }
 
   // Productos
-  async getProductos(empresaId: number): Promise<Producto[]> {
+  async getProductos(empresaId: number, buscar?: string): Promise<Producto[]> {
     const response = await this.client.get(`/productos/`, {
-      params: { empresa_id: empresaId },
+      params: { empresa_id: empresaId, search: buscar || undefined },
     });
-    return response.data;
+    const rows = Array.isArray(response.data) ? response.data : (response.data.results ?? []);
+    return rows.map((p: any) => ({
+      ...p,
+      empresa_id: p.empresa_id ?? p.empresa,
+      codigo: p.codigo ?? p.codigo_principal,
+      stock_actual: Number(p.stock_actual ?? 0),
+    }));
   }
 
   async buscarProductoPorCodigo(codigo: string, empresaId: number): Promise<Producto> {
@@ -59,7 +77,8 @@ class APIService {
     const response = await this.client.get(`/clientes/`, {
       params: { empresa_id: empresaId },
     });
-    return response.data;
+    const rows = Array.isArray(response.data) ? response.data : (response.data.results ?? []);
+    return rows.map((c: any) => ({ ...c, empresa_id: c.empresa_id ?? c.empresa }));
   }
 
   async buscarCliente(identificacion: string, empresaId: number): Promise<Cliente> {
@@ -104,11 +123,11 @@ class APIService {
     }
   }
 
-  async generarFactura(ventaId: number) {
+  async generarFactura(ventaId: number, contexto?: { establecimiento_id?: number; punto_emision_id?: number }) {
     try {
       const response = await this.client.post(
         `/ventas/${ventaId}/generar_factura/`,
-        {},
+        contexto ?? {},
         { timeout: 90000 }, // SRI puede tardar hasta 30s (6 retries × 5s)
       );
       return { success: true, data: response.data };

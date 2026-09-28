@@ -3,48 +3,69 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
+from apps.core.permissions import HasModuleAccess, IsCompanyAdminOrPlatform, is_global_platform_user, is_platform_user
+from apps.core.tenant import active_empresa, require_active_empresa, tenant_queryset
 
 from apps.pagos.models import PagoConfiguracion, PagoOnline
 from apps.pagos.serializers import PagoConfiguracionSerializer, PagoOnlineSerializer
 
 
 class PagoConfiguracionViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess, IsCompanyAdminOrPlatform]
+    module_required = 'facturacion'
     serializer_class = PagoConfiguracionSerializer
 
     def _is_super_admin(self):
         user = self.request.user
-        return user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN'
+        return is_platform_user(user, 'pagos')
 
     def get_queryset(self):
         qs = PagoConfiguracion.objects.select_related(
             'empresa', 'cuenta_payphone', 'caja_ventas', 'usuario_ventas',
+            'establecimiento_fiscal', 'punto_emision_fiscal',
         )
         if self._is_super_admin():
+            if getattr(self.request, 'tenant', None):
+                return qs.filter(empresa=self.request.tenant).order_by("empresa__razon_social", "id")
+            if not is_global_platform_user(self.request.user):
+                return qs.none()
             empresa_id = self.request.query_params.get('empresa')
             return (qs.filter(empresa_id=empresa_id) if empresa_id else qs).order_by("empresa__razon_social", "id")
-        return qs.filter(empresa=self.request.user.empresa).order_by("empresa__razon_social", "id")
+        return tenant_queryset(self.request, qs).order_by("empresa__razon_social", "id")
 
     def create(self, request, *args, **kwargs):
-        if self._is_super_admin() and not request.data.get('empresa'):
+        if (
+            self._is_super_admin()
+            and not getattr(request, 'tenant', None)
+            and not is_global_platform_user(request.user)
+        ):
+            return Response({'empresa': ['Seleccione una empresa activa.']}, status=status.HTTP_400_BAD_REQUEST)
+        if self._is_super_admin() and not getattr(request, 'tenant', None) and not request.data.get('empresa'):
             return Response({'empresa': ['Este campo es requerido.']}, status=status.HTTP_400_BAD_REQUEST)
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        if self._is_super_admin():
+        if self._is_super_admin() and getattr(self.request, 'tenant', None):
+            serializer.save(empresa=self.request.tenant)
+            return
+        if self._is_super_admin() and is_global_platform_user(self.request.user):
             serializer.save()
             return
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
     def perform_update(self, serializer):
-        if self._is_super_admin():
+        if self._is_super_admin() and getattr(self.request, 'tenant', None):
+            serializer.save(empresa=self.request.tenant)
+            return
+        if self._is_super_admin() and is_global_platform_user(self.request.user):
             serializer.save()
             return
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
 
 class PagoOnlineViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'facturacion'
     serializer_class = PagoOnlineSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['estado', 'provider', 'metodo', 'origen']
@@ -57,10 +78,14 @@ class PagoOnlineViewSet(viewsets.ReadOnlyModelViewSet):
             'empresa', 'venta', 'pago_venta', 'movimiento_bancario', 'pago_suscripcion'
         )
         user = self.request.user
-        if user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN':
+        if is_platform_user(user, 'pagos'):
+            if getattr(self.request, 'tenant', None):
+                return qs.filter(empresa=self.request.tenant)
+            if not is_global_platform_user(user):
+                return qs.none()
             empresa_id = self.request.query_params.get('empresa')
             return qs.filter(empresa_id=empresa_id) if empresa_id else qs
-        return qs.filter(empresa=user.empresa)
+        return tenant_queryset(self.request, qs)
 
 
     @action(detail=True, methods=['post'], url_path='reintentar-aplicacion')

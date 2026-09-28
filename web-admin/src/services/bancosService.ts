@@ -68,6 +68,16 @@ export interface ResumenBancos {
   cuentas: CuentaBancaria[];
 }
 
+export interface CierreTesoreria {
+  id: number;
+  fecha: string;
+  estado: 'BORRADOR' | 'CERRADO' | 'REABIERTO';
+  saldos_teoricos: Record<string, { cuenta: string; tipo: string; saldo_disponible: string; saldo_conciliado: string }>;
+  saldos_declarados: Record<string, number | string>;
+  diferencia_total: number;
+  observaciones: string;
+}
+
 // ── Cuentas ───────────────────────────────────────────────────────────────
 
 export const getCuentas = () =>
@@ -110,3 +120,13 @@ export const getExtracto = (cuentaId: number, params: Record<string, string> = {
   apiClient.get<ExtractoResponse>('/bancos/movimientos/extracto/', {
     params: { cuenta: cuentaId, ...params },
   }).then(r => r.data);
+
+export const getCierresTesoreria = (params: Record<string, string> = {}) =>
+  apiClient.get<CierreTesoreria[] | { results?: CierreTesoreria[] }>('/bancos/cierres-tesoreria/', { params })
+    .then(r => Array.isArray(r.data) ? r.data : r.data.results ?? []);
+
+export const crearCierreTesoreria = (fecha: string, observaciones = '') =>
+  apiClient.post<CierreTesoreria>('/bancos/cierres-tesoreria/', { fecha, observaciones }).then(r => r.data);
+
+export const cerrarTesoreria = (id: number, saldos_declarados: Record<string, number | string>) =>
+  apiClient.post<CierreTesoreria>(`/bancos/cierres-tesoreria/${id}/cerrar/`, { saldos_declarados }).then(r => r.data);

@@ -1,6 +1,23 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+
+function buildInfoPlugin(): Plugin {
+  return {
+    name: 'facturaof1-build-info',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'build-info.json',
+        source: JSON.stringify({
+          target: process.env.VITE_APP_TARGET || 'facturaof1',
+          apiUrl: process.env.VITE_API_URL || '',
+          builtAtUtc: new Date().toISOString(),
+        }, null, 2),
+      })
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -17,6 +34,7 @@ export default defineConfig({
   } as Record<string, unknown>),
   plugins: [
     react(),
+    buildInfoPlugin(),
     ...(process.env.VITE_ENABLE_PWA === 'true' ? [VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icons/*.png'],

@@ -139,9 +139,18 @@ export interface MovimientoInventario {
   bodega_nombre?: string;
   producto: number;
   producto_nombre?: string;
-  tipo_movimiento: 'ENTRADA' | 'SALIDA' | 'AJUSTE' | 'TRANSFERENCIA';
+  tipo_movimiento:
+    | 'ENTRADA_COMPRA'
+    | 'SALIDA_VENTA'
+    | 'AJUSTE_ENTRADA'
+    | 'AJUSTE_SALIDA'
+    | 'TRANSFERENCIA_SALIDA'
+    | 'TRANSFERENCIA_ENTRADA'
+    | 'DEVOLUCION_ENTRADA'
+    | 'DEVOLUCION_SALIDA';
   cantidad: number;
-  fecha: string;
+  idempotency_key?: string | null;
+  fecha_movimiento: string;
   observaciones?: string;
   created_at?: string;
 }
@@ -357,11 +366,13 @@ export interface Empresa {
   ambiente?: '1' | '2';
   certificado_digital?: string;
   password_certificado?: string;
+  tiene_certificado?: boolean;
   fecha_vencimiento_certificado?: string;
   firmado_automatico?: boolean;
   establecimiento_codigo?: string;
   punto_emision_codigo?: string;
   ruc_proveedor_facturacion_electronica?: string;
+  inventario_permite_stock_negativo?: boolean;
   logo?: string;
   mensaje_personalizado?: string;
   activa: boolean;

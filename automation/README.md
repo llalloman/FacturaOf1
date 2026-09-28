@@ -1,4 +1,8 @@
-# FacturaOF1 Automation
+# FacturaOF1 Automation (legacy location)
+
+> The deployable project is now `../of1-automation/`. This directory is kept
+> temporarily as a compatibility/source archive until the independent project
+> is validated and deployed. Do not create new production secrets here.
 
 Automatización comercial y operativa de OF1 Solutions con n8n, PostgreSQL, DeepSeek y un WhatsApp Gateway basado en Baileys.
 
@@ -97,6 +101,14 @@ No documentar valores reales. Solo nombres esperados:
 - `N8N_WEBHOOK_URL` para el gateway, apuntando al webhook inbound de n8n.
 
 ## Documentacion
+
+## Despacho de eventos
+
+FacturaOF1 incluye un worker opt-in (`python manage.py dispatch_automation_events`).
+Sin `--send` solo inspecciona eventos vencidos; con `--send` requiere una URL por
+evento o `AUTOMATION_DISPATCH_URL` y usa la clave de idempotencia del evento.
+Los fallos aplican backoff y terminan en dead-letter después de cinco intentos.
+No se ejecuta automáticamente al levantar el compose.
 
 - `docs/architecture.md`: arquitectura objetivo y responsabilidades.
 - `docs/workflows.md`: estado actual y workflows propuestos.

@@ -1,6 +1,24 @@
 import apiClient from './apiClient';
 import type { Empresa } from '../types';
 
+export interface EstablecimientoFiscal {
+  id: number;
+  empresa: number;
+  codigo: string;
+  nombre: string;
+  direccion?: string;
+  activo: boolean;
+}
+
+export interface PuntoEmisionFiscal {
+  id: number;
+  empresa: number;
+  establecimiento: number;
+  codigo: string;
+  nombre: string;
+  activo: boolean;
+}
+
 export const empresasService = {
   getAll: async () => {
     const response = await apiClient.get<{ results: Empresa[] } | Empresa[]>('/empresas/empresas/');
@@ -54,5 +72,20 @@ export const empresasService = {
 
   delete: async (id: number) => {
     await apiClient.delete(`/empresas/empresas/${id}/`);
+  },
+
+  getEstablecimientos: async () => {
+    const { data } = await apiClient.get<{ results: EstablecimientoFiscal[] } | EstablecimientoFiscal[]>(
+      '/empresas/establecimientos/',
+    );
+    return (Array.isArray(data) ? data : data.results) ?? [];
+  },
+
+  getPuntosEmision: async (establecimientoId?: number) => {
+    const { data } = await apiClient.get<{ results: PuntoEmisionFiscal[] } | PuntoEmisionFiscal[]>(
+      '/empresas/puntos-emision/',
+      { params: establecimientoId ? { establecimiento: establecimientoId } : undefined },
+    );
+    return (Array.isArray(data) ? data : data.results) ?? [];
   },
 };

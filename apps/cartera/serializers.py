@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import CuentaPorCobrar, PagoCliente, MovimientoCuentaPorCobrar
+from apps.core.tenant import active_empresa, require_active_empresa
 
 
 class PagoClienteSerializer(serializers.ModelSerializer):
@@ -124,9 +125,12 @@ class CuentaPorCobrarCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         factura = data.get('factura')
+        request = self.context.get('request')
+        empresa = active_empresa(request) if request else None
+        cliente = data.get('cliente')
+        if empresa and cliente and cliente.empresa_id != empresa.id:
+            raise serializers.ValidationError({'cliente': 'El cliente no pertenece a la empresa activa.'})
         if factura:
-            request = self.context.get('request')
-            empresa = getattr(request.user, 'empresa', None) if request else None
             if empresa and factura.empresa != empresa:
                 raise serializers.ValidationError(
                     {'factura': 'La factura no pertenece a su empresa.'}
@@ -135,7 +139,7 @@ class CuentaPorCobrarCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         request = self.context.get('request')
-        empresa = getattr(request.user, 'empresa', None) if request else None
+        empresa = require_active_empresa(request) if request else None
         validated_data['empresa'] = empresa
         validated_data['saldo'] = validated_data['monto_total']
         cuenta = super().create(validated_data)

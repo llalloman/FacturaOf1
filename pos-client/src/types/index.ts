@@ -49,6 +49,10 @@ export interface Venta {
   descuento: number;
   iva: number;
   total: number;
+  bodega_id?: number;
+  establecimiento_id?: number;
+  punto_emision_id?: number;
+  genera_factura?: boolean;
   estado: 'COMPLETADA' | 'ANULADA';
   detalles: DetalleVenta[];
   pagos?: PagoVenta[];
@@ -65,6 +69,8 @@ export interface ConfigPOS {
   caja_id: number;
   usuario_id: number;
   bodega_id: number;
+  establecimiento_id?: number;
+  punto_emision_id?: number;
   servidor_url: string;
   token_auth?: string;
   modo_offline: boolean;
@@ -89,6 +95,9 @@ declare global {
         pendientes: () => Promise<any>;
         obtenerPendientes: () => Promise<any>;
         marcarSincronizado: (id: number) => Promise<any>;
+        registrarError: (id: number, error: string) => Promise<any>;
+        reintentar: (id: number) => Promise<any>;
+        reintentarDeadLetter: () => Promise<any>;
         actualizarCacheProductos: (productos: any) => Promise<any>;
         actualizarCacheClientes: (clientes: any) => Promise<any>;
       };

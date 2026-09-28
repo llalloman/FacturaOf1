@@ -58,6 +58,8 @@ from .services.payphone_service import (
 )
 from apps.pagos.services import PagoOnlineApplicationError, empresa_para_solicitud_firma, registrar_pago_firma_transferencia
 from apps.bancos.serializers import CuentaBancariaSerializer
+from apps.core.permissions import is_global_platform_user, is_platform_user
+from apps.core.tenant import active_empresa, require_active_empresa
 
 
 logger = logging.getLogger(__name__)
@@ -71,13 +73,14 @@ def get_client_ip(request):
 
 
 def is_super_admin(user):
-    return user and user.is_authenticated and (user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN')
+    return user and user.is_authenticated and is_platform_user(user, 'firmas')
 
 
-def user_can_access_request(user, solicitud):
-    if is_super_admin(user):
+def user_can_access_request(request, solicitud):
+    user = request.user
+    if is_global_platform_user(user):
         return True
-    empresa = getattr(user, 'empresa', None)
+    empresa = active_empresa(request)
     return empresa and solicitud.company_id == empresa.id
 
 
@@ -104,17 +107,25 @@ class SolicitudFirmaElectronicaViewSet(viewsets.ModelViewSet):
             .prefetch_related('documents', 'status_history')
         )
         user = self.request.user
-        if is_super_admin(user):
+        if is_global_platform_user(user):
+            # Incluso un administrador global debe quedar acotado cuando
+            # selecciona una empresa explícita. El modo consolidado solo se
+            # habilita cuando no existe contexto activo.
+            empresa_activa = active_empresa(self.request)
+            if empresa_activa:
+                return qs.filter(company=empresa_activa)
             return qs
-        empresa = getattr(user, 'empresa', None)
+        empresa = active_empresa(self.request)
         if empresa:
             return qs.filter(company=empresa)
         return qs.none()
 
     def perform_create(self, serializer):
-        empresa = getattr(self.request.user, 'empresa', None)
-        if not is_super_admin(self.request.user) and empresa:
+        empresa = active_empresa(self.request)
+        if empresa:
             serializer.save(company=empresa)
+        elif not is_global_platform_user(self.request.user):
+            serializer.save(company=require_active_empresa(self.request))
         else:
             serializer.save()
 
@@ -195,9 +206,9 @@ class DocumentoSolicitudFirmaViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         qs = DocumentoSolicitudFirma.objects.select_related('request', 'request__company')
         user = self.request.user
-        if is_super_admin(user):
+        if is_global_platform_user(user):
             return qs
-        empresa = getattr(user, 'empresa', None)
+        empresa = active_empresa(self.request)
         if empresa:
             return qs.filter(request__company=empresa)
         return qs.none()
@@ -205,7 +216,7 @@ class DocumentoSolicitudFirmaViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['get'], url_path='descargar')
     def descargar(self, request, pk=None):
         documento = self.get_object()
-        if not user_can_access_request(request.user, documento.request):
+        if not user_can_access_request(request, documento.request):
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
         if not documento.file or not documento.file.storage.exists(documento.file.name):
             logger.warning(
@@ -231,12 +242,18 @@ class DocumentoSolicitudFirmaViewSet(viewsets.ReadOnlyModelViewSet):
 class ConsentimientoFirmaElectronicaViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ConsentimientoFirmaElectronicaSerializer
     permission_classes = [IsAuthenticated, IsSuperAdminOnly]
-    queryset = ConsentimientoFirmaElectronica.objects.select_related('request').all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['terms_version', 'privacy_version', 'accepted_terms', 'accepted_privacy']
     search_fields = ['request__request_number', 'request__identification', 'request__email', 'ip_address']
     ordering_fields = ['accepted_at', 'created_at']
     ordering = ['-accepted_at']
+
+    def get_queryset(self):
+        qs = ConsentimientoFirmaElectronica.objects.select_related('request', 'request__company').all()
+        if is_global_platform_user(self.request.user):
+            return qs
+        empresa = active_empresa(self.request)
+        return qs.filter(request__company=empresa) if empresa else qs.none()
 
 
 @api_view(['GET'])
@@ -245,9 +262,17 @@ def cuentas_pago_transferencia_firma(request):
     from apps.bancos.models import CuentaBancaria
     from apps.pagos.services import _default_empresa
 
-    empresa = _default_empresa()
+    # La cuenta de cobro debe pertenecer a la empresa activa. El fallback
+    # conserva el flujo público/legado de OF1 Solutions únicamente cuando un
+    # administrador global opera sin contexto seleccionado.
+    empresa = active_empresa(request)
+    if not empresa and is_global_platform_user(request.user):
+        empresa = _default_empresa()
     if not empresa:
-        return Response({'detail': 'Configura PAYMENTS_DEFAULT_COMPANY_ID para listar cuentas de pago de firmas.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {'detail': 'Seleccione una empresa activa para listar sus cuentas de pago.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     cuentas = CuentaBancaria.objects.filter(empresa=empresa, activa=True).order_by('banco', 'numero_cuenta')
     return Response(CuentaBancariaSerializer(cuentas, many=True).data)
 

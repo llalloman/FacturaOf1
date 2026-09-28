@@ -1,0 +1,23 @@
+services:
+  firmador-web:
+    build:
+      context: ../..
+      dockerfile: web-admin/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api}
+        VITE_APP_TARGET: firmador
+        VITE_ENABLE_PWA: ${VITE_ENABLE_PWA:-false}
+        VITE_FACTURAOF1_URL: ${VITE_FACTURAOF1_URL:-http://localhost:5176}
+        VITE_OF1_ADMIN_URL: ${VITE_OF1_ADMIN_URL:-http://localhost:5177}
+        VITE_FIRMADOR_URL: ${VITE_FIRMADOR_URL:-http://localhost:5178}
+    container_name: ${FIRMADOR_WEB_CONTAINER_NAME:-firmador-web}
+    restart: unless-stopped
+    ports:
+      - "${FIRMADOR_WEB_PORT:-5178}:80"
+    networks:
+      - firmador_web_net
+
+networks:
+  firmador_web_net:
+    name: ${FIRMADOR_WEB_NETWORK:-firmador_web_net}
+    driver: bridge

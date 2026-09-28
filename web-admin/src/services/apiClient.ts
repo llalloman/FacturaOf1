@@ -37,6 +37,10 @@ apiClient.interceptors.request.use(
     if (token && !isPublicEndpoint) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    const activeEmpresaId = localStorage.getItem('active_empresa_id');
+    if (activeEmpresaId && !isPublicEndpoint) {
+      config.headers['X-Empresa-ID'] = activeEmpresaId;
+    }
     return config;
   },
   (error) => Promise.reject(error)

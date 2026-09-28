@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from .models import CuentaBancaria, MovimientoBancario
+from .models import CuentaBancaria, MovimientoBancario, CierreTesoreria
+from apps.core.permissions import is_platform_user
+from apps.core.tenant import active_empresa
 
 
 class CuentaBancariaSerializer(serializers.ModelSerializer):
@@ -40,8 +42,11 @@ class MovimientoBancarioSerializer(serializers.ModelSerializer):
 
     def validate_cuenta(self, cuenta):
         request = self.context.get('request')
-        if request and not request.user.is_superuser and getattr(request.user, 'empresa_id', None):
-            if cuenta.empresa_id != request.user.empresa_id:
+        empresa_id = None
+        if request:
+            empresa_id = getattr(active_empresa(request), 'id', None)
+        if request and empresa_id and (not is_platform_user(request.user, 'bancos') or getattr(request, 'tenant', None)):
+            if cuenta.empresa_id != empresa_id:
                 raise serializers.ValidationError('La cuenta no pertenece a tu empresa.')
         return cuenta
 
@@ -78,3 +83,10 @@ class MovimientoBancarioSerializer(serializers.ModelSerializer):
 
     def get_eliminable(self, obj):
         return self.get_origen(obj) == 'MANUAL'
+
+
+class CierreTesoreriaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CierreTesoreria
+        fields = '__all__'
+        read_only_fields = ['empresa', 'estado', 'saldos_teoricos', 'diferencia_total', 'creado_por', 'cerrado_por', 'fecha_cierre']

@@ -9,6 +9,20 @@ from datetime import timedelta
 from .models import Suscripcion, PlanSuscripcion
 
 
+def _emails_administradores_empresa(empresa):
+    """Obtiene admins legacy y membresías activas del tenant."""
+    legacy = empresa.usuarios.filter(
+        rol__in=['SUPER_ADMIN', 'ADMIN_EMPRESA'],
+        is_active=True,
+    ).values_list('email', flat=True)
+    membresias = empresa.membresias.filter(
+        rol_empresa='ADMIN_EMPRESA',
+        activa=True,
+        usuario__is_active=True,
+    ).values_list('usuario__email', flat=True)
+    return sorted({email for email in (*legacy, *membresias) if email})
+
+
 @shared_task
 def verificar_suscripciones_vencidas():
     """
@@ -76,10 +90,7 @@ def enviar_notificacion_vencimiento(suscripcion_id):
         empresa = suscripcion.empresa
         
         # Obtener emails de administradores de la empresa
-        emails = list(empresa.usuarios.filter(
-            rol__in=['SUPER_ADMIN', 'ADMIN_EMPRESA'],
-            is_active=True
-        ).values_list('email', flat=True))
+        emails = _emails_administradores_empresa(empresa)
         
         if emails:
             send_mail(
@@ -121,10 +132,7 @@ def enviar_notificacion_proximo_vencimiento(suscripcion_id):
         dias_restantes = suscripcion.dias_restantes()
         
         # Obtener emails de administradores
-        emails = list(empresa.usuarios.filter(
-            rol__in=['SUPER_ADMIN', 'ADMIN_EMPRESA'],
-            is_active=True
-        ).values_list('email', flat=True))
+        emails = _emails_administradores_empresa(empresa)
         
         if emails:
             send_mail(
@@ -165,10 +173,7 @@ def enviar_notificacion_renovacion(suscripcion_id):
         suscripcion = Suscripcion.objects.get(id=suscripcion_id)
         empresa = suscripcion.empresa
         
-        emails = list(empresa.usuarios.filter(
-            rol__in=['SUPER_ADMIN', 'ADMIN_EMPRESA'],
-            is_active=True
-        ).values_list('email', flat=True))
+        emails = _emails_administradores_empresa(empresa)
         
         if emails:
             send_mail(

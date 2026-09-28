@@ -1,4 +1,27 @@
-# React + TypeScript + Vite
+# FacturaOF1 web frontend
+
+Este código contiene la base frontend compartida durante la transición hacia
+productos compilables de forma independiente. El artefacto se selecciona con
+`VITE_APP_TARGET` y siempre consume la API central mediante `VITE_API_URL`.
+
+Targets soportados:
+
+- `facturaof1`: operación ERP, facturación y Firmador.
+- `of1-admin`: administración global de OF1 Solutions.
+- `firmador`: target reservado para separar el Firmador cuando se complete su
+  extracción física.
+
+Los Docker Compose independientes viven en `../deployments/`. El
+`docker-compose.yml` de la raíz continúa reservado para backend y servicios
+centrales.
+
+## Configuración local
+
+Copiar `.env.example` a `.env.local` y ajustar la URL de la API de desarrollo.
+No colocar tokens ni credenciales en variables Vite: todo valor `VITE_*` queda
+expuesto en el bundle del navegador.
+
+---
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

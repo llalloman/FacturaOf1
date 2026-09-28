@@ -5,6 +5,7 @@ import { FiAlertTriangle, FiPlus, FiTrash2, FiX } from 'react-icons/fi';
 import { facturasService } from '../../services/facturasService';
 import { clientesService } from '../../services/clientesService';
 import { productosService } from '../../services/productosService';
+import { empresasService } from '../../services/empresasService';
 import type { Factura, DetalleFactura } from '../../types';
 
 type FacturaModalMode = 'create' | 'edit' | 'duplicate';
@@ -59,6 +60,8 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, mode, onClose }) =
   const [detalles, setDetalles] = useState<DetalleFactura[]>(() => mapDetalles(factura));
   const [productoSeleccionado, setProductoSeleccionado] = useState(0);
   const [cantidad, setCantidad] = useState('');
+  const [establecimientoId, setEstablecimientoId] = useState<number | ''>('');
+  const [puntoEmisionId, setPuntoEmisionId] = useState<number | ''>('');
 
   const { data: clientes } = useQuery({
     queryKey: ['clientes'],
@@ -68,6 +71,16 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, mode, onClose }) =
   const { data: productos } = useQuery({
     queryKey: ['productos'],
     queryFn: () => productosService.getAll({ activo: true }),
+  });
+
+  const { data: establecimientos = [] } = useQuery({
+    queryKey: ['establecimientos-fiscales'],
+    queryFn: empresasService.getEstablecimientos,
+  });
+  const { data: puntosEmision = [] } = useQuery({
+    queryKey: ['puntos-emision-fiscales', establecimientoId],
+    queryFn: () => empresasService.getPuntosEmision(establecimientoId || undefined),
+    enabled: establecimientoId !== '',
   });
 
   const mutation = useMutation({
@@ -133,7 +146,8 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, mode, onClose }) =
     const subtotal = round2(detalles.reduce((sum, d) => sum + Number(d.subtotal || 0), 0));
     const impuestos = round2(detalles.reduce((sum, d) => sum + Number(d.impuestos || 0), 0));
     const descuento = round2(parseFloat(formData.total_descuento) || 0);
-    const total = round2(subtotal + impuestos - descuento);
+    const descuentoEnLineas = round2(detalles.reduce((sum, d) => sum + Number(d.descuento || 0), 0));
+    const total = round2(subtotal + impuestos - (descuentoEnLineas > 0 ? 0 : descuento));
     return { subtotal, impuestos, descuento, total };
   };
 
@@ -144,6 +158,8 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, mode, onClose }) =
       cliente: formData.cliente,
       fecha_emision_input: formData.fecha_emision,
       total_descuento: parseFloat(formData.total_descuento) || 0,
+      ...(establecimientoId ? { establecimiento_id: establecimientoId } : {}),
+      ...(puntoEmisionId ? { punto_emision_id: puntoEmisionId } : {}),
       detalles_input: detalles.map(({ id: _id, ...detalle }) => detalle),
     });
   };
@@ -222,6 +238,20 @@ const FacturaModal: React.FC<FacturaModalProps> = ({ factura, mode, onClose }) =
                         className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                         required
                       />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Establecimiento</label>
+                      <select value={establecimientoId} onChange={(e) => { setEstablecimientoId(e.target.value ? Number(e.target.value) : ''); setPuntoEmisionId(''); }} className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm">
+                        <option value="">Predeterminado de la empresa</option>
+                        {establecimientos.map((item) => <option key={item.id} value={item.id}>{item.codigo} - {item.nombre}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Punto de emisión</label>
+                      <select value={puntoEmisionId} onChange={(e) => setPuntoEmisionId(e.target.value ? Number(e.target.value) : '')} className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm" disabled={!establecimientoId}>
+                        <option value="">Predeterminado del establecimiento</option>
+                        {puntosEmision.map((item) => <option key={item.id} value={item.id}>{item.codigo} - {item.nombre}</option>)}
+                      </select>
                     </div>
                   </div>
                 </section>

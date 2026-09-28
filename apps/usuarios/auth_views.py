@@ -77,6 +77,7 @@ def _send_verification_email(email: str, code: str, nombre: str = ''):
 
 def _user_dict(user, empresa=None):
     emp = empresa or user.empresa
+    from apps.usuarios.models import AccesoPlataforma, EmpresaMembresia
 
     # ── Módulos activos según plan de suscripción ──────────────────────────────
     from apps.suscripciones.models import Suscripcion, ModuloPermiso, get_todos_modulos_codigos
@@ -109,6 +110,16 @@ def _user_dict(user, empresa=None):
     else:
         modulos_activos = []
 
+    accesos_plataforma = list(
+        AccesoPlataforma.objects.filter(usuario=user, activa=True).values('rol', 'alcances')
+    )
+    from apps.usuarios.serializers import EmpresaMembresiaSerializer
+    membresias = EmpresaMembresiaSerializer(
+        EmpresaMembresia.objects.filter(
+            usuario=user, activa=True, empresa__activa=True,
+        ).select_related('empresa'),
+        many=True,
+    ).data
     return {
         'id': user.id,
         'username': user.email,
@@ -121,6 +132,9 @@ def _user_dict(user, empresa=None):
         'onboarding_completado': emp.onboarding_completado if emp else False,
         'debe_cambiar_password': user.debe_cambiar_password,
         'modulos_activos': modulos_activos,
+        'es_plataforma': bool(user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN' or accesos_plataforma),
+        'accesos_plataforma': accesos_plataforma,
+        'membresias': membresias,
     }
 
 
@@ -613,7 +627,7 @@ def completar_onboarding(request):
     certificado = request.FILES.get('certificado_digital')
     if certificado:
         empresa.certificado_digital = certificado
-        empresa.password_certificado = (data.get('password_certificado') or '').strip()
+        empresa.set_password_certificado((data.get('password_certificado') or '').strip())
         fecha_venc = data.get('fecha_vencimiento_certificado')
         if fecha_venc:
             empresa.fecha_vencimiento_certificado = fecha_venc

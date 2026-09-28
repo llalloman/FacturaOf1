@@ -1,7 +1,8 @@
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from apps.inventarios.models import LoteInventario, MovimientoInventario
+from apps.inventarios.models import LoteInventario, MovimientoInventario, StockProducto
 
 
 def _movimiento_ya_registrado(venta, producto, referencia):
@@ -97,6 +98,22 @@ def _procesar_detalle_venta(venta, detalle):
 
     if producto.controla_caducidad:
         return _consumir_lotes_fefo(venta, detalle, bodega, referencia)
+
+    stock, _ = StockProducto.objects.select_for_update().get_or_create(
+        producto=producto,
+        bodega=bodega,
+        defaults={'cantidad': 0},
+    )
+    permitir_negativo = getattr(
+        venta.empresa,
+        'inventario_permite_stock_negativo',
+        getattr(settings, 'INVENTORY_ALLOW_NEGATIVE_STOCK', True),
+    )
+    if not permitir_negativo and stock.cantidad < detalle.cantidad:
+        raise ValueError(
+            f'Stock insuficiente para {producto.nombre} en {bodega.nombre}. '
+            f'Disponible: {stock.cantidad}, requerido: {detalle.cantidad}.'
+        )
 
     movimiento, created = MovimientoInventario.objects.get_or_create(
         empresa=venta.empresa,

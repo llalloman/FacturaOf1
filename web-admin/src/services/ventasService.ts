@@ -116,8 +116,17 @@ export const ventasService = {
     return data;
   },
 
-  generarFactura: async ({ id, cliente_id }: { id: number; cliente_id?: number }) => {
-    const body = cliente_id ? { cliente_id } : {};
+  generarFactura: async ({ id, cliente_id, establecimiento_id, punto_emision_id }: {
+    id: number;
+    cliente_id?: number;
+    establecimiento_id?: number;
+    punto_emision_id?: number;
+  }) => {
+    const body = {
+      ...(cliente_id ? { cliente_id } : {}),
+      ...(establecimiento_id ? { establecimiento_id } : {}),
+      ...(punto_emision_id ? { punto_emision_id } : {}),
+    };
     const { data } = await apiClient.post(`/ventas/ventas/${id}/generar_factura/`, body);
     return data;
   },

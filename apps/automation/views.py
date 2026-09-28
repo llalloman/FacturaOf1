@@ -1,6 +1,8 @@
+from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework import filters, generics, permissions, status, viewsets
@@ -11,6 +13,7 @@ from apps.firmas.models import SolicitudFirmaElectronica
 
 from .models import AutomationAuditLog, AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
 from .permissions import HasAutomationToken
+from apps.core.permissions import is_platform_user
 from .serializers import (
     AutomationAuditLogSerializer,
     AutomationPrivacyConsentSerializer,
@@ -33,7 +36,7 @@ class IsSuperAdminOnly(permissions.BasePermission):
 
     def has_permission(self, request, view):
         user = request.user
-        return bool(user and user.is_authenticated and (user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN'))
+        return is_platform_user(user, 'automation')
 
 
 class LeadUpsertView(AutomationBaseMixin, generics.CreateAPIView):
@@ -92,6 +95,69 @@ class SignatureOrderStatusView(AutomationBaseMixin, APIView):
 class WebhookEventCreateView(AutomationBaseMixin, generics.CreateAPIView):
     queryset = AutomationWebhookEvent.objects.all()
     serializer_class = AutomationWebhookEventSerializer
+
+
+class WebhookEventAcknowledgeView(AutomationBaseMixin, APIView):
+    """Confirma entrega o fallo sin crear eventos duplicados."""
+    @transaction.atomic
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            AutomationWebhookEvent.objects.select_for_update(),
+            event_id=event_id,
+        )
+        result = str(request.data.get('status') or '').upper()
+        allowed = (AutomationWebhookEvent.Status.SENT, AutomationWebhookEvent.Status.FAILED, AutomationWebhookEvent.Status.SKIPPED)
+        if result not in allowed:
+            return Response({'detail': 'status debe ser SENT, FAILED o SKIPPED.'}, status=status.HTTP_400_BAD_REQUEST)
+        terminal_duplicate = (
+            result in (AutomationWebhookEvent.Status.SENT, AutomationWebhookEvent.Status.SKIPPED)
+            and event.status == result
+        ) or (
+            result == AutomationWebhookEvent.Status.FAILED
+            and event.status == AutomationWebhookEvent.Status.FAILED
+            and event.dead_lettered_at is not None
+        )
+        if terminal_duplicate:
+            return Response(AutomationWebhookEventSerializer(event).data)
+        from django.utils import timezone
+        from datetime import timedelta
+        event.attempt_count = int(request.data.get('attempt_count') or event.attempt_count or 0) + 1
+        event.status = result
+        event.dispatch_en_curso = False
+        event.dispatch_iniciado_at = None
+        event.last_error = str(request.data.get('error') or '') if result == AutomationWebhookEvent.Status.FAILED else ''
+        if result == AutomationWebhookEvent.Status.SENT:
+            event.sent_at = timezone.now()
+            event.next_attempt_at = None
+        elif result == AutomationWebhookEvent.Status.FAILED:
+            if event.attempt_count >= 5:
+                event.dead_lettered_at = timezone.now()
+                event.next_attempt_at = None
+            else:
+                event.status = AutomationWebhookEvent.Status.PENDING
+                event.next_attempt_at = timezone.now() + timedelta(seconds=2 ** event.attempt_count)
+        event.save(update_fields=['status', 'attempt_count', 'last_error', 'dispatch_en_curso', 'dispatch_iniciado_at', 'sent_at', 'next_attempt_at', 'dead_lettered_at', 'updated_at'])
+        return Response(AutomationWebhookEventSerializer(event).data)
+
+
+class WebhookEventRetryView(AutomationBaseMixin, APIView):
+    @transaction.atomic
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            AutomationWebhookEvent.objects.select_for_update(),
+            event_id=event_id,
+        )
+        if event.status != AutomationWebhookEvent.Status.FAILED or not event.dead_lettered_at:
+            return Response({'detail': 'Solo se puede reintentar un evento dead-letter.'}, status=status.HTTP_400_BAD_REQUEST)
+        event.status = AutomationWebhookEvent.Status.PENDING
+        event.attempt_count = 0
+        event.last_error = ''
+        event.dead_lettered_at = None
+        event.dispatch_en_curso = False
+        event.dispatch_iniciado_at = None
+        event.next_attempt_at = timezone.now()
+        event.save(update_fields=['status', 'attempt_count', 'last_error', 'dispatch_en_curso', 'dispatch_iniciado_at', 'dead_lettered_at', 'next_attempt_at', 'updated_at'])
+        return Response(AutomationWebhookEventSerializer(event).data)
 
 
 class AuditLogCreateView(AutomationBaseMixin, generics.CreateAPIView):

@@ -1,4 +1,5 @@
 from rest_framework import permissions
+from apps.core.permissions import is_platform_user
 
 
 class CanManageProveedores(permissions.BasePermission):
@@ -16,7 +17,7 @@ class CanManageProveedores(permissions.BasePermission):
             return True
         
         # Escritura solo para ADMIN_EMPRESA y CONTADOR
-        return request.user.rol in ['SUPER_ADMIN', 'ADMIN_EMPRESA', 'CONTADOR']
+        return is_platform_user(request.user, 'proveedores') or request.user.rol in ['ADMIN_EMPRESA', 'CONTADOR']
 
 
 class CanManageOrdenesCompra(permissions.BasePermission):
@@ -34,7 +35,7 @@ class CanManageOrdenesCompra(permissions.BasePermission):
             return True
         
         # Escritura solo para ADMIN_EMPRESA y CONTADOR
-        return request.user.rol in ['SUPER_ADMIN', 'ADMIN_EMPRESA', 'CONTADOR']
+        return is_platform_user(request.user, 'proveedores') or request.user.rol in ['ADMIN_EMPRESA', 'CONTADOR']
 
 
 class CanManageRecepciones(permissions.BasePermission):
@@ -52,8 +53,8 @@ class CanManageRecepciones(permissions.BasePermission):
             return True
         
         # Escritura para ADMIN_EMPRESA, CONTADOR, VENDEDOR
-        return request.user.rol in [
-            'SUPER_ADMIN', 'ADMIN_EMPRESA', 'CONTADOR', 'VENDEDOR'
+        return is_platform_user(request.user, 'proveedores') or request.user.rol in [
+            'ADMIN_EMPRESA', 'CONTADOR', 'VENDEDOR'
         ]
 
 
@@ -72,7 +73,7 @@ class CanManageCuentasPorPagar(permissions.BasePermission):
             return True
         
         # Escritura solo para ADMIN_EMPRESA y CONTADOR
-        return request.user.rol in ['SUPER_ADMIN', 'ADMIN_EMPRESA', 'CONTADOR']
+        return is_platform_user(request.user, 'proveedores') or request.user.rol in ['ADMIN_EMPRESA', 'CONTADOR']
 
 
 class CanManagePagos(permissions.BasePermission):
@@ -91,4 +92,4 @@ class CanManagePagos(permissions.BasePermission):
         
         # Escritura solo para ADMIN_EMPRESA y CONTADOR
         # (los pagos son operaciones financieras sensibles)
-        return request.user.rol in ['SUPER_ADMIN', 'ADMIN_EMPRESA', 'CONTADOR']
+        return is_platform_user(request.user, 'proveedores') or request.user.rol in ['ADMIN_EMPRESA', 'CONTADOR']

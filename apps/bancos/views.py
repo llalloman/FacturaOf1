@@ -1,18 +1,21 @@
 from decimal import Decimal
 from django.db import transaction
 from django.db.models import Sum, Q
+from django.utils import timezone
 from rest_framework import viewsets, filters, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import CuentaBancaria, MovimientoBancario
-from .serializers import CuentaBancariaSerializer, MovimientoBancarioSerializer
-from apps.core.permissions import HasModuleAccess
+from .models import CuentaBancaria, MovimientoBancario, CierreTesoreria
+from .serializers import CuentaBancariaSerializer, MovimientoBancarioSerializer, CierreTesoreriaSerializer
+from apps.core.permissions import HasModuleAccess, IsCompanyAdminOrPlatform
 from apps.core.models import AuditLog
+from apps.core.tenant import ActiveCompanyWriteMixin, active_empresa, require_active_empresa, tenant_queryset
 
 
-class CuentaBancariaViewSet(viewsets.ModelViewSet):
+class CuentaBancariaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'bancos'
     serializer_class = CuentaBancariaSerializer
@@ -23,10 +26,10 @@ class CuentaBancariaViewSet(viewsets.ModelViewSet):
     ordering = ['banco', 'numero_cuenta']
 
     def get_queryset(self):
-        return CuentaBancaria.objects.filter(empresa=self.request.user.empresa)
+        return tenant_queryset(self.request, CuentaBancaria.objects.all())
 
     def perform_create(self, serializer):
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
     @action(detail=False, methods=['get'])
     def resumen(self, request):
@@ -53,9 +56,7 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
     ordering = ['-fecha']
 
     def get_queryset(self):
-        return MovimientoBancario.objects.filter(
-            cuenta__empresa=self.request.user.empresa
-        ).select_related(
+        return tenant_queryset(self.request, MovimientoBancario.objects.all(), 'cuenta__empresa').select_related(
             'cuenta',
             'pago_venta__venta',
             'pago_cliente__cuenta',
@@ -65,6 +66,10 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
+        empresa = require_active_empresa(self.request)
+        cuenta = serializer.validated_data['cuenta']
+        if cuenta.empresa_id != empresa.id:
+            raise PermissionDenied('La cuenta no pertenece a la empresa activa.')
         movimiento = serializer.save()
         from apps.core.audit import audit_event
         audit_event(
@@ -86,7 +91,10 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
+        empresa = require_active_empresa(self.request)
         instance = self.get_object()
+        if instance.cuenta.empresa_id != empresa.id:
+            raise PermissionDenied('El movimiento no pertenece a la empresa activa.')
         campos_sensibles = {'cuenta', 'tipo', 'monto'}
         if instance.conciliado and campos_sensibles.intersection(serializer.validated_data.keys()):
             raise serializers.ValidationError({
@@ -127,6 +135,9 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_destroy(self, instance):
+        empresa = require_active_empresa(self.request)
+        if instance.cuenta.empresa_id != empresa.id:
+            raise PermissionDenied('El movimiento no pertenece a la empresa activa.')
         if hasattr(instance, 'pago_venta'):
             raise serializers.ValidationError({
                 'detail': (
@@ -177,7 +188,10 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def conciliar(self, request, pk=None):
+        empresa = require_active_empresa(request)
         mov = self.get_object()
+        if mov.cuenta.empresa_id != empresa.id:
+            raise PermissionDenied('El movimiento no pertenece a la empresa activa.')
         estado_anterior = mov.conciliado
         mov.conciliado = not mov.conciliado
         mov.save()
@@ -205,19 +219,22 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def conciliar_multiples(self, request):
         """Concilia varios movimientos a la vez. Body: {ids: [1,2,...], conciliado: true}"""
+        empresa_activa = require_active_empresa(request)
         ids        = request.data.get('ids', [])
         conciliado = request.data.get('conciliado', True)
-        movimientos = list(MovimientoBancario.objects.filter(
-            pk__in=ids,
-            cuenta__empresa=request.user.empresa,
+        movimientos = list(tenant_queryset(
+            request,
+            MovimientoBancario.objects.filter(pk__in=ids),
+            'cuenta__empresa',
         ).values('id', 'conciliado', 'cuenta_id', 'tipo', 'monto'))
-        updated = MovimientoBancario.objects.filter(
-            pk__in=ids,
-            cuenta__empresa=request.user.empresa,
+        updated = tenant_queryset(
+            request,
+            MovimientoBancario.objects.filter(pk__in=ids),
+            'cuenta__empresa',
         ).update(conciliado=conciliado)
         from apps.core.audit import audit_event
         audit_event(
-            empresa=request.user.empresa,
+            empresa=empresa_activa,
             usuario=request.user,
             accion='CONCILIAR_MOVIMIENTOS_BANCARIOS' if conciliado else 'DESCONCILIAR_MOVIMIENTOS_BANCARIOS',
             modulo='bancos',
@@ -244,7 +261,9 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
         if not cuenta_id:
             return Response({'detail': 'Se requiere cuenta.'}, status=400)
         try:
-            cuenta = CuentaBancaria.objects.get(pk=cuenta_id, empresa=request.user.empresa)
+            cuenta = tenant_queryset(
+                request, CuentaBancaria.objects.filter(pk=cuenta_id)
+            ).get()
         except CuentaBancaria.DoesNotExist:
             return Response({'detail': 'Cuenta no encontrada.'}, status=404)
 
@@ -279,3 +298,91 @@ class MovimientoBancarioViewSet(viewsets.ModelViewSet):
             'saldo_inicial': float(cuenta.saldo_inicial),
             'movimientos': rows,
         })
+
+
+class CierreTesoreriaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, HasModuleAccess]
+    module_required = 'bancos'
+    serializer_class = CierreTesoreriaSerializer
+    filterset_fields = ['fecha', 'estado']
+    ordering = ['-fecha']
+
+    def _empresa(self):
+        return active_empresa(self.request)
+
+    def get_queryset(self):
+        return CierreTesoreria.objects.filter(empresa=self._empresa()).select_related('creado_por', 'cerrado_por')
+
+    def get_permissions(self):
+        # Consultar cierres es una capacidad de tesorería; crear/cerrar cambia
+        # evidencia financiera y requiere administración del contexto activo.
+        if self.action in ('create', 'update', 'partial_update', 'destroy', 'cerrar'):
+            return [IsAuthenticated(), HasModuleAccess(), IsCompanyAdminOrPlatform()]
+        return [IsAuthenticated(), HasModuleAccess()]
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        empresa = require_active_empresa(self.request)
+        fecha = serializer.validated_data['fecha']
+        cuentas = CuentaBancaria.objects.filter(empresa=empresa, activa=True)
+        snapshot = {str(cuenta.id): {
+            'cuenta': cuenta.numero_cuenta,
+            'tipo': cuenta.tipo,
+            'saldo_disponible': str(cuenta.saldo_disponible),
+            'saldo_conciliado': str(cuenta.saldo_actual),
+        } for cuenta in cuentas}
+        serializer.save(empresa=empresa, creado_por=self.request.user, saldos_teoricos=snapshot)
+
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def cerrar(self, request, pk=None):
+        cierre = CierreTesoreria.objects.select_for_update().filter(
+            pk=pk,
+            empresa=self._empresa(),
+        ).first()
+        if not cierre:
+            return Response({'detail': 'Cierre no encontrado para la empresa activa.'}, status=status.HTTP_404_NOT_FOUND)
+        if cierre.estado == CierreTesoreria.EstadoChoices.CERRADO:
+            return Response({'detail': 'El cierre ya está cerrado.'}, status=status.HTTP_400_BAD_REQUEST)
+        declarados = request.data.get('saldos_declarados') or {}
+        esperados = set(cierre.saldos_teoricos.keys())
+        recibidos = set(str(key) for key in declarados.keys())
+        faltantes = sorted(esperados - recibidos)
+        desconocidos = sorted(recibidos - esperados)
+        if faltantes or desconocidos:
+            return Response({
+                'detail': 'Debe declarar un saldo para cada cuenta incluida en el snapshot.',
+                'faltantes': faltantes,
+                'desconocidos': desconocidos,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        diferencia = Decimal('0.00')
+        try:
+            for cuenta_id, saldo in declarados.items():
+                declarado = Decimal(str(saldo))
+                if declarado < 0:
+                    raise ValueError('negative')
+                teorico = Decimal(str(cierre.saldos_teoricos.get(str(cuenta_id), {}).get('saldo_disponible', '0')))
+                diferencia += declarado - teorico
+        except (ValueError, TypeError, ArithmeticError):
+            return Response({'detail': 'Todos los saldos declarados deben ser números no negativos.'}, status=status.HTTP_400_BAD_REQUEST)
+        cierre.saldos_declarados = declarados
+        cierre.diferencia_total = diferencia
+        cierre.estado = CierreTesoreria.EstadoChoices.CERRADO
+        cierre.cerrado_por = request.user
+        cierre.fecha_cierre = timezone.now()
+        cierre.save(update_fields=['saldos_declarados', 'diferencia_total', 'estado', 'cerrado_por', 'fecha_cierre', 'updated_at'])
+        from apps.core.audit import audit_event
+        audit_event(
+            empresa=cierre.empresa,
+            usuario=request.user,
+            accion='CERRAR_TESORERIA',
+            modulo='bancos',
+            referencia=str(cierre.pk),
+            datos={
+                'fecha': cierre.fecha.isoformat(),
+                'diferencia_total': str(cierre.diferencia_total),
+                'saldos_declarados': declarados,
+                'saldos_teoricos': cierre.saldos_teoricos,
+            },
+        )
+        return Response(self.get_serializer(cierre).data)

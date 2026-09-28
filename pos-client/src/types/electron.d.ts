@@ -15,6 +15,9 @@ export interface IElectronAPI {
     pendientes: () => Promise<any>;
     obtenerPendientes: () => Promise<any>;
     marcarSincronizado: (id: number) => Promise<any>;
+    registrarError: (id: number, error: string) => Promise<any>;
+    reintentar: (id: number) => Promise<any>;
+    reintentarDeadLetter: () => Promise<any>;
     actualizarCacheProductos: (productos: any[]) => Promise<any>;
     actualizarCacheClientes: (clientes: any[]) => Promise<any>;
   };

@@ -4,11 +4,12 @@ from rest_framework.response import Response
 from rest_framework.routers import DefaultRouter
 
 from apps.core.permissions import IsAuthenticated, IsTenantUser, HasModuleAccess
+from apps.core.tenant import ActiveCompanyWriteMixin, active_empresa, require_active_empresa, tenant_queryset
 from .models import Cotizacion, ItemCotizacion
 from .serializers import CotizacionSerializer, CotizacionCreateSerializer
 
 
-class CotizacionViewSet(viewsets.ModelViewSet):
+class CotizacionViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     """
     ViewSet para cotizaciones / proformas.
 
@@ -32,8 +33,8 @@ class CotizacionViewSet(viewsets.ModelViewSet):
         return CotizacionSerializer
 
     def get_queryset(self):
-        return Cotizacion.objects.filter(
-            empresa=self.request.user.empresa
+        return tenant_queryset(
+            self.request, Cotizacion.objects.all()
         ).select_related('cliente', 'creado_por', 'factura').prefetch_related('items__producto')
 
     # ── State transitions ────────────────────────────────────────────────────
@@ -85,7 +86,7 @@ class CotizacionViewSet(viewsets.ModelViewSet):
         La creación de la factura real se hace desde el frontend (pre-llenado).
         Retorna los datos de la cotización para pre-llenar el form de facturación.
         """
-        empresa = request.user.empresa
+        empresa = active_empresa(request)
         if not getattr(empresa, 'onboarding_completado', False):
             return Response(
                 {'error': 'Debes completar la configuración fiscal de la empresa antes de convertir cotizaciones a facturas.'},
@@ -133,7 +134,10 @@ class CotizacionViewSet(viewsets.ModelViewSet):
         if factura_id:
             from apps.facturacion.models import Factura
             try:
-                cotizacion.factura = Factura.objects.get(id=factura_id, comprobante__empresa=self.request.user.empresa)
+                cotizacion.factura = tenant_queryset(
+                    self.request, Factura.objects.filter(id=factura_id),
+                    'comprobante__empresa',
+                ).get()
             except Factura.DoesNotExist:
                 pass
         cotizacion.save(update_fields=['estado', 'factura'])
@@ -143,8 +147,7 @@ class CotizacionViewSet(viewsets.ModelViewSet):
     def resumen(self, request):
         """KPIs de cotizaciones."""
         from django.db.models import Sum, Count
-        empresa = request.user.empresa
-        qs = Cotizacion.objects.filter(empresa=empresa)
+        qs = tenant_queryset(request, Cotizacion.objects.all())
         return Response({
             'total': qs.count(),
             'por_estado': list(qs.values('estado').annotate(cantidad=Count('id'), valor=Sum('total'))),

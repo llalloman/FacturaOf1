@@ -205,6 +205,14 @@ class Venta(models.Model):
     
     # Facturación electrónica
     genera_factura = models.BooleanField(_('genera factura electrónica'), default=False)
+    establecimiento_fiscal = models.ForeignKey(
+        'empresas.Establecimiento', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='ventas', verbose_name=_('establecimiento fiscal'),
+    )
+    punto_emision_fiscal = models.ForeignKey(
+        'empresas.PuntoEmision', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='ventas', verbose_name=_('punto de emisión fiscal'),
+    )
     factura = models.OneToOneField(
         'facturacion.Factura',
         on_delete=models.SET_NULL,

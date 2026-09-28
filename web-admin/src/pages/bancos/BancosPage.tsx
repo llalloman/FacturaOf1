@@ -6,7 +6,8 @@ import {
 import {
   getResumen, crearCuenta, actualizarCuenta, getExtracto, crearMovimiento, actualizarMovimiento, eliminarMovimiento,
   conciliarMovimiento, conciliarMultiples,
-  type CuentaBancaria, type ExtractoRow, type TipoMovimiento,
+  getCierresTesoreria, crearCierreTesoreria, cerrarTesoreria,
+  type CuentaBancaria, type ExtractoRow, type TipoMovimiento, type CierreTesoreria,
 } from '../../services/bancosService';
 import { useToast } from '../../hooks/useToast';
 import { confirmDialog } from '../../store/confirmStore';
@@ -369,6 +370,13 @@ export default function BancosPage() {
   const [editingCuenta, setEditingCuenta] = useState<CuentaBancaria | null>(null);
   const [showNuevoMov, setShowNuevoMov] = useState(false);
   const [editingMovimiento, setEditingMovimiento] = useState<ExtractoRow | null>(null);
+  const [cierres, setCierres] = useState<CierreTesoreria[]>([]);
+  const [loadingCierres, setLoadingCierres] = useState(false);
+  const [showNuevoCierre, setShowNuevoCierre] = useState(false);
+  const [cierreFecha, setCierreFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [cierreObservaciones, setCierreObservaciones] = useState('');
+  const [cierreSaldos, setCierreSaldos] = useState<Record<string, string>>({});
+  const [savingCierre, setSavingCierre] = useState(false);
 
   // Filtros extracto
   const [filAnio, setFilAnio] = useState(String(new Date().getFullYear()));
@@ -416,6 +424,54 @@ export default function BancosPage() {
 
   useEffect(() => { loadCuentas(); }, [loadCuentas]);
   useEffect(() => { loadExtracto(); }, [loadExtracto]);
+
+  const loadCierres = useCallback(async () => {
+    setLoadingCierres(true);
+    try {
+      setCierres(await getCierresTesoreria({ ordering: '-fecha' }));
+    } catch {
+      showToast('Error cargando cierres de tesorería', 'error');
+    } finally {
+      setLoadingCierres(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => { loadCierres(); }, [loadCierres]);
+
+  const handleCrearCierre = async () => {
+    if (!cierreFecha) return;
+    setSavingCierre(true);
+    try {
+      const cierre = await crearCierreTesoreria(cierreFecha, cierreObservaciones);
+      setCierres(prev => [cierre, ...prev.filter(item => item.id !== cierre.id)]);
+      setCierreObservaciones('');
+      setCierreSaldos({});
+      setShowNuevoCierre(false);
+      showToast('Cierre de tesorería preparado con saldos teóricos.', 'success');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      showToast(error.response?.data?.detail || 'No se pudo preparar el cierre.', 'error');
+    } finally {
+      setSavingCierre(false);
+    }
+  };
+
+  const handleCerrarTesoreria = async (cierre: CierreTesoreria) => {
+    const saldos = Object.fromEntries(
+      Object.entries(cierreSaldos)
+        .filter(([, value]) => value.trim() !== '')
+        .map(([id, value]) => [id, Number(value)])
+    );
+    try {
+      const actualizado = await cerrarTesoreria(cierre.id, saldos);
+      setCierres(prev => prev.map(item => item.id === actualizado.id ? actualizado : item));
+      setCierreSaldos({});
+      showToast(`Cierre registrado. Diferencia: ${fmt(Number(actualizado.diferencia_total))}`, 'success');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      showToast(error.response?.data?.detail || 'No se pudo cerrar tesorería.', 'error');
+    }
+  };
 
   const toggleSelect = (id: number) => {
     setSelected(prev => {
@@ -513,6 +569,57 @@ export default function BancosPage() {
         <p className="text-3xl font-bold">{fmt(totalDisponible)}</p>
         <p className="text-xs opacity-60 mt-1">{cuentas.filter(c => c.activa).length} cuenta(s) activa(s)</p>
       </div>
+
+      {/* Cierres: el snapshot se crea en backend para conservar evidencia por empresa. */}
+      <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-gray-800">Cierres de tesorería</h2>
+            <p className="text-xs text-gray-500">Compara el saldo declarado contra el saldo teórico de cada cuenta activa.</p>
+          </div>
+          <button type="button" onClick={() => setShowNuevoCierre(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-white bg-slate-700 rounded-lg hover:bg-slate-800">
+            <Plus size={14} /> Preparar cierre
+          </button>
+        </div>
+        {loadingCierres ? <p className="text-sm text-gray-400">Cargando cierres...</p> : cierres.length === 0 ? (
+          <p className="text-sm text-gray-400">Todavía no hay cierres registrados.</p>
+        ) : (
+          <div className="space-y-3">
+            {cierres.slice(0, 5).map(cierre => (
+              <div key={cierre.id} className="border border-gray-100 rounded-lg p-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium">{cierre.fecha}</span>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full ${cierre.estado === 'CERRADO' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {cierre.estado}
+                    </span>
+                    {cierre.estado === 'CERRADO' && <span className="text-xs text-gray-500">Diferencia: {fmt(Number(cierre.diferencia_total))}</span>}
+                  </div>
+                  {cierre.estado !== 'CERRADO' && (
+                    <button type="button" onClick={() => handleCerrarTesoreria(cierre)}
+                      className="text-xs text-white bg-green-600 rounded px-3 py-1.5 hover:bg-green-700">
+                      Registrar saldos y cerrar
+                    </button>
+                  )}
+                </div>
+                {cierre.estado !== 'CERRADO' && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+                    {Object.entries(cierre.saldos_teoricos || {}).map(([id, saldo]) => (
+                      <label key={id} className="text-xs text-gray-600">
+                        <span className="block mb-1">{saldo.cuenta} · teórico {fmt(Number(saldo.saldo_disponible))}</span>
+                        <input type="number" step="0.01" min="0" value={cierreSaldos[id] ?? ''}
+                          onChange={event => setCierreSaldos(prev => ({ ...prev, [id]: event.target.value }))}
+                          placeholder="Saldo contado" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sidebar: cuentas */}
@@ -741,6 +848,32 @@ export default function BancosPage() {
           onClose={() => setEditingMovimiento(null)}
           onSaved={() => { setEditingMovimiento(null); loadExtracto(); loadCuentas(); }}
         />
+      )}
+
+      {showNuevoCierre && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-semibold text-gray-800">Preparar cierre de tesorería</h2>
+              <button type="button" onClick={() => setShowNuevoCierre(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <label className="block text-xs font-medium text-gray-600">Fecha del cierre *
+                <input type="date" value={cierreFecha} onChange={event => setCierreFecha(event.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </label>
+              <label className="block text-xs font-medium text-gray-600">Observaciones
+                <textarea value={cierreObservaciones} onChange={event => setCierreObservaciones(event.target.value)} rows={3} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </label>
+              <p className="text-xs text-gray-500">El backend tomará una fotografía de los saldos disponibles de las cuentas activas. No modifica movimientos.</p>
+            </div>
+            <div className="p-5 border-t flex justify-end gap-3">
+              <button type="button" onClick={() => setShowNuevoCierre(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
+              <button type="button" onClick={handleCrearCierre} disabled={savingCierre || !cierreFecha} className="px-4 py-2 text-sm text-white bg-slate-700 rounded-lg disabled:opacity-50">
+                {savingCierre ? 'Preparando...' : 'Preparar cierre'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

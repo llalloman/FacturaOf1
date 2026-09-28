@@ -46,8 +46,8 @@ function buildReceiptHTML(data) {
   <div class="line"></div>
   <div><strong>Venta:</strong> ${data.numero_venta || ''}</div>
   <div><strong>Fecha:</strong> ${new Date(data.fecha_venta || Date.now()).toLocaleString('es-EC')}</div>
-  <div><strong>Cliente:</strong> ${data.cliente_nombre || 'Consumidor Final'}</div>
-  <div><strong>CI/RUC:</strong> ${data.cliente_identificacion || '9999999999999'}</div>
+  <div><strong>Cliente:</strong> ${data.cliente_nombre || 'No especificado'}</div>
+  <div><strong>CI/RUC:</strong> ${data.cliente_identificacion || ''}</div>
   <div class="line"></div>
   <table>
     <thead><tr><th style="text-align:left">Producto</th><th>Cant</th><th style="text-align:right">P.U.</th><th style="text-align:right">Total</th></tr></thead>
@@ -359,6 +359,33 @@ ipcMain.handle('sync:marcar-sincronizado', async (event, { id }) => {
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('sync:registrar-error', async (event, { id, error }) => {
+  try {
+    db.prepare(`UPDATE sync_queue SET retry_count = retry_count + 1, error = ? WHERE id = ? AND synced = 0`).run(String(error || 'Error de sincronización'), id);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('sync:reintentar', async (event, { id }) => {
+  try {
+    db.prepare('UPDATE sync_queue SET retry_count = 0, error = NULL, synced = 0 WHERE id = ?').run(id);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('sync:reintentar-dead-letter', async () => {
+  try {
+    const result = db.prepare(`UPDATE sync_queue SET retry_count = 0, error = NULL, synced = 0 WHERE synced = 0 AND retry_count >= 5`).run();
+    return { success: true, count: result.changes };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 });
 

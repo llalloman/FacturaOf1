@@ -17,6 +17,7 @@ from rest_framework import status
 
 from apps.core.permissions import IsAuthenticated, IsTenantUser, user_has_module_access
 from apps.facturacion.models import Factura, Retencion
+from apps.core.tenant import active_empresa
 
 from .models import DeclaracionMensual
 from .serializers import DeclaracionMensualSerializer, MarcarPresentadaSerializer
@@ -42,15 +43,12 @@ def _get_params(request):
 
 
 def _get_empresa(request):
-    """Obtiene la empresa del tenant o del usuario autenticado."""
-    empresa = getattr(request, 'tenant', None)
-    if not empresa and request.user.is_authenticated:
-        empresa = getattr(request.user, 'empresa', None)
-    return empresa
+    """Obtiene únicamente la empresa activa validada por el middleware."""
+    return active_empresa(request)
 
 
 def _check_module_access(request):
-    if user_has_module_access(request.user, 'declaraciones'):
+    if user_has_module_access(request.user, 'declaraciones', active_empresa(request)):
         return None
     return Response({'detail': 'Este módulo no está incluido en tu plan actual.'}, status=status.HTTP_403_FORBIDDEN)
 

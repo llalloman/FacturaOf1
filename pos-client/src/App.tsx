@@ -6,12 +6,22 @@ import POSScreen from './pages/POSScreen';
 import ConfigScreen from './pages/ConfigScreen';
 import VentasHistorial from './pages/VentasHistorial';
 import ToastContainer from './components/ToastContainer';
+import { apiService } from './services/apiService';
 
 function App() {
   const config = usePOSStore((state) => state.config);
   const modoOffline = usePOSStore((state) => state.modoOffline);
   const sincronizando = usePOSStore((state) => state.sincronizando);
   const pendienteSync = usePOSStore((state) => state.pendienteSync);
+  const deadLetterSync = usePOSStore((state) => state.deadLetterSync);
+
+  const reintentarDeadLetter = async () => {
+    if (!window.electron?.sync?.reintentarDeadLetter) return;
+    const result = await window.electron.sync.reintentarDeadLetter();
+    if (result?.success) {
+      await syncService.sincronizarAhora();
+    }
+  };
 
   useEffect(() => {
     // Cargar configuración al iniciar
@@ -20,13 +30,18 @@ function App() {
         // En Electron
         const result = await window.electron.config.get('pos_config');
         if (result.value) {
+          if (result.value.servidor_url) apiService.setBaseURL(result.value.servidor_url);
+          apiService.setEmpresaId(result.value.empresa_id);
           usePOSStore.getState().setConfig(result.value);
         }
       } else {
         // En desarrollo web, cargar de localStorage
         const savedConfig = localStorage.getItem('pos_config');
         if (savedConfig) {
-          usePOSStore.getState().setConfig(JSON.parse(savedConfig));
+          const parsed = JSON.parse(savedConfig);
+          if (parsed.servidor_url) apiService.setBaseURL(parsed.servidor_url);
+          apiService.setEmpresaId(parsed.empresa_id);
+          usePOSStore.getState().setConfig(parsed);
         }
       }
     };
@@ -79,6 +94,16 @@ function App() {
             <div className="bg-yellow-500 px-3 py-1 rounded-full text-sm font-semibold">
               {pendienteSync} pendientes
             </div>
+          )}
+          {deadLetterSync > 0 && (
+            <button
+              type="button"
+              className="bg-red-600 px-3 py-1 rounded-full text-sm font-semibold hover:bg-red-700"
+              title="Requieren revisión o reintento manual"
+              onClick={reintentarDeadLetter}
+            >
+              {deadLetterSync} errores · reintentar
+            </button>
           )}
 
           {/* Modo offline/online */}

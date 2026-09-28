@@ -232,8 +232,8 @@ function EmpresaTab() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Archivo .p12 / .pfx</label>
             <input type="file" accept=".p12,.pfx" onChange={(e) => setCertFile(e.target.files?.[0] ?? null)} className={`${inp} bg-white`} />
-            {empresa.certificado_digital && !certFile && (
-              <p className="text-xs text-green-600 mt-1">✓ Cargado: {String(empresa.certificado_digital).split('/').pop()}</p>
+            {empresa.tiene_certificado && !certFile && (
+              <p className="text-xs text-green-600 mt-1">✓ Certificado cargado</p>
             )}
             {certFile && <p className="text-xs text-blue-600 mt-1">📎 Nuevo archivo: {certFile.name}</p>}
           </div>
@@ -290,11 +290,10 @@ function EmpresaTab() {
             <label className="block text-sm font-medium text-gray-700 mb-1">RUC proveedor de facturación electrónica</label>
             <input
               type="text"
-              value={String(v('ruc_proveedor_facturacion_electronica'))}
-              onChange={(e) => set('ruc_proveedor_facturacion_electronica', e.target.value.replace(/\D/g, '').slice(0, 13))}
-              placeholder="Ej: 1791234567001"
+              value="1793231594001"
+              readOnly
               maxLength={13}
-              className={inp}
+              className={`${inp} bg-gray-100 cursor-not-allowed`}
             />
             <p className="text-xs text-gray-400 mt-1">Se enviará como campo adicional "RUC Proveedor" en el XML autorizado por el SRI.</p>
           </div>
@@ -317,6 +316,22 @@ function EmpresaTab() {
             />
           </div>
         </div>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-3">
+        <h3 className="font-semibold text-gray-800">Política de inventario</h3>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={vb('inventario_permite_stock_negativo')}
+            onChange={(e) => set('inventario_permite_stock_negativo', e.target.checked)}
+            className="w-4 h-4 text-amber-600 rounded"
+          />
+          <span className="text-sm text-gray-700">Permitir stock negativo para esta empresa</span>
+        </label>
+        <p className="text-xs text-gray-500">
+          Desactívalo en staging para exigir existencias antes de confirmar salidas.
+        </p>
       </div>
 
       <button
@@ -850,6 +865,15 @@ function PagosTab() {
   const { data: cuentas = [] } = useQuery({ queryKey: ['cuentas-pagos-config'], queryFn: getCuentas });
   const { data: cajas = [] } = useQuery({ queryKey: ['cajas-pagos-config'], queryFn: cajasService.getAll });
   const { data: usuarios = [] } = useQuery({ queryKey: ['usuarios-pagos-config'], queryFn: usuariosService.getAll });
+  const { data: establecimientos = [] } = useQuery({
+    queryKey: ['establecimientos-pagos-config', effectiveEmpresa],
+    queryFn: empresasService.getEstablecimientos,
+  });
+  const { data: puntosEmision = [] } = useQuery({
+    queryKey: ['puntos-pagos-config', form.establecimiento_fiscal],
+    queryFn: () => empresasService.getPuntosEmision(form.establecimiento_fiscal || undefined),
+    enabled: Boolean(form.establecimiento_fiscal),
+  });
 
   useEffect(() => {
     if (config) {
@@ -920,6 +944,18 @@ function PagosTab() {
             <select value={form.usuario_ventas ?? ''} onChange={(e) => set('usuario_ventas', e.target.value ? Number(e.target.value) : null)} className={`${selectClass} mt-1`}>
               <option value="">Selecciona usuario</option>
               {usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo || `${usuario.first_name} ${usuario.last_name}`.trim() || usuario.email}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700">Establecimiento fiscal de firmas
+            <select value={form.establecimiento_fiscal ?? ''} onChange={(e) => { const value = e.target.value ? Number(e.target.value) : null; setForm(prev => ({ ...prev, establecimiento_fiscal: value, punto_emision_fiscal: null })); }} className={`${selectClass} mt-1`}>
+              <option value="">Usar configuración fiscal principal</option>
+              {establecimientos.map((establecimiento) => <option key={establecimiento.id} value={establecimiento.id}>{establecimiento.codigo} - {establecimiento.nombre}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700">Punto de emisión de firmas
+            <select value={form.punto_emision_fiscal ?? ''} onChange={(e) => set('punto_emision_fiscal', e.target.value ? Number(e.target.value) : null)} disabled={!form.establecimiento_fiscal} className={`${selectClass} mt-1 disabled:bg-gray-100`}>
+              <option value="">Selecciona punto de emisión</option>
+              {puntosEmision.map((punto) => <option key={punto.id} value={punto.id}>{punto.codigo} - {punto.nombre}</option>)}
             </select>
           </label>
         </div>

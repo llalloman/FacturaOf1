@@ -46,7 +46,7 @@ const EMPTY_FORM: FormState = {
 
 export default function UsuariosPage() {
   const qc = useQueryClient();
-  const { user: me } = useAuthStore();
+  const { user: me, activeEmpresaId } = useAuthStore();
   const isSuperAdmin = me?.rol === 'SUPER_ADMIN';
   const isAdmin = isSuperAdmin || me?.rol === 'ADMIN_EMPRESA';
 
@@ -104,7 +104,7 @@ export default function UsuariosPage() {
 
   function openCreate() {
     setEditing(null);
-    setForm({ ...EMPTY_FORM, empresa: isSuperAdmin ? '' : String(me?.empresa_id ?? '') });
+    setForm({ ...EMPTY_FORM, empresa: isSuperAdmin ? '' : String(activeEmpresaId ?? '') });
     setError(null);
     setModalOpen(true);
   }

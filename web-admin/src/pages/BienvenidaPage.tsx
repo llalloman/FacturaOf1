@@ -242,13 +242,14 @@ function SuscripcionCard({ suscripcion }: { suscripcion: Suscripcion }) {
 export default function BienvenidaPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const activeEmpresaId = useAuthStore((s) => s.activeEmpresaId);
 
   const { data: suscripcion } = useQuery<Suscripcion | null>({
-    queryKey: ['suscripcion-activa'],
+    queryKey: ['suscripcion-activa', activeEmpresaId],
     queryFn: suscripcionesService.getSuscripcionActiva,
     retry: false,
     staleTime: 2 * 60 * 1000,
-    enabled: Boolean(user?.empresa_id),
+    enabled: Boolean(activeEmpresaId),
   });
 
   return (

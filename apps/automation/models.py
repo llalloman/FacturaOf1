@@ -220,14 +220,33 @@ class AutomationWebhookEvent(models.Model):
         SKIPPED = 'SKIPPED', _('Omitido')
 
     event_id = models.CharField(_('id evento'), max_length=80, unique=True)
+    contract_version = models.CharField(_('versión de contrato'), max_length=20, default='v1')
     event_type = models.CharField(_('tipo de evento'), max_length=80)
     entity_type = models.CharField(_('tipo de entidad'), max_length=80, blank=True)
     entity_id = models.CharField(_('id entidad'), max_length=80, blank=True)
     idempotency_key = models.CharField(_('clave de idempotencia'), max_length=220, unique=True)
+    empresa = models.ForeignKey(
+        'empresas.Empresa',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='automation_webhook_events',
+        verbose_name=_('empresa contexto'),
+        help_text=_('Empresa operativa asociada; nulo para eventos globales de plataforma.'),
+    )
     payload = models.JSONField(_('payload'), default=dict, blank=True)
     target_url = models.URLField(_('url destino'), blank=True)
     status = models.CharField(_('estado'), max_length=20, choices=Status.choices, default=Status.PENDING)
+    dispatch_en_curso = models.BooleanField(
+        _('despacho en curso'),
+        default=False,
+        db_index=True,
+        help_text=_('Claim atómico para evitar despachos concurrentes; no es un estado funcional.'),
+    )
+    dispatch_iniciado_at = models.DateTimeField(null=True, blank=True)
     attempt_count = models.PositiveSmallIntegerField(_('intentos'), default=0)
+    next_attempt_at = models.DateTimeField(_('próximo intento'), null=True, blank=True)
+    dead_lettered_at = models.DateTimeField(_('fecha dead-letter'), null=True, blank=True)
     last_error = models.TextField(_('último error'), blank=True)
     sent_at = models.DateTimeField(_('fecha de envío'), null=True, blank=True)
     created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
@@ -240,6 +259,7 @@ class AutomationWebhookEvent(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['event_type', 'status']),
+            models.Index(fields=['empresa', 'status']),
             models.Index(fields=['entity_type', 'entity_id']),
             models.Index(fields=['created_at']),
         ]

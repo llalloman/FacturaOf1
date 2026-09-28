@@ -63,6 +63,9 @@ class SyncService {
 
       const pendientes = pendientesResult.pendientes || [];
       console.log(`📦 Pendientes de sincronización: ${pendientes.length}`);
+      if (pendientesResult.deadLetterCount) {
+        console.warn(`⚠️ Registros en dead-letter: ${pendientesResult.deadLetterCount}`);
+      }
 
       // 3. Sincronizar cada registro
       for (const item of pendientes) {
@@ -72,11 +75,24 @@ class SyncService {
             const result = await apiService.sincronizarVenta(ventaData);
 
             if (result.success) {
+              // La intención de factura sobrevive al modo offline. Si SRI
+              // falló, la cola permanece pendiente y el siguiente reintento
+              // vuelve a consultar la venta idempotente antes de facturar.
+              if (ventaData.genera_factura && result.data?.id && !result.data?.factura) {
+                const facturaResult = await apiService.generarFactura(result.data.id);
+                if (!facturaResult.success) {
+                  throw new Error(facturaResult.error || 'La factura quedó pendiente de procesamiento.');
+                }
+              }
               await window.electron.sync.marcarSincronizado(item.id);
               console.log(`✅ Venta ${item.entity_id} sincronizada`);
             }
           }
         } catch (error) {
+          await window.electron.sync.registrarError(
+            item.id,
+            error instanceof Error ? error.message : 'Error desconocido de sincronización',
+          );
           console.error(`❌ Error sincronizando ${item.entity_type} ${item.entity_id}:`, error);
         }
       }
@@ -87,6 +103,7 @@ class SyncService {
       // 5. Actualizar estado
       const countResult = await window.electron.sync.pendientes();
       store.setPendienteSync(countResult.count || 0);
+      store.setDeadLetterSync(countResult.deadLetterCount || 0);
       store.setUltimaSync(new Date());
 
       console.log('✅ Sincronización completada');

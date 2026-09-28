@@ -6,6 +6,7 @@ from .models import (
     RecepcionCompra, DetalleRecepcion,
     CuentaPorPagar, PagoProveedor
 )
+from apps.core.tenant import active_empresa, require_active_empresa
 
 
 class ProveedorSerializer(serializers.ModelSerializer):
@@ -25,7 +26,7 @@ class ProveedorSerializer(serializers.ModelSerializer):
     def validate_identificacion(self, value):
         identificacion = value.strip()
         request = self.context.get('request')
-        empresa = getattr(getattr(request, 'user', None), 'empresa', None)
+        empresa = active_empresa(request) if request else None
 
         if not empresa:
             raise serializers.ValidationError(
@@ -46,7 +47,8 @@ class ProveedorSerializer(serializers.ModelSerializer):
         return identificacion
     
     def create(self, validated_data):
-        validated_data['empresa'] = self.context['request'].user.empresa
+        request = self.context['request']
+        validated_data['empresa'] = require_active_empresa(request)
         return super().create(validated_data)
 
 
@@ -66,7 +68,8 @@ class ProveedorProductoSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        empresa = self.context['request'].user.empresa
+        request = self.context['request']
+        empresa = require_active_empresa(request)
         proveedor = attrs.get('proveedor') or getattr(self.instance, 'proveedor', None)
         producto = attrs.get('producto') or getattr(self.instance, 'producto', None)
         if proveedor and proveedor.empresa_id != empresa.id:
@@ -76,7 +79,8 @@ class ProveedorProductoSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        validated_data['empresa'] = self.context['request'].user.empresa
+        request = self.context['request']
+        validated_data['empresa'] = require_active_empresa(request)
         instance = super().create(validated_data)
         self._actualizar_preferido(instance)
         return instance
@@ -156,7 +160,8 @@ class OrdenCompraSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         detalles_data = validated_data.pop('detalles', [])
-        validated_data['empresa'] = self.context['request'].user.empresa
+        request = self.context['request']
+        validated_data['empresa'] = require_active_empresa(request)
         validated_data['creado_por'] = self.context['request'].user
         
         # Generar número de orden
@@ -300,11 +305,17 @@ class RecepcionCompraSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         detalles_data = validated_data.pop('detalles', [])
-        validated_data['empresa'] = self.context['request'].user.empresa
+        request = self.context['request']
+        validated_data['empresa'] = require_active_empresa(request)
         validated_data['recibido_por'] = self.context['request'].user
         
         # Generar número de recepción
         empresa = validated_data['empresa']
+        # Serializar el contador por empresa para que dos creaciones
+        # concurrentes no calculen el mismo numero_recepcion.
+        from apps.empresas.models import Empresa
+        empresa = Empresa.objects.select_for_update().get(pk=empresa.pk)
+        validated_data['empresa'] = empresa
         ultimo = RecepcionCompra.objects.filter(empresa=empresa).order_by('-id').first()
         siguiente_num = 1 if not ultimo else int(ultimo.numero_recepcion.split('-')[-1]) + 1
         validated_data['numero_recepcion'] = f"{empresa.id}-RC-{siguiente_num:06d}"
@@ -360,7 +371,8 @@ class CuentaPorPagarSerializer(serializers.ModelSerializer):
         return 0
     
     def create(self, validated_data):
-        validated_data['empresa'] = self.context['request'].user.empresa
+        request = self.context['request']
+        validated_data['empresa'] = require_active_empresa(request)
         validated_data['saldo'] = validated_data['monto_total']
         return super().create(validated_data)
 
@@ -409,7 +421,7 @@ class PagoProveedorSerializer(serializers.ModelSerializer):
                     'monto': f'El monto ({monto}) excede el saldo de la cuenta ({cuenta.saldo})'
                 })
         if cuenta_bancaria:
-            empresa = getattr(self.context['request'].user, 'empresa', None)
+            empresa = active_empresa(self.context['request'])
             if cuenta_bancaria.empresa_id != getattr(empresa, 'id', None):
                 raise serializers.ValidationError({'cuenta_bancaria': 'La cuenta bancaria no pertenece a tu empresa.'})
             if not cuenta_bancaria.activa:
@@ -421,7 +433,8 @@ class PagoProveedorSerializer(serializers.ModelSerializer):
     
     @transaction.atomic
     def create(self, validated_data):
-        validated_data['empresa'] = self.context['request'].user.empresa
+        request = self.context['request']
+        validated_data['empresa'] = require_active_empresa(request)
         validated_data['registrado_por'] = self.context['request'].user
         
         # Generar número de pago

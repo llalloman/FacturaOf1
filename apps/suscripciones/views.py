@@ -7,10 +7,17 @@ from django.utils import timezone
 from datetime import timedelta
 from .models import PlanSuscripcion, Suscripcion, ModuloPermiso, ModuloSistema, SeccionModulo, MODULOS_BASE, get_todos_modulos_codigos
 from .serializers import PlanSuscripcionSerializer, SuscripcionSerializer, ModuloPermisoSerializer, ModuloSistemaSerializer, SeccionModuloSerializer
+from apps.core.permissions import is_global_platform_user, is_platform_user
+from apps.core.tenant import active_empresa
 
 
 def _is_super_admin(user):
-    return user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN'
+    return is_platform_user(user, 'suscripciones')
+
+
+def _is_catalog_admin(user):
+    """Los planes y módulos son catálogo global de OF1 Solutions."""
+    return is_global_platform_user(user)
 
 
 TENANT_BLOCKED_MODULES = {'firmas_electronicas'}
@@ -37,23 +44,23 @@ class PlanSuscripcionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         # Escritura ve todos; lectura pública solo los activos
         if self.action in ('list', 'retrieve') and not (
-            self.request.user.is_authenticated and _is_super_admin(self.request.user)
+            self.request.user.is_authenticated and _is_catalog_admin(self.request.user)
         ):
             return PlanSuscripcion.objects.filter(activo=True)
         return PlanSuscripcion.objects.all()
 
     def create(self, request, *args, **kwargs):
-        if not _is_super_admin(request.user):
+        if not _is_catalog_admin(request.user):
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
-        if not _is_super_admin(request.user):
+        if not _is_catalog_admin(request.user):
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        if not _is_super_admin(request.user):
+        if not _is_catalog_admin(request.user):
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
@@ -65,7 +72,7 @@ class PlanSuscripcionViewSet(viewsets.ModelViewSet):
         PUT  → Reemplaza la lista completa. Body: { "modulos": ["facturacion", ...] }
         Solo SUPER_ADMIN.
         """
-        if not _is_super_admin(request.user):
+        if not _is_catalog_admin(request.user):
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
         plan = self.get_object()
         if request.method == 'GET':
@@ -99,7 +106,7 @@ class ModuloSistemaViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def _require_super_admin(self, request):
-        if not _is_super_admin(request.user):
+        if not _is_catalog_admin(request.user):
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
         return None
 
@@ -148,7 +155,7 @@ class SeccionModuloViewSet(viewsets.ModelViewSet):
     ordering = ['orden', 'nombre']
 
     def _require_super_admin(self, request):
-        if not _is_super_admin(request.user):
+        if not _is_catalog_admin(request.user):
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
         return None
 
@@ -213,11 +220,15 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = Suscripcion.objects.select_related('plan', 'empresa')
         if _is_super_admin(user):
+            if getattr(self.request, 'tenant', None):
+                return qs.filter(empresa=getattr(self.request, 'tenant'))
+            if not is_global_platform_user(user):
+                return qs.none()
             empresa_id = self.request.query_params.get('empresa')
             if empresa_id:
                 return qs.filter(empresa_id=empresa_id)
             return qs.all()
-        empresa = getattr(user, 'empresa', None)
+        empresa = active_empresa(self.request)
         if empresa:
             return qs.filter(empresa=empresa)
         return Suscripcion.objects.none()
@@ -241,7 +252,7 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def activa(self, request):
         """Devuelve la suscripción activa/vigente de la empresa del usuario."""
-        empresa = getattr(request.user, 'empresa', None)
+        empresa = active_empresa(request)
         if not empresa:
             return Response(None)
         suscripcion = (
@@ -267,10 +278,18 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'No autorizado.'}, status=status.HTTP_403_FORBIDDEN)
 
         from apps.empresas.models import Empresa
-        from django.db.models import OuterRef, Subquery, CharField
-        now = timezone.now()
-
-        empresas = Empresa.objects.all().order_by('razon_social')
+        # Un rol de plataforma acotado puede consultar únicamente el tenant
+        # activo; solo ADMIN_GLOBAL/SUPER_ADMIN puede ver el consolidado.
+        empresa_activa = active_empresa(request)
+        if empresa_activa:
+            empresas = Empresa.objects.filter(pk=empresa_activa.pk).order_by('razon_social')
+        elif not is_global_platform_user(request.user):
+            return Response(
+                {'detail': 'Seleccione una empresa activa para consultar este resumen.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        else:
+            empresas = Empresa.objects.all().order_by('razon_social')
 
         resultado = []
         for emp in empresas:
@@ -310,6 +329,18 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
 
         if not empresa_id or not plan_id:
             return Response({'error': 'empresa_id y plan_id son requeridos.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        empresa_activa = active_empresa(request)
+        if empresa_activa and str(empresa_id) != str(empresa_activa.id):
+            return Response(
+                {'detail': 'La empresa indicada no coincide con el contexto activo.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if not empresa_activa and not is_global_platform_user(request.user):
+            return Response(
+                {'detail': 'Seleccione una empresa activa antes de crear la suscripción.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         try:
             empresa = Empresa.objects.get(id=empresa_id)
@@ -391,7 +422,7 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
         Requiere: { plan_id }
         Crea una nueva suscripción con el plan elegido (duración según el plan).
         """
-        empresa = getattr(request.user, 'empresa', None)
+        empresa = active_empresa(request)
         if not empresa:
             return Response(None)
 
@@ -429,7 +460,7 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
     # ── Toggle auto-renovar ───────────────────────────────────────────────────
     @action(detail=False, methods=['post'], url_path='toggle-auto-renovar')
     def toggle_auto_renovar(self, request):
-        empresa = getattr(request.user, 'empresa', None)
+        empresa = active_empresa(request)
         if not empresa:
             return Response(None)
 
@@ -483,10 +514,10 @@ def mis_modulos(request):
     - Empresa sin suscripción activa: lista vacía.
     """
     user = request.user
-    if getattr(user, 'rol', None) == 'SUPER_ADMIN' or user.is_superuser:
+    if is_platform_user(user, 'modules'):
         return Response({'modulos': _tenant_visible_modules(get_todos_modulos_codigos())})
 
-    empresa = getattr(user, 'empresa', None)
+    empresa = active_empresa(request)
     if not empresa:
         return Response({'modulos': []})
 

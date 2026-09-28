@@ -15,19 +15,28 @@ const MovimientosTab: React.FC = () => {
 
   const getTipoIcon = (tipo: string) => {
     switch (tipo) {
-      case 'ENTRADA': return <FiTrendingUp className="text-green-600" />;
-      case 'SALIDA': return <FiTrendingDown className="text-red-600" />;
-      case 'AJUSTE': return <FiRefreshCw className="text-yellow-600" />;
+      case 'ENTRADA_COMPRA':
+      case 'AJUSTE_ENTRADA':
+      case 'TRANSFERENCIA_ENTRADA':
+      case 'DEVOLUCION_ENTRADA': return <FiTrendingUp className="text-green-600" />;
+      case 'SALIDA_VENTA':
+      case 'AJUSTE_SALIDA':
+      case 'TRANSFERENCIA_SALIDA':
+      case 'DEVOLUCION_SALIDA': return <FiTrendingDown className="text-red-600" />;
       default: return <FiRefreshCw className="text-blue-600" />;
     }
   };
 
   const getTipoColor = (tipo: string) => {
     switch (tipo) {
-      case 'ENTRADA': return 'text-green-600 bg-green-50';
-      case 'SALIDA': return 'text-red-600 bg-red-50';
-      case 'AJUSTE': return 'text-yellow-600 bg-yellow-50';
-      case 'TRANSFERENCIA': return 'text-blue-600 bg-blue-50';
+      case 'ENTRADA_COMPRA':
+      case 'AJUSTE_ENTRADA':
+      case 'TRANSFERENCIA_ENTRADA':
+      case 'DEVOLUCION_ENTRADA': return 'text-green-600 bg-green-50';
+      case 'SALIDA_VENTA':
+      case 'AJUSTE_SALIDA':
+      case 'TRANSFERENCIA_SALIDA':
+      case 'DEVOLUCION_SALIDA': return 'text-red-600 bg-red-50';
       default: return 'text-gray-600 bg-gray-50';
     }
   };
@@ -64,7 +73,7 @@ const MovimientosTab: React.FC = () => {
               {movimientosArray.map((movimiento) => (
                 <tr key={movimiento.id} className="border-b hover:bg-gray-50 transition-colors">
                   <td className="p-4 text-gray-700">
-                    {new Date(movimiento.fecha).toLocaleDateString()}
+                    {new Date(movimiento.fecha_movimiento).toLocaleDateString()}
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-2">

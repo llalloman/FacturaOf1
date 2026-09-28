@@ -2,7 +2,10 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory
 
 from .models import AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
-from .views import InteractionCreateView, PrivacyConsentCreateView, WebhookEventCreateView
+from .views import (
+    InteractionCreateView, PrivacyConsentCreateView, WebhookEventCreateView,
+    WebhookEventAcknowledgeView, WebhookEventRetryView,
+)
 
 
 @override_settings(AUTOMATION_API_TOKEN='test-token')
@@ -84,6 +87,8 @@ class AutomationIdempotencyTests(TestCase):
         self.factory = APIRequestFactory()
         self.interaction_view = InteractionCreateView.as_view()
         self.webhook_view = WebhookEventCreateView.as_view()
+        self.ack_view = WebhookEventAcknowledgeView.as_view()
+        self.retry_view = WebhookEventRetryView.as_view()
 
     def test_interaction_accepts_long_idempotency_key_from_n8n(self):
         long_key = 'whatsapp:inbound:593999999999:' + ('a' * 260)
@@ -124,3 +129,79 @@ class AutomationIdempotencyTests(TestCase):
         event = AutomationWebhookEvent.objects.get()
         self.assertLessEqual(len(event.idempotency_key), 220)
         self.assertTrue(event.idempotency_key.startswith('automation:webhook:'))
+
+    def test_failed_delivery_enters_dead_letter_after_five_attempts_and_can_retry(self):
+        response = self.webhook_view(self.factory.post(
+            '/api/automation/webhook-events/',
+            {'event_type': 'invoice.authorized', 'event_id': 'event-dead-letter', 'payload': {}},
+            format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+        self.assertEqual(response.status_code, 201)
+        for _ in range(5):
+            response = self.ack_view(self.factory.post(
+                '/api/automation/webhook-events/event-dead-letter/ack/',
+                {'status': 'FAILED', 'error': 'gateway unavailable'},
+                format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+            ), event_id='event-dead-letter')
+        self.assertEqual(response.status_code, 200)
+        event = AutomationWebhookEvent.objects.get(event_id='event-dead-letter')
+        self.assertEqual(event.attempt_count, 5)
+        self.assertIsNotNone(event.dead_lettered_at)
+
+        response = self.retry_view(self.factory.post(
+            '/api/automation/webhook-events/event-dead-letter/retry/',
+            {}, format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), event_id='event-dead-letter')
+        self.assertEqual(response.status_code, 200)
+        event.refresh_from_db()
+        self.assertEqual(event.status, AutomationWebhookEvent.Status.PENDING)
+        self.assertEqual(event.attempt_count, 0)
+
+    def test_terminal_ack_is_idempotent(self):
+        response = self.webhook_view(self.factory.post(
+            '/api/automation/webhook-events/',
+            {'event_type': 'invoice.authorized', 'event_id': 'event-terminal-ack', 'payload': {}},
+            format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+        self.assertEqual(response.status_code, 201)
+
+        request = self.factory.post(
+            '/api/automation/webhook-events/event-terminal-ack/ack/',
+            {'status': 'SENT'}, format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        )
+        first = self.ack_view(request, event_id='event-terminal-ack')
+        self.assertEqual(first.status_code, 200)
+        event = AutomationWebhookEvent.objects.get(event_id='event-terminal-ack')
+        attempts = event.attempt_count
+
+        second = self.ack_view(self.factory.post(
+            '/api/automation/webhook-events/event-terminal-ack/ack/',
+            {'status': 'SENT'}, format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), event_id='event-terminal-ack')
+        self.assertEqual(second.status_code, 200)
+        event.refresh_from_db()
+        self.assertEqual(event.attempt_count, attempts)
+
+    def test_idempotency_key_rejects_different_event_context(self):
+        first = self.webhook_view(self.factory.post(
+            '/api/automation/webhook-events/',
+            {
+                'event_type': 'invoice.authorized',
+                'event_id': 'event-context-one',
+                'idempotency_key': 'shared-event-key',
+                'payload': {},
+            }, format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+        self.assertEqual(first.status_code, 201)
+
+        second = self.webhook_view(self.factory.post(
+            '/api/automation/webhook-events/',
+            {
+                'event_type': 'sale.completed',
+                'event_id': 'event-context-two',
+                'idempotency_key': 'shared-event-key',
+                'payload': {},
+            }, format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+        self.assertEqual(second.status_code, 400)
+        self.assertIn('idempotency_key', second.data)

@@ -11,6 +11,7 @@ from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
+from apps.facturacion.constants import RUC_PROVEEDOR_FACTURACION
 
 
 def _get_fernet() -> Fernet:
@@ -163,6 +164,11 @@ class Empresa(models.Model):
         ],
         help_text=_('RUC del proveedor externo de sistemas o servicios de facturación electrónica.'),
     )
+    inventario_permite_stock_negativo = models.BooleanField(
+        'allow negative stock',
+        default=True,
+        help_text='Company-level policy; the environment flag remains a legacy fallback.',
+    )
     
     # Logo y marca
     logo = models.ImageField(_('logo'), upload_to='logos/', null=True, blank=True)
@@ -187,6 +193,13 @@ class Empresa(models.Model):
         return f"{self.razon_social} ({self.ruc})"
     
     def save(self, *args, **kwargs):
+        # El proveedor de facturaciÃ³n es una propiedad del servicio OF1 y no
+        # debe depender de que cada administrador recuerde capturarlo.
+        # Conservamos un valor explÃ­cito distinto para instalaciones que
+        # tengan un proveedor autorizado diferente.
+        if not self.ruc_proveedor_facturacion_electronica:
+            self.ruc_proveedor_facturacion_electronica = RUC_PROVEEDOR_FACTURACION
+
         # Al subir un nuevo archivo de certificado, guardamos su contenido en la BD
         # para que persista aunque el filesystem de Railway se reinicie.
         if self.certificado_digital:
@@ -204,8 +217,9 @@ class Empresa(models.Model):
                         self.certificado_data = fp.read()
             except Exception:
                 pass
-        else:
-            self.certificado_data = None
+        # No limpiar la copia binaria cuando se actualiza otro campo sin
+        # volver a subir el archivo. Esta columna es la fuente de resiliencia
+        # frente a storages efímeros; su eliminación debe ser explícita.
 
         if self.logo:
             try:
@@ -220,8 +234,8 @@ class Empresa(models.Model):
                         self.logo_data = fp.read()
             except Exception:
                 pass
-        else:
-            self.logo_data = None
+        # Igual que el certificado: una actualización ordinaria no debe
+        # borrar la copia persistida del logo.
 
         super().save(*args, **kwargs)
 

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Cotizacion, ItemCotizacion
+from apps.core.tenant import require_active_empresa
 
 
 class ItemCotizacionSerializer(serializers.ModelSerializer):
@@ -72,7 +73,7 @@ class CotizacionCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         items_data = validated_data.pop('items')
         request = self.context.get('request')
-        validated_data['empresa'] = request.user.empresa
+        validated_data['empresa'] = require_active_empresa(request)
         validated_data['creado_por'] = request.user
 
         # Auto-number

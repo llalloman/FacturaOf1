@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { usePOSStore } from '../store/posStore';
 import { Producto } from '../types';
+import { apiService } from '../services/apiService';
 
 export default function ProductList() {
   const config = usePOSStore((state) => state.config);
@@ -27,33 +28,12 @@ export default function ProductList() {
           setProductos(result.productos || []);
         }
       } else {
-        // Modo web - cargar productos de prueba o API directa
-        setProductos([
-          {
-            id: 1,
-            empresa_id: 1,
-            codigo: 'PROD001',
-            nombre: 'Producto de Prueba 1',
-            precio: 10.50,
-            costo: 5.00,
-            stock_actual: 100,
-            aplica_iva: true,
-            porcentaje_iva: '4',
-            activo: true,
-          },
-          {
-            id: 2,
-            empresa_id: 1,
-            codigo: 'PROD002',
-            nombre: 'Producto de Prueba 2',
-            precio: 25.00,
-            costo: 15.00,
-            stock_actual: 50,
-            aplica_iva: true,
-            porcentaje_iva: '4',
-            activo: true,
-          },
-        ]);
+        // Modo web: la API es la única fuente de productos y contexto.
+        if (!config?.empresa_id) {
+          setProductos([]);
+        } else {
+          setProductos(await apiService.getProductos(config.empresa_id, busqueda));
+        }
       }
     } catch (error) {
       console.error('Error cargando productos:', error);

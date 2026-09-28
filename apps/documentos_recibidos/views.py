@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.permissions import HasModuleAccess
+from apps.core.tenant import active_empresa
 from apps.proveedores.models import CuentaPorPagar, Proveedor
 
 from .models import DocumentoRecibidoDetalle, DocumentoRecibidoImpuesto, DocumentoRecibidoSRI
@@ -31,10 +32,7 @@ class DocumentoRecibidoSRIFilter(django_filters.FilterSet):
 
 
 def _get_empresa_from_request(request):
-    empresa = getattr(request, 'tenant', None)
-    if not empresa and request.user.is_authenticated:
-        empresa = getattr(request.user, 'empresa', None)
-    return empresa
+    return active_empresa(request)
 
 
 class DocumentoRecibidoSRIViewSet(viewsets.ReadOnlyModelViewSet):

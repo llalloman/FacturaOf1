@@ -8,6 +8,7 @@ from django.conf import settings
 from django.utils import timezone
 from signxml import XMLSigner, XMLVerifier
 from cryptography.hazmat.primitives.serialization import pkcs12
+from apps.facturacion.constants import ruc_proveedor_facturacion
 import hashlib
 import random
 import os
@@ -36,10 +37,17 @@ class SRIService:
         self.empresa = empresa
         self.ambiente = empresa.ambiente
 
+    def _direccion_establecimiento(self, comprobante):
+        """Usa la dirección fiscal del establecimiento cuando existe contexto."""
+        establecimiento = getattr(comprobante, 'establecimiento_ref', None)
+        return (
+            establecimiento.direccion
+            if establecimiento and establecimiento.direccion
+            else self.empresa.direccion_matriz
+        )
+
     def _agregar_ruc_proveedor_facturacion(self, campos):
-        ruc_proveedor = (getattr(self.empresa, 'ruc_proveedor_facturacion_electronica', '') or '').strip()
-        if ruc_proveedor:
-            campos['RUC Proveedor'] = ruc_proveedor
+        campos['RUC Proveedor'] = ruc_proveedor_facturacion(self.empresa)
         return campos
 
     def _agregar_info_adicional(self, root, campos):
@@ -160,7 +168,7 @@ class SRIService:
         # Información de la factura
         info_factura = etree.SubElement(factura_xml, 'infoFactura')
         etree.SubElement(info_factura, 'fechaEmision').text = timezone.localtime(comprobante.fecha_emision).strftime('%d/%m/%Y')
-        etree.SubElement(info_factura, 'dirEstablecimiento').text = self.empresa.direccion_matriz
+        etree.SubElement(info_factura, 'dirEstablecimiento').text = self._direccion_establecimiento(comprobante)
         
         if self.empresa.contribuyente_especial:
             etree.SubElement(info_factura, 'contribuyenteEspecial').text = self.empresa.contribuyente_especial
@@ -307,7 +315,7 @@ class SRIService:
         # ── infoNotaCredito ───────────────────────────────────────────────────
         info_nc = etree.SubElement(nc_xml, 'infoNotaCredito')
         etree.SubElement(info_nc, 'fechaEmision').text = timezone.localtime(comprobante.fecha_emision).strftime('%d/%m/%Y')
-        etree.SubElement(info_nc, 'dirEstablecimiento').text = self.empresa.direccion_matriz
+        etree.SubElement(info_nc, 'dirEstablecimiento').text = self._direccion_establecimiento(comprobante)
         etree.SubElement(info_nc, 'tipoIdentificacionComprador').text = cliente.tipo_identificacion
         etree.SubElement(info_nc, 'razonSocialComprador').text = cliente.razon_social
         etree.SubElement(info_nc, 'identificacionComprador').text = cliente.identificacion
@@ -501,7 +509,7 @@ class SRIService:
         # ── infoCompRetencion ─────────────────────────────────────────────────
         info_ret = etree.SubElement(ret_xml, 'infoCompRetencion')
         etree.SubElement(info_ret, 'fechaEmision').text     = timezone.localtime(comprobante.fecha_emision).strftime('%d/%m/%Y')
-        etree.SubElement(info_ret, 'dirEstablecimiento').text = self.empresa.direccion_matriz
+        etree.SubElement(info_ret, 'dirEstablecimiento').text = self._direccion_establecimiento(comprobante)
 
         if self.empresa.contribuyente_especial:
             etree.SubElement(info_ret, 'contribuyenteEspecial').text = self.empresa.contribuyente_especial
@@ -582,7 +590,7 @@ class SRIService:
         # ── infoNotaDebito ────────────────────────────────────────────────────
         info_nd = etree.SubElement(nd_xml, 'infoNotaDebito')
         etree.SubElement(info_nd, 'fechaEmision').text = timezone.localtime(comprobante.fecha_emision).strftime('%d/%m/%Y')
-        etree.SubElement(info_nd, 'dirEstablecimiento').text = self.empresa.direccion_matriz
+        etree.SubElement(info_nd, 'dirEstablecimiento').text = self._direccion_establecimiento(comprobante)
         etree.SubElement(info_nd, 'tipoIdentificacionComprador').text = cliente.tipo_identificacion
         etree.SubElement(info_nd, 'razonSocialComprador').text        = cliente.razon_social
         etree.SubElement(info_nd, 'identificacionComprador').text     = cliente.identificacion

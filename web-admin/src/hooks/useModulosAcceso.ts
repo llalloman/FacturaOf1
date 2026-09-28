@@ -19,14 +19,20 @@ export function useModulosAcceso() {
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const activeEmpresaId = useAuthStore((s) => s.activeEmpresaId);
   const esSuperAdmin = user?.rol === 'SUPER_ADMIN';
+  const puedeAdministrarModulos = esSuperAdmin || Boolean(
+    user?.accesos_plataforma?.some((access) =>
+      access.rol === 'ADMIN_GLOBAL' || access.alcances?.includes('modules')
+    )
+  );
   const esFirmador = user?.rol === 'FIRMADOR';
 
   // React Query deduplica esta llamada aunque el hook se use en múltiples componentes
   const { data: modulosServidor } = useQuery({
-    queryKey: ['mis-modulos'],
+    queryKey: ['mis-modulos', activeEmpresaId],
     queryFn: () => suscripcionesService.getMisModulos(),
-    enabled: isAuthenticated && !esSuperAdmin && !esFirmador,
+    enabled: isAuthenticated && !puedeAdministrarModulos && !esFirmador,
     staleTime: 2 * 60 * 1000,   // refresca cada 2 min
     refetchOnWindowFocus: true,  // revalida al volver a la pestaña
     retry: 1,
@@ -39,7 +45,7 @@ export function useModulosAcceso() {
     }
   }, [modulosServidor, updateUser]);
 
-  const modulos: string[] = esSuperAdmin
+  const modulos: string[] = puedeAdministrarModulos
     ? TODOS_LOS_CODIGOS
     : esFirmador
       ? ['firmador_pdf']
@@ -52,10 +58,10 @@ export function useModulosAcceso() {
    * SUPER_ADMIN siempre retorna true.
    */
   const tieneAccesoModulo = (codigo: string): boolean => {
-    if (esSuperAdmin) return true;
+    if (puedeAdministrarModulos) return true;
     if (esFirmador) return codigo === 'firmador_pdf';
     return modulosSet.has(codigo);
   };
 
-  return { modulos, tieneAccesoModulo, esSuperAdmin };
+  return { modulos, tieneAccesoModulo, esSuperAdmin: puedeAdministrarModulos };
 }

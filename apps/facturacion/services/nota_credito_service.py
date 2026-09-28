@@ -45,6 +45,8 @@ def crear_nota_credito_desde_factura(factura, motivo: str = 'Anulación de factu
 
     comprobante = ComprobanteElectronico.objects.create(
         empresa=empresa,
+        establecimiento_ref=getattr(comp_orig, 'establecimiento_ref', None),
+        punto_emision_ref=getattr(comp_orig, 'punto_emision_ref', None),
         usuario_creador=comp_orig.usuario_creador,
         tipo_comprobante='04',
         establecimiento=estab,

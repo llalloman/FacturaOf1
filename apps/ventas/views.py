@@ -13,10 +13,11 @@ from .serializers import (
     VentaSyncSerializer, MovimientoCajaSerializer
 )
 from apps.core.export_mixin import ExportMixin
-from apps.core.permissions import HasModuleAccess
+from apps.core.permissions import HasModuleAccess, is_platform_user
+from apps.core.tenant import ActiveCompanyWriteMixin, active_empresa, require_active_empresa, tenant_queryset
 
 
-class CajaViewSet(viewsets.ModelViewSet):
+class CajaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     serializer_class = CajaSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = ['ventas', 'pos']
@@ -28,31 +29,28 @@ class CajaViewSet(viewsets.ModelViewSet):
     
     def _get_empresa(self):
         user = self.request.user
-        if getattr(user, 'rol', None) == 'SUPER_ADMIN':
-            return None  # SUPER_ADMIN puede ver todas las cajas
-        return getattr(user, 'empresa', None)
+        if is_platform_user(user):
+            return getattr(self.request, 'tenant', None)  # contexto explícito, o todas en listado
+        return active_empresa(self.request)
 
     def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN':
-            return Caja.objects.all()
-        empresa = self._get_empresa()
-        if empresa:
-            return Caja.objects.filter(empresa=empresa)
-        return Caja.objects.none()
+        return tenant_queryset(self.request, Caja.objects.all())
 
     def perform_create(self, serializer):
-        empresa = self._get_empresa()
-        if empresa:
-            serializer.save(empresa=empresa)
-        else:
-            serializer.save()
+        serializer.save(empresa=require_active_empresa(self.request))
+
+    def perform_update(self, serializer):
+        empresa = require_active_empresa(self.request)
+        if serializer.instance.empresa_id != empresa.id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('La caja no pertenece a la empresa activa.')
+        serializer.save(empresa=empresa)
 
     @action(detail=False, methods=['post'])
     def init_default(self, request):
         """Crea una caja y bodega por defecto para la empresa si no existen."""
         from apps.inventarios.models import Bodega
-        empresa = getattr(request.user, 'empresa', None)
+        empresa = active_empresa(request)
         if not empresa:
             return Response({'error': 'No tienes empresa asignada.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -71,7 +69,8 @@ class CajaViewSet(viewsets.ModelViewSet):
         return Response(CajaSerializer(caja).data, status=status.HTTP_200_OK if not created else status.HTTP_201_CREATED)
 
 
-class AperturaCajaViewSet(viewsets.ModelViewSet):
+class AperturaCajaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
+    tenant_relation = 'caja'
     serializer_class = AperturaCajaSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = ['ventas', 'pos']
@@ -82,13 +81,11 @@ class AperturaCajaViewSet(viewsets.ModelViewSet):
     ordering = ['-fecha_apertura']
     
     def get_queryset(self):
-        user = self.request.user
-        queryset = AperturaCaja.objects.select_related('caja', 'usuario')
-        
-        if not user.is_superuser:
-            queryset = queryset.filter(caja__empresa=user.empresa)
-        
-        return queryset
+        return tenant_queryset(
+            self.request,
+            AperturaCaja.objects.select_related('caja', 'usuario'),
+            'caja__empresa',
+        )
     
     @action(detail=True, methods=['post'])
     def cerrar(self, request, pk=None):
@@ -148,10 +145,10 @@ class AperturaCajaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        apertura = AperturaCaja.objects.filter(
+        apertura = self.get_queryset().filter(
             caja_id=caja_id,
             estado='ABIERTA'
-        ).first()
+        ).select_related('caja').first()
         
         if not apertura:
             return Response(
@@ -163,7 +160,8 @@ class AperturaCajaViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
+class VentaViewSet(ActiveCompanyWriteMixin, ExportMixin, viewsets.ModelViewSet):
+    tenant_relation = 'caja'
     serializer_class = VentaSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = ['ventas', 'pos']
@@ -190,12 +188,9 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
     ]
     
     def get_queryset(self):
-        user = self.request.user
         queryset = Venta.objects.select_related('caja', 'cliente', 'usuario', 'factura', 'factura__comprobante')
         queryset = queryset.prefetch_related('detalles__producto', 'pagos')
-
-        if not user.is_superuser and getattr(user, 'rol', None) != 'SUPER_ADMIN':
-            queryset = queryset.filter(caja__empresa=user.empresa)
+        queryset = tenant_queryset(self.request, queryset, 'caja__empresa')
         
         # Filtros por fecha
         fecha_desde = self.request.query_params.get('fecha_desde', None)
@@ -229,8 +224,18 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
                 venta = serializer.save()
                 return Response(
                     VentaSerializer(venta).data,
-                    status=status.HTTP_201_CREATED
+                    status=(
+                        status.HTTP_201_CREATED
+                        if getattr(venta, '_sync_created', True)
+                        else status.HTTP_200_OK
+                    )
                 )
+            except serializers.ValidationError as e:
+                return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+            except ValueError as e:
+                # Errores de reglas de negocio (por ejemplo, stock insuficiente)
+                # son rechazos funcionales del POS, no fallas del servidor.
+                return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
                 return Response(
                     {'error': f'Error en transacción: {str(e)}'},
@@ -695,29 +700,66 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
             for detalle in venta.detalles.all():
                 if detalle.producto.tipo != 'BIEN' or not detalle.producto.maneja_inventario:
                     continue
-                salida = MovimientoInventario.objects.filter(
+                salidas = MovimientoInventario.objects.filter(
                     empresa=venta.empresa,
                     producto=detalle.producto,
                     tipo_movimiento='SALIDA_VENTA',
                     venta_id=str(venta.numero_venta),
-                ).first()
-                if not salida:
+                    documento_referencia__startswith=f'Venta {venta.numero_venta} detalle {detalle.id}',
+                ).order_by('id')
+                if not salidas.exists():
+                    continue
+                salida = salidas.first()
+                if MovimientoInventario.objects.filter(
+                    empresa=venta.empresa,
+                    bodega=salida.bodega,
+                    lote=salida.lote,
+                    producto=detalle.producto,
+                    tipo_movimiento='AJUSTE_ENTRADA',
+                    venta_id=str(venta.numero_venta),
+                    cantidad=-salida.cantidad,
+                    documento_referencia__startswith='Anulaci',
+                ).exists():
                     continue
                 # Crear movimiento de reversión (AJUSTE_ENTRADA)
                 MovimientoInventario.objects.create(
                     empresa=venta.empresa,
                     bodega=salida.bodega,
+                    lote=salida.lote,
                     producto=detalle.producto,
                     tipo_movimiento='AJUSTE_ENTRADA',
-                    cantidad=detalle.cantidad,
-                    costo_unitario=detalle.costo_unitario,
+                    cantidad=-salida.cantidad,
+                    costo_unitario=salida.costo_unitario,
                     venta_id=str(venta.numero_venta),
                     documento_referencia=f'Anulación venta {venta.numero_venta}',
                     observaciones=motivo,
                     usuario=request.user
                 )
+                for salida_extra in salidas.exclude(pk=salida.pk):
+                    referencia_extra = (
+                        f'Anulacion venta {venta.numero_venta} movimiento {salida_extra.id}'
+                    )
+                    if MovimientoInventario.objects.filter(
+                        empresa=venta.empresa,
+                        tipo_movimiento='AJUSTE_ENTRADA',
+                        documento_referencia=referencia_extra,
+                    ).exists():
+                        continue
+                    MovimientoInventario.objects.create(
+                        empresa=venta.empresa,
+                        bodega=salida_extra.bodega,
+                        lote=salida_extra.lote,
+                        producto=detalle.producto,
+                        tipo_movimiento='AJUSTE_ENTRADA',
+                        cantidad=-salida_extra.cantidad,
+                        costo_unitario=salida_extra.costo_unitario,
+                        venta_id=str(venta.numero_venta),
+                        documento_referencia=referencia_extra,
+                        observaciones=motivo,
+                        usuario=request.user,
+                    )
 
-            # Los movimientos automáticos se retiran únicamente al anular su origen.
+            # Los movimientos automaticos se retiran unicamente al anular su origen.
             from apps.core.models import AuditLog
             for pago in venta.pagos.select_related('movimiento_bancario'):
                 movimiento = pago.movimiento_bancario
@@ -802,8 +844,14 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
                 {'error': MENSAJE_CLIENTE_CONSUMIDOR_FINAL_SUPERA_LIMITE},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        establecimiento_id = request.data.get('establecimiento_id') or None
+        punto_emision_id = request.data.get('punto_emision_id') or None
         try:
-            factura = crear_factura_desde_venta(venta)
+            factura = crear_factura_desde_venta(
+                venta,
+                establecimiento_id=establecimiento_id,
+                punto_emision_id=punto_emision_id,
+            )
             sri_result = procesar_factura_sri(factura)
         except Exception as e:
             venta.cliente = cliente_original
@@ -843,6 +891,25 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
         total_factura_despues = Decimal(str(factura.total or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         diferencia = (total_venta - total_factura_despues).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         reconciliada = diferencia == Decimal('0.00')
+
+        if diferencia != Decimal('0.00') or total_factura_antes != total_factura_despues:
+            from apps.core.audit import audit_event
+            audit_event(
+                empresa=venta.empresa,
+                usuario=self.request.user if getattr(self.request, 'user', None) else None,
+                accion='RECONCILIAR_TOTAL_VENTA_FACTURA',
+                modulo='ventas',
+                referencia=venta.numero_venta,
+                datos={
+                    'venta_id': venta.id,
+                    'factura_id': venta.factura_id,
+                    'total_venta': str(total_venta),
+                    'total_factura_antes': str(total_factura_antes),
+                    'total_factura_despues': str(total_factura_despues),
+                    'diferencia': str(diferencia),
+                    'reconciliada': reconciliada,
+                },
+            )
 
         if comprobante:
             if reconciliada:
@@ -1110,7 +1177,9 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
         ]
 
         # --- Proyección de stock por producto ---
-        empresa = getattr(request.user, 'empresa', None)
+        # La proyección debe respetar la empresa activa, también para usuarios
+        # de plataforma que operan con un contexto seleccionado.
+        empresa = active_empresa(request)
         proyeccion_stock = []
         if empresa:
             detalles_qs = (
@@ -1190,7 +1259,8 @@ class VentaViewSet(ExportMixin, viewsets.ModelViewSet):
         })
 
 
-class MovimientoCajaViewSet(viewsets.ModelViewSet):
+class MovimientoCajaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
+    tenant_relation = 'apertura_caja__caja'
     serializer_class = MovimientoCajaSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = ['ventas', 'pos']
@@ -1201,10 +1271,8 @@ class MovimientoCajaViewSet(viewsets.ModelViewSet):
     ordering = ['-fecha_movimiento']
     
     def get_queryset(self):
-        user = self.request.user
-        queryset = MovimientoCaja.objects.select_related('apertura_caja__caja', 'usuario')
-        
-        if not user.is_superuser:
-            queryset = queryset.filter(apertura_caja__caja__empresa=user.empresa)
-        
-        return queryset
+        return tenant_queryset(
+            self.request,
+            MovimientoCaja.objects.select_related('apertura_caja__caja', 'usuario'),
+            'apertura_caja__caja__empresa',
+        )

@@ -28,9 +28,11 @@ interface POSState {
   sincronizando: boolean;
   ultimaSync: Date | null;
   pendienteSync: number;
+  deadLetterSync: number;
   setSincronizando: (value: boolean) => void;
   setUltimaSync: (date: Date) => void;
   setPendienteSync: (count: number) => void;
+  setDeadLetterSync: (count: number) => void;
 
   // Modo offline
   modoOffline: boolean;
@@ -64,6 +66,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
   sincronizando: false,
   ultimaSync: null,
   pendienteSync: 0,
+  deadLetterSync: 0,
   modoOffline: false,
 
   // Configuración
@@ -203,6 +206,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
   setSincronizando: (value) => set({ sincronizando: value }),
   setUltimaSync: (date) => set({ ultimaSync: date }),
   setPendienteSync: (count) => set({ pendienteSync: count }),
+  setDeadLetterSync: (count) => set({ deadLetterSync: count }),
 
   // Modo offline
   setModoOffline: (value) => set({ modoOffline: value }),

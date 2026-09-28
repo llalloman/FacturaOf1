@@ -288,6 +288,36 @@ class TestRecepcionCompraAPI:
         assert hasattr(recepcion, 'cuenta_por_pagar')
 
 
+    def test_confirmar_recepciones_no_supera_pendiente(self, client_api, orden_compra, bodega):
+        """Dos recepciones no pueden consumir mas unidades que la orden."""
+        detalle_orden = orden_compra.detalles.first()
+        recepciones = []
+        for numero, cantidad in [('REC-LOCK-001', Decimal('15.00')), ('REC-LOCK-002', Decimal('10.00'))]:
+            recepcion = RecepcionCompra.objects.create(
+                empresa=orden_compra.empresa,
+                orden_compra=orden_compra,
+                bodega=bodega,
+                numero_recepcion=numero,
+                fecha_recepcion=timezone.now().date(),
+                recibido_por=orden_compra.creado_por,
+                estado='BORRADOR',
+            )
+            DetalleRecepcion.objects.create(
+                recepcion=recepcion,
+                detalle_orden=detalle_orden,
+                cantidad_recibida=cantidad,
+                costo_unitario=Decimal('50.00'),
+            )
+            recepciones.append(recepcion)
+
+        assert client_api.post(f'/api/proveedores/recepciones/{recepciones[0].id}/confirmar/').status_code == 200
+        response = client_api.post(f'/api/proveedores/recepciones/{recepciones[1].id}/confirmar/')
+
+        assert response.status_code == 400
+        recepciones[1].refresh_from_db()
+        assert recepciones[1].estado == RecepcionCompra.EstadoChoices.BORRADOR
+
+
 @pytest.mark.django_db
 class TestCuentaPorPagarAPI:
     """Tests para API de Cuentas por Pagar"""

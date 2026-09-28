@@ -44,6 +44,10 @@ SECRET_KEY = _secret
 # DEBUG defaults to False — must be explicitly enabled
 DEBUG = bool_config('DEBUG', default=False)
 
+# Compatibilidad de rollout: producción conserva el comportamiento histórico
+# hasta que staging valide la política estricta con INVENTORY_ALLOW_NEGATIVE_STOCK=false.
+INVENTORY_ALLOW_NEGATIVE_STOCK = bool_config('INVENTORY_ALLOW_NEGATIVE_STOCK', default=True)
+
 # ALLOWED_HOSTS must be configured in production
 _hosts = config('ALLOWED_HOSTS', default='').strip()
 ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',') if h.strip()] if _hosts else (['*'] if DEBUG else ['localhost', '127.0.0.1'])
@@ -140,6 +144,17 @@ DATABASES = {
         ssl_require=True if 'neon.tech' in config('DB_HOST', default='') else False
     )
 }
+
+# Nombre explícito y aislado para la base que crea Django durante los tests.
+# Si no se define, Django conserva su convención test_<DATABASE_NAME>.
+_test_database_name = config('DJANGO_TEST_DB_NAME', default='').strip()
+if 'test' in sys.argv and not _test_database_name:
+    raise RuntimeError(
+        'DJANGO_TEST_DB_NAME es obligatorio para ejecutar tests. '
+        'Use una base local o de staging; nunca reutilice la base productiva.'
+    )
+if _test_database_name:
+    DATABASES['default']['TEST'] = {'NAME': _test_database_name}
 
 # Custom User Model
 AUTH_USER_MODEL = 'usuarios.Usuario'
@@ -273,6 +288,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5174",
     "http://127.0.0.1:5175",
     "http://127.0.0.1:8080",
+    # Puertos locales de los artefactos independientes de FacturaOF1.
+    "http://127.0.0.1:18011",
+    "http://127.0.0.1:18012",
+    "http://127.0.0.1:18013",
     "https://localhost",
     "capacitor://localhost",
     "https://facturaof1.of1solutions.com",
@@ -302,6 +321,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5174",
     "http://127.0.0.1:5175",
     "http://127.0.0.1:8080",
+    "http://127.0.0.1:18011",
+    "http://127.0.0.1:18012",
+    "http://127.0.0.1:18013",
     "https://localhost",
     "capacitor://localhost",
     "https://facturaof1.of1solutions.com",

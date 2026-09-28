@@ -2,21 +2,33 @@ import { useState } from 'react';
 import { usePOSStore } from '../store/posStore';
 import { ConfigPOS } from '../types';
 import { toast } from '../store/toastStore';
+import { apiService } from '../services/apiService';
 
 export default function ConfigScreen() {
   const setConfig = usePOSStore((state) => state.setConfig);
   
   const [formData, setFormData] = useState<ConfigPOS>({
-    empresa_id: 1,
-    caja_id: 1,
-    usuario_id: 1,
-    bodega_id: 1,
+    empresa_id: 0,
+    caja_id: 0,
+    usuario_id: 0,
+    bodega_id: 0,
+    establecimiento_id: undefined,
+    punto_emision_id: undefined,
     servidor_url: 'http://localhost:8000',
     modo_offline: false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if ([formData.empresa_id, formData.caja_id, formData.usuario_id, formData.bodega_id]
+      .some((value) => !Number.isInteger(value) || value <= 0)) {
+      toast.error('Empresa, caja, usuario y bodega deben tener IDs válidos.');
+      return;
+    }
+    if (Boolean(formData.establecimiento_id) !== Boolean(formData.punto_emision_id)) {
+      toast.error('Establecimiento y punto de emisión deben configurarse juntos.');
+      return;
+    }
     
     // Guardar configuración
     if (window.electron?.config?.set) {
@@ -26,14 +38,20 @@ export default function ConfigScreen() {
       localStorage.setItem('pos_config', JSON.stringify(formData));
     }
     setConfig(formData);
+    apiService.setEmpresaId(formData.empresa_id);
     toast.success('Configuración guardada correctamente');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
+    const isOptionalFiscalId = name === 'establecimiento_id' || name === 'punto_emision_id';
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : type === 'number' ? parseInt(value) : value,
+      [name]: type === 'checkbox'
+        ? checked
+        : type === 'number'
+          ? (value === '' ? (isOptionalFiscalId ? undefined : 0) : parseInt(value, 10))
+          : value,
     }));
   };
 
@@ -56,6 +74,7 @@ export default function ConfigScreen() {
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              min="1"
             />
           </div>
 
@@ -70,6 +89,7 @@ export default function ConfigScreen() {
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              min="1"
             />
           </div>
 
@@ -84,6 +104,7 @@ export default function ConfigScreen() {
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              min="1"
             />
           </div>
 
@@ -98,6 +119,35 @@ export default function ConfigScreen() {
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              min="1"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              ID Establecimiento (opcional)
+            </label>
+            <input
+              type="number"
+              name="establecimiento_id"
+              value={formData.establecimiento_id ?? ''}
+              onChange={handleChange}
+              min="1"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              ID Punto de emisión (opcional)
+            </label>
+            <input
+              type="number"
+              name="punto_emision_id"
+              value={formData.punto_emision_id ?? ''}
+              onChange={handleChange}
+              min="1"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 

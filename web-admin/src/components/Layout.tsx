@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useModulosAcceso } from '../hooks/useModulosAcceso';
 import { MODULOS, RUTA_A_MODULO, type ModuloInfo } from '../constants/modulos';
 import { suscripcionesService, type ModuloSistema } from '../services/suscripcionesService';
+import { empresaContextService } from '../services/empresaContextService';
 import {
   LayoutDashboard,
   FileText,
@@ -45,13 +46,18 @@ import {
   Layers3,
   FileSignature,
   BadgeDollarSign,
+  Sparkles,
+  Ticket,
   Bot,
   Inbox,
 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
+import { isProductRouteAllowed, PLATFORM_ONLY_ROUTES, PRODUCT_TARGET } from '../config/productTarget';
+import { productLinksForUser } from '../config/productLinks';
+import { empresasService } from '../services/empresasService';
 
-type MenuItem = { icon: React.ElementType; label: string; path: string; external?: boolean };
+type MenuItem = { icon: React.ElementType; label: string; path: string; external?: boolean; capability?: string };
 type MenuGroup = { label: string; items: MenuItem[] };
 
 const MODULO_ICONOS: Record<string, React.ElementType> = {
@@ -109,10 +115,10 @@ const ICONOS_POR_NOMBRE: Record<string, React.ElementType> = {
 
 const EXTRA_MENU_ITEMS: Array<MenuItem & { grupo: string; roles?: string[] }> = [
   { icon: Inbox, label: 'Bandeja Tributaria', path: '/documentos-recibidos', grupo: 'Facturación Electrónica', roles: ['ADMIN_EMPRESA', 'CONTADOR'] },
-  { icon: Users, label: 'Usuarios', path: '/usuarios', grupo: 'Administración', roles: ['ADMIN_EMPRESA'] },
-  { icon: Settings, label: 'Configuración', path: '/configuracion', grupo: 'Administración', roles: ['ADMIN_EMPRESA'] },
+  { icon: Users, label: 'Usuarios', path: '/usuarios', grupo: 'Administración', roles: ['ADMIN_EMPRESA', 'SUPER_ADMIN'] },
+  { icon: Settings, label: 'Configuración', path: '/configuracion', grupo: 'Administración', roles: ['ADMIN_EMPRESA', 'SUPER_ADMIN'] },
   { icon: CreditCard, label: 'Suscripción', path: '/suscripcion', grupo: 'Administración' },
-  { icon: CreditCard, label: 'Pagos Online', path: '/pagos-online', grupo: 'Administración', roles: ['ADMIN_EMPRESA'] },
+  { icon: CreditCard, label: 'Pagos Online', path: '/pagos-online', grupo: 'Administración', roles: ['ADMIN_EMPRESA', 'SUPER_ADMIN'] },
 ];
 
 const SUPER_ADMIN_ONLY_MODULE_CODES = new Set(['firmas_electronicas']);
@@ -157,23 +163,25 @@ const ROL_PATHS: Record<string, string[]> = {
 
 // Menú exclusivo del Super Admin (no está atado a ninguna empresa)
 const menuItemsSuperAdmin: MenuItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard',       path: '/' },
-  { icon: Building2,       label: 'Empresas',         path: '/empresas' },
-  { icon: CreditCard,      label: 'Suscripciones',   path: '/suscripciones-admin' },
-  { icon: Shield,          label: 'Matriz de Acceso', path: '/matriz-permisos' },
-  { icon: Layers3,         label: 'Catálogo de Menús', path: '/catalogo-modulos' },
-  { icon: FileSignature,   label: 'Solicitudes de Firma', path: '/firmas-electronicas' },
-  { icon: BadgeDollarSign,  label: 'Precios de Firma', path: '/firmas-electronicas/precios' },
-  { icon: FileSignature,   label: 'Admin Firmador', path: '/firmador-admin' },
-  { icon: Bot,              label: 'Leads WhatsApp', path: '/automation/leads' },
-  { icon: CreditCard,       label: 'Pagos Online', path: '/pagos-online' },
-  { icon: Users,           label: 'Usuarios',         path: '/usuarios' },
+  { icon: LayoutDashboard, label: 'Dashboard',       path: '/', capability: 'dashboard_admin' },
+  { icon: Building2,       label: 'Empresas',         path: '/empresas', capability: 'empresas' },
+  { icon: CreditCard,      label: 'Suscripciones',   path: '/suscripciones-admin', capability: 'suscripciones' },
+  { icon: Shield,          label: 'Matriz de Acceso', path: '/matriz-permisos', capability: 'usuarios' },
+  { icon: Layers3,         label: 'Catálogo de Menús', path: '/catalogo-modulos', capability: 'suscripciones' },
+  { icon: FileSignature,   label: 'Solicitudes de Firma', path: '/firmas-electronicas', capability: 'firmas' },
+  { icon: BadgeDollarSign,  label: 'Precios de Firma', path: '/firmas-electronicas/precios', capability: 'firmas' },
+  { icon: Sparkles,         label: 'Promociones', path: '/firmas-electronicas/promociones', capability: 'firmas' },
+  { icon: Ticket,           label: 'Cupones', path: '/firmas-electronicas/cupones', capability: 'firmas' },
+  { icon: FileSignature,   label: 'Admin Firmador', path: '/firmador-admin', capability: 'firmador' },
+  { icon: Bot,              label: 'Leads WhatsApp', path: '/automation/leads', capability: 'automation' },
+  { icon: CreditCard,       label: 'Pagos Online', path: '/pagos-online', capability: 'pagos' },
+  { icon: Users,           label: 'Usuarios',         path: '/usuarios', capability: 'usuarios' },
 ];
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, logout, activeEmpresaId, setActiveEmpresa } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true
   );
@@ -190,6 +198,19 @@ export default function Layout() {
 
   // Menú filtrado por rol del usuario
   const rol = user?.rol ?? '';
+  const legacySuperAdmin = rol === 'SUPER_ADMIN';
+  const isPlatformIdentity = Boolean(user?.es_plataforma || legacySuperAdmin);
+  const showPlatformMenu = isPlatformIdentity && PRODUCT_TARGET === 'of1-admin';
+  const canSelectPlatformCompany = isPlatformIdentity && (PRODUCT_TARGET === 'of1-admin' || PRODUCT_TARGET === 'facturaof1');
+  const showTenantMenu = !isPlatformIdentity || activeEmpresaId != null;
+  const hasPlatformCapability = (capability?: string) => Boolean(
+    legacySuperAdmin || (
+      user?.es_plataforma && capability &&
+      user.accesos_plataforma?.some((access) =>
+        access.rol === 'ADMIN_GLOBAL' || access.alcances?.includes(capability),
+      )
+    ),
+  );
   const rolePaths = ROL_PATHS[rol] ?? ROL_PATHS['ADMIN_EMPRESA'];
   const { tieneAccesoModulo } = useModulosAcceso();
   const { data: catalogoModulos = [] } = useQuery({
@@ -198,6 +219,30 @@ export default function Layout() {
     enabled: !!user && user.rol !== 'SUPER_ADMIN' && user.rol !== 'FIRMADOR',
     staleTime: 5 * 60 * 1000,
   });
+  const { data: empresaContextos = [] } = useQuery({
+    queryKey: ['empresa-contextos', user?.id],
+    queryFn: empresaContextService.listar,
+    enabled: Boolean(user && user.rol !== 'SUPER_ADMIN' && user.rol !== 'FIRMADOR'),
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: platformEmpresas = [] } = useQuery({
+    queryKey: ['platform-empresas-selector'],
+    queryFn: empresasService.getAll,
+    enabled: canSelectPlatformCompany,
+    staleTime: 5 * 60 * 1000,
+  });
+  const empresasDisponibles = useMemo(() => canSelectPlatformCompany
+    ? platformEmpresas.map((empresa) => ({
+      id: null,
+      empresa: empresa.id,
+      empresa_nombre: empresa.razon_social,
+      empresa_activa: empresa.activa,
+      rol_empresa: 'ADMIN_EMPRESA',
+      modulos: [],
+      activa: empresa.activa,
+      predeterminada: empresa.id === activeEmpresaId,
+    }))
+    : empresaContextos, [activeEmpresaId, canSelectPlatformCompany, empresaContextos, platformEmpresas]);
   const { notificaciones, noLeidas, marcarLeida, marcarTodasLeidas } = useNotificaciones();
   const [bellOpen, setBellOpen] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
@@ -233,6 +278,8 @@ export default function Layout() {
   }, [favoritesKey]);
 
   const modulosMenu = (catalogoModulos.length > 0 ? catalogoModulos : MODULOS)
+    .filter((modulo) => isProductRouteAllowed(modulo.ruta))
+    .filter((modulo) => !PLATFORM_ONLY_ROUTES.has(modulo.ruta))
     .filter((modulo) => rol === 'SUPER_ADMIN' || !SUPER_ADMIN_ONLY_MODULE_CODES.has(modulo.codigo));
   const allowedPaths = rol === 'ADMIN_EMPRESA'
     ? Array.from(new Set([...rolePaths, ...modulosMenu.map((m) => m.ruta)]))
@@ -295,6 +342,18 @@ export default function Layout() {
   const userInitial = displayName.charAt(0).toUpperCase();
   const searchPlaceholder = isFirmador ? 'Buscar documentos firmados...' : 'Buscar en el sistema...';
 
+  const cambiarEmpresaActiva = async (empresaId: number) => {
+    if (empresaId === activeEmpresaId) return;
+    try {
+      await empresaContextService.seleccionar(empresaId);
+      setActiveEmpresa(empresaId);
+      // Aísla cachés y datos visibles de la empresa anterior.
+      window.location.reload();
+    } catch {
+      // La API conserva el contexto anterior; no se cambia el estado local.
+    }
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
       {/* Skip to main content link — visible only on focus (keyboard nav) */}
@@ -351,12 +410,12 @@ export default function Layout() {
         {/* Navigation */}
         <nav aria-label="Menú principal" className="flex-1 space-y-1 overflow-y-auto px-2 py-3">
           {/* SUPER_ADMIN: menú de administración de plataforma */}
-          {user?.rol === 'SUPER_ADMIN' ? (
+          {showPlatformMenu && (
             <>
               {sidebarOpen && (
                 <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase text-slate-500">Administración</p>
               )}
-              {menuItemsSuperAdmin.map((item) => (
+              {menuItemsSuperAdmin.filter((item) => isProductRouteAllowed(item.path) && hasPlatformCapability(item.capability)).map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
@@ -371,9 +430,18 @@ export default function Layout() {
                 </Link>
               ))}
             </>
-          ) : (
+          )}
+          {isPlatformIdentity && !showTenantMenu && sidebarOpen && (
+            <p className="px-3 py-4 text-xs leading-5 text-slate-500">
+              Selecciona una empresa activa en la barra superior para abrir el ERP operativo.
+            </p>
+          )}
+          {showTenantMenu && (
             /* Usuarios con empresa: menú agrupado desplegable */
             <>
+              {sidebarOpen && isPlatformIdentity && (
+                <p className="mt-4 px-3 pb-2 pt-1 text-[11px] font-semibold uppercase text-slate-500">Empresa activa</p>
+              )}
               {displayGroups.map((group) => {
                 const isOpen = !!openGroups[group.label];
                 const hasActive = group.items.some((i) => isActive(i.path));
@@ -541,6 +609,24 @@ export default function Layout() {
             </div>
           </div>
           <div className="ml-4 flex items-center gap-2">
+            {empresasDisponibles.length > 0 && (
+              <label className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600 sm:flex">
+                <Building2 size={15} className="text-slate-500" />
+                <span className="sr-only">Empresa activa</span>
+                <select
+                  value={activeEmpresaId ?? ''}
+                  onChange={(event) => cambiarEmpresaActiva(Number(event.target.value))}
+                  className="max-w-[190px] bg-transparent text-xs font-medium outline-none"
+                  aria-label="Empresa activa"
+                >
+                  {empresasDisponibles.map((contexto) => (
+                    <option key={`${contexto.empresa}-${contexto.id ?? 'legacy'}`} value={contexto.empresa}>
+                      {contexto.empresa_nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {/* Campanita de notificaciones */}
             <div className="relative" ref={bellRef}>
               <button
@@ -634,6 +720,17 @@ export default function Layout() {
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <span>© {new Date().getFullYear()} OF1 Solutions S.A.S.</span>
               <div className="flex flex-wrap gap-4">
+                {productLinksForUser(PRODUCT_TARGET, hasPlatformCapability('empresas')).map((product) => (
+                  <a
+                    key={product.href}
+                    href={product.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold hover:text-blue-700"
+                  >
+                    {product.label}
+                  </a>
+                ))}
                 <Link to="/politica-privacidad" className="font-semibold hover:text-blue-700">Política de Privacidad</Link>
                 <Link to="/terminos-y-condiciones" className="font-semibold hover:text-blue-700">Términos y Condiciones</Link>
               </div>

@@ -130,24 +130,24 @@ ipcMain.handle('ventas:crear', async (event, ventaData) => {
   try {
     const { v4: uuidv4 } = require('uuid');
     const uuid = uuidv4();
-    
-    const result = db.prepare(`
+    const crearVentaTx = db.transaction((data) => {
+      const result = db.prepare(`
       INSERT INTO ventas (uuid, numero_venta, empresa_id, caja_id, usuario_id, 
                          cliente_id, fecha_venta, subtotal, descuento, iva, total, data_json)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       uuid,
-      ventaData.numero_venta,
-      ventaData.empresa_id,
-      ventaData.caja_id,
-      ventaData.usuario_id,
-      ventaData.cliente_id,
+      data.numero_venta,
+      data.empresa_id,
+      data.caja_id,
+      data.usuario_id,
+      data.cliente_id,
       new Date().toISOString(),
-      ventaData.subtotal,
-      ventaData.descuento,
-      ventaData.iva,
-      ventaData.total,
-      JSON.stringify(ventaData)
+      data.subtotal,
+      data.descuento,
+      data.iva,
+      data.total,
+      JSON.stringify({ ...data, uuid })
     );
 
     const ventaId = result.lastInsertRowid;
@@ -159,7 +159,7 @@ ipcMain.handle('ventas:crear', async (event, ventaData) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    for (const detalle of ventaData.detalles) {
+    for (const detalle of data.detalles) {
       insertDetalle.run(
         ventaId,
         detalle.producto_id,
@@ -186,8 +186,12 @@ ipcMain.handle('ventas:crear', async (event, ventaData) => {
     db.prepare(`
       INSERT INTO sync_queue (entity_type, entity_id, operation, data)
       VALUES ('venta', ?, 'CREATE', ?)
-    `).run(uuid, JSON.stringify({ ...ventaData, uuid }));
+    `).run(uuid, JSON.stringify({ ...data, uuid }));
 
+      return ventaId;
+    });
+
+    const ventaId = crearVentaTx(ventaData);
     return { success: true, ventaId, uuid };
   } catch (error) {
     console.error('Error creando venta:', error);
@@ -261,8 +265,9 @@ ipcMain.handle('clientes:listar', async (event, { empresaId }) => {
 // IPC Handlers - Sincronización
 ipcMain.handle('sync:pendientes', async () => {
   try {
-    const count = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE synced = 0').get();
-    return { success: true, count: count.count };
+    const count = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE synced = 0 AND retry_count < 5').get();
+    const dead = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE synced = 0 AND retry_count >= 5').get();
+    return { success: true, count: count.count, deadLetterCount: dead.count };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -272,7 +277,7 @@ ipcMain.handle('sync:obtener-pendientes', async () => {
   try {
     const pendientes = db.prepare(`
       SELECT * FROM sync_queue 
-      WHERE synced = 0 
+      WHERE synced = 0 AND retry_count < 5
       ORDER BY timestamp ASC 
       LIMIT 50
     `).all();
@@ -289,6 +294,41 @@ ipcMain.handle('sync:marcar-sincronizado', async (event, { id }) => {
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('sync:registrar-error', async (event, { id, error }) => {
+  try {
+    db.prepare(`
+      UPDATE sync_queue
+      SET retry_count = retry_count + 1, error = ?
+      WHERE id = ? AND synced = 0
+    `).run(String(error || 'Error de sincronización'), id);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('sync:reintentar', async (event, { id }) => {
+  try {
+    db.prepare(`UPDATE sync_queue SET retry_count = 0, error = NULL, synced = 0 WHERE id = ?`).run(id);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('sync:reintentar-dead-letter', async () => {
+  try {
+    const result = db.prepare(`
+      UPDATE sync_queue
+      SET retry_count = 0, error = NULL, synced = 0
+      WHERE synced = 0 AND retry_count >= 5
+    `).run();
+    return { success: true, count: result.changes };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 });
 

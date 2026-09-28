@@ -34,6 +34,7 @@ from .serializers import (
     RubroNominaSerializer,
 )
 from apps.core.permissions import HasModuleAccess
+from apps.core.tenant import ActiveCompanyWriteMixin, active_empresa, require_active_empresa, tenant_queryset
 
 
 DEFAULT_RUBROS = [
@@ -129,7 +130,7 @@ def construir_texto_rol_pago(rol):
     return '\n'.join(lines)
 
 
-class EmpleadoViewSet(viewsets.ModelViewSet):
+class EmpleadoViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'nomina'
     serializer_class = EmpleadoSerializer
@@ -141,10 +142,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     ordering = ['apellidos']
 
     def get_queryset(self):
-        return Empleado.objects.filter(empresa=self.request.user.empresa)
+        return tenant_queryset(self.request, Empleado.objects.all())
 
     def perform_create(self, serializer):
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
     @transaction.atomic
     @action(detail=False, methods=['post'])
@@ -158,7 +159,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         if not anio or not mes:
             return Response({'detail': 'Se requieren anio y mes.'}, status=400)
 
-        empresa = request.user.empresa
+        empresa = require_active_empresa(request)
         rubros = ensure_default_rubros(empresa)
         fecha_periodo = periodo_fecha(anio, mes)
         empleados = Empleado.objects.filter(empresa=empresa, estado=Empleado.EstadoChoices.ACTIVO)
@@ -215,7 +216,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         })
 
 
-class ParametroNominaViewSet(viewsets.ModelViewSet):
+class ParametroNominaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'nomina'
     serializer_class = ParametroNominaSerializer
@@ -225,13 +226,13 @@ class ParametroNominaViewSet(viewsets.ModelViewSet):
     ordering = ['-anio']
 
     def get_queryset(self):
-        return ParametroNomina.objects.filter(empresa=self.request.user.empresa)
+        return tenant_queryset(self.request, ParametroNomina.objects.all())
 
     def perform_create(self, serializer):
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
 
-class RubroNominaViewSet(viewsets.ModelViewSet):
+class RubroNominaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'nomina'
     serializer_class = RubroNominaSerializer
@@ -243,18 +244,18 @@ class RubroNominaViewSet(viewsets.ModelViewSet):
     ordering = ['tipo', 'orden', 'nombre']
 
     def get_queryset(self):
-        return RubroNomina.objects.filter(empresa=self.request.user.empresa)
+        return tenant_queryset(self.request, RubroNomina.objects.all())
 
     def perform_create(self, serializer):
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
     @action(detail=False, methods=['post'])
     def sembrar_base(self, request):
-        ensure_default_rubros(request.user.empresa)
+        ensure_default_rubros(require_active_empresa(request))
         return Response({'detail': 'Rubros base disponibles.'})
 
 
-class ConceptoEmpleadoNominaViewSet(viewsets.ModelViewSet):
+class ConceptoEmpleadoNominaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'nomina'
     serializer_class = ConceptoEmpleadoNominaSerializer
@@ -265,15 +266,15 @@ class ConceptoEmpleadoNominaViewSet(viewsets.ModelViewSet):
     ordering = ['empleado__apellidos', 'rubro__orden']
 
     def get_queryset(self):
-        return ConceptoEmpleadoNomina.objects.filter(
-            empresa=self.request.user.empresa
+        return tenant_queryset(
+            self.request, ConceptoEmpleadoNomina.objects.all()
         ).select_related('empleado', 'rubro')
 
     def perform_create(self, serializer):
-        serializer.save(empresa=self.request.user.empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
 
-class RolPagoViewSet(viewsets.ModelViewSet):
+class RolPagoViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'nomina'
     pagination_class = None
@@ -284,8 +285,8 @@ class RolPagoViewSet(viewsets.ModelViewSet):
     ordering = ['-anio', '-mes']
 
     def get_queryset(self):
-        return RolPago.objects.filter(
-            empresa=self.request.user.empresa
+        return tenant_queryset(
+            self.request, RolPago.objects.all()
         ).select_related('empleado').prefetch_related('detalles__rubro')
 
     def get_serializer_class(self):
@@ -294,6 +295,7 @@ class RolPagoViewSet(viewsets.ModelViewSet):
         return RolPagoSerializer
 
     def perform_destroy(self, instance):
+        self._require_instance_active_empresa(instance)
         if instance.estado != RolPago.EstadoChoices.BORRADOR:
             raise serializers.ValidationError({'detail': 'Solo se pueden eliminar roles en borrador.'})
         instance.delete()
@@ -422,7 +424,8 @@ class RolPagoViewSet(viewsets.ModelViewSet):
         })
 
 
-class DetalleRolPagoViewSet(viewsets.ModelViewSet):
+class DetalleRolPagoViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
+    tenant_relation = 'rol'
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'nomina'
     serializer_class = DetalleRolPagoSerializer
@@ -433,7 +436,7 @@ class DetalleRolPagoViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return DetalleRolPago.objects.filter(
-            rol__empresa=self.request.user.empresa
+            rol__empresa=active_empresa(self.request)
         ).select_related('rol', 'rubro')
 
     def _ensure_editable(self, rol):
@@ -442,18 +445,20 @@ class DetalleRolPagoViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         rol = serializer.validated_data['rol']
-        if rol.empresa_id != self.request.user.empresa_id:
+        if rol.empresa_id != getattr(active_empresa(self.request), 'id', None):
             raise serializers.ValidationError({'rol': 'El rol no pertenece a la empresa.'})
         self._ensure_editable(rol)
         detalle = serializer.save()
         detalle.rol.save()
 
     def perform_update(self, serializer):
+        self._require_instance_active_empresa(serializer.instance)
         self._ensure_editable(serializer.instance.rol)
         detalle = serializer.save()
         detalle.rol.save()
 
     def perform_destroy(self, instance):
+        self._require_instance_active_empresa(instance)
         self._ensure_editable(instance.rol)
         rol = instance.rol
         instance.delete()

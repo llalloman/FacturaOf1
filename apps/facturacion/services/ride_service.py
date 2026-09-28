@@ -13,13 +13,12 @@ from reportlab.platypus import (
     Spacer, HRFlowable, Image,
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from apps.facturacion.constants import ruc_proveedor_facturacion
 
 
 def _info_adicional_con_ruc_proveedor(info_adicional, empresa):
     info = dict(info_adicional or {})
-    ruc_proveedor = (getattr(empresa, 'ruc_proveedor_facturacion_electronica', '') or '').strip()
-    if ruc_proveedor:
-        info['RUC Proveedor'] = ruc_proveedor
+    info['RUC Proveedor'] = ruc_proveedor_facturacion(empresa)
     return info
 
 
@@ -59,6 +58,11 @@ def generar_ride_pdf(factura) -> bytes:
     nombre_com = empresa.nombre_comercial or razon
     ruc     = empresa.ruc or ''
     dir_mat = empresa.direccion_matriz or ''
+    dir_estab = (
+        comp.establecimiento_ref.direccion
+        if getattr(comp, 'establecimiento_ref', None)
+        else dir_mat
+    )
     telefono_emp = getattr(empresa, 'telefono', '') or ''
 
     num_doc  = comp.numero_comprobante
@@ -102,6 +106,8 @@ def generar_ride_pdf(factura) -> bytes:
     ]
     if telefono_emp:
         left_data.append([Paragraph(f'Teléfono: {telefono_emp}', centered)])
+
+    left_data.insert(3, [Paragraph(f'Direccion Establecimiento: {dir_estab}', centered)])
 
     right_data = [
         [Paragraph('<b>FACTURA</b>', title_st)],
@@ -360,6 +366,11 @@ def generar_ride_nota_credito_pdf(nota_credito) -> bytes:
     )
     fecha_emision = timezone.localtime(comp.fecha_emision).strftime('%d/%m/%Y')
     ambiente_txt = 'PRODUCCION' if comp.empresa.ambiente == '2' else 'PRUEBAS'
+    dir_estab = (
+        comp.establecimiento_ref.direccion
+        if getattr(comp, 'establecimiento_ref', None)
+        else empresa.direccion_matriz
+    )
 
     left_data = [
         [Paragraph(f'<b>{empresa.nombre_comercial or empresa.razon_social}</b>', title_st)],
@@ -368,6 +379,8 @@ def generar_ride_nota_credito_pdf(nota_credito) -> bytes:
         [Paragraph(f'RUC: {empresa.ruc or ""}', centered)],
         [Paragraph(f'Ambiente: {ambiente_txt}', centered)],
     ]
+
+    left_data.insert(3, [Paragraph(f'Direccion Establecimiento: {dir_estab or ""}', centered)])
 
     right_data = [
         [Paragraph('<b>NOTA DE CREDITO</b>', title_st)],

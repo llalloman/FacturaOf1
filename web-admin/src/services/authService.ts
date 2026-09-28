@@ -17,6 +17,9 @@ export interface UserInfo {
   onboarding_completado: boolean;
   debe_cambiar_password?: boolean;
   modulos_activos?: string[];
+  es_plataforma?: boolean;
+  accesos_plataforma?: { rol: string; alcances: string[] }[];
+  membresias?: any[];
 }
 
 interface AuthResponse {

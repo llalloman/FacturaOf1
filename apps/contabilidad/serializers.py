@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import CuentaContable, AsientoContable, LineaAsiento
+from apps.core.tenant import require_active_empresa
 
 
 # ── Plan de Cuentas ──────────────────────────────────────────────────────────
@@ -103,7 +104,7 @@ class AsientoContableCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         lineas_data = validated_data.pop('lineas')
         request = self.context.get('request')
-        empresa = request.user.empresa if request else None
+        empresa = require_active_empresa(request) if request else None
 
         # Auto-number: contabilidad-YYYYMMDD-seq
         from django.utils import timezone

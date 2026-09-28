@@ -6,6 +6,7 @@ Bancos / Tesorería
 from decimal import Decimal
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django.conf import settings
 
 
 class CuentaBancaria(models.Model):
@@ -107,3 +108,32 @@ class MovimientoBancario(models.Model):
             self.TipoChoices.TRANSFERENCIA_ENTRADA,
             self.TipoChoices.NOTA_CREDITO,
         )
+
+
+class CierreTesoreria(models.Model):
+    """Corte auditable de tesorería por empresa y fecha.
+
+    No reemplaza los cierres de caja POS: consolida bancos, cajas y fondos
+    registrados en CuentaBancaria y conserva la evidencia del corte.
+    """
+    class EstadoChoices(models.TextChoices):
+        BORRADOR = 'BORRADOR', _('Borrador')
+        CERRADO = 'CERRADO', _('Cerrado')
+        REABIERTO = 'REABIERTO', _('Reabierto')
+
+    empresa = models.ForeignKey('empresas.Empresa', on_delete=models.CASCADE, related_name='cierres_tesoreria')
+    fecha = models.DateField()
+    estado = models.CharField(max_length=20, choices=EstadoChoices.choices, default=EstadoChoices.BORRADOR)
+    saldos_teoricos = models.JSONField(default=dict, blank=True)
+    saldos_declarados = models.JSONField(default=dict, blank=True)
+    diferencia_total = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    observaciones = models.TextField(blank=True)
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='cierres_tesoreria_creados')
+    cerrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='cierres_tesoreria_cerrados')
+    fecha_cierre = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['empresa', 'fecha'], name='uniq_cierre_tesoreria_empresa_fecha')]
+        ordering = ['-fecha']

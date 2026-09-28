@@ -2,6 +2,7 @@
 Permissions personalizados para el módulo de usuarios
 """
 from rest_framework import permissions
+from apps.core.permissions import is_platform_user
 
 
 class IsSuperAdmin(permissions.BasePermission):
@@ -13,7 +14,7 @@ class IsSuperAdmin(permissions.BasePermission):
         return (
             request.user and
             request.user.is_authenticated and
-            request.user.es_super_admin
+            is_platform_user(request.user, 'usuarios')
         )
 
 
@@ -23,10 +24,16 @@ class IsAdminEmpresa(permissions.BasePermission):
     """
     
     def has_permission(self, request, view):
-        return (
-            request.user and
-            request.user.is_authenticated and
-            (request.user.es_admin_empresa or request.user.es_super_admin)
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if is_platform_user(user, 'usuarios') or user.es_admin_empresa:
+            return True
+        empresa = getattr(request, 'tenant', None) or getattr(user, 'empresa', None)
+        return bool(
+            empresa and user.membresias.filter(
+                empresa=empresa, activa=True, rol_empresa='ADMIN_EMPRESA'
+            ).exists()
         )
 
 

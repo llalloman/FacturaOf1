@@ -37,6 +37,20 @@ def verificar_autorizaciones_pendientes():
     count_rechazados = 0
     
     for comprobante in comprobantes_pendientes:
+        claim_before = timezone.now() - timezone.timedelta(minutes=10)
+        from django.db.models import Q
+        claimed = ComprobanteElectronico.objects.filter(
+            pk=comprobante.pk,
+            estado=ComprobanteElectronico.EstadoChoices.ENVIADO,
+        ).filter(
+            Q(procesamiento_en_curso=False)
+            | Q(procesamiento_iniciado_at__lt=claim_before),
+        ).update(
+            procesamiento_en_curso=True,
+            procesamiento_iniciado_at=timezone.now(),
+        )
+        if not claimed:
+            continue
         try:
             sri_service = SRIService(comprobante.empresa)
             response = sri_service.autorizar_comprobante_sri(comprobante.clave_acceso)
@@ -82,6 +96,11 @@ def verificar_autorizaciones_pendientes():
         except Exception as e:
             logger.error("Error al verificar autorización de %s: %s", comprobante.clave_acceso, e)
             continue
+        finally:
+            ComprobanteElectronico.objects.filter(pk=comprobante.pk).update(
+                procesamiento_en_curso=False,
+                procesamiento_iniciado_at=None,
+            )
     
     return f"Autorizados: {count_autorizados}, Rechazados: {count_rechazados}"
 
@@ -265,6 +284,36 @@ def reintentar_comprobantes_fallidos():
 
 @shared_task
 def firmar_y_enviar_comprobante(comprobante_id):
+    """Firma/envía con claim atómico para evitar doble entrega al SRI."""
+    from django.db import transaction
+    estados = [
+        ComprobanteElectronico.EstadoChoices.BORRADOR,
+        ComprobanteElectronico.EstadoChoices.FIRMADO,
+    ]
+    claim_before = timezone.now() - timezone.timedelta(minutes=10)
+    from django.db.models import Q
+    claimed = ComprobanteElectronico.objects.filter(
+        pk=comprobante_id,
+        estado__in=estados,
+    ).filter(
+        Q(procesamiento_en_curso=False)
+        | Q(procesamiento_iniciado_at__lt=claim_before),
+    ).update(
+        procesamiento_en_curso=True,
+        procesamiento_iniciado_at=timezone.now(),
+    )
+    if not claimed:
+        return f'El comprobante {comprobante_id} ya está procesándose o no está pendiente.'
+    try:
+        return _firmar_y_enviar_comprobante_claimed(comprobante_id)
+    finally:
+        ComprobanteElectronico.objects.filter(pk=comprobante_id).update(
+            procesamiento_en_curso=False,
+            procesamiento_iniciado_at=None,
+        )
+
+
+def _firmar_y_enviar_comprobante_claimed(comprobante_id):
     """
     Firma electrónicamente y envía un comprobante al SRI
     """
@@ -314,11 +363,18 @@ def generar_ride_pdf(comprobante_id):
     Genera el PDF (RIDE) del comprobante electrónico
     """
     try:
-        comprobante = ComprobanteElectronico.objects.get(id=comprobante_id)
-        
-        # TODO: Implementar generación de PDF con ReportLab
-        # Por ahora solo retornamos un mensaje
-        
+        comprobante = ComprobanteElectronico.objects.select_related('factura').get(id=comprobante_id)
+        factura = getattr(comprobante, 'factura', None)
+        if not factura:
+            return f'RIDE no disponible para {comprobante.numero_comprobante}: tipo no soportado por este generador.'
+        from django.core.files.base import ContentFile
+        from apps.facturacion.services.ride_service import generar_ride_pdf as construir_ride
+        contenido = construir_ride(factura)
+        comprobante.pdf_ride.save(
+            f'RIDE-{comprobante.numero_comprobante}.pdf',
+            ContentFile(contenido),
+            save=True,
+        )
         return f"RIDE generado para {comprobante.numero_comprobante}"
         
     except Exception as e:

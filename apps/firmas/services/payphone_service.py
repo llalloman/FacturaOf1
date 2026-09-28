@@ -5,10 +5,11 @@ from decimal import Decimal, ROUND_HALF_UP
 import requests
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.firmas.models import FirmaPagoElectronico
+from apps.firmas.models import FirmaPagoElectronico, SolicitudFirmaElectronica
 
 
 logger = logging.getLogger(__name__)
@@ -180,13 +181,24 @@ def crear_pago_payphone_firma(solicitud, request):
     return payment
 
 
+@transaction.atomic
 def crear_pago_payphone_firma_box(solicitud, request):
     token, store_id, _timeout, currency = _payphone_settings()
+    solicitud = SolicitudFirmaElectronica.objects.select_for_update().get(pk=solicitud.pk)
     if not solicitud.sale_price or solicitud.sale_price <= 0:
         raise PayPhoneConfigurationError('La solicitud no tiene un valor de venta válido para cobrar.')
 
-    client_transaction_id = f'FIRMA-{solicitud.request_number}-{uuid.uuid4().hex[:8]}'.replace(' ', '')[:50]
     base_amount = _money(solicitud.sale_price)
+    payment_existente = solicitud.payments.select_for_update().filter(
+        provider=FirmaPagoElectronico.Provider.PAYPHONE,
+        status__in=[FirmaPagoElectronico.Estado.PENDING, FirmaPagoElectronico.Estado.REDIRECTED],
+    ).order_by('-created_at').first()
+    if payment_existente:
+        if _money(payment_existente.base_amount) != base_amount:
+            raise PayPhoneConfigurationError('La solicitud ya tiene un pago PayPhone pendiente con un valor diferente.')
+        return payment_existente
+
+    client_transaction_id = f'FIRMA-{solicitud.request_number}-{uuid.uuid4().hex[:8]}'.replace(' ', '')[:50]
     fee, fee_tax, total = _calculate_processing_fee(base_amount)
     total_tax = _money((solicitud.tax_amount or 0) + fee_tax)
     total_taxable_base = _money((solicitud.subtotal_without_tax or 0) + fee)

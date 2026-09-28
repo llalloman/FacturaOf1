@@ -3,7 +3,26 @@ Serializers para el módulo de usuarios
 """
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Usuario
+from .models import EmpresaMembresia, Usuario
+from apps.core.permissions import is_platform_user
+
+
+class EmpresaMembresiaSerializer(serializers.ModelSerializer):
+    usuario_nombre = serializers.CharField(source='usuario.get_full_name', read_only=True)
+    empresa_nombre = serializers.CharField(source='empresa.razon_social', read_only=True)
+    empresa_activa = serializers.BooleanField(source='empresa.activa', read_only=True)
+
+    class Meta:
+        model = EmpresaMembresia
+        fields = [
+            'id', 'usuario', 'usuario_nombre', 'empresa', 'empresa_nombre', 'empresa_activa', 'rol_empresa',
+            'modulos', 'activa', 'predeterminada', 'metadatos',
+            'fecha_creacion', 'fecha_modificacion',
+        ]
+        read_only_fields = [
+            'id', 'usuario_nombre', 'empresa_nombre', 'empresa_activa', 'fecha_creacion',
+            'fecha_modificacion',
+        ]
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -20,6 +39,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'rol': self.user.rol,
             'empresa_id': self.user.empresa_id,
             'es_super_admin': self.user.es_super_admin,
+            'membresias': EmpresaMembresiaSerializer(
+                EmpresaMembresia.objects.filter(
+                    usuario=self.user,
+                    activa=True,
+                    empresa__activa=True,
+                ).select_related('empresa'),
+                many=True,
+            ).data,
         }
         
         # Verificar que la empresa esté activa (si aplica)
@@ -79,6 +106,16 @@ class UsuarioCreateSerializer(UsuarioSerializer):
                 'password_confirm': 'Las contraseñas no coinciden.'
             })
         attrs.pop('password_confirm')
+        request = self.context.get('request')
+        if (
+            request
+            and request.user.is_authenticated
+            and not is_platform_user(request.user, 'usuarios')
+            and attrs.get('rol') == Usuario.RolChoices.SUPER_ADMIN
+        ):
+            raise serializers.ValidationError({
+                'rol': 'Solo un administrador de plataforma puede crear otro SUPER_ADMIN.'
+            })
         return attrs
     
     def create(self, validated_data):

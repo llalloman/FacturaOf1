@@ -3,6 +3,8 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 from .models import ComprobanteElectronico, Factura, DetalleFactura, Retencion, ImpuestoRetencion, GuiaRemision, DestinatarioGuia, DetalleGuiaRemision, NotaDebito, DetalleNotaDebito, NotaCredito, DetalleNotaCredito, Secuencial
+from apps.core.permissions import is_platform_user
+from apps.core.tenant import active_empresa, require_active_empresa
 
 
 class DetalleFacturaSerializer(serializers.ModelSerializer):
@@ -32,12 +34,20 @@ class FacturaSerializer(serializers.ModelSerializer):
     fecha_autorizacion = serializers.SerializerMethodField()
     mensajes_sri = serializers.SerializerMethodField()
     cliente_nombre = serializers.SerializerMethodField()
+    establecimiento_contexto_id = serializers.IntegerField(
+        source='comprobante.establecimiento_ref_id', read_only=True, allow_null=True,
+    )
+    punto_emision_contexto_id = serializers.IntegerField(
+        source='comprobante.punto_emision_ref_id', read_only=True, allow_null=True,
+    )
 
     # ── Salida de detalles (solo lectura) ────────────────────────────────────────
     detalles = DetalleFacturaSerializer(many=True, read_only=True)
 
     # ── Campos de entrada para creación ─────────────────────────────────────────
     fecha_emision_input = serializers.DateField(write_only=True, required=False)
+    establecimiento_id = serializers.IntegerField(write_only=True, required=False)
+    punto_emision_id = serializers.IntegerField(write_only=True, required=False)
     detalles_input = serializers.ListField(
         child=serializers.DictField(), write_only=True, required=False, default=list
     )
@@ -46,8 +56,10 @@ class FacturaSerializer(serializers.ModelSerializer):
         model = Factura
         fields = [
             'id', 'cliente', 'cliente_nombre',
+            'establecimiento_contexto_id', 'punto_emision_contexto_id',
             'numero_factura', 'estado',
             'fecha_emision', 'fecha_emision_input',
+            'establecimiento_id', 'punto_emision_id',
             'subtotal_sin_impuestos', 'total', 'total_descuento',
             'forma_pago', 'observaciones',
             'clave_acceso', 'numero_autorizacion', 'fecha_autorizacion',
@@ -85,6 +97,7 @@ class FacturaSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        empresa = active_empresa(self.context.get('request'))
         cliente = attrs.get('cliente') or getattr(self.instance, 'cliente', None)
         detalles_input = attrs.get('detalles_input', [])
         total_estimado = sum(
@@ -92,6 +105,8 @@ class FacturaSerializer(serializers.ModelSerializer):
             for item in detalles_input
         )
         if cliente:
+            if empresa and cliente.empresa_id != empresa.id:
+                raise serializers.ValidationError({'cliente': 'El cliente no pertenece a la empresa activa.'})
             if not cliente.activo:
                 raise serializers.ValidationError({'cliente': 'No se puede usar un cliente inactivo para emitir nuevos documentos.'})
             from apps.facturacion.services.factura_service import (
@@ -114,27 +129,37 @@ class FacturaSerializer(serializers.ModelSerializer):
 
         detalles_data = validated_data.pop('detalles_input', [])
         fecha_raw = validated_data.pop('fecha_emision_input', None)
+        establecimiento_id = validated_data.pop('establecimiento_id', None)
+        punto_emision_id = validated_data.pop('punto_emision_id', None)
 
         request = self.context.get('request')
-        empresa = getattr(request, 'tenant', None)
-        if not empresa and request and request.user.is_authenticated:
-            empresa = getattr(request.user, 'empresa', None)
+        empresa = require_active_empresa(request)
 
-        if not empresa:
-            raise serializers.ValidationError('No hay empresa configurada para este usuario.')
+        from apps.facturacion.services.fiscal_context import resolve_fiscal_context
+        try:
+            fiscal_context = resolve_fiscal_context(
+                empresa,
+                establecimiento_id=establecimiento_id,
+                punto_emision_id=punto_emision_id,
+            )
+        except ValueError as exc:
+            raise serializers.ValidationError({'contexto_fiscal': str(exc)}) from exc
+
+        estab = fiscal_context.establecimiento_codigo
+        pemi = fiscal_context.punto_emision_codigo
 
         # ── Secuencial ────────────────────────────────────────────────────────────
         secuencial_obj, _ = Secuencial.objects.get_or_create(
             empresa=empresa,
             tipo_comprobante='01',
-            establecimiento=empresa.establecimiento_codigo,
-            punto_emision=empresa.punto_emision_codigo,
+            establecimiento=estab,
+            punto_emision=pemi,
             defaults={'secuencial_actual': 0},
         )
         siguiente = secuencial_obj.get_siguiente()
         numero_comprobante = (
-            f"{empresa.establecimiento_codigo}-"
-            f"{empresa.punto_emision_codigo}-"
+            f"{estab}-"
+            f"{pemi}-"
             f"{siguiente}"
         )
 
@@ -152,10 +177,12 @@ class FacturaSerializer(serializers.ModelSerializer):
 
         comprobante = ComprobanteElectronico.objects.create(
             empresa=empresa,
+            establecimiento_ref=fiscal_context.establecimiento,
+            punto_emision_ref=fiscal_context.punto_emision,
             usuario_creador=request.user if request else None,
             tipo_comprobante='01',
-            establecimiento=empresa.establecimiento_codigo,
-            punto_emision=empresa.punto_emision_codigo,
+            establecimiento=estab,
+            punto_emision=pemi,
             secuencial=siguiente,
             numero_comprobante=numero_comprobante,
             fecha_emision=fecha_dt,
@@ -178,6 +205,7 @@ class FacturaSerializer(serializers.ModelSerializer):
         subtotal_15 = Decimal('0.00')
         iva_12 = Decimal('0.00')
         iva_15 = Decimal('0.00')
+        descuento_lineas = Decimal('0.00')
 
         for item in detalles_data:
             producto_id = item.get('producto')
@@ -198,8 +226,8 @@ class FacturaSerializer(serializers.ModelSerializer):
             }
 
             if producto_id:
-                try:
-                    producto = Producto.objects.get(id=producto_id)
+                producto = Producto.objects.filter(id=producto_id, empresa=empresa).first()
+                if producto:
                     codigo_principal = producto.codigo_principal
                     descripcion = producto.nombre
                     if producto.aplica_iva:
@@ -208,12 +236,15 @@ class FacturaSerializer(serializers.ModelSerializer):
                     else:
                         tarifa = Decimal('0.00')
                         codigo_porcentaje = '0'
-                except Producto.DoesNotExist:
-                    pass
+                else:
+                    raise serializers.ValidationError({
+                        'detalles_input': 'El producto no pertenece a la empresa activa.'
+                    })
 
             cantidad = Decimal(str(item.get('cantidad', 1)))
             precio_unitario = Decimal(str(item.get('precio_unitario', 0))).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
             descuento = Decimal(str(item.get('descuento', 0)))
+            descuento_lineas += descuento.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
             detalle = DetalleFactura.objects.create(
                 factura=factura,
@@ -244,8 +275,17 @@ class FacturaSerializer(serializers.ModelSerializer):
         factura.subtotal_15 = subtotal_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.iva_12 = iva_12.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.iva_15 = iva_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        total_descuento = Decimal(str(factura.total_descuento or 0))
-        factura.total = (subtotal_total + iva_total - total_descuento).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_descuento = Decimal(str(factura.total_descuento or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        if descuento_lineas > Decimal('0.00'):
+            # La fuente de verdad es el detalle; evita descontarlo otra vez
+            # cuando el cliente también envía un total de cabecera.
+            total_descuento = descuento_lineas
+            factura.total_descuento = total_descuento
+            factura.save(update_fields=['total_descuento'])
+            descuento_global = Decimal('0.00')
+        else:
+            descuento_global = total_descuento
+        factura.total = (subtotal_total + iva_total - descuento_global).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         factura.save(update_fields=[
             'subtotal_sin_impuestos',
             'subtotal_0',
@@ -259,7 +299,7 @@ class FacturaSerializer(serializers.ModelSerializer):
         total_objetivo = sum(
             Decimal(str(item.get('total', 0) or 0))
             for item in detalles_data
-        ) - Decimal(str(factura.total_descuento or 0))
+        ) - (Decimal(str(factura.total_descuento or 0)) if descuento_lineas == Decimal('0.00') else Decimal('0.00'))
         aplicar_ajuste_centavos_factura(factura, total_objetivo)
         recalcular_totales_factura_desde_detalles(factura)
 
@@ -294,7 +334,10 @@ class FacturaSerializer(serializers.ModelSerializer):
         fecha_raw = validated_data.pop('fecha_emision_input', None)
 
         if 'cliente' in validated_data:
-            instance.cliente = validated_data.pop('cliente')
+            cliente_nuevo = validated_data.pop('cliente')
+            if cliente_nuevo.empresa_id != comprobante.empresa_id:
+                raise serializers.ValidationError({'cliente': 'El cliente no pertenece a la empresa de la factura.'})
+            instance.cliente = cliente_nuevo
         if 'total_descuento' in validated_data:
             instance.total_descuento = Decimal(str(validated_data.pop('total_descuento') or 0)).quantize(
                 Decimal('0.01'), rounding=ROUND_HALF_UP
@@ -321,6 +364,7 @@ class FacturaSerializer(serializers.ModelSerializer):
             subtotal_15 = Decimal('0.00')
             iva_12 = Decimal('0.00')
             iva_15 = Decimal('0.00')
+            descuento_lineas = Decimal('0.00')
             iva_tarifa_map = {
                 '0': Decimal('0'),
                 '2': Decimal('12'),
@@ -340,7 +384,10 @@ class FacturaSerializer(serializers.ModelSerializer):
 
                 if producto_id:
                     try:
-                        producto = Producto.objects.get(id=producto_id)
+                        producto = Producto.objects.get(
+                            id=producto_id,
+                            empresa=comprobante.empresa,
+                        )
                         codigo_principal = producto.codigo_principal
                         descripcion = producto.nombre
                         if producto.aplica_iva:
@@ -350,13 +397,16 @@ class FacturaSerializer(serializers.ModelSerializer):
                             tarifa = Decimal('0.00')
                             codigo_porcentaje = '0'
                     except Producto.DoesNotExist:
-                        pass
+                        raise serializers.ValidationError({
+                            'detalles_input': 'Uno de los productos no pertenece a la empresa de la factura.'
+                        })
 
                 cantidad = Decimal(str(item.get('cantidad', 1)))
                 precio_unitario = Decimal(str(item.get('precio_unitario', 0))).quantize(
                     Decimal('0.000001'), rounding=ROUND_HALF_UP
                 )
                 descuento = Decimal(str(item.get('descuento', 0)))
+                descuento_lineas += descuento.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
                 detalle = DetalleFactura.objects.create(
                     factura=instance,
@@ -386,14 +436,17 @@ class FacturaSerializer(serializers.ModelSerializer):
             instance.subtotal_15 = subtotal_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             instance.iva_12 = iva_12.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             instance.iva_15 = iva_15.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            instance.total = (subtotal_total + iva_total - instance.total_descuento).quantize(
+            descuento_global = instance.total_descuento if descuento_lineas == Decimal('0.00') else Decimal('0.00')
+            if descuento_lineas > Decimal('0.00'):
+                instance.total_descuento = descuento_lineas
+            instance.total = (subtotal_total + iva_total - descuento_global).quantize(
                 Decimal('0.01'), rounding=ROUND_HALF_UP
             )
 
             total_objetivo = sum(
                 Decimal(str(item.get('total', 0) or 0))
                 for item in detalles_data
-            ) - instance.total_descuento
+            ) - (instance.total_descuento if descuento_lineas == Decimal('0.00') else Decimal('0.00'))
             aplicar_ajuste_centavos_factura(instance, total_objetivo)
             recalcular_totales_factura_desde_detalles(instance)
 
@@ -473,6 +526,13 @@ class RetencionSerializer(serializers.ModelSerializer):
     def get_proveedor_nombre(self, obj):    return obj.proveedor.razon_social
     def get_total_retenido(self, obj):      return float(obj.total_retenido)
 
+    def validate(self, attrs):
+        empresa = active_empresa(self.context.get('request'))
+        proveedor = attrs.get('proveedor')
+        if empresa and proveedor and proveedor.empresa_id != empresa.id:
+            raise serializers.ValidationError({'proveedor': 'El proveedor no pertenece a la empresa activa.'})
+        return attrs
+
     def create(self, validated_data):
         from apps.facturacion.services.factura_service import crear_retencion
         from django.utils import timezone as tz
@@ -484,7 +544,7 @@ class RetencionSerializer(serializers.ModelSerializer):
         periodo_fiscal  = validated_data['periodo_fiscal']
 
         request = self.context.get('request')
-        empresa = getattr(request, 'tenant', None) or getattr(request.user, 'empresa', None)
+        empresa = require_active_empresa(request)
         usuario = request.user if request else None
 
         fecha_emision = None
@@ -576,7 +636,7 @@ class GuiaRemisionSerializer(serializers.ModelSerializer):
         dir_partida         = validated_data.pop('dir_partida')
 
         request = self.context.get('request')
-        empresa = getattr(request, 'tenant', None) or getattr(request.user, 'empresa', None)
+        empresa = require_active_empresa(request)
         usuario = request.user if request else None
 
         fecha_emision = None
@@ -637,6 +697,18 @@ class NotaDebitoSerializer(serializers.ModelSerializer):
     def get_mensajes_sri(self, obj):        return obj.comprobante.mensajes_sri
     def get_cliente_nombre(self, obj):      return obj.cliente.razon_social
 
+    def validate(self, attrs):
+        empresa = active_empresa(self.context.get('request'))
+        cliente = attrs.get('cliente')
+        factura_origen = attrs.get('factura_origen')
+        if empresa and cliente and cliente.empresa_id != empresa.id:
+            raise serializers.ValidationError({'cliente': 'El cliente no pertenece a la empresa activa.'})
+        if empresa and factura_origen and factura_origen.comprobante.empresa_id != empresa.id:
+            raise serializers.ValidationError({'factura_origen': 'La factura de origen no pertenece a la empresa activa.'})
+        if cliente and factura_origen and factura_origen.cliente_id != cliente.id:
+            raise serializers.ValidationError({'factura_origen': 'La factura de origen pertenece a otro cliente.'})
+        return attrs
+
     def create(self, validated_data):
         from apps.facturacion.services.factura_service import crear_nota_debito
         from django.utils import timezone as tz
@@ -652,7 +724,7 @@ class NotaDebitoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'cliente': 'No se puede usar un cliente inactivo para emitir nuevos documentos.'})
 
         request = self.context.get('request')
-        empresa = getattr(request, 'tenant', None) or getattr(request.user, 'empresa', None)
+        empresa = require_active_empresa(request)
         usuario = request.user if request else None
 
         fecha_emision = None
@@ -728,7 +800,7 @@ class SecuencialSerializer(serializers.ModelSerializer):
     def validate_secuencial_actual(self, value):
         # SUPER_ADMIN can set any value (e.g. to correct a mistake)
         request = self.context.get('request')
-        if request and getattr(request.user, 'rol', None) == 'SUPER_ADMIN':
+        if request and is_platform_user(request.user, 'facturacion_admin'):
             return value
         # On update: never allow reducing the current sequential value
         if self.instance is not None and value < self.instance.secuencial_actual:

@@ -576,8 +576,8 @@ export default function EmpresasPage() {
                         onChange={(e) => setCertFile(e.target.files?.[0] ?? null)}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
                       />
-                      {editing?.certificado_digital && !certFile && (
-                        <p className="text-xs text-green-600 mt-1">✓ Cargado: {String(editing.certificado_digital).split('/').pop()}</p>
+                      {editing?.tiene_certificado && !certFile && (
+                        <p className="text-xs text-green-600 mt-1">✓ Certificado cargado</p>
                       )}
                     </div>
                     <div>

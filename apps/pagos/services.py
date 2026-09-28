@@ -60,6 +60,8 @@ def obtener_configuracion(empresa):
         'cuenta_payphone',
         'caja_ventas',
         'usuario_ventas',
+        'establecimiento_fiscal',
+        'punto_emision_fiscal',
     ).first()
     if not config:
         raise PagoOnlineApplicationError('No existe configuración de pagos online para la empresa destino.')
@@ -170,7 +172,7 @@ def producto_firma(config, solicitud):
     )
 
 def _apertura_caja(config):
-    from apps.ventas.models import AperturaCaja
+    from apps.ventas.models import AperturaCaja, Caja
 
     if not config.caja_ventas_id:
         raise PagoOnlineApplicationError('Configura la caja para registrar ventas online.')
@@ -178,11 +180,14 @@ def _apertura_caja(config):
         raise PagoOnlineApplicationError('Configura el usuario para registrar ventas online.')
     if config.caja_ventas.empresa_id != config.empresa_id:
         raise PagoOnlineApplicationError('La caja configurada no pertenece a la empresa del pago.')
-    apertura = AperturaCaja.objects.filter(caja=config.caja_ventas, estado=AperturaCaja.EstadoChoices.ABIERTA).first()
+    # La función se ejecuta dentro de una transacción de aplicación de pago.
+    # Bloquear la caja evita dos aperturas activas ante callbacks concurrentes.
+    caja = Caja.objects.select_for_update().get(pk=config.caja_ventas_id)
+    apertura = AperturaCaja.objects.filter(caja=caja, estado=AperturaCaja.EstadoChoices.ABIERTA).first()
     if apertura:
         return apertura
     return AperturaCaja.objects.create(
-        caja=config.caja_ventas,
+        caja=caja,
         usuario=config.usuario_ventas,
         estado=AperturaCaja.EstadoChoices.ABIERTA,
         monto_apertura=Decimal('0.00'),
@@ -220,9 +225,14 @@ def _subtotales_por_iva(lineas):
 
 @transaction.atomic
 def aplicar_pago_firma_a_ventas(pago_online, firma_payment, *, cuenta_bancaria=None, forma_pago=None, usuario=None):
+    from apps.firmas.models import FirmaPagoElectronico
     from apps.ventas.models import DetalleVenta, PagoVenta, Venta
     from apps.ventas.finance import confirmar_pago_venta, registrar_finanzas_venta
 
+    # El callback del proveedor y el reintento administrativo pueden llegar
+    # simultáneamente. El pago es la clave de idempotencia de este efecto.
+    pago_online = PagoOnline.objects.select_for_update().get(pk=pago_online.pk)
+    firma_payment = FirmaPagoElectronico.objects.select_for_update().select_related('request').get(pk=firma_payment.pk)
     if pago_online.applied_at and pago_online.venta_id:
         return pago_online
 
@@ -273,6 +283,8 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment, *, cuenta_bancaria=N
         caja=config.caja_ventas,
         apertura_caja=apertura,
         usuario=config.usuario_ventas,
+        establecimiento_fiscal=config.establecimiento_fiscal,
+        punto_emision_fiscal=config.punto_emision_fiscal,
         cliente=cliente,
         tipo_venta=Venta.TipoVentaChoices.MOSTRADOR,
         estado=Venta.EstadoChoices.COMPLETADA,
@@ -316,10 +328,13 @@ def aplicar_pago_firma_a_ventas(pago_online, firma_payment, *, cuenta_bancaria=N
     return pago_online
 
 
+@transaction.atomic
 def registrar_pago_firma_transferencia(solicitud, *, cuenta_bancaria, amount=None, fecha_pago=None, referencia='', observacion='', usuario=None):
     from apps.firmas.models import FirmaPagoElectronico
     from apps.ventas.models import PagoVenta
 
+    # Un doble clic o reintento del administrador no debe crear otra venta.
+    solicitud = type(solicitud).objects.select_for_update().get(pk=solicitud.pk)
     empresa = empresa_para_solicitud_firma(solicitud)
     config = obtener_configuracion(empresa)
     validar_cuenta_pago(config, cuenta_bancaria, 'cuenta bancaria seleccionada')
@@ -327,6 +342,29 @@ def registrar_pago_firma_transferencia(solicitud, *, cuenta_bancaria, amount=Non
     monto = money(amount if amount is not None else solicitud.sale_price)
     if monto <= 0:
         raise PagoOnlineApplicationError('El valor recibido debe ser mayor a cero.')
+    pago_existente = solicitud.payments.select_for_update().filter(
+        provider=FirmaPagoElectronico.Provider.TRANSFERENCIA,
+        status=FirmaPagoElectronico.Estado.PAID,
+    ).order_by('-created_at').first()
+    if pago_existente:
+        if money(pago_existente.base_amount) != monto:
+            raise PagoOnlineApplicationError('La solicitud ya tiene un pago por transferencia con un valor diferente.')
+        pago_online_existente = PagoOnline.objects.select_for_update().filter(
+            client_transaction_id=pago_existente.client_transaction_id,
+        ).first()
+        if pago_online_existente and not pago_online_existente.applied_at:
+            try:
+                aplicar_pago_firma_a_ventas(
+                    pago_online_existente,
+                    pago_existente,
+                    cuenta_bancaria=cuenta_bancaria,
+                    forma_pago=PagoVenta.FormaPagoChoices.TRANSFERENCIA,
+                    usuario=usuario,
+                )
+            except Exception as exc:
+                logger.exception('No se pudo reintentar aplicación de transferencia. pago_online_id=%s', pago_online_existente.id)
+                pago_online_existente.mark_application_error(exc)
+        return pago_existente, pago_online_existente
     reference = (referencia or '').strip() or f'TRANSFERENCIA-{solicitud.request_number or solicitud.id}'
     client_transaction_id = f'FIRMA-TRF-{solicitud.request_number or solicitud.id}-{uuid.uuid4().hex[:8]}'
 

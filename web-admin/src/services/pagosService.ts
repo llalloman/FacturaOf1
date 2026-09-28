@@ -11,6 +11,8 @@ export interface PagoConfiguracion {
   empresa?: number | null;
   cuenta_payphone: number | null;
   caja_ventas: number | null;
+  establecimiento_fiscal: number | null;
+  punto_emision_fiscal: number | null;
   usuario_ventas: number | null;
   auto_generar_venta_firmas: boolean;
   auto_generar_venta_suscripciones: boolean;
@@ -64,6 +66,8 @@ export interface PagoOnlineFilters {
 export const defaultPagoConfiguracion: PagoConfiguracion = {
   cuenta_payphone: null,
   caja_ventas: null,
+  establecimiento_fiscal: null,
+  punto_emision_fiscal: null,
   usuario_ventas: null,
   auto_generar_venta_firmas: true,
   auto_generar_venta_suscripciones: true,
@@ -82,6 +86,8 @@ export const pagosService = {
       cuenta_payphone: payload.cuenta_payphone || null,
       caja_ventas: payload.caja_ventas || null,
       usuario_ventas: payload.usuario_ventas || null,
+      establecimiento_fiscal: payload.establecimiento_fiscal || null,
+      punto_emision_fiscal: payload.punto_emision_fiscal || null,
     };
     if (payload.id) {
       const { data } = await apiClient.patch(`/pagos/configuracion/${payload.id}/`, body);

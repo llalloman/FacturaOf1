@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ventasService } from '../../services/ventasService';
+import { empresasService } from '../../services/empresasService';
 import { clientesService } from '../../services/clientesService';
 import { getResumen, type CuentaBancaria } from '../../services/bancosService';
 import type { Cliente, CoherenciaFacturacionItem, Venta } from '../../types';
@@ -40,6 +41,8 @@ export default function VentasPage() {
   const [selectedVenta, setSelectedVenta] = useState<Venta | null>(null);
   const [ventaToFacturar, setVentaToFacturar] = useState<Venta | null>(null);
   const [clienteIdOverride, setClienteIdOverride] = useState<number | null>(null);
+  const [establecimientoId, setEstablecimientoId] = useState<number | ''>('');
+  const [puntoEmisionId, setPuntoEmisionId] = useState<number | ''>('');
   const [clienteSearch, setClienteSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -95,6 +98,17 @@ export default function VentasPage() {
     queryKey: ['clientes'],
     queryFn: clientesService.getActivos,
     enabled: ventaToFacturar !== null,
+  });
+
+  const { data: establecimientos = [] } = useQuery({
+    queryKey: ['establecimientos-fiscales'],
+    queryFn: empresasService.getEstablecimientos,
+    enabled: ventaToFacturar !== null,
+  });
+  const { data: puntosEmision = [] } = useQuery({
+    queryKey: ['puntos-emision-fiscales', establecimientoId],
+    queryFn: () => empresasService.getPuntosEmision(establecimientoId || undefined),
+    enabled: ventaToFacturar !== null && establecimientoId !== '',
   });
 
   const clientesFiltrados = clientes.filter((c) =>
@@ -176,6 +190,8 @@ export default function VentasPage() {
       toast.success('Factura generada');
       setVentaToFacturar(null);
       setClienteIdOverride(null);
+      setEstablecimientoId('');
+      setPuntoEmisionId('');
       setClienteSearch('');
     },
     onError: (error: unknown) => {
@@ -323,6 +339,23 @@ export default function VentasPage() {
               <div>
                 <p className="text-sm text-gray-500">{seccion === 'notas' ? 'Notas de venta' : vista === 'cerradas' ? 'Ventas cerradas' : 'Ventas anuladas'}</p>
                 <p className="text-2xl font-bold text-gray-800">{datasetActual.length}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="text-sm text-gray-700">
+                  Establecimiento
+                  <select value={establecimientoId} onChange={(e) => { setEstablecimientoId(e.target.value ? Number(e.target.value) : ''); setPuntoEmisionId(''); }} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2">
+                    <option value="">Predeterminado de la empresa</option>
+                    {establecimientos.map((item) => <option key={item.id} value={item.id}>{item.codigo} - {item.nombre}</option>)}
+                  </select>
+                </label>
+                <label className="text-sm text-gray-700">
+                  Punto de emisión
+                  <select value={puntoEmisionId} onChange={(e) => setPuntoEmisionId(e.target.value ? Number(e.target.value) : '')} disabled={!establecimientoId} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2">
+                    <option value="">Predeterminado del establecimiento</option>
+                    {puntosEmision.map((item) => <option key={item.id} value={item.id}>{item.codigo} - {item.nombre}</option>)}
+                  </select>
+                </label>
               </div>
               <ShoppingCart className="text-blue-600" size={32} />
             </div>
@@ -622,7 +655,7 @@ export default function VentasPage() {
                 Cancelar
               </button>
               <button
-                onClick={() => facturarMutation.mutate({ id: ventaToFacturar.id, cliente_id: clienteIdOverride ?? undefined })}
+                onClick={() => facturarMutation.mutate({ id: ventaToFacturar.id, cliente_id: clienteIdOverride ?? undefined, establecimiento_id: establecimientoId || undefined, punto_emision_id: puntoEmisionId || undefined })}
                 disabled={facturarMutation.isPending}
                 className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2"
               >

@@ -46,9 +46,8 @@ export default function ClientSelector({ onClose }: ClientSelectorProps) {
         const result = await window.electron.clientes.listar({ empresaId: config?.empresa_id });
         if (result.success) setClientes(result.clientes || []);
       } else {
-        setClientes([{
-          id: 1, empresa_id: 1, identificacion: '9999999999999', razon_social: 'CONSUMIDOR FINAL',
-        }]);
+        // Modo web: no usar clientes ficticios ni una empresa por defecto.
+        setClientes(config?.empresa_id ? await apiService.getClientes(config.empresa_id) : []);
       }
     } catch (error) {
       console.error('Error cargando clientes:', error);

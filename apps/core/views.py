@@ -17,7 +17,8 @@ from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from apps.core.permissions import user_has_module_access
+from apps.core.permissions import user_has_module_access, is_global_platform_user
+from apps.core.tenant import active_empresa
 
 MESES = [
     '', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def _is_super_admin(user):
-    return user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN'
+    return is_global_platform_user(user)
 
 
 # ─── Helper: month boundaries ────────────────────────────────────────────────
@@ -62,9 +63,12 @@ def _parse_dashboard_range(request, fallback_date):
 def dashboard(request):
     user = request.user
 
-    if _is_super_admin(user):
+    # Un administrador de plataforma sin empresa activa ve el consolidado.
+    # Al seleccionar una empresa desde OF1 Admin debe operar su ERP como
+    # cualquier otro tenant, incluyendo facturacion, ventas, bancos y nomina.
+    if _is_super_admin(user) and not active_empresa(request):
         return _dashboard_super_admin(request)
-    if not user_has_module_access(user, 'dashboard'):
+    if not user_has_module_access(user, 'dashboard', active_empresa(request)):
         return Response({'detail': 'Este módulo no está incluido en tu plan actual.'}, status=403)
     return _dashboard_tenant(request)
 
@@ -118,7 +122,7 @@ def _dashboard_tenant(request):
     from apps.cartera.models import CuentaPorCobrar
     from apps.inventarios.models import MovimientoInventario
 
-    empresa = getattr(request, 'tenant', None) or getattr(request.user, 'empresa', None)
+    empresa = active_empresa(request)
     if not empresa:
         return Response({'error': 'Sin empresa asignada.'}, status=400)
 

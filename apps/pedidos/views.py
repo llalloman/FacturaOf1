@@ -13,17 +13,16 @@ from .serializers import (
     PedidoSerializer, PedidoListSerializer,
     DetallePedidoSerializer, DetallePedidoCreateSerializer,
 )
-from apps.core.permissions import HasModuleAccess
+from apps.core.permissions import HasModuleAccess, is_platform_user
+from apps.core.tenant import ActiveCompanyWriteMixin, active_empresa, require_active_empresa, tenant_queryset
 
 
-def _empresa(user):
-    """Retorna la empresa del usuario o None si es SUPER_ADMIN."""
-    if user.is_superuser or getattr(user, 'rol', None) == 'SUPER_ADMIN':
-        return None
-    return getattr(user, 'empresa', None)
+def _empresa(user, request=None):
+    """Retorna el contexto explícito; plataforma sin contexto queda global."""
+    return active_empresa(request) if request else getattr(user, 'empresa', None)
 
 
-class ZonaViewSet(viewsets.ModelViewSet):
+class ZonaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     serializer_class = ZonaSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'pedidos'
@@ -35,15 +34,14 @@ class ZonaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Zona.objects.annotate(mesas_count=Count('mesas'))
-        empresa = _empresa(self.request.user)
-        return qs.filter(empresa=empresa) if empresa else qs
+        empresa = _empresa(self.request.user, self.request)
+        return tenant_queryset(self.request, qs)
 
     def perform_create(self, serializer):
-        empresa = _empresa(self.request.user)
-        serializer.save(empresa=empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
 
-class MesaViewSet(viewsets.ModelViewSet):
+class MesaViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     serializer_class = MesaSerializer
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'pedidos'
@@ -55,12 +53,11 @@ class MesaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Mesa.objects.select_related('zona').prefetch_related('pedidos')
-        empresa = _empresa(self.request.user)
-        return qs.filter(empresa=empresa) if empresa else qs
+        empresa = _empresa(self.request.user, self.request)
+        return tenant_queryset(self.request, qs)
 
     def perform_create(self, serializer):
-        empresa = _empresa(self.request.user)
-        serializer.save(empresa=empresa)
+        serializer.save(empresa=require_active_empresa(self.request))
 
     @action(detail=True, methods=['post'])
     def liberar(self, request, pk=None):
@@ -71,7 +68,7 @@ class MesaViewSet(viewsets.ModelViewSet):
         return Response(MesaSerializer(mesa).data)
 
 
-class PedidoViewSet(viewsets.ModelViewSet):
+class PedidoViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasModuleAccess]
     module_required = 'pedidos'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -89,9 +86,8 @@ class PedidoViewSet(viewsets.ModelViewSet):
         qs = Pedido.objects.select_related(
             'mesa', 'mesa__zona', 'usuario', 'cliente', 'caja', 'venta'
         ).annotate(items_count=Count('detalles'))
-        empresa = _empresa(self.request.user)
-        if empresa:
-            qs = qs.filter(empresa=empresa)
+        empresa = _empresa(self.request.user, self.request)
+        qs = tenant_queryset(self.request, qs)
         # Filtro rápido por estado activo
         activos = self.request.query_params.get('activos')
         if activos == '1':
@@ -368,7 +364,8 @@ class PedidoViewSet(viewsets.ModelViewSet):
         return Response(VentaSerializer(venta, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 
-class DetallePedidoViewSet(viewsets.ModelViewSet):
+class DetallePedidoViewSet(ActiveCompanyWriteMixin, viewsets.ModelViewSet):
+    tenant_relation = 'pedido'
     """
     CRUD de ítems individuales.  Útil para actualizar estado desde una pantalla de cocina.
     """
@@ -383,7 +380,7 @@ class DetallePedidoViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = DetallePedido.objects.select_related('producto', 'pedido', 'usuario')
-        empresa = _empresa(self.request.user)
+        empresa = _empresa(self.request.user, self.request)
         if empresa:
             qs = qs.filter(pedido__empresa=empresa)
         return qs

@@ -207,7 +207,9 @@ class MovimientoInventario(models.Model):
         _('cantidad'),
         max_digits=12,
         decimal_places=2,
-        validators=[MinValueValidator(Decimal('0.01'))]
+        # El signo representa el efecto en el kardex: entradas positivas y
+        # salidas negativas. La validación depende del tipo de movimiento y
+        # vive en MovimientoInventarioSerializer.
     )
     costo_unitario = models.DecimalField(
         _('costo unitario'),
@@ -219,6 +221,13 @@ class MovimientoInventario(models.Model):
     # Referencias
     venta_id = models.CharField(_('ID venta'), max_length=50, blank=True)
     documento_referencia = models.CharField(_('documento referencia'), max_length=100, blank=True)
+    idempotency_key = models.CharField(
+        _('clave de idempotencia'),
+        max_length=220,
+        blank=True,
+        null=True,
+        help_text=_('Clave opcional para evitar duplicar reintentos del mismo movimiento.'),
+    )
     
     # Usuario y fechas
     usuario = models.ForeignKey(
@@ -242,6 +251,13 @@ class MovimientoInventario(models.Model):
             models.Index(fields=['empresa', 'fecha_movimiento']),
             models.Index(fields=['producto', 'bodega']),
             models.Index(fields=['venta_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empresa', 'idempotency_key'],
+                condition=models.Q(idempotency_key__isnull=False),
+                name='uniq_movimiento_inventario_idempotency',
+            ),
         ]
     
     def __str__(self):

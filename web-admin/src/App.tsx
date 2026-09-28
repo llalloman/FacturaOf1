@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
 import Layout from './components/Layout';
+import AdminLayout from './components/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ToastContainer from './components/ToastContainer';
 import ConfirmModal from './components/ConfirmModal';
@@ -10,6 +11,7 @@ import ModuloGuard from './components/ModuloGuard';
 import WhatsAppHelpWidget from './components/WhatsAppHelpWidget';
 import { useSubscriptionStatus } from './hooks/useSubscriptionStatus';
 import { ArrowLeft, Loader2, LogOut } from 'lucide-react';
+import { isProductRouteAllowed } from './config/productTarget';
 
 // ─── Lazy-loaded pages ──────────────────────────────────────────────────────
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -18,6 +20,7 @@ const VerificacionEmailPage = lazy(() => import('./pages/VerificacionEmailPage')
 const BienvenidaPage = lazy(() => import('./pages/BienvenidaPage'));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'));
 const ProductosPage = lazy(() => import('./pages/productos/ProductosPage'));
 const ClientesPage = lazy(() => import('./pages/clientes/ClientesPage'));
 const FacturasPage = lazy(() => import('./pages/facturas/FacturasPage'));
@@ -107,7 +110,6 @@ const queryClient = new QueryClient({
 // ─── Layout routes extracted to reduce cognitive complexity ─────────────────
 const appLayoutRoutes = (
   <>
-    <Route index element={<DashboardPage />} />
     <Route path="facturacion" element={
       <ModuloGuard modulo="facturacion"><FacturasPage /></ModuloGuard>
     } />
@@ -172,22 +174,32 @@ const appLayoutRoutes = (
       <ModuloGuard modulo="nomina"><NominaPage /></ModuloGuard>
     } />
     <Route path="firmas-electronicas" element={
-      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']} platformCapability="firmas">
         <SolicitudesFirmaPage />
       </ProtectedRoute>
     } />
     <Route path="firmas-electronicas/precios" element={
-      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']} platformCapability="firmas">
+        <PreciosFirmaPage />
+      </ProtectedRoute>
+    } />
+    <Route path="firmas-electronicas/promociones" element={
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']} platformCapability="firmas">
+        <PreciosFirmaPage />
+      </ProtectedRoute>
+    } />
+    <Route path="firmas-electronicas/cupones" element={
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']} platformCapability="firmas">
         <PreciosFirmaPage />
       </ProtectedRoute>
     } />
     <Route path="automation/leads" element={
-      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']} platformCapability="automation">
         <AutomationLeadsPage />
       </ProtectedRoute>
     } />
     <Route path="pagos-online" element={
-      <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN_EMPRESA']}>
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN_EMPRESA']} platformCapability="pagos">
         <PagosOnlinePage />
       </ProtectedRoute>
     } />
@@ -197,22 +209,22 @@ const appLayoutRoutes = (
       </ProtectedRoute>
     } />
     <Route path="empresas" element={
-      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']} platformCapability="empresas">
         <EmpresasPage />
       </ProtectedRoute>
     } />
     <Route path="suscripciones-admin" element={
-      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']} platformCapability="suscripciones">
         <SuscripcionesAdminPage />
       </ProtectedRoute>
     } />
     <Route path="matriz-permisos" element={
-      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']} platformCapability="usuarios">
         <MatrizPermisosPage />
       </ProtectedRoute>
     } />
     <Route path="catalogo-modulos" element={
-      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']} platformCapability="suscripciones">
         <CatalogoModulosPage />
       </ProtectedRoute>
     } />
@@ -231,7 +243,7 @@ const appLayoutRoutes = (
       <ModuloGuard modulo="firmador_pdf"><FirmadorPage /></ModuloGuard>
     } />
     <Route path="firmador-admin" element={
-      <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+      <ProtectedRoute allowedRoles={['SUPER_ADMIN']} platformCapability="firmador">
         <FirmadorAdminPage />
       </ProtectedRoute>
     } />
@@ -244,12 +256,23 @@ function AppRoutes() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
+  const activeEmpresaId = useAuthStore((state) => state.activeEmpresaId);
+  const currentQueryClient = useQueryClient();
   const { tieneAcceso, cargando: cargandoSuscripcion, esSuperAdmin } = useSubscriptionStatus();
   const isFirmadorApp = import.meta.env.VITE_APP_TARGET === 'firmador';
   const isFirmadorHost = typeof window !== 'undefined' && window.location.hostname.startsWith('firmador.');
+
+  // Nunca reutilizar datos cacheados entre sesiones o empresas distintas.
+  useEffect(() => {
+    currentQueryClient.clear();
+  }, [currentQueryClient, user?.id, activeEmpresaId]);
   const loginFrom = (location.state as { from?: string } | null)?.from ?? null;
   const isAllowedLoginReturnPath =
     !!loginFrom && loginFrom !== '/login' && loginFrom !== '/registro' && loginFrom !== '/firmador/registro';
+
+  if (!isProductRouteAllowed(location.pathname)) {
+    return <Navigate to="/" replace />;
+  }
 
   // Handle token expiry signalled by apiClient (avoids hard window.location redirect)
   useEffect(() => {
@@ -425,11 +448,14 @@ function AppRoutes() {
                 <Navigate to="/firmador" replace />
               ) : (
                 <ProtectedRoute>
-                  <Layout />
+                  {import.meta.env.VITE_APP_TARGET === 'of1-admin' ? <AdminLayout /> : <Layout />}
                 </ProtectedRoute>
               )
             }
           >
+            <Route index element={
+              import.meta.env.VITE_APP_TARGET === 'of1-admin' ? <AdminDashboardPage /> : <DashboardPage />
+            } />
             {appLayoutRoutes}
           </Route>
         </Routes>

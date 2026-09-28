@@ -3,6 +3,7 @@ Modelos de Facturación Electrónica
 """
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from .pricing import calculate_line
 from django.core.validators import MinValueValidator
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -87,6 +88,22 @@ class ComprobanteElectronico(models.Model):
         related_name='comprobantes',
         verbose_name=_('empresa')
     )
+    establecimiento_ref = models.ForeignKey(
+        'empresas.Establecimiento',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='comprobantes',
+        verbose_name=_('establecimiento fiscal'),
+    )
+    punto_emision_ref = models.ForeignKey(
+        'empresas.PuntoEmision',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='comprobantes',
+        verbose_name=_('punto de emisión fiscal'),
+    )
     usuario_creador = models.ForeignKey(
         'usuarios.Usuario',
         on_delete=models.SET_NULL,
@@ -115,6 +132,10 @@ class ComprobanteElectronico(models.Model):
     
     # Estado y autorización
     estado = models.CharField(_('estado'), max_length=20, choices=EstadoChoices.choices, default=EstadoChoices.BORRADOR)
+    # Claim atómico para impedir que dos workers envíen el mismo comprobante
+    # al SRI simultáneamente. No representa un estado fiscal.
+    procesamiento_en_curso = models.BooleanField(default=False, db_index=True)
+    procesamiento_iniciado_at = models.DateTimeField(null=True, blank=True)
     numero_autorizacion = models.CharField(_('número de autorización'), max_length=49, blank=True)
     fecha_autorizacion = models.DateTimeField(_('fecha de autorización'), null=True, blank=True)
     
@@ -317,16 +338,19 @@ class DetalleFactura(models.Model):
         return f"{self.descripcion} - {self.cantidad} x ${self.precio_unitario}"
     
     def save(self, *args, **kwargs):
-        # Calcular precio total sin impuesto
-        self.precio_total_sin_impuesto = (
-            self.cantidad * self.precio_unitario - self.descuento
-        ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        
-        # Calcular valor del impuesto
-        self.valor_impuesto = (
-            self.precio_total_sin_impuesto * (self.tarifa / 100)
-        ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        
+        # La línea recibe precio bruto + descuento monetario. No se vuelve a
+        # aplicar ningún porcentaje sobre un valor que ya venga neto.
+        importes = calculate_line(
+            self.cantidad,
+            self.precio_unitario,
+            self.descuento,
+            self.tarifa,
+        )
+        self.precio_unitario = importes['precio_unitario']
+        self.descuento = importes['descuento']
+        self.precio_total_sin_impuesto = importes['precio_total_sin_impuesto']
+        self.valor_impuesto = importes['valor_impuesto']
+
         super().save(*args, **kwargs)
 
 

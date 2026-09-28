@@ -1,11 +1,12 @@
 import { Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
+import { isPlatformIdentity, useAuthStore } from '../store/authStore';
 import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: string[];
+  platformCapability?: string;
 }
 
 /**
@@ -23,7 +24,7 @@ interface ProtectedRouteProps {
  * Nota: el onboarding ya NO es un bloqueo global. La configuración fiscal
  * se valida contextualmente solo al generar documentos electrónicos.
  */
-export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, allowedRoles, platformCapability }: ProtectedRouteProps) {
   const { isAuthenticated, user } = useAuthStore();
   const { tieneAcceso, estaVencida, cargando, esSuperAdmin } = useSubscriptionStatus();
 
@@ -62,7 +63,14 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   }
 
   // ── 6. Roles permitidos ───────────────────────────────────────────────────
-  if (allowedRoles && user?.rol && !allowedRoles.includes(user.rol)) {
+  const hasPlatformCapability = Boolean(
+    isPlatformIdentity(user) &&
+    platformCapability &&
+    user?.accesos_plataforma?.some((access) =>
+      access.rol === 'ADMIN_GLOBAL' || access.alcances?.includes(platformCapability),
+    ),
+  );
+  if (allowedRoles && user?.rol && !allowedRoles.includes(user.rol) && !hasPlatformCapability) {
     return <Navigate to="/" replace />;
   }
 
