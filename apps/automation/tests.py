@@ -1,8 +1,21 @@
+from unittest.mock import Mock, patch
+
+from django.core import mail
 from django.test import TestCase, override_settings
-from rest_framework.test import APIRequestFactory
+from django.utils import timezone
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from .models import AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
-from .views import InteractionCreateView, PrivacyConsentCreateView, WebhookEventCreateView
+from apps.usuarios.models import Usuario
+from .views import (
+    AdminCommercialLeadViewSet,
+    AutomationConversationStateView,
+    AutomationGatewayManualOutboundView,
+    AutomationLeadMessageView,
+    InteractionCreateView,
+    PrivacyConsentCreateView,
+    WebhookEventCreateView,
+)
 
 
 @override_settings(AUTOMATION_API_TOKEN='test-token')
@@ -124,3 +137,232 @@ class AutomationIdempotencyTests(TestCase):
         event = AutomationWebhookEvent.objects.get()
         self.assertLessEqual(len(event.idempotency_key), 220)
         self.assertTrue(event.idempotency_key.startswith('automation:webhook:'))
+
+
+@override_settings(
+    AUTOMATION_API_TOKEN='test-token',
+    WHATSAPP_GATEWAY_URL='http://gateway:8081',
+    WHATSAPP_GATEWAY_TOKEN='gateway-test-token',
+    AUTOMATION_HANDOFF_NOTIFICATION_EMAIL='sales@example.com',
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+)
+class AutomationConversationHandoffTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.lead = CommercialLead.objects.create(
+            phone='593999999999',
+            normalized_phone='593999999999',
+            contact_key='593999999999@s.whatsapp.net',
+            reply_to_jid='593999999999@s.whatsapp.net',
+            source_channel='whatsapp',
+        )
+        self.advisor = Usuario.objects.create_user(
+            email='advisor@example.com', password='test', rol='VENDEDOR',
+        )
+
+    @patch('apps.automation.conversation_service.requests.post')
+    def test_bot_mode_allows_ai_reply_and_records_n8n_origin(self, gateway_post):
+        gateway_response = Mock()
+        gateway_response.json.return_value = {'message_id': 'bot-msg-1', 'to': self.lead.reply_to_jid}
+        gateway_response.raise_for_status.return_value = None
+        gateway_post.return_value = gateway_response
+        view = AutomationLeadMessageView.as_view()
+
+        response = view(self.factory.post(
+            f'/api/automation/leads/{self.lead.pk}/messages/',
+            {'message': 'Hola, ¿en qué puedo ayudarte?', 'idempotency_key': 'n8n:reply:inbound-1'},
+            format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), lead_id=self.lead.pk)
+
+        self.assertEqual(response.status_code, 200)
+        interaction = WhatsAppInteraction.objects.get()
+        self.assertEqual(interaction.sender_type, WhatsAppInteraction.SenderType.AI)
+        self.assertEqual(interaction.origin, 'n8n')
+        self.assertEqual(interaction.gateway_status, 'sent')
+
+    def test_pending_mode_blocks_normal_ai_reply(self):
+        self.lead.conversation_mode = CommercialLead.ConversationMode.HUMAN_PENDING
+        self.lead.human_requested_at = timezone.now()
+        self.lead.save(update_fields=['conversation_mode', 'human_requested_at'])
+        view = AutomationLeadMessageView.as_view()
+
+        response = view(self.factory.post(
+            f'/api/automation/leads/{self.lead.pk}/messages/',
+            {'message': 'Respuesta automática', 'idempotency_key': 'n8n:reply:inbound-pending'},
+            format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), lead_id=self.lead.pk)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(WhatsAppInteraction.objects.count(), 0)
+
+    def test_n8n_handoff_sets_pending_and_notifies_once(self):
+        view = AutomationConversationStateView.as_view()
+        payload = {
+            'conversation_mode': 'HUMAN_PENDING',
+            'conversation_stage': 'handoff',
+            'handoff_reason': 'customer_requested_human',
+        }
+        with self.captureOnCommitCallbacks(execute=True):
+            first = view(self.factory.patch(
+                f'/api/automation/leads/{self.lead.pk}/conversation/', payload, format='json',
+                HTTP_X_AUTOMATION_TOKEN='test-token',
+            ), lead_id=self.lead.pk)
+            second = view(self.factory.patch(
+                f'/api/automation/leads/{self.lead.pk}/conversation/', payload, format='json',
+                HTTP_X_AUTOMATION_TOKEN='test-token',
+            ), lead_id=self.lead.pk)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.lead.refresh_from_db()
+        self.assertEqual(self.lead.conversation_mode, CommercialLead.ConversationMode.HUMAN_PENDING)
+        self.assertEqual(self.lead.handoff_reason, 'customer_requested_human')
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_bot_message_is_blocked_when_human_has_control(self):
+        self.lead.conversation_mode = CommercialLead.ConversationMode.HUMAN_ACTIVE
+        self.lead.save(update_fields=['conversation_mode'])
+        view = AutomationLeadMessageView.as_view()
+        response = view(self.factory.post(
+            f'/api/automation/leads/{self.lead.pk}/messages/',
+            {'message': 'Respuesta automática', 'idempotency_key': 'reply-1'},
+            format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), lead_id=self.lead.pk)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(WhatsAppInteraction.objects.count(), 0)
+
+    @patch('apps.automation.conversation_service.requests.post')
+    def test_single_handoff_ack_is_allowed_while_pending(self, gateway_post):
+        gateway_response = Mock()
+        gateway_response.json.return_value = {'message_id': 'handoff-ack-1', 'to': self.lead.reply_to_jid}
+        gateway_response.raise_for_status.return_value = None
+        gateway_post.return_value = gateway_response
+        self.lead.conversation_mode = CommercialLead.ConversationMode.HUMAN_PENDING
+        self.lead.human_requested_at = timezone.now()
+        self.lead.save(update_fields=['conversation_mode', 'human_requested_at'])
+        handoff_key = f'handoff-ack:{self.lead.pk}:{self.lead.human_requested_at.isoformat()}'
+
+        view = AutomationLeadMessageView.as_view()
+        response = view(self.factory.post(
+            f'/api/automation/leads/{self.lead.pk}/messages/',
+            {'message': 'Un asesor continuará contigo.', 'idempotency_key': handoff_key, 'handoff_ack': True},
+            format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), lead_id=self.lead.pk)
+
+        self.assertEqual(response.status_code, 200)
+        gateway_post.assert_called_once()
+        self.assertEqual(gateway_post.call_args.kwargs['json']['origin'], 'n8n_handoff_ack')
+        interaction = WhatsAppInteraction.objects.get()
+        self.assertEqual(interaction.origin, 'n8n_handoff_ack')
+
+        duplicate = view(self.factory.post(
+            f'/api/automation/leads/{self.lead.pk}/messages/',
+            {'message': 'Un asesor continuará contigo.', 'idempotency_key': handoff_key, 'handoff_ack': True},
+            format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), lead_id=self.lead.pk)
+        self.assertEqual(duplicate.status_code, 409)
+
+        second_ack = view(self.factory.post(
+            f'/api/automation/leads/{self.lead.pk}/messages/',
+            {
+                'message': 'Un asesor continuará contigo.',
+                'idempotency_key': f'handoff-ack:{self.lead.pk}:{self.lead.human_requested_at.isoformat()}-second',
+                'handoff_ack': True,
+            },
+            format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), lead_id=self.lead.pk)
+        self.assertEqual(second_ack.status_code, 409)
+
+    @patch('apps.automation.conversation_service.requests.post')
+    def test_advisor_cannot_send_before_taking_conversation(self, gateway_post):
+        view = AdminCommercialLeadViewSet.as_view({'post': 'messages'})
+        request = self.factory.post(
+            f'/api/automation/admin/leads/{self.lead.pk}/messages/',
+            {'message': 'Ya te ayudo', 'idempotency_key': 'advisor-reply-before-take'}, format='json',
+        )
+        force_authenticate(request, user=self.advisor)
+        response = view(request, pk=self.lead.pk)
+
+        self.assertEqual(response.status_code, 403)
+        gateway_post.assert_not_called()
+        self.assertEqual(WhatsAppInteraction.objects.count(), 0)
+
+    @patch('apps.automation.conversation_service.requests.post')
+    def test_advisor_can_take_conversation_and_send_whatsapp(self, gateway_post):
+        gateway_response = Mock()
+        gateway_response.json.return_value = {'message_id': 'gateway-msg-1', 'to': self.lead.reply_to_jid}
+        gateway_response.raise_for_status.return_value = None
+        gateway_post.return_value = gateway_response
+
+        conversation_view = AdminCommercialLeadViewSet.as_view({'patch': 'conversation'})
+        request = self.factory.patch(
+            f'/api/automation/admin/leads/{self.lead.pk}/conversation/',
+            {'conversation_mode': 'HUMAN_ACTIVE'}, format='json',
+        )
+        force_authenticate(request, user=self.advisor)
+        taken = conversation_view(request, pk=self.lead.pk)
+        self.assertEqual(taken.status_code, 200)
+        self.lead.refresh_from_db()
+        self.assertEqual(self.lead.assigned_to, self.advisor)
+        self.assertEqual(self.lead.conversation_mode, CommercialLead.ConversationMode.HUMAN_ACTIVE)
+
+        message_view = AdminCommercialLeadViewSet.as_view({'post': 'messages'})
+        request = self.factory.post(
+            f'/api/automation/admin/leads/{self.lead.pk}/messages/',
+            {'message': 'Ya te ayudo', 'idempotency_key': 'advisor-reply-1'}, format='json',
+        )
+        force_authenticate(request, user=self.advisor)
+        sent = message_view(request, pk=self.lead.pk)
+
+        self.assertEqual(sent.status_code, 200)
+        gateway_post.assert_called_once()
+        interaction = WhatsAppInteraction.objects.get()
+        self.assertEqual(interaction.sender_type, WhatsAppInteraction.SenderType.HUMAN)
+        self.assertEqual(interaction.origin, 'facturaof1')
+        self.assertEqual(interaction.gateway_status, 'sent')
+        self.lead.refresh_from_db()
+        self.assertEqual(self.lead.conversation_mode, CommercialLead.ConversationMode.HUMAN_ACTIVE)
+
+        request = self.factory.patch(
+            f'/api/automation/admin/leads/{self.lead.pk}/conversation/',
+            {'conversation_mode': 'BOT'}, format='json',
+        )
+        force_authenticate(request, user=self.advisor)
+        resumed = conversation_view(request, pk=self.lead.pk)
+        self.assertEqual(resumed.status_code, 200)
+        self.lead.refresh_from_db()
+        self.assertEqual(self.lead.conversation_mode, CommercialLead.ConversationMode.BOT)
+
+        ai_view = AutomationLeadMessageView.as_view()
+        ai_response = ai_view(self.factory.post(
+            f'/api/automation/leads/{self.lead.pk}/messages/',
+            {'message': 'Gracias por esperar.', 'idempotency_key': 'n8n:reply:after-resume'},
+            format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), lead_id=self.lead.pk)
+        self.assertEqual(ai_response.status_code, 200)
+        self.assertEqual(gateway_post.call_count, 2)
+
+    def test_gateway_manual_message_takes_over_and_is_idempotent(self):
+        view = AutomationGatewayManualOutboundView.as_view()
+        payload = {
+            'contact_key': self.lead.contact_key,
+            'reply_to_jid': self.lead.reply_to_jid,
+            'phone': self.lead.phone,
+            'message_id': 'manual-out-1',
+            'body': 'Hola, soy un asesor.',
+        }
+        first = view(self.factory.post(
+            '/api/automation/gateway/manual-outbound/', payload, format='json',
+            HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+        second = view(self.factory.post(
+            '/api/automation/gateway/manual-outbound/', payload, format='json',
+            HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 200)
+        self.lead.refresh_from_db()
+        self.assertEqual(self.lead.conversation_mode, CommercialLead.ConversationMode.HUMAN_ACTIVE)
+        self.assertEqual(WhatsAppInteraction.objects.count(), 1)

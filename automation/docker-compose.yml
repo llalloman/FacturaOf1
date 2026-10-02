@@ -1,6 +1,16 @@
 version: "3.8"
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: facturaof1_automation_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - automation_redis_data:/data
+    networks:
+      - facturaof1_automation_net
+
   postgres:
     image: postgres:16
     container_name: facturaof1_automation_postgres
@@ -73,15 +83,22 @@ services:
     environment:
       WHATSAPP_GATEWAY_PORT: 8081
       N8N_WEBHOOK_URL: http://n8n:5678/webhook/whatsapp-inbound
+      FACTURAOF1_API_URL: ${FACTURAOF1_API_URL}
+      AUTOMATION_API_TOKEN: ${AUTOMATION_API_TOKEN}
+      WHATSAPP_GATEWAY_TOKEN: ${WHATSAPP_GATEWAY_TOKEN}
+      REDIS_URL: redis://redis:6379/0
       TZ: ${TZ}
     volumes:
       - ./whatsapp-gateway/session:/app/session
     depends_on:
       - n8n
+      - redis
+    restart: unless-stopped
     networks:
       - facturaof1_automation_net
 
 volumes:
+  automation_redis_data:
   postgres_data:
   n8n_data:
 

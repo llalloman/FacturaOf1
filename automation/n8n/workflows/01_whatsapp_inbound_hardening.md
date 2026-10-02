@@ -1,5 +1,7 @@
 # 01_whatsapp_inbound Hardening
 
+> **Actualización:** Esta guía conserva notas de la implementación anterior. Para el handoff humano y el envío de mensajes use [`../../docs/conversation-handoff.md`](../../docs/conversation-handoff.md). En particular, el envío saliente directo a `/sendText` seguido de un POST de registro no debe usarse para nuevas respuestas de IA: primero puede enviar aunque FacturaOF1 no haya registrado la interacción. El endpoint recomendado valida el modo y registra antes de enviar.
+
 ## Nodo: Normalize + Idempotency
 
 Agregar un nodo `Code` despues de `Edit Fields`.
