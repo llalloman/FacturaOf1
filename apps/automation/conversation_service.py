@@ -8,12 +8,18 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import status
-from rest_framework.exceptions import APIException, PermissionDenied, ServiceUnavailable
+from rest_framework.exceptions import APIException, PermissionDenied
 
 from .models import AutomationAuditLog, CommercialLead, WhatsAppInteraction
 
 
 logger = logging.getLogger(__name__)
+
+
+class GatewayUnavailable(APIException):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    default_detail = 'El servicio de WhatsApp no está disponible o no está configurado.'
+    default_code = 'gateway_unavailable'
 
 
 class MessageDispatchConflict(APIException):
@@ -186,7 +192,7 @@ def send_lead_message(lead_id, *, message, sender_type, origin, idempotency_key,
             raise MessageDispatchConflict()
 
         if not settings.WHATSAPP_GATEWAY_URL or not settings.WHATSAPP_GATEWAY_TOKEN:
-            raise ServiceUnavailable('El envío de WhatsApp desde FacturaOF1 no está configurado.')
+            raise GatewayUnavailable('El envío de WhatsApp desde FacturaOF1 no está configurado.')
 
         if sender_type == WhatsAppInteraction.SenderType.HUMAN:
             if lead.conversation_mode != CommercialLead.ConversationMode.HUMAN_ACTIVE:
@@ -251,5 +257,5 @@ def send_lead_message(lead_id, *, message, sender_type, origin, idempotency_key,
             dispatch_error = exc
 
     if dispatch_error:
-        raise ServiceUnavailable('WhatsApp no aceptó el envío. La conversación permanece registrada y pausada para evitar respuestas automáticas.') from dispatch_error
+        raise GatewayUnavailable('WhatsApp no aceptó el envío. La conversación permanece registrada y pausada para evitar respuestas automáticas.') from dispatch_error
     return result
