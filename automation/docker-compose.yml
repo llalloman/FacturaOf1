@@ -93,7 +93,6 @@ services:
     depends_on:
       - n8n
       - redis
-    restart: unless-stopped
     networks:
       - facturaof1_automation_net
 
