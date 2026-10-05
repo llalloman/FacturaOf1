@@ -5,6 +5,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
+from apps.firmas.models import FirmaCuponElectronico, FirmaPrecioElectronica, FirmaPromocionElectronica
 from .models import AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
 from apps.usuarios.models import Usuario
 from .views import (
@@ -12,10 +13,73 @@ from .views import (
     AutomationConversationStateView,
     AutomationGatewayManualOutboundView,
     AutomationLeadMessageView,
+    CommercialContextView,
+    CommercialCouponValidationView,
     InteractionCreateView,
     PrivacyConsentCreateView,
     WebhookEventCreateView,
 )
+
+
+@override_settings(AUTOMATION_API_TOKEN='test-token')
+class AutomationCommercialContextTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.context_view = CommercialContextView.as_view()
+        self.coupon_view = CommercialCouponValidationView.as_view()
+        self.today = timezone.localdate()
+        self.price = FirmaPrecioElectronica.objects.create(
+            validity='1_ANIO', regular_price='115.00', tax_rate='15.00', active=True,
+        )
+
+    def test_context_requires_token_and_only_exposes_current_ai_coupons(self):
+        FirmaPromocionElectronica.objects.create(
+            price=self.price, name='Promo actual', discount_type='FINAL_PRICE',
+            discount_value='100.00', promotional_price='100.00',
+            start_date=self.today, end_date=self.today, active=True,
+        )
+        FirmaCuponElectronico.objects.create(
+            code='AI10', name='Cupón IA', discount_type='PERCENTAGE', discount_value='10.00',
+            start_date=self.today, end_date=self.today, public_to_ai=True,
+        )
+        FirmaCuponElectronico.objects.create(
+            code='PRIVADO', name='Privado', discount_type='PERCENTAGE', discount_value='20.00',
+            start_date=self.today, end_date=self.today, public_to_ai=False,
+        )
+        denied = self.context_view(self.factory.get('/api/automation/commercial-context/?channel=whatsapp'))
+        response = self.context_view(self.factory.get(
+            '/api/automation/commercial-context/?channel=whatsapp', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['source_of_truth'], 'FacturaOF1')
+        self.assertEqual(response.data['signature_catalog'][0]['current_price'], '100.00')
+        self.assertEqual([coupon['code'] for coupon in response.data['public_coupons']], ['AI10'])
+
+    def test_coupon_validation_uses_checkout_price_logic(self):
+        FirmaCuponElectronico.objects.create(
+            code='AI10', name='Cupón IA', discount_type='PERCENTAGE', discount_value='10.00',
+            start_date=self.today, end_date=self.today, public_to_ai=True,
+        )
+        response = self.coupon_view(self.factory.post(
+            '/api/automation/commercial-context/validate-coupon/',
+            {'code': 'ai10', 'plan_code': '1_ANIO'}, format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['final_price'], '103.50')
+        self.assertTrue(response.data['applied'])
+        self.assertTrue(response.data['quote_only'])
+
+    def test_coupon_validation_rejects_coupon_not_published_to_ai(self):
+        FirmaCuponElectronico.objects.create(
+            code='PRIVATE', name='Cupón privado', discount_type='PERCENTAGE', discount_value='10.00',
+            start_date=self.today, end_date=self.today, public_to_ai=False,
+        )
+        response = self.coupon_view(self.factory.post(
+            '/api/automation/commercial-context/validate-coupon/',
+            {'code': 'PRIVATE', 'plan_code': '1_ANIO'}, format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+        self.assertEqual(response.status_code, 400)
 
 
 @override_settings(AUTOMATION_API_TOKEN='test-token')

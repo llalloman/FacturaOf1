@@ -10,6 +10,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.firmas.models import SolicitudFirmaElectronica
+from apps.firmas.pricing import customer_key
+from .commercial_context import build_commercial_context, validate_public_coupon
 
 from .models import AutomationAuditLog, AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
 from .permissions import HasAutomationToken
@@ -87,6 +89,50 @@ class LeadContextView(AutomationBaseMixin, APIView):
         return Response({
             'lead': CommercialLeadSerializer(lead).data,
             'recent_interactions': WhatsAppInteractionSerializer(interactions, many=True).data,
+        })
+
+
+class CommercialContextView(AutomationBaseMixin, APIView):
+    """Read-only source of commercial facts for trusted automation clients."""
+
+    def get(self, request):
+        channel = request.query_params.get('channel', 'whatsapp')
+        if channel != 'whatsapp':
+            return Response({'detail': 'Canal no soportado.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(build_commercial_context())
+
+
+class CommercialCouponValidationView(AutomationBaseMixin, APIView):
+    """Quote an explicitly AI-published coupon using checkout pricing rules."""
+
+    def post(self, request):
+        channel = request.data.get('channel', 'whatsapp')
+        if channel != 'whatsapp':
+            return Response({'detail': 'Canal no soportado.'}, status=status.HTTP_400_BAD_REQUEST)
+        code = request.data.get('code', '')
+        plan_code = request.data.get('plan_code', '')
+        customer = customer_key(
+            request.data.get('identification'), request.data.get('email'), request.data.get('phone'),
+        )
+        quote = validate_public_coupon(code, plan_code, customer)
+        coupon_applied = bool(quote['coupon'])
+        return Response({
+            'valid': True,
+            'code': quote['coupon_entered'].code,
+            'plan_code': quote['price'].validity,
+            'applied': coupon_applied,
+            'message': ('Cupón aplicado correctamente.' if coupon_applied else
+                        'Cupón válido; la promoción vigente ofrece un mejor precio.'),
+            'regular_price': str(quote['regular_price']),
+            'final_price': str(quote['final_price']),
+            'discount_amount': str(quote['discount_amount']),
+            'currency': 'USD',
+            'price_includes_tax': True,
+            'subtotal_without_tax': str(quote['subtotal_without_tax']),
+            'tax_rate': str(quote['tax_rate']),
+            'tax_amount': str(quote['tax_amount']),
+            'applied_source': 'coupon' if coupon_applied else ('promotion' if quote['promotion'] else 'regular'),
+            'quote_only': True,
         })
 
 

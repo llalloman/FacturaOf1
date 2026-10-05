@@ -129,7 +129,7 @@ class FirmaCuponElectronicoSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'code', 'name', 'discount_type', 'discount_value', 'prices',
             'start_date', 'end_date', 'minimum_amount', 'max_total_uses',
-            'max_uses_per_customer', 'active', 'is_current', 'usage_count',
+            'max_uses_per_customer', 'active', 'public_to_ai', 'is_current', 'usage_count',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'is_current', 'usage_count', 'created_at', 'updated_at']

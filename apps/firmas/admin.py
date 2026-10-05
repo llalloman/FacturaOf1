@@ -73,8 +73,8 @@ class FirmaPromocionElectronicaAdmin(admin.ModelAdmin):
 
 @admin.register(FirmaCuponElectronico)
 class FirmaCuponElectronicoAdmin(admin.ModelAdmin):
-    list_display = ('code', 'name', 'discount_type', 'discount_value', 'start_date', 'end_date', 'active')
-    list_filter = ('active', 'discount_type')
+    list_display = ('code', 'name', 'discount_type', 'discount_value', 'start_date', 'end_date', 'active', 'public_to_ai')
+    list_filter = ('active', 'public_to_ai', 'discount_type')
     search_fields = ('code', 'name')
     filter_horizontal = ('prices',)
 

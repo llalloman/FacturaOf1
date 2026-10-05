@@ -68,3 +68,66 @@ Los archivos de este repositorio preparan backend, gateway y UI; no modifican un
 Verificar primero un inbound con modo `BOT`; luego solicitar handoff y comprobar `HUMAN_PENDING`, una alerta de correo y una sola confirmación. Probar una respuesta manual desde WhatsApp Web y comprobar que FacturaOF1 marca `HUMAN_ACTIVE`; confirmar que nuevos inbound no disparan respuesta de IA. Finalmente devolver la conversación a `BOT` y comprobar respuesta desde la bandeja.
 
 No borrar la sesión del gateway para esta activación: conservar la sesión vinculada de WhatsApp.
+
+## Contexto comercial para n8n
+
+FacturaOF1 expone el contexto comercial para clientes internos autenticados. El endpoint es de solo lectura y no modifica leads ni sus estados `BOT`, `HUMAN_PENDING` o `HUMAN_ACTIVE`.
+
+`GET /api/automation/commercial-context/?channel=whatsapp`
+
+Enviar `X-Automation-Token: $AUTOMATION_API_TOKEN` o `Authorization: Bearer $AUTOMATION_API_TOKEN`. La respuesta contiene información de servicios, enlaces oficiales, catálogo activo de firmas electrónicas con promociones vigentes y cupones vigentes marcados `public_to_ai`. Los precios provienen de `FirmaPrecioElectronica` y las promociones de `FirmaPromocionElectronica`; los cupones no se exponen hasta habilitar `Visible para automation` en el admin.
+
+Ejemplo de estructura (los montos, promociones y cupones reales salen de la base de datos):
+
+```json
+{
+  "source_of_truth": "FacturaOF1",
+  "generated_at": "2026-10-04T12:00:00+00:00",
+  "channel": "whatsapp",
+  "service_info": {
+    "company": "OF1 Solutions",
+    "country": "Ecuador",
+    "services": [
+      {
+        "code": "signature",
+        "name": "Firma electrónica",
+        "description": "Emisión de certificados de firma electrónica para personas y empresas."
+      }
+    ],
+    "links": {
+      "website": "https://of1solutions.com/",
+      "signature_request": "https://facturaof1.of1solutions.com/solicitar-firma-electronica"
+    }
+  },
+  "signature_catalog": [
+    {
+      "code": "1_ANIO",
+      "name": "1 año",
+      "regular_price": "115.00",
+      "current_price": "115.00",
+      "currency": "USD",
+      "price_includes_tax": true,
+      "tax_rate": "15.00",
+      "promotion": null
+    }
+  ],
+  "public_coupons": []
+}
+```
+
+`POST /api/automation/commercial-context/validate-coupon/`
+
+Usa los mismos encabezados de autenticación. Cuerpo:
+
+```json
+{
+  "channel": "whatsapp",
+  "code": "FIRMA10",
+  "plan_code": "1_ANIO",
+  "identification": "0102030405"
+}
+```
+
+`plan_code` usa los códigos del catálogo (`7_DIAS`, `1_MES`, `1_ANIO`, `2_ANIOS`, etc.). `identification`, `email` o `phone` son opcionales; si se omiten, el endpoint no puede comprobar el límite de usos por cliente. La respuesta es una cotización informativa, no reserva el cupón; la solicitud final vuelve a validar disponibilidad y registra el uso.
+
+Alcance del catálogo de promociones y cupones: el API refleja las reglas actuales del checkout. Los cupones tienen límites globales y por cliente. Las promociones existentes se aplican por vigencia y rango de fechas, sin reglas por tipo de cliente o límite de usos.
