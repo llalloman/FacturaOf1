@@ -1,5 +1,7 @@
 # 01_whatsapp_inbound Hardening
 
+> **Actualización:** Esta guía conserva notas de la implementación anterior. Para el handoff humano y el envío de mensajes use [`../../docs/conversation-handoff.md`](../../docs/conversation-handoff.md). En particular, el envío saliente directo a `/sendText` seguido de un POST de registro no debe usarse para nuevas respuestas de IA: primero puede enviar aunque FacturaOF1 no haya registrado la interacción. El endpoint recomendado valida el modo y registra antes de enviar.
+
 ## Nodo: Normalize + Idempotency
 
 Agregar un nodo `Code` despues de `Edit Fields`.
@@ -130,10 +132,10 @@ El nodo `Code in JavaScript` que parsea DeepSeek debe dejar este shape:
 Despues de parsear DeepSeek, si:
 
 ```text
-confidence < 0.65 OR requires_human = true
+requires_human = true por una regla explicita de negocio. La confianza baja por si sola debe generar una pregunta aclaratoria, nunca HUMAN_PENDING.
 ```
 
-Enviar plantilla `human_handoff` y notificar internamente.
+Enviar plantilla `human_handoff` y notificar solo cuando `requires_human = true` por una regla explicita; nunca unicamente por baja confianza.
 
 ## Nodo: Register Outbound Interaction
 

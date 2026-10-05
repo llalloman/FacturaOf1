@@ -1,8 +1,14 @@
+from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 
 class CommercialLead(models.Model):
+    class ConversationMode(models.TextChoices):
+        BOT = 'BOT', _('Atiende el bot')
+        HUMAN_PENDING = 'HUMAN_PENDING', _('Esperando asesor')
+        HUMAN_ACTIVE = 'HUMAN_ACTIVE', _('Atiende un asesor')
+
     class InterestType(models.TextChoices):
         SIGNATURE = 'signature', _('Firma electrónica')
         ERP = 'erp', _('ERP FacturaOF1')
@@ -55,6 +61,25 @@ class CommercialLead(models.Model):
     last_intent = models.CharField(_('última intención'), max_length=40, blank=True)
     last_ai_confidence = models.DecimalField(_('última confianza IA'), max_digits=4, decimal_places=3, null=True, blank=True)
     last_interaction_at = models.DateTimeField(_('última interacción'), null=True, blank=True)
+    conversation_mode = models.CharField(
+        _('modo de conversación'), max_length=20, choices=ConversationMode.choices,
+        default=ConversationMode.BOT, db_index=True,
+    )
+    conversation_stage = models.CharField(_('etapa de conversación'), max_length=40, default='active', blank=True)
+    handoff_reason = models.CharField(_('motivo de handoff'), max_length=120, blank=True)
+    human_requested_at = models.DateTimeField(_('solicitud de atención humana'), null=True, blank=True)
+    human_active_at = models.DateTimeField(_('inicio de atención humana'), null=True, blank=True)
+    human_released_at = models.DateTimeField(_('devolución al bot'), null=True, blank=True)
+    human_active_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='automation_conversations_taken', verbose_name=_('asesor que tomó la conversación'),
+    )
+    human_last_activity_at = models.DateTimeField(null=True, blank=True)
+    bot_resumed_at = models.DateTimeField(null=True, blank=True)
+    human_released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='automation_conversations_released', verbose_name=_('asesor que devolvió la conversación'),
+    )
     assigned_to = models.ForeignKey(
         'usuarios.Usuario',
         on_delete=models.SET_NULL,
@@ -107,6 +132,12 @@ class WhatsAppInteraction(models.Model):
         DOCUMENT = 'document', _('Documento')
         UNKNOWN = 'unknown', _('Desconocido')
 
+    class SenderType(models.TextChoices):
+        CUSTOMER = 'CUSTOMER', _('Cliente')
+        AI = 'AI', _('Asistente IA')
+        HUMAN = 'HUMAN', _('Asesor')
+        UNKNOWN = 'UNKNOWN', _('Sin identificar')
+
     lead = models.ForeignKey(
         CommercialLead,
         on_delete=models.SET_NULL,
@@ -124,6 +155,8 @@ class WhatsAppInteraction(models.Model):
         verbose_name=_('pedido de firma'),
     )
     direction = models.CharField(_('dirección'), max_length=10, choices=Direction.choices)
+    sender_type = models.CharField(_('tipo de remitente'), max_length=12, choices=SenderType.choices, default=SenderType.UNKNOWN)
+    origin = models.CharField(_('origen'), max_length=30, default='whatsapp')
     phone = models.CharField(_('teléfono'), max_length=32, blank=True)
     normalized_phone = models.CharField(_('teléfono normalizado'), max_length=32, blank=True)
     contact_key = models.CharField(_('clave de contacto'), max_length=160, blank=True)

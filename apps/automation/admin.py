@@ -5,16 +5,16 @@ from .models import AutomationAuditLog, AutomationPrivacyConsent, AutomationWebh
 
 @admin.register(CommercialLead)
 class CommercialLeadAdmin(admin.ModelAdmin):
-    list_display = ('normalized_phone', 'interest_type', 'status', 'priority', 'last_interaction_at')
-    list_filter = ('interest_type', 'status', 'priority', 'source_channel')
+    list_display = ('normalized_phone', 'interest_type', 'status', 'priority', 'conversation_mode', 'last_interaction_at')
+    list_filter = ('interest_type', 'status', 'priority', 'conversation_mode', 'source_channel')
     search_fields = ('normalized_phone', 'phone', 'name', 'company', 'email', 'summary')
     readonly_fields = ('created_at', 'updated_at')
 
 
 @admin.register(WhatsAppInteraction)
 class WhatsAppInteractionAdmin(admin.ModelAdmin):
-    list_display = ('normalized_phone', 'direction', 'category', 'intent', 'requires_human', 'created_at')
-    list_filter = ('direction', 'message_type', 'category', 'intent', 'requires_human')
+    list_display = ('normalized_phone', 'direction', 'sender_type', 'origin', 'category', 'intent', 'requires_human', 'created_at')
+    list_filter = ('direction', 'sender_type', 'origin', 'message_type', 'category', 'intent', 'requires_human')
     search_fields = ('normalized_phone', 'phone', 'message_body', 'idempotency_key', 'message_id')
     readonly_fields = ('created_at',)
 

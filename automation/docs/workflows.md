@@ -4,6 +4,8 @@
 
 El workflow operativo descrito es `01_whatsapp_inbound`.
 
+La lógica de handoff humano, uso de la bandeja de FacturaOF1, callbacks del gateway y variables requeridas está descrita en [`conversation-handoff.md`](conversation-handoff.md). Esa guía es la referencia vigente para actualizar el workflow.
+
 No existe export versionado en `automation/n8n/workflows/`; la carpeta contiene solo `.gitkeep`. Cuando el workflow sea exportado desde n8n, debe guardarse como:
 
 ```text

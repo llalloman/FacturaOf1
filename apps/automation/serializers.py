@@ -136,9 +136,17 @@ class CommercialLeadSerializer(serializers.ModelSerializer):
             'id', 'phone', 'normalized_phone', 'contact_key', 'reply_to_jid', 'from_jid',
             'remote_jid', 'push_name', 'is_lid', 'source_channel', 'name', 'company', 'email',
             'interest_type', 'status', 'priority', 'summary', 'internal_notes', 'last_category', 'last_intent',
-            'last_ai_confidence', 'last_interaction_at', 'metadata', 'created_at', 'updated_at', 'created',
+            'last_ai_confidence', 'last_interaction_at', 'metadata', 'conversation_mode', 'conversation_stage',
+            'handoff_reason', 'human_requested_at', 'human_active_at', 'human_released_at',
+            'human_last_activity_at', 'bot_resumed_at',
+            'human_active_by', 'human_released_by', 'created_at', 'updated_at', 'created',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'conversation_mode', 'conversation_stage',
+            'handoff_reason', 'human_requested_at', 'human_active_at', 'human_released_at',
+            'human_last_activity_at', 'bot_resumed_at',
+            'human_active_by', 'human_released_by',
+        ]
         extra_kwargs = {
             'phone': {'required': False, 'allow_blank': True, 'allow_null': True},
             'normalized_phone': {'required': False, 'allow_blank': True, 'allow_null': True},
@@ -223,7 +231,7 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
             'id', 'lead_id', 'signature_order_id', 'direction', 'phone', 'normalized_phone', 'channel',
             'contact_key', 'reply_to_jid', 'from_jid', 'remote_jid', 'push_name', 'is_lid',
             'message_body', 'message_type', 'message_id', 'idempotency_key', 'category', 'intent',
-            'ai_confidence', 'ai_summary', 'requires_human', 'template_key', 'gateway_status',
+            'ai_confidence', 'ai_summary', 'requires_human', 'sender_type', 'origin', 'template_key', 'gateway_status',
             'raw_payload', 'created_at', 'created', 'upsert_lead',
         ]
         read_only_fields = ['id', 'lead_id', 'created_at']
@@ -268,6 +276,15 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
         attrs['message_body'] = attrs.get('message_body') or initial.get('body') or initial.get('message') or ''
         attrs['message_type'] = attrs.get('message_type') or initial.get('type') or 'text'
         attrs['message_id'] = attrs.get('message_id') or initial.get('messageId') or initial.get('message_id') or ''
+        direction = attrs.get('direction', initial.get('direction', WhatsAppInteraction.Direction.INBOUND))
+        attrs['sender_type'] = attrs.get('sender_type') or initial.get('sender_type') or (
+            WhatsAppInteraction.SenderType.CUSTOMER
+            if direction == WhatsAppInteraction.Direction.INBOUND
+            else WhatsAppInteraction.SenderType.AI
+        )
+        attrs['origin'] = attrs.get('origin') or initial.get('origin') or (
+            'whatsapp' if direction == WhatsAppInteraction.Direction.INBOUND else 'n8n'
+        )
         attrs['raw_payload'] = attrs.get('raw_payload') or dict(initial)
         if attrs.get('ai_confidence') in ('', None):
             attrs['ai_confidence'] = None
@@ -303,13 +320,17 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
                 'remote_jid': validated_data.get('remote_jid', ''),
                 'push_name': validated_data.get('push_name', ''),
                 'is_lid': validated_data.get('is_lid', False),
-                'interest_type': validated_data.get('category') or CommercialLead.InterestType.UNKNOWN,
-                'last_category': validated_data.get('category', ''),
-                'last_intent': validated_data.get('intent', ''),
-                'last_ai_confidence': validated_data.get('ai_confidence'),
-                'summary': validated_data.get('ai_summary', ''),
                 'last_interaction_at': timezone.now(),
             }
+            if validated_data.get('category'):
+                lead_defaults['interest_type'] = validated_data['category']
+                lead_defaults['last_category'] = validated_data['category']
+            if validated_data.get('intent'):
+                lead_defaults['last_intent'] = validated_data['intent']
+            if validated_data.get('ai_confidence') is not None:
+                lead_defaults['last_ai_confidence'] = validated_data['ai_confidence']
+            if validated_data.get('ai_summary'):
+                lead_defaults['summary'] = validated_data['ai_summary']
             if validated_data.get('requires_human'):
                 lead_defaults['status'] = CommercialLead.Status.REQUIRES_HUMAN
                 lead_defaults['priority'] = CommercialLead.Priority.HIGH
@@ -328,6 +349,9 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
             defaults=validated_data,
         )
         interaction.created = created
+        if created and interaction.sender_type == WhatsAppInteraction.SenderType.HUMAN and interaction.lead_id:
+            from .conversation_service import mark_human_activity
+            mark_human_activity(interaction.lead_id, interaction.created_at)
         return interaction
 
 
@@ -341,7 +365,7 @@ class WhatsAppInteractionAdminSerializer(serializers.ModelSerializer):
             'id', 'direction', 'direction_display', 'phone', 'normalized_phone', 'contact_key',
             'reply_to_jid', 'from_jid', 'remote_jid', 'push_name', 'is_lid', 'channel',
             'message_body', 'message_type', 'message_type_display', 'message_id', 'category',
-            'intent', 'ai_confidence', 'ai_summary', 'requires_human', 'template_key',
+            'intent', 'ai_confidence', 'ai_summary', 'requires_human', 'sender_type', 'origin', 'template_key',
             'gateway_status', 'created_at',
         ]
         read_only_fields = fields
@@ -423,6 +447,8 @@ class CommercialLeadAdminSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
+    human_active_by_name = serializers.SerializerMethodField()
+    human_released_by_name = serializers.SerializerMethodField()
     interactions_count = serializers.IntegerField(read_only=True)
     recent_interactions = serializers.SerializerMethodField()
     privacy_notice_sent_at = serializers.SerializerMethodField()
@@ -438,6 +464,10 @@ class CommercialLeadAdminSerializer(serializers.ModelSerializer):
             'interest_type', 'interest_type_display', 'status', 'status_display', 'priority',
             'priority_display', 'summary', 'internal_notes', 'last_category', 'last_intent',
             'last_ai_confidence', 'last_interaction_at', 'assigned_to', 'assigned_to_name',
+            'conversation_mode', 'conversation_stage', 'handoff_reason', 'human_requested_at',
+            'human_active_at', 'human_released_at', 'human_active_by', 'human_active_by_name',
+            'human_last_activity_at', 'bot_resumed_at',
+            'human_released_by', 'human_released_by_name',
             'metadata', 'created_at', 'updated_at',
             'interactions_count', 'recent_interactions',
             'privacy_notice_sent_at', 'privacy_notice_version',
@@ -448,6 +478,10 @@ class CommercialLeadAdminSerializer(serializers.ModelSerializer):
             'remote_jid', 'push_name', 'is_lid', 'source_channel', 'name', 'company', 'email',
             'interest_type', 'interest_type_display', 'last_category', 'last_intent',
             'last_ai_confidence', 'last_interaction_at', 'assigned_to_name', 'metadata',
+            'conversation_mode', 'conversation_stage', 'handoff_reason', 'human_requested_at',
+            'human_active_at', 'human_released_at', 'human_active_by', 'human_active_by_name',
+            'human_last_activity_at', 'bot_resumed_at',
+            'human_released_by', 'human_released_by_name',
             'created_at', 'updated_at', 'interactions_count', 'recent_interactions',
             'privacy_notice_sent_at', 'privacy_notice_version',
             'privacy_consent_source', 'privacy_consent_status',
@@ -461,7 +495,15 @@ class CommercialLeadAdminSerializer(serializers.ModelSerializer):
         if not obj.assigned_to:
             return ''
         full_name = obj.assigned_to.get_full_name()
-        return full_name or obj.assigned_to.username or obj.assigned_to.email
+        return full_name or getattr(obj.assigned_to, 'username', '') or obj.assigned_to.email
+
+    def get_human_active_by_name(self, obj):
+        user = obj.human_active_by
+        return (user.get_full_name() or getattr(user, 'email', '')) if user else ''
+
+    def get_human_released_by_name(self, obj):
+        user = obj.human_released_by
+        return (user.get_full_name() or getattr(user, 'email', '')) if user else ''
 
     def _latest_privacy_consent(self, obj):
         prefetched = getattr(obj, '_prefetched_objects_cache', {}).get('privacy_consents')
@@ -519,6 +561,18 @@ class SignatureOrderStatusSerializer(serializers.Serializer):
             comment=validated_data.get('comment', 'Actualizado por automation/n8n.'),
         )
         return instance
+
+
+class ConversationStateSerializer(serializers.Serializer):
+    conversation_mode = serializers.ChoiceField(choices=CommercialLead.ConversationMode.choices, required=False)
+    conversation_stage = serializers.CharField(max_length=40, required=False, allow_blank=True)
+    handoff_reason = serializers.CharField(max_length=120, required=False, allow_blank=True)
+
+
+class ConversationMessageSerializer(serializers.Serializer):
+    message = serializers.CharField(max_length=4000, trim_whitespace=True)
+    idempotency_key = serializers.CharField(max_length=180, required=False, allow_blank=True)
+    handoff_ack = serializers.BooleanField(required=False, default=False)
 
 
 class AutomationWebhookEventSerializer(serializers.ModelSerializer):

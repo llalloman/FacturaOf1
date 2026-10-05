@@ -336,6 +336,7 @@ class FirmaCuponElectronico(models.Model):
     max_total_uses = models.PositiveIntegerField(null=True, blank=True)
     max_uses_per_customer = models.PositiveIntegerField(default=1)
     active = models.BooleanField(default=True)
+    public_to_ai = models.BooleanField(_('visible para automation'), default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
