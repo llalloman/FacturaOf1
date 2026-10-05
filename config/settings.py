@@ -207,6 +207,12 @@ AUTOMATION_HANDOFF_NOTIFICATION_EMAIL = config(
 WHATSAPP_GATEWAY_URL = config('WHATSAPP_GATEWAY_URL', default='').strip().rstrip('/')
 WHATSAPP_GATEWAY_TOKEN = config('WHATSAPP_GATEWAY_TOKEN', default='').strip()
 WHATSAPP_GATEWAY_TIMEOUT_SECONDS = config('WHATSAPP_GATEWAY_TIMEOUT_SECONDS', default=10, cast=int)
+AUTOMATION_HUMAN_PENDING_TIMEOUT_MINUTES = max(
+    1, config('AUTOMATION_HUMAN_PENDING_TIMEOUT_MINUTES', default=10, cast=int),
+)
+AUTOMATION_HUMAN_ACTIVE_TIMEOUT_MINUTES = max(
+    1, config('AUTOMATION_HUMAN_ACTIVE_TIMEOUT_MINUTES', default=30, cast=int),
+)
 
 # PayPhone - botón de pagos para solicitudes públicas de firma electrónica.
 PAYPHONE_TOKEN = config('PAYPHONE_TOKEN', default='').strip()

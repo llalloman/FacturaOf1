@@ -132,10 +132,10 @@ El nodo `Code in JavaScript` que parsea DeepSeek debe dejar este shape:
 Despues de parsear DeepSeek, si:
 
 ```text
-confidence < 0.65 OR requires_human = true
+requires_human = true por una regla explicita de negocio. La confianza baja por si sola debe generar una pregunta aclaratoria, nunca HUMAN_PENDING.
 ```
 
-Enviar plantilla `human_handoff` y notificar internamente.
+Enviar plantilla `human_handoff` y notificar solo cuando `requires_human = true` por una regla explicita; nunca unicamente por baja confianza.
 
 ## Nodo: Register Outbound Interaction
 

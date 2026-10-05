@@ -69,6 +69,16 @@ Verificar primero un inbound con modo `BOT`; luego solicitar handoff y comprobar
 
 No borrar la sesión del gateway para esta activación: conservar la sesión vinculada de WhatsApp.
 
+## Expiracion y reanudacion del bot
+
+El `GET /api/automation/leads/context/{contact_key}/?channel=whatsapp` comprueba transaccionalmente los modos humanos antes de serializar el lead. Si `HUMAN_PENDING` supera `AUTOMATION_HUMAN_PENDING_TIMEOUT_MINUTES` desde `human_requested_at`, o `HUMAN_ACTIVE` supera `AUTOMATION_HUMAN_ACTIVE_TIMEOUT_MINUTES` desde `human_last_activity_at` (con `human_active_at` como fallback), registra una transicion de sistema a `BOT`, pone la etapa en `active`, limpia `handoff_reason` y guarda `bot_resumed_at`. El inbound que provoco la consulta puede continuar por el mismo guard de n8n. No se borran interacciones, resumen, categoria ni intencion.
+
+Los valores por defecto son 10 minutos para `HUMAN_PENDING` y 30 minutos para `HUMAN_ACTIVE`; valores configurados menores a 1 se ajustan a 1. El backend actualiza `human_last_activity_at` al tomar la conversacion, al enviar desde el panel y al registrar un mensaje con `sender_type=HUMAN`, incluido el outbound manual detectado por el gateway.
+
+La accion existente `PATCH /api/automation/admin/leads/{lead_id}/conversation/` con `{"conversation_mode":"BOT"}` devuelve al bot desde `HUMAN_PENDING` o `HUMAN_ACTIVE`, registra el actor y conserva todo el historial. La bandeja muestra la ultima actividad humana y la hora de reanudacion; tambien permite devolver directamente a BOT mientras espera asesor.
+
+En n8n, `confidence < 0.65` por si sola no debe activar handoff. Para baja confianza en consultas normales, responde con una pregunta aclaratoria; reserva `requires_human=true` para solicitud explicita, pago por validar, reclamo, incidencia critica o limite tecnico. Actualiza esa condicion en el workflow activo siguiendo `automation/n8n/workflows/01_whatsapp_inbound_hardening.md`; el cambio local no modifica la instancia activa de n8n.
+
 ## Contexto comercial para n8n
 
 FacturaOF1 expone el contexto comercial para clientes internos autenticados. El endpoint es de solo lectura y no modifica leads ni sus estados `BOT`, `HUMAN_PENDING` o `HUMAN_ACTIVE`.

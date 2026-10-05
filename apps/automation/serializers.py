@@ -138,11 +138,13 @@ class CommercialLeadSerializer(serializers.ModelSerializer):
             'interest_type', 'status', 'priority', 'summary', 'internal_notes', 'last_category', 'last_intent',
             'last_ai_confidence', 'last_interaction_at', 'metadata', 'conversation_mode', 'conversation_stage',
             'handoff_reason', 'human_requested_at', 'human_active_at', 'human_released_at',
+            'human_last_activity_at', 'bot_resumed_at',
             'human_active_by', 'human_released_by', 'created_at', 'updated_at', 'created',
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'conversation_mode', 'conversation_stage',
             'handoff_reason', 'human_requested_at', 'human_active_at', 'human_released_at',
+            'human_last_activity_at', 'bot_resumed_at',
             'human_active_by', 'human_released_by',
         ]
         extra_kwargs = {
@@ -347,6 +349,9 @@ class WhatsAppInteractionSerializer(serializers.ModelSerializer):
             defaults=validated_data,
         )
         interaction.created = created
+        if created and interaction.sender_type == WhatsAppInteraction.SenderType.HUMAN and interaction.lead_id:
+            from .conversation_service import mark_human_activity
+            mark_human_activity(interaction.lead_id, interaction.created_at)
         return interaction
 
 
@@ -461,6 +466,7 @@ class CommercialLeadAdminSerializer(serializers.ModelSerializer):
             'last_ai_confidence', 'last_interaction_at', 'assigned_to', 'assigned_to_name',
             'conversation_mode', 'conversation_stage', 'handoff_reason', 'human_requested_at',
             'human_active_at', 'human_released_at', 'human_active_by', 'human_active_by_name',
+            'human_last_activity_at', 'bot_resumed_at',
             'human_released_by', 'human_released_by_name',
             'metadata', 'created_at', 'updated_at',
             'interactions_count', 'recent_interactions',
@@ -474,6 +480,7 @@ class CommercialLeadAdminSerializer(serializers.ModelSerializer):
             'last_ai_confidence', 'last_interaction_at', 'assigned_to_name', 'metadata',
             'conversation_mode', 'conversation_stage', 'handoff_reason', 'human_requested_at',
             'human_active_at', 'human_released_at', 'human_active_by', 'human_active_by_name',
+            'human_last_activity_at', 'bot_resumed_at',
             'human_released_by', 'human_released_by_name',
             'created_at', 'updated_at', 'interactions_count', 'recent_interactions',
             'privacy_notice_sent_at', 'privacy_notice_version',

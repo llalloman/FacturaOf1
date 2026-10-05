@@ -74,6 +74,8 @@ class CommercialLead(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='automation_conversations_taken', verbose_name=_('asesor que tomó la conversación'),
     )
+    human_last_activity_at = models.DateTimeField(null=True, blank=True)
+    bot_resumed_at = models.DateTimeField(null=True, blank=True)
     human_released_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='automation_conversations_released', verbose_name=_('asesor que devolvió la conversación'),

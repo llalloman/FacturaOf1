@@ -15,7 +15,7 @@ from .commercial_context import build_commercial_context, validate_public_coupon
 
 from .models import AutomationAuditLog, AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
 from .permissions import HasAutomationToken
-from .conversation_service import send_lead_message, set_conversation_mode
+from .conversation_service import resume_expired_conversation, send_lead_message, set_conversation_mode
 from .serializers import (
     AutomationAuditLogSerializer,
     AutomationPrivacyConsentSerializer,
@@ -85,6 +85,7 @@ class LeadContextView(AutomationBaseMixin, APIView):
             if not normalized.startswith('593') and len(normalized) == 9:
                 normalized = f'593{normalized}'
             lead = get_object_or_404(CommercialLead, normalized_phone=normalized, source_channel=channel)
+        lead = resume_expired_conversation(lead.pk)
         interactions = WhatsAppInteraction.objects.filter(lead=lead).order_by('-created_at')[:10]
         return Response({
             'lead': CommercialLeadSerializer(lead).data,

@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import timedelta
 
 import requests
 from django.conf import settings
@@ -109,9 +110,11 @@ def set_conversation_mode(
             lead.human_active_at = now
             if actor is not None:
                 lead.human_active_by = actor
+        lead.human_last_activity_at = now
     else:
         lead.conversation_stage = stage or 'active'
         lead.handoff_reason = ''
+        lead.bot_resumed_at = now
         if previous != target:
             lead.human_released_at = now
             if actor is not None:
@@ -120,7 +123,7 @@ def set_conversation_mode(
     lead.save(update_fields=[
         'conversation_mode', 'conversation_stage', 'handoff_reason',
         'human_requested_at', 'human_active_at', 'human_released_at',
-        'human_active_by', 'human_released_by', 'updated_at',
+        'human_active_by', 'human_released_by', 'human_last_activity_at', 'bot_resumed_at', 'updated_at',
     ])
 
     if previous != target:
@@ -130,11 +133,50 @@ def set_conversation_mode(
             actor_id=getattr(actor, 'pk', None) or (actor if actor_type != AutomationAuditLog.ActorType.USER else ''),
             previous=previous,
             target=target,
-            reason=lead.handoff_reason,
+            reason=reason or lead.handoff_reason,
         )
     if target == CommercialLead.ConversationMode.HUMAN_PENDING and previous != target:
         transaction.on_commit(lambda lead_id=lead.pk: _send_handoff_email(lead_id))
     return previous != target
+
+
+def resume_expired_conversation(lead_id):
+    """Resume abandoned human conversations without deleting their history."""
+    with transaction.atomic():
+        lead = CommercialLead.objects.select_for_update().get(pk=lead_id)
+        now = timezone.now()
+        if lead.conversation_mode == CommercialLead.ConversationMode.HUMAN_PENDING:
+            activity_at = lead.human_requested_at
+            timeout_minutes = settings.AUTOMATION_HUMAN_PENDING_TIMEOUT_MINUTES
+            reason = 'automatic_release_human_pending_timeout'
+        elif lead.conversation_mode == CommercialLead.ConversationMode.HUMAN_ACTIVE:
+            activity_at = lead.human_last_activity_at or lead.human_active_at
+            timeout_minutes = settings.AUTOMATION_HUMAN_ACTIVE_TIMEOUT_MINUTES
+            reason = 'automatic_release_human_active_timeout'
+        else:
+            return lead
+
+        if activity_at is None or now - activity_at <= timedelta(minutes=timeout_minutes):
+            return lead
+
+        set_conversation_mode(
+            lead,
+            CommercialLead.ConversationMode.BOT,
+            actor_type=AutomationAuditLog.ActorType.SYSTEM,
+            reason=reason,
+            stage='active',
+        )
+        return lead
+
+
+def mark_human_activity(lead_id, activity_at=None):
+    """Extend the HUMAN_ACTIVE timeout whenever a HUMAN interaction is recorded."""
+    activity_at = activity_at or timezone.now()
+    with transaction.atomic():
+        lead = CommercialLead.objects.select_for_update().get(pk=lead_id)
+        lead.human_last_activity_at = activity_at
+        lead.save(update_fields=['human_last_activity_at', 'updated_at'])
+    return lead
 
 
 def send_lead_message(lead_id, *, message, sender_type, origin, idempotency_key, actor=None, handoff_ack=False):
@@ -233,6 +275,10 @@ def send_lead_message(lead_id, *, message, sender_type, origin, idempotency_key,
                 **({'handoff_requested_at': handoff_requested_at} if is_handoff_ack else {}),
             },
         )
+
+        if sender_type == WhatsAppInteraction.SenderType.HUMAN:
+            lead.human_last_activity_at = interaction.created_at
+            lead.save(update_fields=['human_last_activity_at', 'updated_at'])
 
         # Keep this contact locked until the gateway has accepted or rejected the
         # send, so a simultaneous HUMAN_ACTIVE transition cannot race an AI send.

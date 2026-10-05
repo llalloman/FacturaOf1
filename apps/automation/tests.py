@@ -1,4 +1,5 @@
 from unittest.mock import Mock, patch
+from datetime import timedelta
 
 from django.core import mail
 from django.test import TestCase, override_settings
@@ -6,7 +7,7 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.firmas.models import FirmaCuponElectronico, FirmaPrecioElectronica, FirmaPromocionElectronica
-from .models import AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
+from .models import AutomationAuditLog, AutomationPrivacyConsent, AutomationWebhookEvent, CommercialLead, WhatsAppInteraction
 from apps.usuarios.models import Usuario
 from .views import (
     AdminCommercialLeadViewSet,
@@ -16,6 +17,7 @@ from .views import (
     CommercialContextView,
     CommercialCouponValidationView,
     InteractionCreateView,
+    LeadContextView,
     PrivacyConsentCreateView,
     WebhookEventCreateView,
 )
@@ -208,6 +210,8 @@ class AutomationIdempotencyTests(TestCase):
     WHATSAPP_GATEWAY_URL='http://gateway:8081',
     WHATSAPP_GATEWAY_TOKEN='gateway-test-token',
     AUTOMATION_HANDOFF_NOTIFICATION_EMAIL='sales@example.com',
+    AUTOMATION_HUMAN_PENDING_TIMEOUT_MINUTES=10,
+    AUTOMATION_HUMAN_ACTIVE_TIMEOUT_MINUTES=30,
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
 )
 class AutomationConversationHandoffTests(TestCase):
@@ -223,6 +227,127 @@ class AutomationConversationHandoffTests(TestCase):
         self.advisor = Usuario.objects.create_user(
             email='advisor@example.com', password='test', rol='VENDEDOR',
         )
+
+    def context_for_lead(self):
+        return LeadContextView.as_view()(self.factory.get(
+            f'/api/automation/leads/context/{self.lead.normalized_phone}/?channel=whatsapp',
+            HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), phone=self.lead.normalized_phone)
+
+    def test_recent_human_pending_stays_pending_and_ai_remains_blocked(self):
+        self.lead.conversation_mode = CommercialLead.ConversationMode.HUMAN_PENDING
+        self.lead.human_requested_at = timezone.now() - timedelta(minutes=9)
+        self.lead.save(update_fields=['conversation_mode', 'human_requested_at'])
+
+        context = self.context_for_lead()
+        reply = AutomationLeadMessageView.as_view()(self.factory.post(
+            f'/api/automation/leads/{self.lead.pk}/messages/',
+            {'message': 'Respuesta bot', 'idempotency_key': 'pending-recent'}, format='json',
+            HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), lead_id=self.lead.pk)
+
+        self.assertEqual(context.data['lead']['conversation_mode'], CommercialLead.ConversationMode.HUMAN_PENDING)
+        self.assertEqual(reply.status_code, 403)
+
+    @patch('apps.automation.conversation_service.requests.post')
+    def test_expired_pending_resumes_bot_on_context_and_same_inbound_can_continue(self, gateway_post):
+        gateway_response = Mock()
+        gateway_response.json.return_value = {'message_id': 'after-pending-timeout', 'to': self.lead.reply_to_jid}
+        gateway_response.raise_for_status.return_value = None
+        gateway_post.return_value = gateway_response
+        self.lead.conversation_mode = CommercialLead.ConversationMode.HUMAN_PENDING
+        self.lead.conversation_stage = 'handoff'
+        self.lead.handoff_reason = 'customer_requested_human'
+        self.lead.human_requested_at = timezone.now() - timedelta(minutes=11)
+        self.lead.summary = 'Cliente busca firma de dos años'
+        self.lead.save(update_fields=[
+            'conversation_mode', 'conversation_stage', 'handoff_reason', 'human_requested_at', 'summary',
+        ])
+        WhatsAppInteraction.objects.create(
+            lead=self.lead, direction='INBOUND', sender_type='CUSTOMER', origin='whatsapp',
+            message_body='Entonces cómo seguimos?', idempotency_key='pending-expired-inbound',
+        )
+
+        context = self.context_for_lead()
+        self.lead.refresh_from_db()
+        self.assertEqual(context.data['lead']['conversation_mode'], CommercialLead.ConversationMode.BOT)
+        self.assertEqual(self.lead.conversation_stage, 'active')
+        self.assertEqual(self.lead.handoff_reason, '')
+        self.assertIsNotNone(self.lead.bot_resumed_at)
+        self.assertEqual(self.lead.summary, 'Cliente busca firma de dos años')
+        self.assertEqual(self.lead.interactions.count(), 1)
+        self.assertTrue(AutomationAuditLog.objects.filter(
+            entity_id=str(self.lead.pk), action='automation.conversation.bot',
+            actor_type=AutomationAuditLog.ActorType.SYSTEM,
+        ).exists())
+
+        reply = AutomationLeadMessageView.as_view()(self.factory.post(
+            f'/api/automation/leads/{self.lead.pk}/messages/',
+            {'message': 'Seguimos con la firma de dos años.', 'idempotency_key': 'after-pending-timeout'},
+            format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ), lead_id=self.lead.pk)
+        self.assertEqual(reply.status_code, 200)
+
+    def test_recent_human_activity_keeps_human_active(self):
+        self.lead.conversation_mode = CommercialLead.ConversationMode.HUMAN_ACTIVE
+        self.lead.human_active_at = timezone.now() - timedelta(minutes=60)
+        self.lead.human_last_activity_at = timezone.now() - timedelta(minutes=5)
+        self.lead.save(update_fields=['conversation_mode', 'human_active_at', 'human_last_activity_at'])
+
+        context = self.context_for_lead()
+        self.assertEqual(context.data['lead']['conversation_mode'], CommercialLead.ConversationMode.HUMAN_ACTIVE)
+        self.assertIsNone(self.lead.bot_resumed_at)
+
+    def test_expired_human_active_uses_active_at_fallback(self):
+        self.lead.conversation_mode = CommercialLead.ConversationMode.HUMAN_ACTIVE
+        self.lead.human_active_at = timezone.now() - timedelta(minutes=31)
+        self.lead.save(update_fields=['conversation_mode', 'human_active_at'])
+
+        context = self.context_for_lead()
+        self.lead.refresh_from_db()
+        self.assertEqual(context.data['lead']['conversation_mode'], CommercialLead.ConversationMode.BOT)
+        self.assertEqual(self.lead.conversation_stage, 'active')
+        self.assertIsNotNone(self.lead.bot_resumed_at)
+
+    def test_return_to_bot_preserves_message_history_and_summary(self):
+        self.lead.conversation_mode = CommercialLead.ConversationMode.HUMAN_PENDING
+        self.lead.handoff_reason = 'customer_requested_human'
+        self.lead.summary = 'Firma electrónica de dos años'
+        self.lead.save(update_fields=['conversation_mode', 'handoff_reason', 'summary'])
+        WhatsAppInteraction.objects.create(
+            lead=self.lead, direction='INBOUND', sender_type='CUSTOMER', origin='whatsapp',
+            message_body='Quiero seguir con el trámite', idempotency_key='history-before-manual-resume',
+        )
+        count_before = self.lead.interactions.count()
+        view = AdminCommercialLeadViewSet.as_view({'patch': 'conversation'})
+        request = self.factory.patch(
+            f'/api/automation/admin/leads/{self.lead.pk}/conversation/',
+            {'conversation_mode': 'BOT'}, format='json',
+        )
+        force_authenticate(request, user=self.advisor)
+
+        response = view(request, pk=self.lead.pk)
+        self.lead.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.lead.conversation_mode, CommercialLead.ConversationMode.BOT)
+        self.assertEqual(self.lead.handoff_reason, '')
+        self.assertIsNotNone(self.lead.bot_resumed_at)
+        self.assertEqual(self.lead.summary, 'Firma electrónica de dos años')
+        self.assertEqual(self.lead.interactions.count(), count_before)
+
+    def test_low_confidence_without_handoff_reason_keeps_bot_mode(self):
+        response = InteractionCreateView.as_view()(self.factory.post(
+            '/api/automation/interactions/',
+            {
+                'direction': 'INBOUND', 'phone': self.lead.normalized_phone, 'channel': 'whatsapp',
+                'message_body': 'No estoy seguro de lo que necesitas.', 'message_id': 'low-confidence-1',
+                'ai_confidence': '0.400', 'requires_human': False,
+            }, format='json', HTTP_X_AUTOMATION_TOKEN='test-token',
+        ))
+        self.lead.refresh_from_db()
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.lead.conversation_mode, CommercialLead.ConversationMode.BOT)
 
     @patch('apps.automation.conversation_service.requests.post')
     def test_bot_mode_allows_ai_reply_and_records_n8n_origin(self, gateway_post):
@@ -370,6 +495,7 @@ class AutomationConversationHandoffTests(TestCase):
         self.lead.refresh_from_db()
         self.assertEqual(self.lead.assigned_to, self.advisor)
         self.assertEqual(self.lead.conversation_mode, CommercialLead.ConversationMode.HUMAN_ACTIVE)
+        self.assertIsNotNone(self.lead.human_last_activity_at)
 
         message_view = AdminCommercialLeadViewSet.as_view({'post': 'messages'})
         request = self.factory.post(
@@ -387,6 +513,7 @@ class AutomationConversationHandoffTests(TestCase):
         self.assertEqual(interaction.gateway_status, 'sent')
         self.lead.refresh_from_db()
         self.assertEqual(self.lead.conversation_mode, CommercialLead.ConversationMode.HUMAN_ACTIVE)
+        self.assertGreaterEqual(self.lead.human_last_activity_at, interaction.created_at)
 
         request = self.factory.patch(
             f'/api/automation/admin/leads/{self.lead.pk}/conversation/',
@@ -429,4 +556,5 @@ class AutomationConversationHandoffTests(TestCase):
         self.assertEqual(second.status_code, 200)
         self.lead.refresh_from_db()
         self.assertEqual(self.lead.conversation_mode, CommercialLead.ConversationMode.HUMAN_ACTIVE)
+        self.assertIsNotNone(self.lead.human_last_activity_at)
         self.assertEqual(WhatsAppInteraction.objects.count(), 1)
